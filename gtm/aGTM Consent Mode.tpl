@@ -378,6 +378,7 @@ ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 // Import needed libraries
 const log = require('logToConsole');
 const copyFromWindow = require('copyFromWindow');
+const setInWindow = require('setInWindow');
 const dataLayerPush = require('createQueue')('dataLayer');
 const gtagSet = require('gtagSet');
 const makeNumber = require('makeNumber');
@@ -455,6 +456,9 @@ if (!o.c.cm_update) {
 
 // Set the consent state
 if (o.c.cm_update) { updateConsentState(o.d.cm); } else { setDefaultConsentState(o.d.cm); }
+
+// Set aGTM.d.cm
+setInWindow('aGTM.d.cm', o.d.cm, true);
 
 // Call data.gtmOnSuccess when the tag is finished.
 data.gtmOnSuccess();
@@ -567,6 +571,45 @@ ___WEB_PERMISSIONS___
                   {
                     "type": 8,
                     "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.d.cm"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
                   },
                   {
                     "type": 8,

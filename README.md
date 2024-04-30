@@ -1,5 +1,6 @@
 # aGTM - a Galactic Tagging Modulator #
 
+![aGTM - a Galactic Tagging Modulator](assets/aGTM-100px.png)
 
 ## Table of Contents ##
 
