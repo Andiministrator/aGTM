@@ -274,28 +274,29 @@ Default: `true`
 ### gtm ###
 The object with the GTM containers to inject (GTM container ID as key, options as value).
 Type: object
-Example: { 'GTM-XYZ123': { 'debug_mode':true } }
+Simple Example: `{ 'GTM-XYZ123': {} }`
 Default: undefined
-
-### gtmURL ###
-If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here.
-Leave it blank if you don't know what this means.
-If the option is not set (or if it is empty) the standard GTM URL will be used (https://www.googletagmanager.com/gtm.js).
-Type: string
-Example: `'https://tm.my-own-website.org/my-gtm.js'`
-Default: `''`
-
-### gtmJS ###
-Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
-Type: string
-Example: The content of the JS file https://www.googletagmanager.com/gtm.js?id=GTM-XYZ123
-Default: `''`
-
-### env ###
-Environment string (leave it blank you you don't know, what it is)
-Type: string
-Example: `'&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x'`
-Default: `''`
+Possible Options:
+- **gtmURL**
+  If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
+  If this option is not set (or if it is empty) the standard GTM URL will be used (https://www.googletagmanager.com/gtm.js).
+  Type: string
+  Example: `'https://tm.my-own-website.org/my-gtm.js'`
+  Default: `''`
+- **gtmJS**
+  Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
+  Type: string
+  Example: The content of the JS file https://www.googletagmanager.com/gtm.js?id=GTM-XYZ123
+  Default: `''`
+- **env**
+  Environment string (leave it blank you you don't know, what it is)
+  Type: string
+  Example: `'&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x'`
+  Default: `''`
+- *Other, optional (GTM-special) options*
+  Type: string
+  Example: `'debug_mode':true`
+Example with options: `{ 'GTM-XYZ123': { env:'&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x', 'debug_mode':true } }`
 
 ### gtmPurposes ###
 The purpose(s) that must be agreed to in order to activate the GTM (comma-separated)
@@ -383,15 +384,15 @@ Therefore you just need to specify the GTM Container with the configuration opti
 Don't use the configuration options "gtmURL" or "gtmJS".
 
 ### Loading the GTM from an own URL ###
-If you use an own Google Tag Manager server (e.g. using the serverside GTM), you can specify an own URL therefore using the configuration option "gtmURL".
+If you use an own Google Tag Manager server (e.g. using the serverside GTM), you can specify an own URL therefore using the configuration option "gtm"/"gtmURL".
 This will replace the standard GTM URL (https://www.googletagmanager.com/gtm.js).
 In addition you need to set the GTM Container with the configuration option "gtm".
 Don't use the configuration option "gtmJS".
 
 ### Loading the GTM code direct as Javascript (Base64-encoded) ###
 In case you have the output of your Google Tag Manager container stored in a database or somewhere else, you can use this option.
-The Javascript code must be assigned to the "gtmJS" configuration option (as string and  base64-encoded).
-The configuration options "gtm" or "gtmURL" will be ignored in this case.
+The Javascript code must be assigned to the "gtm"/"gtmJS" configuration option (as string and  base64-encoded).
+The configuration option "gtmURL" will be ignored in this case.
 
 
 ## Function execution sequence ##
