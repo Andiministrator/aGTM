@@ -49,7 +49,7 @@ Before you include the code to your website (template), you need to upload the n
 <script type="text/javascript">
 (function(c){
 var w=window,d=document;w.aGTM=w.aGTM||{};aGTM.d=aGTM.d||{};aGTM.d.f=aGTM.d.f||[];aGTM.f=aGTM.f||{};aGTM.f.fire=aGTM.f.fire||function(o){aGTM.d.f.push(o);};
-aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path;if(p.length>0&&p.substring(p.length-1)!='/')p+='/';t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
+aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!='/')p+='/';if(p)t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
 })({
   // aGTM Config Start
    path: '/templates/scripts/'
@@ -93,11 +93,10 @@ To use it as normal, follow these steps:
    <script type="text/javascript" id="aGTMcontainer" nonce="abc123">
    (function(c){
    var w=window,d=document;w.aGTM=w.aGTM||{};aGTM.d=aGTM.d||{};aGTM.d.f=aGTM.d.f||[];aGTM.f=aGTM.f||{};aGTM.f.fire=aGTM.f.fire||function(o){aGTM.d.f.push(o);};
-   aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path;if(p.length>0&&p.substring(p.length-1)!='/')p+='/';t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
+   aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!='/')p+='/';if(p)t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
    })({
    // aGTM Config Start
       path: '/js/' // (relative) path to the directory where aGTM is located, e.g. '/js/''
-     ,file: 'aGTM.js' // Filename of aGTM
      ,min:true // inject the files as minified versions
      ,cmp: 'cookiebot' // Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See chapters below for possible options.
      ,nonce: 'ABC123' // Nonce value for the file injections
@@ -171,7 +170,7 @@ With this integration variant you get out a Javascript code, which conatins all 
    ```javascript
    (function(c){
    var w=window,d=document;w.aGTM=w.aGTM||{};aGTM.d=aGTM.d||{};aGTM.d.f=aGTM.d.f||[];aGTM.f=aGTM.f||{};aGTM.f.fire=aGTM.f.fire||function(o){aGTM.d.f.push(o);};
-   aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path;if(p.length>0&&p.substring(p.length-1)!='/')p+='/';t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
+   aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!='/')p+='/';if(p)t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
    })({
    // aGTM Config Start
       path: '/js/' // (relative) path to the directory where aGTM is located, e.g. '/js/''
@@ -220,13 +219,6 @@ Type: string
 Example: `'/js/'`
 Default: ``
 
-
-### file ###
-Filename of aGTM
-Type: string
-Example: `'aGTM-1.4.1.js'`
-Default: `aGTM.js`
-
 ### cmp ###
 Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'.
 Available options:
@@ -266,12 +258,6 @@ For more information, read the chapter "[Use Event Listeners instead of the defa
 Type: boolean
 Example: `true`
 Default: `false`
-
-### gtmID ###
-your GTM Container ID - leave it empty if you don't want to use the Google Tag Manager
-Type: string
-Example: `'GTM-XYZ123'`
-Default: `''`
 
 ### gdl ###
 Name of GTM dataLayer
@@ -387,19 +373,19 @@ These three options are explained below.
 
 ### Normal use of Google Tag Manager ###
 This is just the normal integration option for using the Google Tag Manager as usual (from Google directly).
-Therefore you just need to specify the GTM Container ID with the configuration option "gtmID".
+Therefore you just need to specify the GTM Container with the configuration option "gtm".
 Don't use the configuration options "gtmURL" or "gtmJS".
 
 ### Loading the GTM from an own URL ###
 If you use an own Google Tag Manager server (e.g. using the serverside GTM), you can specify an own URL therefore using the configuration option "gtmURL".
 This will replace the standard GTM URL (https://www.googletagmanager.com/gtm.js).
-In addition you need to set the GTM Container ID with the configuration option "gtmID".
+In addition you need to set the GTM Container with the configuration option "gtm".
 Don't use the configuration option "gtmJS".
 
 ### Loading the GTM code direct as Javascript (Base64-encoded) ###
 In case you have the output of your Google Tag Manager container stored in a database or somewhere else, you can use this option.
 The Javascript code must be assigned to the "gtmJS" configuration option (as string and  base64-encoded).
-The configuration options "gtmID" or "gtmURL" will be ignored in this case.
+The configuration options "gtm" or "gtmURL" will be ignored in this case.
 
 
 ## Function execution sequence ##
@@ -538,6 +524,9 @@ Feel free to contact me if you found problems or improvements:
 
 
 ## Changelog ##
+
+- Version 1.0.1, *24.05.2024*
+  - Some adjustments in Docu and implementation script
 
 - Version 1.0, *10.04.2024*
   - Initial Version of aGTM

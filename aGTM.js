@@ -3,24 +3,11 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.0
- * @lastupdate 10.04.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.0.1
+ * @lastupdate 24.05.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
- * @usage (with example config):
- * <script type="text/javascript" id="aGTMcontainer" nonce="abc123">
- * (function(c){
- * var w=window,d=document;w.aGTM=w.aGTM||{};w.aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path;if(p.length>0&&p.substring(p.length-1)!='/')p+='/';
- * t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
- * })({
- *    path: '/js/'
- *   ,cmp: 'cookiebot'
- *   ,gtm: {
- *     'GTM-XYZ123': {}
- *    }
- * });
- * </script>
  */
 
 
@@ -37,7 +24,7 @@ window.aGTM = window.aGTM || {};
 // Use the aGTMinit function to initialize various properties and objects
 aGTMinit(aGTM, 'c', {}); // TM Configuration Settings Object
 aGTMinit(aGTM, 'd', {}); // TM Data Object
-aGTMinit(aGTM.d, 'version', '1.0'); // aGTM Version
+aGTMinit(aGTM.d, 'version', '1.0.1'); // aGTM Version
 aGTMinit(aGTM.d, 'f', []); // Array for temporary Fire Events
 aGTMinit(aGTM.d, 'config', false); // Check if TM is configured
 aGTMinit(aGTM.d, 'init', false); // Check if TM Initialization is complete
