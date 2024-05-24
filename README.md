@@ -271,6 +271,12 @@ Type: boolean
 Example: `false`
 Default: `true`
 
+### gtm ###
+The object with the GTM containers to inject (GTM container ID as key, options as value).
+Type: object
+Example: { 'GTM-XYZ123': { 'debug_mode':true } }
+Default: undefined
+
 ### gtmURL ###
 If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here.
 Leave it blank if you don't know what this means.
