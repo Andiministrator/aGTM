@@ -9,6 +9,7 @@
 - [Configuration options](#configuration-options)
 - [Consent Handling](#consent-handling)
 - [Integration options for Google Tag Manager](#integration-options-for-google-tag-manager)
+- [Events and Custom GTM Templates for aGTM](#events-and-custom-gtm-templates-for-agtm)
 - [Function execution sequence](#function-execution-sequence)
 - [Debugging](#debugging)
 - [Frequently Asked Questions (FAQ)](#frequently-asked-questions--faq-)
@@ -370,7 +371,7 @@ All other settings are in each GTM Tag. There you can configure, for what servic
 The Tag is only fired, if alle configured services (in that special tag) have consent. In case the tag is triggered and should be fired, but the consent is not available yet (or denied), the Tag can wait. If the consent comes later, the tag will be fired than (at normally). Because you use the aGTM, you'll not need this GTM feature in most cases - you have the consent always from the GTM start. So it is only interesting, if a user declines the consent and accept it later on the same pageload.
 
 
-## Integration options for Google Tag Managaer ##
+## Integration options for Google Tag Manager ##
 
 There are three options to integrate the Google Tag Manager code:
 - Normal use of Google Tag Manager
@@ -393,6 +394,17 @@ Don't use the configuration option "gtmJS".
 In case you have the output of your Google Tag Manager container stored in a database or somewhere else, you can use this option.
 The Javascript code must be assigned to the "gtm"/"gtmJS" configuration option (as string and  base64-encoded).
 The configuration option "gtmURL" will be ignored in this case.
+
+
+## Events and Custom GTM Templates for aGTM ##
+
+The are several Custom GTM Templates for the use with aGTM.
+You'll find them within the directory "gtm".
+A detailed description for each template will follow ...
+
+And there is also an Overview about the GTM dataLayer Events of aGTM and for the GTM Custom Templates.
+You'll find the Event/Attributes Overview within the "assets" directory as [Excel file](assets/aGTM-Events.xlsx) or here:
+https://docs.google.com/spreadsheets/d/1-kVwFAeEqyzorU7ri17Xg8Drvd2a03n-5EWB34KhfPU
 
 
 ## Function execution sequence ##
