@@ -4,7 +4,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.0.1
- * @lastupdate 24.05.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 28.05.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -130,7 +130,7 @@ aGTM.f.config = function(cfg) {
   aGTM.c.vPageview = typeof cfg.vPageview=='boolean' ? cfg.vPageview : true; // Fire vPageview Event
 
   // Consent configuration
-  aGTM.c.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
+  cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
   // Initialize the nested consent properties with default values or from cfg
   aGTM.f.an(aGTM.c.consent, 'hasResponse', cfg.consent, false); // true (or string) if consent was given, false if consent was not (yet) given (user hasn't interacted with the consent banner)
   aGTM.f.an(aGTM.c.consent, 'feedback', cfg.consent, ''); // contains a string with a CMP info about whether/how the consent was given

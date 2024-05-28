@@ -106,7 +106,6 @@ To use it as normal, follow these steps:
      ,gtmServices: 'Google Tag Manager' // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
      ,gtmVendors: 'Google Inc' // The vendor(s) that must be agreed to in order to activate the GTM (comma-separated)
      ,gdl: 'dataLayer' // Name of GTM dataLayer
-     ,env: '' // Environment string (leave it blank you you don't know, what it is)
      ,dlStateEvents: true // Fire GTM dataLayer Events for DOMloaded and PAGEready
      ,useListener: false // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
      ,consent_events: 'cmpEvent,cmpUpdate' // string with consent events (comma-separated) for updating the consent (leave it blank you you don't know, what it is)
@@ -174,19 +173,8 @@ With this integration variant you get out a Javascript code, which conatins all 
    aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!='/')p+='/';if(p)t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
    })({
    // aGTM Config Start
-      path: '/js/' // (relative) path to the directory where aGTM is located, e.g. '/js/''
-     ,file: 'aGTM.js' // Filename of aGTM
-     ,min:true // inject the files as minified versions
-     ,cmp: 'cookiebot' // Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See chapters below for possible options.
-     ,nonce: 'ABC123' // Nonce value for the file injections
      ,gtm: { 'GTM-XYZ123': { 'debug_mode':true } } // your GTM Container - with ID, ...
-     ,gtmPurposes: 'Functional' // The purpose(s) that must be agreed to in order to activate the GTM (comma-separated)
      ,gtmServices: 'Google Tag Manager' // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
-     ,gtmVendors: 'Google Inc' // The vendor(s) that must be agreed to in order to activate the GTM (comma-separated)
-     ,gdl: 'dataLayer' // Name of GTM dataLayer
-     ,env: '' // Environment string (leave it blank you you don't know, what it is)
-     ,dlStateEvents: true // Fire GTM dataLayer Events for DOMloaded and PAGEready
-     ,useListener: false // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
      ,consent_events: 'cmpEvent,cmpUpdate' // string with consent events (comma-separated) for updating the consent (leave it blank you you don't know, what it is)
    // aGTM Config End
    });
@@ -544,7 +532,8 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog ##
 
-- Version 1.0.1, *24.05.2024*
+- Version 1.0.1, *28.05.2024*
+  - Bugfix in config function (if cfg.consent hasn't exist)
   - Some adjustments in Docu and implementation script
 
 - Version 1.0, *10.04.2024*
