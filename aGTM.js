@@ -131,6 +131,7 @@ aGTM.f.config = function(cfg) {
 
   // Consent configuration
   cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
+  aGTM.c.consent = aGTM.c.consent || cfg.consent; // object with consent information that should be set by default (if no consent is given or not yet).
   // Initialize the nested consent properties with default values or from cfg
   aGTM.f.an(aGTM.c.consent, 'hasResponse', cfg.consent, false); // true (or string) if consent was given, false if consent was not (yet) given (user hasn't interacted with the consent banner)
   aGTM.f.an(aGTM.c.consent, 'feedback', cfg.consent, ''); // contains a string with a CMP info about whether/how the consent was given
