@@ -133,45 +133,21 @@ With this integration variant you get out a Javascript code, which conatins all 
 
 2. **Insert the consent_check function code to the aGTM.js**
    Now open the aGTM.js file with your Text- or Code-Editor.
-   Search in the file for a function called "aGTM.f.consent_check". This function is commented out and should look like this:
-   ```javascript
-   /*aGTM.f.consent_check = aGTM.f.consent_check || function (action) {
-     if (!aGTM.d.config) { aGTM.f.log('e2', null); return false; }
-     if (typeof action!='string' || (action!='init'&&action!='update')) { aGTM.f.log('e3', {action:action}); return false; }
-     // Check whether response was already given
-     aGTM.d.consent = aGTM.d.consent || {};
-     if (action=='init' && aGTM.d.consent.hasResponse) return true;
-     // Get Consent
-     var purposes = typeof aGTM.c.purposes=='string' ? ','+aGTM.c.purposes+',' : '';
-     var services = typeof aGTM.c.services=='string' ? ','+aGTM.c.services+',' : '';
-     var vendors = typeof aGTM.c.vendors=='string' ? ','+aGTM.c.vendors+',' : '';
-     // Set Response and Feedback and Return
-     aGTM.d.consent.purposes = purposes;
-     aGTM.d.consent.services = services;
-     aGTM.d.consent.vendors = vendors;
-     aGTM.d.consent.feedback = 'no valid check fct given, cfg used';
-     aGTM.d.consent.hasResponse = true;
-     aGTM.f.log('m2', JSON.parse(JSON.stringify(aGTM.d.consent)));
-     return true;
-   };*/
-   ```
-   Delete this code (including the comment characters) and replace it with the code of your clipboard.
+   Go to the end of the file - you'll find a placeholder (as an javascript comment) before the aGTM.f.init() call.
+   Remove the placeholder and insert your consent function there.
    For the consent tool Cookiebot (as minified version) it should look like this:
    ```javascript
    aGTM.f.consent_check=function(t){if("string"!=typeof t||"init"!=t&&"update"!=t)return"function"==typeof aGTM.f.log&&aGTM.f.log("e10",{action:t}),!1;if(aGTM.d.consent=aGTM.d.consent||{},"init"==t&&aGTM.d.consent.hasResponse)return!0;if("object"!=typeof Cookiebot)return!1;var n=Cookiebot;if("boolean"!=typeof n.hasResponse||"object"!=typeof n.consent)return!1;if(!n.hasResponse)return!1;var e=aGTM.c.purposes?aGTM.c.purposes.split(","):[],o=0,r=0;for(k in n.consent)"stamp"!=k&&"method"!=k&&"boolean"==typeof n.consent[k]&&(r++,n.consent[k]&&(o++,e.push(k)));aGTM.d.consent.purposes=e.length>0?","+e.join(",")+",":"";var s="Consent available";return 0==r?s="No purposes available":o<=r?s="Consent (partially or full) declined":o>r&&(s="Consent accepted"),aGTM.d.consent.feedback=s,"string"==typeof n.consentID&&(aGTM.d.consent.consent_id=n.consentID),aGTM.d.consent.hasResponse=!0,"function"==typeof aGTM.f.log&&aGTM.f.log("m2",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};
    ```
 
 3. **Add the configuration and injection**
-   Now we need to add the configuration and injection code at the end of the file "aGTM.js".
-   Navigate to the end of the aGTM.js file and insert the following code.
+   Now we need to add the configuration after the inserted consent_check function (but before the aGTM.f.init() call.
+   Use the following code as example and change the settings to your needs.
    To understand, what settings you can use and what the meaning of each setting is, read the chapter "Configuration options".
    Here we give you an integration example with the most of available configuration options. In a normal setup you need just a few of them.
    Example integration code:
    ```javascript
-   (function(c){
-   var w=window,d=document;w.aGTM=w.aGTM||{};aGTM.d=aGTM.d||{};aGTM.d.f=aGTM.d.f||[];aGTM.f=aGTM.f||{};aGTM.f.fire=aGTM.f.fire||function(o){aGTM.d.f.push(o);};
-   aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!='/')p+='/';if(p)t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
-   })({
+   aGTM.f.config({
    // aGTM Config Start
      ,gtm: { 'GTM-XYZ123': { 'debug_mode':true } } // your GTM Container - with ID, ...
      ,gtmServices: 'Google Tag Manager' // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
@@ -183,7 +159,7 @@ With this integration variant you get out a Javascript code, which conatins all 
 4. **Use the aGTM.js code**
    Now the code is complete and you can do whatever you want with the code.
    Save the file or put the code in a Javascript field of your CMS or use it in a GTM container or include it direct to your website.
-   We recommend to minify the code (e.g. with https://minify-js.com/). Keep care that you don't minify the function names (option "keep_fnames" for minify-js.com).
+   We recommend to minify the code (e.g. with https://www.digitalocean.com/community/tools/minify). Keep care that you don't minify the function names (option "keep_fnames" for minify-js.com).
 
 5. _optional_ **Send events**
    You can now send events using the following command:

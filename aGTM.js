@@ -1073,6 +1073,27 @@ aGTM.f.fire = function (o) {
 };
 
 
+/**
+ * Use this place for One-File-Usage.
+ * Insert the consent_check function here and after that the config function call with your configuration.
+ * 
+ * Here an example with Cookiebot and a minimal configuration:
+
+// CMP Function
+aGTM.f.consent_check=function(t){if("string"!=typeof t||"init"!=t&&"update"!=t)return"function"==typeof aGTM.f.log&&aGTM.f.log("e10",{action:t}),!1;if(aGTM.d.consent=aGTM.d.consent||{},"init"==t&&aGTM.d.consent.hasResponse)return!0;if("object"!=typeof Cookiebot)return!1;var n=Cookiebot;if("boolean"!=typeof n.hasResponse||"object"!=typeof n.consent)return!1;if(!n.hasResponse)return!1;var e=aGTM.c.purposes?aGTM.c.purposes.split(","):[],o=0,r=0;for(k in n.consent)"stamp"!=k&&"method"!=k&&"boolean"==typeof n.consent[k]&&(r++,n.consent[k]&&(o++,e.push(k)));aGTM.d.consent.purposes=e.length>0?","+e.join(",")+",":"";var s="Consent available";return 0==r?s="No purposes available":o<=r?s="Consent (partially or full) declined":o>r&&(s="Consent accepted"),aGTM.d.consent.feedback=s,"string"==typeof n.consentID&&(aGTM.d.consent.consent_id=n.consentID),aGTM.d.consent.hasResponse=!0,"function"==typeof aGTM.f.log&&aGTM.f.log("m2",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};
+
+// Configuration
+aGTM.f.config({
+  // aGTM Config Start
+   gtm: { 'GTM-XYZ123': { 'debug_mode':true } } // your GTM Container - with ID, ...
+  ,gtmPurposes: 'statistics' // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
+  // aGTM Config End
+});
+ 
+ * 
+ */
+
+
 // Initialization
 aGTM.f.init();
 
