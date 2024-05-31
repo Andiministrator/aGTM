@@ -214,8 +214,8 @@ o.f.click = o.f.click || function(el) {
       var dlres = callInWindow('aGTM.f.rMatch', el.href, '\\/(([^\\/]+)(\\.(pdf|xlsx?|docx?|txt|rtf|csv|exe|key|pps|ppt|pptx|7z|pkg|rar|gz|zip|avi|mov|mp4|mpe?g|wmv|midi|mp3|wav|wma|jpe?g|png|gif|tiff|webp|svg|ai|ctx)))([\\?|#].*)?$');
       if (dlres) {
         ev.type = 'download';
-        ev.filename = dlres[1] || '';
-        ev.filetype = dlres[4] || '';
+        ev.file_name = dlres[1] || '';
+        ev.file_extension = dlres[4] || '';
       }
     }
   }

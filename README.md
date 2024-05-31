@@ -510,6 +510,7 @@ Feel free to contact me if you found problems or improvements:
 
 - Version 1.1, *31.05.2024*
   - Improved functions for Custom GTM Template use
+  - New Custom GTM Template for providing Device and Page Infos and Bot Detection
 
 - Version 1.0.1, *28.05.2024*
   - Bugfix in config function (if cfg.consent hasn't exist)
