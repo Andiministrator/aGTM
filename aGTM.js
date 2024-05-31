@@ -3,8 +3,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.0.1
- * @lastupdate 28.05.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 31.05.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -24,7 +24,7 @@ window.aGTM = window.aGTM || {};
 // Use the aGTMinit function to initialize various properties and objects
 aGTMinit(aGTM, 'c', {}); // TM Configuration Settings Object
 aGTMinit(aGTM, 'd', {}); // TM Data Object
-aGTMinit(aGTM.d, 'version', '1.0.1'); // aGTM Version
+aGTMinit(aGTM.d, 'version', '1.1'); // aGTM Version
 aGTMinit(aGTM.d, 'f', []); // Array for temporary Fire Events
 aGTMinit(aGTM.d, 'config', false); // Check if TM is configured
 aGTMinit(aGTM.d, 'init', false); // Check if TM Initialization is complete
@@ -649,22 +649,135 @@ aGTM.f.evLstn = function(el, ev, fct) {
 };
 
 /**
+ * Adds an event listener to a specified DOM element.
+ * @property {function} aGTM.f.rmLstn
+ * @param {object|string} el - The DOM object to which you want to add the event listener, or a string 'window'/'document'.
+ * @param {string} ev - The name of the event, e.g., 'mousedown'.
+ * @param {function} fct - The function to execute when the event is triggered.
+ * Usage: aGTM.f.rmLstn(document.querySelector('div.button'), 'mousedown', click_fct);
+ */
+aGTM.f.rmLstn = function(el, ev, fct) {
+  // If 'el' is 'window' or 'document' string, convert it to the actual object
+  if (el==='window') el = window;
+  if (el==='document') el = document;
+  // Try to remove the event listener
+  try {
+    el.removeEventListener(ev, fct);
+  } catch (e) {
+    // Log if there is an error removing the event listener
+    //aGTM.f.log('e12', {error: e, el: el, ev: ev, fct: fct});
+  }
+};
+
+/**
  * Retrieves a specific attribute value from window, document, or body.
  * @property {function} aGTM.f.getVal
- * @param {string} o - A single character representing the DOM object ('w' for window, 'd' for document, 'b' for body, 's' for scroll top).
+ * @param {string} o - A single character representing the DOM object ('w' for window, 'n' for navigator, 'd' for document, 'h' for head, 'b' for body, 's' for scroll top, 'm' for window.screen (monitor)).
  * @param {string} v - The name of the attribute to retrieve.
  * @returns {string|number|boolean|object|undefined} - The value of the requested attribute, or undefined if not found or invalid.
  * Usage: aGTM.f.getVal('w', 'location');
  */
 aGTM.f.getVal = function (o, v) {
   if (!aGTM.f.vSt([o,v]) || !v.match(/[a-z]+/i)) return undefined;
+  if (o=='p' && (typeof performance!='object' || !performance)) return undefined;
   switch (o) {
-    case 'w': return window[v];
+    case 'w': return aGTM.f.vOb(window[v]) ? JSON.parse(JSON.stringify(window[v])) : window[v];
+    case 'n': return aGTM.f.vOb(navigator[v]) ? JSON.parse(JSON.stringify(navigator[v])) : navigator[v];
     case 'd': return document[v];
+    case 'h': return document.head[v];
     case 'b': return document.body[v];
     case 's': return document.getElementsByTagName("html")[0].scrollTop || 0;
+    case 'm': return window.screen[v];
+    case 'c': if (window.google_tag_data && window.google_tag_data.ics) { return JSON.parse(JSON.stringify(window.google_tag_data.ics)); } else { return null; }
+    case 'p': return v=='now' ? performance.now() : performance[v];
     default : return undefined;
   }
+};
+
+/**
+ * Retrieves a specific attribute value from a DOM element.
+ * @property {function} aGTM.f.getNodeAttr
+ * @param {string} s - The selector (for use with querySelector).
+ * @param {string} a - The name of the attribute to retrieve.
+ * @returns {string|null} - The value of the requested attribute, or null if not found.
+ * Usage Example (getting a Canonical Tag URL): aGTM.f.getNodeAttr('link[rel="canonical"]', 'href');
+ */
+aGTM.f.getNodeAttr = function (s, a) {
+  var r = document.querySelector(s);
+  return r ? r.getAttribute(a) : null;
+};
+
+/**
+ * Creates a DOM node (HTML element) in the document DOM.
+ * @property {function} aGTM.f.newNode
+ * @param {string} t - The Node type, e.g. "div".
+ * @param {string} p - The parent Node to attach the new element, e.g. "head".
+ * @param {object} o - An object with the Node attributes, e.g.: { id:'my_node_42', class:'my_class' }
+ * Usage Example (creating a Canonical Tag URL): aGTM.f.newNode('link','head',{ rel:'canonical', href:'https://www.MySite.com/CurrentPage' });
+ */
+aGTM.f.newNode = function (t, p, o) {
+  if (!aGTM.f.vSt([t,p]) || typeof o!='object') return;
+  var n = document.createElement(t);
+  var parent = document.querySelector(p);
+  if (!parent) return;
+  for (var k in o) {
+    if (o.hasOwnProperty(k)) {
+      var parts = k.split('.');
+      if (parts.length === 1) {
+        n.setAttribute(k, o[k]);
+      } else {
+        if (!n[parts[0]]) n[parts[0]] = {};
+        n[parts[0]][parts[1]] = o[k];
+      }
+    }
+  }
+  parent.appendChild(n);
+};
+
+/**
+ * Deletes a DOM node (HTML element) from the document DOM.
+ * @property {function} aGTM.f.delNode
+ * @param {string} s - The selector (for use with querySelector).
+ * Usage Example (deletes a Canonical Tag): aGTM.f.delNode('link[rel="canonical"]');
+ */
+aGTM.f.delNode = function (s) {
+  if (!aGTM.f.vSt(s)) return;
+  var n = document.querySelector(s);
+  if (!n) return;
+  n.parentNode.removeChild(n);
+};
+
+/**
+ * Counts the words and/or images on a webpage.
+ * @property {function} aGTM.f.pageinfo
+ * @param {Object} options - The options to specify what to count.
+ * @param {boolean} [options.countWords=true] - Whether to count words.
+ * @param {boolean} [options.countImages=true] - Whether to count images.
+ * @returns {Object} - An object containing the counts of words and/or images.
+ */
+aGTM.f.pageinfo = function countContent(options) {
+  options = options || {};
+  var wordCount = 0, imageCount = 0;
+  if (options.countWords) {
+    (function getText(node) {
+      if (node.nodeType === 3) {
+        wordCount += node.textContent.trim().split(/\s+/).length;
+      } else if (node.nodeType === 1 && !/^(script|style|noscript)$/i.test(node.tagName)) {
+        for (var i = 0; i < node.childNodes.length; i++) {
+          getText(node.childNodes[i]);
+        }
+      }
+    })(document.body);
+  }
+  if (options.countImages) {
+    var images = document.getElementsByTagName('img');
+    for (var i = 0; i < images.length; i++) {
+      if (images[i].naturalWidth > 250 && images[i].naturalHeight > 250) {
+        imageCount++;
+      }
+    }
+  }
+  return { words: wordCount, images: imageCount };
 };
 
 /**

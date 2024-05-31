@@ -508,6 +508,9 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog ##
 
+- Version 1.1, *31.05.2024*
+  - Improved functions for Custom GTM Template use
+
 - Version 1.0.1, *28.05.2024*
   - Bugfix in config function (if cfg.consent hasn't exist)
   - Some adjustments in Docu and implementation script
