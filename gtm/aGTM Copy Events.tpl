@@ -118,8 +118,6 @@ const log = require('logToConsole');
 const JSON = require('JSON');
 const callInWindow = require('callInWindow');
 const copyFromWindow = require('copyFromWindow');
-const queryPermission = require('queryPermission');
-const Math = require('Math');
 
 /**
  * Build ND aGTM shadow object
@@ -136,262 +134,92 @@ const Math = require('Math');
  */
 var o = o || { c: {debug:false}, d:{ d:data, e:{}, q:[] }, f:{} };
 
-// Get tag configuration
-o.c.eventname = data.eventname;
-o.c.countWords = typeof data.countWords=='boolean' ? data.countWords : false;
-o.c.countImages = typeof data.countImages=='boolean' ? data.countImages : false;
-o.c.useAdBlockerTest = typeof data.useAdBlockerTest=='boolean' ? data.useAdBlockerTest : false;
-o.c.adblockCookieName = data.adblockCookieName;
-o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
-//log('info','data',data);
-
-// Define Bots
-var bots = [
-  'googlebot',
-  'google search console',
-  'chrome-lighthouse',
-  'duckduckbot',
-  'jobboersebot',
-  'woobot',
-  'pingdompagespeed',
-  'pagepeeker',
-  'refindbot',
-  'hubspot',
-  'investment crawler',
-  'bingpreview',
-  'baiduspider',
-  'sogou',
-  'sistrix',
-  'facebookexternalhit',
-  'site-shot',
-  'wkhtmltoimage',
-  'semrushbot',
-  'ahrefsbot',
-  'mj12bot',
-  'dotbot',
-  'seznambot',
-  'rogerbot',
-  'magpie-crawler',
-  'screaming frog seo spider',
-  'exabot',
-  'yahoo! slurp',
-  'yandexbot',
-  'uptime robot',
-  'curl',
-  'wget',
-  'python-requests',
-  'libwww-perl',
-  'httpclient',
-  'java',
-  'go-http-client',
-  'okhttp'
-];
-
-// Get browser userAgent data
-var userAgent = callInWindow('aGTM.f.getVal','n','userAgent') || '';
-if (userAgent) userAgent = userAgent.toLowerCase();
-var userAgentData = callInWindow('aGTM.f.getVal','n','userAgentData') || null;
-
-// Initiate variables
-if (typeof o.d.viewport_width!='number') o.d.viewport_width = 0;
-if (typeof o.d.viewport_height!='number') o.d.viewport_height = 0;
-if (typeof o.d.viewport_relation!='number') o.d.viewport_relation = 1;
-if (typeof o.d.document_width!='number') o.d.document_width = 0;
-if (typeof o.d.document_height!='number') o.d.document_height = 0;
-if (typeof o.d.os!='string') o.d.os = 'Other';
-if (typeof o.d.device_type!='string') o.d.device_type = 'Desktop';
-if (typeof o.d.browser_type!='string') o.d.browser_type = 'Other';
-if (typeof o.d.browser_version=='undefined') o.d.browser_version = 'Unknown';
-var e = { event: o.c.eventname };
-
 /**
- * Define function to get the sizes of the document and the viewport
- * Usage: o.f.getDims();
+ * Sets a configuration property to a specified value if the value matches the expected type.
+ * Otherwise, it sets the property to a default value.
+ * @param {Object} target - The object to which the property is added.
+ * @param {Object} source - The object from which the value is sourced.
+ * @param {string} key - The key in the source object to retrieve the value from.
+ * @param {string} type - The expected JavaScript type of the source value.
+ * @param {*} defaultValue - The default value to set if the source value does not match the expected type.
  */
-o.f.getDims = function() {
-  // Get Document and Viewport Size
-  o.d.viewport_width=callInWindow('aGTM.f.getVal','w','innerWidth');
-  o.d.viewport_height=callInWindow('aGTM.f.getVal','w','innerHeight');
-  var offsetWidth=callInWindow('aGTM.f.getVal','b','offsetWidth');
-  var offsetHeight=callInWindow('aGTM.f.getVal','b','offsetHeight');
-  var clientWidth=callInWindow('aGTM.f.getVal','b','clientWidth');
-  var clientHeight=callInWindow('aGTM.f.getVal','b','clientHeight');
-  var scrollWidth=callInWindow('aGTM.f.getVal','b','scrollWidth');
-  var scrollHeight=callInWindow('aGTM.f.getVal','b','scrollHeight');
-  if(typeof offsetHeight=='number') {
-    o.d.document_width = offsetWidth;
-    o.d.document_height = offsetHeight;
-  }
-  if(typeof clientHeight=='number' && clientHeight>o.d.document_height) {
-    o.d.document_width = clientWidth;
-    o.d.document_height = clientHeight;
-  }
-  if(typeof scrollHeight=='number' && scrollHeight>o.d.document_height) {
-    o.d.document_width = scrollWidth;
-    o.d.document_height = scrollHeight;
-  }
-  if(o.d.viewport_height>0){
-    o.d.viewport_relation = Math.round( o.d.document_height / o.d.viewport_height );
-  }
-};
-
-/**
- * Define function to check whether the User is a Bot (using the userAgent)
- * Usage: o.f.checkForBots();
- */
-o.f.checkForBots = function() {
-  // Check User-Agent for known bot patterns
-  for (var i = 0; i < bots.length; i++) {
-    if (callInWindow('aGTM.f.rTest', userAgent, bots[i])) {
-    //if (new RegExp(bots[i], 'i').test(userAgent)) {
-      return bots[i];
-    }
-  }
-  // General check for common bot terms in User-Agent
-  if (callInWindow('aGTM.f.rTest', userAgent, 'crawler|spider|bot')) {
-  //if (/crawler|spider|bot/i.test(userAgent)) {
-    return 'generic-bot';
-  }
-  // Check User-Agent Client Hints for known bot patterns
-  if (userAgentData) {
-    var brands = userAgentData.brands;
-    for (var l = 0; l < brands.length; l++) {
-      for (var j = 0; j < bots.length; j++) {
-        if (callInWindow('aGTM.f.rTest', brands[l].brand.toLowerCase(), bots[j])) {
-        //if (new RegExp(bots[j], 'i').test(brands[l].brand)) {
-          return bots[j];
-        }
-      }
-    }
-    // General check for common bot terms in User-Agent Client Hints
-    if (userAgentData.mobile === false && userAgentData.platform === 'bot') {
-      return 'generic-bot';
-    }
-  }
-  return null;
-};
-
-/**
- * Define function to get browser info
- * Usage: o.f.checkDeviceInfo();
- */
-o.f.checkDeviceInfo = function() {
-  // Check if it's a bot
-  var botName = o.f.checkForBots();
-  if (botName) {
-    o.d.device_type = 'Bot';
-    o.d.browser_type = botName;
-    o.d.os = 'Bot OS';
-    return;
-  }
-  // Determine device type
-  if (callInWindow('aGTM.f.rTest', userAgent, 'mobi|android|touch|tablet')) o.d.device_type = 'Mobile';
-  //if (/mobi|android|touch|tablet/i.test(userAgent)) o.d.device_type = 'Mobile';
-  // Determine operating system
-  if (callInWindow('aGTM.f.rTest', userAgent, 'windows nt')) {
-    o.d.os = 'Windows';
-  } else if (callInWindow('aGTM.f.rTest', userAgent, 'mac os x')) {
-    o.d.os = 'MacOS';
-  } else if (callInWindow('aGTM.f.rTest', userAgent, 'android')) {
-    o.d.os = 'Android';
-  } else if (callInWindow('aGTM.f.rTest', userAgent, 'linux')) {
-    o.d.os = 'Linux';
-  } else if (callInWindow('aGTM.f.rTest', userAgent, 'iphone|ipad|ipod')) {
-    o.d.os = 'iOS';
-  }
-  // Determine browser type and version
-  var browserMatch = callInWindow('aGTM.f.rMatch', userAgent, '(chrome|crios|crmo|firefox|fxios|safari|msie|trident|edg)\\/?\\s*(\\d+)') || [];
-  //var browserMatch = userAgent.match(/(chrome|crios|crmo|firefox|fxios|safari|msie|trident|edg)\/?\s*(\d+)/i) || [];
-  if (browserMatch.length > 2) {
-    var browserName = browserMatch[1];
-    var browserVersion = browserMatch[2];
-    if (callInWindow('aGTM.f.rTest', browserName, 'trident')) {
-      browserName = 'Internet Explorer';
-      var versionMatch = callInWindow('aGTM.f.rMatch', userAgent, '\\brv[ :]+(\\d+)') || [];
-      if (versionMatch.length > 1) {
-        browserVersion = versionMatch[1];
-      }
-    }
-    o.d.browser_type = browserName;
-    o.d.browser_version = browserVersion;
-  }
-};
-
-/**
- * Define function to get AdBlocker Test pixel
- * Usage: o.f.getABpixel();
- */
-o.f.getABpixel = function() {
-  e.adBlock = true;
-  var pixel = callInWindow('aGTM.f.getNodeAttr','div#adBlockerTest','id');
-  if (pixel) {
-    callInWindow('aGTM.f.delNode','div#adBlockerTest');
-    e.adBlock = false;
-  }
-  o.f.fire();
-};
-
-// Get Browser Info and Dimensions and add Listener
-o.f.checkDeviceInfo();
-o.f.getDims();
-callInWindow('aGTM.f.evLstn','window','resize',o.f.getDims);
-
-// Get Words and Images
-if (o.c.countWords || o.c.countImages) {
-  o.d.pagecontent = callInWindow('aGTM.f.pageinfo',{countWords:o.c.countWords,countImages:o.c.countImages}) || {};
-} else {
-  o.d.pagecontent = {};
+function setConf(target, source, key, type, defaultValue) {
+  target[key] = typeof source[key] === type ? source[key] : defaultValue;
 }
+
+// Get tag configuration
+setConf(o.c, data, 'eventname', 'string', '');
+setConf(o.c, data, 'usecontact', 'boolean', false);
+setConf(o.c, data, 'contactprefix', 'string', '');
+setConf(o.c, data, 'textfilter', 'object', []);
+setConf(o.c, data, 'addparameter', 'object', []);
 
 // Prepare event
 o.c.addparameter.forEach(function(row) {
-  e[row.pkey] = row.pvalue;
+  o.d.e[row.pkey] = row.pvalue;
 });
 
-// Add data
-e.browser = o.d.browser_type;
-e.browser_version = o.d.browser_version;
-e.os = o.d.os;
-e.device = o.d.device_type;
-e.page_title = callInWindow('aGTM.f.getVal','d','title') || '';
-e.canonical = callInWindow('aGTM.f.getNodeAttr','link[rel="canonical"]','href') || '';
-e.robots = callInWindow('aGTM.f.getNodeAttr','meta[name="robots"]','content') || '';
-e.words = o.d.pagecontent.words || 0;
-e.images = o.d.pagecontent.images || 0;
-e.page_width = o.d.document_width;
-e.page_height = o.d.document_height;
-e.viewport_width = o.d.viewport_width;
-e.viewport_height = o.d.viewport_height;
-e.viewport_relation = o.d.viewport_relation;
-
-// Push event function
-o.f.fire = function() {
-  callInWindow('aGTM.f.fire', e);
-  o.d.q.push(e);
+/**
+ * Gets back a (predefined) value from window, document, or body
+ * @param {string} t - The text to be analyzed.
+ * @returns {Object} - An object with 'type' (the detected type: 'email', 'phone', or 'string') 
+ *                     and 'text' (the processed or trimmed text).
+ *                     'len' is the length of the original text.
+ * Usage: var textType = aGTM.f.getType('some text');
+ */
+o.f.getType = function (t) {
+  if (typeof t !== 'string') return { type: typeof t, text: t, len: t.length };
+  var trimmedText = t.trim();
+  var l = trimmedText.length;
+  // E-Mail-Überprüfung
+  if (callInWindow('aGTM.f.rTest', trimmedText, '^\\W{0,5}([A-Z0-9._%+-]+(\\s*@\\s*|\\(\\s*[A-Z]{0,3}\\s*[DT]\\s*\\)\\s*|\\[\\s*[A-Z]{0,3}\\s*[DT]\\s*\\]\\s*|\\{\\s*[A-Z]{0,3}\\s*[DT]\\s*\\}\\s*)[A-Z0-9.-]+\\.[A-Z]{2,4})\\W{0,5}$'))
+    return { type: 'email', text: trimmedText, len: l };
+  // Telefonnummer-Überprüfung
+  if (callInWindow('aGTM.f.rTest', trimmedText, '^\\D{0,5}(\\+?\\d[\\d\\s\\-/().]{5,20}\\d)\\D{0,5}$'))
+    return { type: 'phone', text: trimmedText, len: l };
+  // Rückgabe als normaler String
+  return { type: 'string', text: l>512 ? trimmedText.substring(0, 509)+'...' : trimmedText, len: l };
 };
 
-// Inject Ad Blocker Test Pixel
-if (!o.c.useAdBlockerTest) {
-  o.f.fire();
-} else {
-  var abtest_done = false;
-  // Check the cookie, whether AdBlocker Test was already running
-  if (o.c.adblockCookieName) {
-    var cv = callInWindow('aGTM.f.gc',o.c.adblockCookieName);
-    if (typeof cv=='string' && cv=='1') { abtest_done = true; }
-    else { callInWindow('aGTM.f.sc',o.c.adblockCookieName,'1'); }
-  }
-  // if AdBlockTest was not yet running
-  if (!abtest_done) {
-    // Insert test pixel
-    callInWindow('aGTM.f.newNode','div','body',{ textContent:' ', id:'adBlockerTest', className:'adsbygoogle', 'style.width':'1px', 'style.height':'1px', 'style.display':'none' });
-    callInWindow('aGTM.f.timer', 'adbltest', o.f.getABpixel, {}, 1000, 1);
-  } else {
-    // AdBlock Test was already running, fire event direct
-    o.f.fire();
-  }
-}
+/**
+ * Filters a text string by replacing specified patterns.
+ * @param {string} t - The text to be filtered.
+ * @returns {string} - The filtered text after all replacements have been made.
+ */
+o.f.textFilter = function (t) {
+  if (typeof t!=='string') return t;
+  o.c.textfilter.forEach(function(row) {
+    t = row.isregex ? callInWindow('aGTM.f.rReplace', t, row.pattern, row.replacetext) : t.replace(row.pattern, row.replacetext);
+  });
+  return callInWindow('aGTM.f.rReplace', t, '[\n]', '. ');
+};
 
+/**
+ * Processes a copied object to send event data.
+ * It clones the base event object, assigns relevant data based on the copied content, and triggers a custom event.
+ * @param {string} co - The copied text content.
+ * Usage: o.f.copied(co);
+ */
+o.f.copied = function(co) {
+  if (typeof co!=='string') return;
+  var obj = o.f.getType(co);
+  var ev = JSON.parse(JSON.stringify(o.d.e));
+  ev.event = o.c.eventname || 'text_copy';
+  ev.action = 'copy';
+  if (o.c.usecontact) {
+    if (obj.type=='email') ev.event = o.c.contactprefix + 'email';
+    if (obj.type=='phone') ev.event = o.c.contactprefix + 'phone';
+  }
+  ev.text = o.f.textFilter(obj.text) || null;
+  ev.text_length = obj.len || null;
+  ev.type = obj.type || null;
+  callInWindow('aGTM.f.fire', ev);
+  o.d.q.push(ev);
+};
+
+// Form Submit Listener
+callInWindow('aGTM.f.addElLst','body','copy',function(e){o.f.copied(e);});
+callInWindow('aGTM.f.observer','body','copy',function(e){o.f.copied(e);});
 
 // Call data.gtmOnSuccess when the tag is finished.
 data.gtmOnSuccess();

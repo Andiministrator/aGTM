@@ -231,10 +231,16 @@ Example: `'dataLayer'`
 Default: `'dataLayer'`
 
 ### dlStateEvents ###
-Fire GTM dataLayer Events for DOMloaded and PAGEready
+Fires GTM dataLayer Events for `DOMloaded` and `PAGEready`
 Type: boolean
-Example: `false`
-Default: `true`
+Example: `true`
+Default: `false`
+
+### vPageview ###
+Fires a GTM dataLayer Event `vPageview`
+Type: boolean
+Example: `true`
+Default: `false`
 
 ### gtm ###
 The object with the GTM containers to inject (GTM container ID as key, options as value).
@@ -508,9 +514,10 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog ##
 
-- Version 1.1, *31.05.2024*
-  - Improved functions for Custom GTM Template use
-  - New Custom GTM Template for providing Device and Page Infos and Bot Detection
+- Version 1.1, *04.06.2024*
+  - Improved functions for Custom GTM Template usage
+  - New Custom GTM Template for vPageview or State Events (providing Device and Page Infos and Bot Detection)
+  - **Attention!** The default values of `dlStateEvents` and `vPageview` have changed from `true` to `false`!
 
 - Version 1.0.1, *28.05.2024*
   - Bugfix in config function (if cfg.consent hasn't exist)

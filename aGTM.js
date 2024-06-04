@@ -4,7 +4,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.1
- * @lastupdate 31.05.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 04.06.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -126,8 +126,8 @@ aGTM.f.config = function(cfg) {
   aGTM.f.an(aGTM.c, 'gtmVendors', cfg, ''); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
   aGTM.f.an(aGTM.c, 'gtmAttr', cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
   aGTM.f.an(aGTM.c, 'dlSet', cfg, {}); // Set dataLayer variables, that should always be attached to an event
-  aGTM.c.dlStateEvents = typeof cfg.dlStateEvents=='boolean' ? cfg.dlStateEvents : true; // Fire GTM dataLayer Events for DOMloaded and PAGEready
-  aGTM.c.vPageview = typeof cfg.vPageview=='boolean' ? cfg.vPageview : true; // Fire vPageview Event
+  aGTM.c.dlStateEvents = typeof cfg.dlStateEvents=='boolean' ? cfg.dlStateEvents : false; // Fire GTM dataLayer Events for DOMloaded and PAGEready
+  aGTM.c.vPageview = typeof cfg.vPageview=='boolean' ? cfg.vPageview : false; // Fire vPageview Event
 
   // Consent configuration
   cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
@@ -379,13 +379,19 @@ aGTM.f.gtm_load = function (w, d, i, l, o) {
  * @property {function} aGTM.f.domready
  * Usage: aGTM.f.domready();
  */
-aGTM.f.domready = function() {
+aGTM.f.domready = function(evob) {
+  var is_intern = false;
+  if (!aGTM.f.vOb(evob)) {
+    evob = {};
+    is_intern = true;
+  }
+  if (!evob.event) evob.event = 'vDOMready';
   // Ensure the function runs only once
-  if (!aGTM.d.dom_ready) {
+  if (!aGTM.d.dom_ready || !is_intern) {
     // Fire a custom event if dlStateEvents is enabled
-    if (aGTM.c.dlStateEvents) aGTM.f.fire({ event: 'vDOMready' });
+    if (aGTM.c.dlStateEvents) aGTM.f.fire(evob);
     // Mark DOM as ready to prevent future executions
-    aGTM.d.dom_ready = true;
+    if (is_intern) aGTM.d.dom_ready = true;
   }
 };
 
@@ -395,13 +401,19 @@ aGTM.f.domready = function() {
  * @property {function} aGTM.f.pageready
  * Usage: aGTM.f.pageready();
  */
-aGTM.f.pageready = function() {
+aGTM.f.pageready = function(evob) {
+  var is_intern = false;
+  if (!aGTM.f.vOb(evob)) {
+    evob = {};
+    is_intern = true;
+  }
+  if (!evob.event) evob.event = 'vPAGEready';
   // Ensure the function runs only once
-  if (!aGTM.d.page_ready) {
+  if (!aGTM.d.page_ready || !is_intern) {
     // Fire a custom event if dlStateEvents is enabled
-    if (aGTM.c.dlStateEvents) aGTM.f.fire({ event: 'vPAGEready' });
+    if (aGTM.c.dlStateEvents) aGTM.f.fire(evob);
     // Mark page as ready to prevent future executions
-    aGTM.d.page_ready = true;
+    if (is_intern) aGTM.d.page_ready = true;
   }
 };
 
@@ -431,11 +443,16 @@ aGTM.f.initGTM = function() {
  */
 aGTM.f.chkDPready = function() {
   var state = document.readyState;
-  if (state === 'interactive' || state === 'loaded' || state === 'complete') {
-    aGTM.f.domready();
-    aGTM.f.pageready();
+  // Check if DOM is ready
+  if (state === 'interactive' || state === 'complete') {
+    aGTM.f.domready(null);
   } else {
     aGTM.f.evLstn(document, 'DOMContentLoaded', aGTM.f.domready);
+  }
+  // Check if Page is fully loaded
+  if (state === 'complete') {
+    aGTM.f.pageready(null);
+  } else {
     aGTM.f.evLstn(window, 'load', aGTM.f.pageready);
   }
 };
