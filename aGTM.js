@@ -113,7 +113,8 @@ aGTM.f.config = function(cfg) {
       if (cfg.gtm.hasOwnProperty(k)) {
         aGTM.c.gtmID = k; // GTM ID
         // Assign GTM-container-specific configurations
-        aGTM.c.gtm[k] = aGTM.c.gtm[k] || {};
+        aGTM.c.gtm = {};
+        aGTM.c.gtm[k] = cfg.gtm[k] || {};
         aGTM.f.an(aGTM.c.gtm[k], 'env', cfg.gtm[k], ''); // Environment string (leave it blank you you don't know, what it is)
         aGTM.f.an(aGTM.c.gtm[k], 'gtmURL', cfg.gtm[k], ''); // If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
         aGTM.f.an(aGTM.c.gtm[k], 'gtmJS', cfg.gtm[k], ''); // Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
