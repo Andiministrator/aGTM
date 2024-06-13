@@ -514,6 +514,9 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog ##
 
+- Version 1.1.1, *13.06.2024*
+  - Bugfix for DOMready and PAGEready listener and vPageview template
+
 - Version 1.1, *04.06.2024*
   - Improved functions for Custom GTM Template usage
   - New Custom GTM Template for vPageview or State Events (providing Device and Page Infos and Bot Detection)

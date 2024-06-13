@@ -3,8 +3,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.1
- * @lastupdate 04.06.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1.1
+ * @lastupdate 13.06.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -24,7 +24,7 @@ window.aGTM = window.aGTM || {};
 // Use the aGTMinit function to initialize various properties and objects
 aGTMinit(aGTM, 'c', {}); // TM Configuration Settings Object
 aGTMinit(aGTM, 'd', {}); // TM Data Object
-aGTMinit(aGTM.d, 'version', '1.1'); // aGTM Version
+aGTMinit(aGTM.d, 'version', '1.1.1'); // aGTM Version
 aGTMinit(aGTM.d, 'f', []); // Array for temporary Fire Events
 aGTMinit(aGTM.d, 'config', false); // Check if TM is configured
 aGTMinit(aGTM.d, 'init', false); // Check if TM Initialization is complete
@@ -390,7 +390,7 @@ aGTM.f.domready = function(evob) {
   // Ensure the function runs only once
   if (!aGTM.d.dom_ready || !is_intern) {
     // Fire a custom event if dlStateEvents is enabled
-    if (aGTM.c.dlStateEvents) aGTM.f.fire(evob);
+    if (aGTM.c.dlStateEvents || !is_intern) aGTM.f.fire(evob);
     // Mark DOM as ready to prevent future executions
     if (is_intern) aGTM.d.dom_ready = true;
   }
@@ -412,7 +412,7 @@ aGTM.f.pageready = function(evob) {
   // Ensure the function runs only once
   if (!aGTM.d.page_ready || !is_intern) {
     // Fire a custom event if dlStateEvents is enabled
-    if (aGTM.c.dlStateEvents) aGTM.f.fire(evob);
+    if (aGTM.c.dlStateEvents || !is_intern) aGTM.f.fire(evob);
     // Mark page as ready to prevent future executions
     if (is_intern) aGTM.d.page_ready = true;
   }

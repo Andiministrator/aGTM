@@ -72,7 +72,7 @@ ___TEMPLATE_PARAMETERS___
         "type": "NON_NEGATIVE_NUMBER"
       }
     ],
-    "help": "How many times should this event fire? Set 0 for no limit."
+    "help": "How many times should this event fire (for the same trigger and event name)? Set 0 for no limit."
   },
   {
     "type": "SIMPLE_TABLE",
@@ -298,6 +298,8 @@ const log = require('logToConsole');
 const JSON = require('JSON');
 const callInWindow = require('callInWindow');
 const copyFromWindow = require('copyFromWindow');
+const copyFromDataLayer = require('copyFromDataLayer');
+//const Object = require('Object');
 const queryPermission = require('queryPermission');
 const Math = require('Math');
 const templateStorage = require('templateStorage');
@@ -321,7 +323,6 @@ var o = o || { c: {debug:false}, d:{ d:data, e:{}, q:[] }, f:{}, l:[] };
 o.c.eventname = data.eventname;
 o.c.pv_fire = data.pv_fire;
 o.c.max_fire = o.c.max_fire || data.max_fire; if (typeof o.c.max_fire=='string') o.c.max_fire = o.c.max_fire * 1; if (typeof o.c.max_fire!='number' || o.c.max_fire===0) o.c.max_fire = 999;
-log('info','max '+typeof data.max_fire+' ' +data.max_fire,o.c.max_fire);
 o.c.pv_attributes = typeof data.pv_attributes=='object' ? data.pv_attributes : [];
 o.c.use_js_check = typeof data.use_js_check=='boolean' ? data.use_js_check : false;
 o.c.useHumanTest = typeof data.useHumanTest=='boolean' ? data.useHumanTest : false;
@@ -411,8 +412,17 @@ o.d.os = '';
 o.d.device_type = '';
 o.d.browser_type = '';
 o.d.browser_version = '';
-if (typeof templateStorage.getItem('pv_counter')!='number') templateStorage.setItem('pv_counter', 0);
 var e = { event: o.c.eventname };
+
+// Initiate Counter
+if (typeof templateStorage.getItem('pv_ctr')!='object' || !templateStorage.getItem('pv_ctr')) templateStorage.setItem('pv_ctr', {});
+o.d.counter_obj = templateStorage.getItem('pv_ctr');
+o.d.trigger_event = copyFromDataLayer('event');
+o.d.counter_name = o.d.trigger_event + '_' + o.c.eventname;
+if (typeof o.d.counter_obj[o.d.counter_name]!='number') o.d.counter_obj[o.d.counter_name] = 0;
+o.d.counter_obj[o.d.counter_name] = o.d.counter_obj[o.d.counter_name] + 1;
+templateStorage.setItem('pv_ctr', JSON.parse(JSON.stringify(o.d.counter_obj)));
+var counter = o.d.counter_obj[o.d.counter_name];
 
 /**
  * Get DoNotTrack (DNT) Setting
@@ -734,9 +744,6 @@ callInWindow('aGTM.f.evLstn','window','resize',o.f.getDims);
 
 // Prepare event
 o.c.bottest_jsexct = '';
-//o.d.counter++;
-var counter = templateStorage.getItem('pv_counter') + 1;
-templateStorage.setItem('pv_counter', counter);
 o.c.pv_attributes.forEach(function(row) {
   switch (row.pv_attribute) {
     case 'f_pagetitle': e[row.pv_dl_name] = callInWindow('aGTM.f.getVal','d','title') || '';
@@ -800,11 +807,11 @@ o.c.pv_attributes.forEach(function(row) {
 // Fire Function
 o.f.fire = function (e) {
   switch (o.c.pv_fire) {
-    case 'dom': callInWindow('aGTM.f.domready', e);
+    case 'dom': callInWindow('aGTM.f.domready', JSON.parse(JSON.stringify(e)));
                 break;
-    case 'page': callInWindow('aGTM.f.pageready', e);
+    case 'page': callInWindow('aGTM.f.pageready', JSON.parse(JSON.stringify(e)));
                  break;
-    default: callInWindow('aGTM.f.fire', e);
+    default: callInWindow('aGTM.f.fire', JSON.parse(JSON.stringify(e)));
   }
   o.d.q.push(e);
 };
@@ -831,7 +838,7 @@ if (counter<=o.c.max_fire && ((o.c.use_js_check && o.d.device_type!='Bot') || o.
   if (!o.c.bottest_jsexct) o.c.bottest_jsexct = 'bottest_jsexct';
   o.d.startTime = callInWindow('aGTM.f.getVal','p','now') || 0;
   callInWindow('aGTM.f.timer', o.c.bottest_jsexct, o.f.checkExecutionTiming, {}, 500, 1);
-} else if (counter<=o.c.max_fire) {
+} else /*if (counter<=o.c.max_fire)*/ {
   o.f.fire(e);
 }
 
@@ -1485,6 +1492,27 @@ ___WEB_PERMISSIONS___
         "versionId": "1"
       },
       "param": []
+    },
+    "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "read_data_layer",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "allowedKeys",
+          "value": {
+            "type": 1,
+            "string": "any"
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
     },
     "isRequired": true
   }
