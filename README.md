@@ -514,6 +514,11 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog ##
 
+- Version 1.1.2, *19.06.2024*
+  - Bugfix for JS Error Listener
+  - Shopware Acris Cookie Check added
+  - Clickskeks Cookiecheck added
+
 - Version 1.1.1, *13.06.2024*
   - Bugfix for DOMready and PAGEready listener and vPageview template
 

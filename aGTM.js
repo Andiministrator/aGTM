@@ -3,8 +3,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.1.1
- * @lastupdate 13.06.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1.2
+ * @lastupdate 19.06.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -24,7 +24,7 @@ window.aGTM = window.aGTM || {};
 // Use the aGTMinit function to initialize various properties and objects
 aGTMinit(aGTM, 'c', {}); // TM Configuration Settings Object
 aGTMinit(aGTM, 'd', {}); // TM Data Object
-aGTMinit(aGTM.d, 'version', '1.1.1'); // aGTM Version
+aGTMinit(aGTM.d, 'version', '1.1.2'); // aGTM Version
 aGTMinit(aGTM.d, 'f', []); // Array for temporary Fire Events
 aGTMinit(aGTM.d, 'config', false); // Check if TM is configured
 aGTMinit(aGTM.d, 'init', false); // Check if TM Initialization is complete
@@ -568,7 +568,9 @@ aGTM.f.ifHSlisten = function (e) {
  * Usage: aGTM.f.strclean('any "dirty"; string');
  */
 aGTM.f.strclean = function (str) {
-  return typeof str=='string' ? str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, '') : '';
+  if (typeof str=='undefined' || (typeof str=='object' && !str)) return '';
+  if (typeof str!='string') str = str.toString();
+  return str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, '');
 };
 
 /**
@@ -1016,9 +1018,9 @@ aGTM.f.jserrors = function () {
       }
       // Append filename, line number, and column number to the message
       if (filename) msg += ' | file: ' + filename;
-      var lineno = typeof ev.lineno!='string' ? ev.lineno.toString() : ev.lineno; if (lineno=='0') lineno = '';
+      var lineno = aGTM.f.strclean(ev.lineno); if (lineno=='0') lineno = '';
       if (lineno) msg+= ' | line: ' + lineno;
-      var colno = typeof ev.colno!='string' ? ev.colno.toString() : ev.colno; if (colno=='0') colno = '';
+      var colno = aGTM.f.strclean(ev.colno); if (colno=='0') colno = '';
       if (colno) msg+= ' | col: ' + colno;
       // Push the error message to the internal error log
       aGTM.d.errors.push(msg);
