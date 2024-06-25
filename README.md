@@ -514,6 +514,10 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog ##
 
+- Version 1.1.3, *25.06.2024*
+  - Filter for GTM PINGs in fire Function added
+  - New settings in GTM Repeat Template
+
 - Version 1.1.2, *19.06.2024*
   - Bugfix for JS Error Listener
   - Shopware Acris Cookie Check added

@@ -232,7 +232,7 @@ ___TEMPLATE_PARAMETERS___
     "subParams": [
       {
         "type": "CHECKBOX",
-        "name": "useAdBlockerTest",
+        "name": "useAdBlockTest",
         "checkboxText": "Test, whether AdBlocker is used",
         "simpleValueType": true
       },
@@ -328,7 +328,7 @@ o.c.use_js_check = typeof data.use_js_check=='boolean' ? data.use_js_check : fal
 o.c.useHumanTest = typeof data.useHumanTest=='boolean' ? data.useHumanTest : false;
 o.c.humanEvent = data.humanEvent;
 o.c.humanField = data.humanField;
-o.c.useAdBlockTest = typeof data.useAdBlockerTest=='boolean' ? data.useAdBlockerTest : false;
+o.c.useAdBlockTest = typeof data.useAdBlockTest=='boolean' ? data.useAdBlockTest : false;
 o.c.adblockEvent = data.adblockEvent;
 o.c.adblockField = data.adblockField;
 o.c.useCookie = typeof data.useCookie=='boolean' ? data.useCookie : false;
@@ -400,7 +400,7 @@ var bots = [
 var userAgent = callInWindow('aGTM.f.getVal','n','userAgent') || '';
 if (userAgent) userAgent = userAgent.toLowerCase();
 var userAgentData = callInWindow('aGTM.f.getVal','n','userAgentData') || null;
-templateStorage.setItem('useHumanTest', true);
+templateStorage.setItem('useHumanTest', 1);
 
 // Initiate variables
 o.d.viewport_width = 0;
@@ -527,7 +527,7 @@ o.f.checkForBots = function() {
   }
   // General check for common bot terms in User-Agent
   if (callInWindow('aGTM.f.rTest', userAgent, 'crawler|spider|bot')) {
-    return 'generic-bot';
+    return 'Bot (generic)';
   }
   // Check User-Agent Client Hints for known bot patterns
   if (userAgentData) {
@@ -541,7 +541,7 @@ o.f.checkForBots = function() {
     }
     // General check for common bot terms in User-Agent Client Hints
     if (userAgentData.mobile === false && userAgentData.platform === 'bot') {
-      return 'generic-bot';
+      return 'Bot (generic)';
     }
   }
   // Check for known headless browsers in User-Agent string
@@ -550,6 +550,10 @@ o.f.checkForBots = function() {
     var browserMatch = callInWindow('aGTM.f.rMatch', userAgent, 'headlesschrome|phantomjs') || [];
     if (browserMatch) bt = browserMatch[0];
     return bt;
+  }
+  // Check Browser setting Webdriver
+  if (callInWindow('aGTM.f.getVal','n','webdriver')) {
+    return 'Bot (webdriver)';
   }
   // Check WebGL renderer info
   //var canvas = document.createElement('canvas');
@@ -570,7 +574,7 @@ o.f.checkForBots = function() {
   o.d.screen_height = callInWindow('aGTM.f.getVal','m','height') || 0;
   if (!o.d.screen_height) o.d.screen_height = callInWindow('aGTM.f.getVal','w','outerHeight') || 0;
   if (o.d.screen_width <= 100 && o.d.screen_height <= 100) {
-    return 'Browser with no Monitor size ...';
+    return 'Bot (no_monitor)';
   }
   // Return null, if no bot was detected
   return null;
@@ -592,12 +596,12 @@ o.f.checkDeviceInfo = function() {
     o.d.device_type = 'Bot';
     o.d.browser_type = botName;
     o.d.os = 'Bot OS';
-    return;
+    //return;
   }
   // Determine device type
-  if (callInWindow('aGTM.f.rTest', userAgent, 'mobi|android|touch|tablet')) {
+  if (callInWindow('aGTM.f.rTest', userAgent, 'mobi|android|touch|tablet') && o.d.device_type!='Bot') {
     o.d.device_type = 'Mobile';
-  } else {
+  } else if (o.d.device_type!='Bot') {
     o.d.device_type = 'Desktop';
   }
   // Determine operating system
@@ -685,8 +689,8 @@ o.f.checkExecutionTiming = function() {
   // If the time span between start and end is more than 1000 ms, it might be a bot
   if (!o.c.bottest_jsexct) o.c.bottest_jsexct = 'bottest_jsexct';
   e[o.c.bottest_jsexct] = o.d.js_ex_time = endTime - o.d.startTime;
-  if (o.d.js_ex_time < 10 || o.d.js_ex_time > 100000) {
-    e.device = o.d.device_type = 'Bot';
+  if (o.d.js_ex_time < 25 || o.d.js_ex_time > 10000) {
+    e.device = o.d.device_type = 'Bot (JS Time)';
     //e.os = o.d.os = 'Bot OS';
     //e.browser = o.d.browser_type = 'Bot (wrong JS excecution time)';
   }
@@ -713,9 +717,9 @@ o.f.handleEventListener = function(mode) {
 o.f.handleUserInteraction = function() {
   if (templateStorage.getItem('useHumanTest')) {
     //o.c.useHumanTest = false;
-    templateStorage.setItem('useHumanTest', false);
+    templateStorage.setItem('useHumanTest', 0);
     var he = { event:o.c.humanEvent };
-    he[o.c.humanField] = true;
+    he[o.c.humanField] = 1;
     callInWindow('aGTM.f.fire', he);
     //o.f.handleEventListener('rem'); // Remove event listeners to improve performance
   }
@@ -726,11 +730,11 @@ o.f.handleUserInteraction = function() {
  * Usage: o.f.getABpixel();
  */
 o.f.getABpixel = function() {
-  var adBlock = true;
-  var pixel = callInWindow('aGTM.f.getNodeAttr','div#adBlockerTest','id');
+  var adBlock = 1;
+  var pixel = callInWindow('aGTM.f.getNodeAttr','div#adBlockTest','id');
   if (pixel) {
-    callInWindow('aGTM.f.delNode','div#adBlockerTest');
-    adBlock = false;
+    callInWindow('aGTM.f.delNode','div#adBlockTest');
+    adBlock = 0;
   }
   var ae = { event:o.c.adblockEvent };
   ae[o.c.adblockField] = adBlock;
@@ -822,7 +826,7 @@ if (o.c.useCookie) {
   if (typeof cv=='string' && cv=='1') {
     o.c.use_js_check = false;
     o.c.useHumanTest = false;
-    o.c.useAdBlockerTest = false;
+    o.c.useAdBlockTest = false;
   } else {
     callInWindow('aGTM.f.sc',o.c.cookieName,'1');
   }
@@ -837,15 +841,15 @@ if (counter<=o.c.max_fire && o.c.useHumanTest && templateStorage.getItem('useHum
 if (counter<=o.c.max_fire && ((o.c.use_js_check && o.d.device_type!='Bot') || o.c.bottest_jsexct)) {
   if (!o.c.bottest_jsexct) o.c.bottest_jsexct = 'bottest_jsexct';
   o.d.startTime = callInWindow('aGTM.f.getVal','p','now') || 0;
-  callInWindow('aGTM.f.timer', o.c.bottest_jsexct, o.f.checkExecutionTiming, {}, 500, 1);
-} else /*if (counter<=o.c.max_fire)*/ {
+  callInWindow('aGTM.f.timer', o.c.bottest_jsexct, o.f.checkExecutionTiming, {}, 100, 1);
+} else if (counter<=o.c.max_fire) {
   o.f.fire(e);
 }
 
 // Inject Ad Blocker Test Pixel
-if (counter<=o.c.max_fire && o.c.useAdBlockerTest) {
+if (counter<=o.c.max_fire && o.c.useAdBlockTest) {
   // Insert test pixel
-  callInWindow('aGTM.f.newNode','div','body',{ textContent:' ', id:'adBlockerTest', className:'adsbygoogle', 'style.width':'1px', 'style.height':'1px', 'style.display':'none' });
+  callInWindow('aGTM.f.newNode','div','body',{ textContent:' ', id:'adBlockTest', className:'adsbygoogle', 'style.width':'1px', 'style.height':'1px', 'style.display':'none' });
   callInWindow('aGTM.f.timer', 'adbltest', o.f.getABpixel, {}, 1000, 1);
 }
 

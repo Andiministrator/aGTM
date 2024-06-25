@@ -60,24 +60,47 @@ ___TEMPLATE_PARAMETERS___
     "help": "Event names that should not be fired. Use \"*\" as placeholder and \",\" as separator. Leave it blank for not using the Blacklist."
   },
   {
-    "type": "SIMPLE_TABLE",
-    "name": "addparameter",
-    "displayName": "Event Parameter",
-    "simpleTableColumns": [
+    "type": "GROUP",
+    "name": "moreSettings",
+    "displayName": "More Settings",
+    "groupStyle": "ZIPPY_OPEN_ON_PARAM",
+    "subParams": [
       {
-        "defaultValue": "",
-        "displayName": "Name",
-        "name": "pkey",
-        "type": "TEXT"
+        "type": "TEXT",
+        "name": "maxEvents",
+        "displayName": "Maximum Number of Events to repeat",
+        "simpleValueType": true,
+        "help": "This is a setting to avoid endless loops. Enter the maximum number of events to repeat here.\u003cbr /\u003e\u003cbr /\u003e\n\nThe default is 100.\u003cbr /\u003e\nAn empty field or a 0 means no limit.",
+        "defaultValue": 100
       },
       {
-        "defaultValue": "",
-        "displayName": "Value",
-        "name": "pvalue",
-        "type": "TEXT"
+        "type": "CHECKBOX",
+        "name": "gtmEvents",
+        "checkboxText": "Repeat internal GTM Events",
+        "simpleValueType": true,
+        "help": "Repeat the following Events:\u003cbr /\u003e\n\u003cul\u003e\n\u003cli\u003egtm.start\u003c/li\u003e\n\u003cli\u003egtm.init_consent\u003c/li\u003e\n\u003cli\u003egtm.init\u003c/li\u003e\n\u003cli\u003egtm.js\u003c/li\u003e\n\u003cli\u003egtm.dom\u003c/li\u003e\n\u003cli\u003egtm.load\u003c/li\u003e\n\u003c/ul\u003e"
+      },
+      {
+        "type": "SIMPLE_TABLE",
+        "name": "addparameter",
+        "displayName": "Event Parameter",
+        "simpleTableColumns": [
+          {
+            "defaultValue": "",
+            "displayName": "Name",
+            "name": "pkey",
+            "type": "TEXT"
+          },
+          {
+            "defaultValue": "",
+            "displayName": "Value",
+            "name": "pvalue",
+            "type": "TEXT"
+          }
+        ],
+        "help": "Additional Event Parameters. If the parameter already exists, it will be overwritten."
       }
-    ],
-    "help": "Additional Event Parameters. If the parameter already exists, it will be overwritten."
+    ]
   }
 ]
 
@@ -94,7 +117,7 @@ const copyFromWindow = require('copyFromWindow');
 
 /**
  * Build ND aGTM shadow object
- * @lastupdate 12.02.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 25.06.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {object} o
  * @param {object} c - config
@@ -112,6 +135,10 @@ o.c.agtmFired = typeof data.agtmFired=='boolean' ? data.agtmFired : false;
 o.c.messages = typeof data.messages=='boolean' ? data.messages : false;
 o.c.whitelist = typeof data.whitelist=='string' ? data.whitelist : '';
 o.c.blacklist = typeof data.blacklist=='string' ? data.blacklist : '';
+o.c.maxEvents = typeof data.maxEvents=='string' ? callInWindow('aGTM.f.rReplace', data.maxEvents, '[^0-9]', '') : '';
+if (!o.c.maxEvents) { o.c.maxEvents = 0; } else { o.c.maxEvents = o.c.maxEvents * 1; }
+o.d.count = 0;
+o.c.gtmEvents = typeof data.gtmEvents=='boolean' ? data.gtmEvents : false;
 o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
 
 /**
@@ -136,15 +163,24 @@ o.f.fire = o.f.fire || function (obj) {
 
 // Copy the queue
 o.d.f = copyFromWindow('aGTM.d.f');
-//log('info','QUEUE',o.d.f);
+if (o.c.debug) log('info','QUEUE',JSON.parse(JSON.stringify(o.d.f)));
 
 // Loop events
 if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
   for (var i=0; i<o.d.f.length; i++) {
+    o.d.count++;
+    if (o.c.debug) log('info','REPEAT Event '+o.d.count,JSON.parse(JSON.stringify(o.d.f[i])));
+    if (o.d.count > o.c.maxEvents) break;
     var ev = o.d.f[i];
     // Check Send Types
     if (!o.c.gtmFired && (typeof ev.aGTMdl!='boolean' || !ev.aGTMdl)) continue;
     if (!o.c.agtmFired && typeof ev.aGTMdl=='boolean') continue;
+    // Check GTM and aGTM Events
+    if (typeof ev.event=='string' && ev.event=='aGTM_ready') continue;
+    if (typeof ev.event!='string' && typeof ev.type=='string' && typeof ev.flags=='object' && typeof ev.flags.enableUntaggedPageReporting=='boolean' && ev.flags.enableUntaggedPageReporting) continue;
+    if (o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) continue;
+    // Add Repeat Marker
+    ev.aGTMrepeated = true;
     // Whitelist
     if (o.c.whitelist && typeof ev.event=='string') {
       var wl = o.c.whitelist.split(',');
@@ -378,6 +414,45 @@ ___WEB_PERMISSIONS___
                     "boolean": true
                   }
                 ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.f.rReplace"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  }
+                ]
               }
             ]
           }
@@ -401,9 +476,9 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.0
+- Version 1.1
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 12.02.2024
+- Last Update: 25.06.2024
 
 ## Description
 

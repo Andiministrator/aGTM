@@ -3,8 +3,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.1.2
- * @lastupdate 19.06.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1.3pre
+ * @lastupdate 25.06.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -24,7 +24,7 @@ window.aGTM = window.aGTM || {};
 // Use the aGTMinit function to initialize various properties and objects
 aGTMinit(aGTM, 'c', {}); // TM Configuration Settings Object
 aGTMinit(aGTM, 'd', {}); // TM Data Object
-aGTMinit(aGTM.d, 'version', '1.1.2'); // aGTM Version
+aGTMinit(aGTM.d, 'version', '1.1.3pre'); // aGTM Version
 aGTMinit(aGTM.d, 'f', []); // Array for temporary Fire Events
 aGTMinit(aGTM.d, 'config', false); // Check if TM is configured
 aGTMinit(aGTM.d, 'init', false); // Check if TM Initialization is complete
@@ -1153,6 +1153,7 @@ aGTM.f.fire = function (o) {
   // Create a deep copy of the event object
   var obj = JSON.parse(JSON.stringify(o));
   if (typeof obj.aGTMts=='number' || (typeof obj.eventModel=='object' && obj.eventModel)) return;
+  if (typeof obj.event!='string' && typeof obj.type=='string' && typeof obj.flags=='object' && typeof obj.flags.enableUntaggedPageReporting=='boolean' && obj.flags.enableUntaggedPageReporting) return;
   obj.aGTMts = Date.now();
   obj.eventModel = null;
   // Check for consent update events
