@@ -53,79 +53,134 @@ ___TEMPLATE_PARAMETERS___
     "defaultValue": "file_download"
   },
   {
-    "type": "CHECKBOX",
-    "name": "usecontact",
-    "checkboxText": "Use a different Event Name, if the clicked object is an email address or a phone number.",
-    "simpleValueType": true
-  },
-  {
-    "type": "TEXT",
-    "name": "contactprefix",
-    "displayName": "Prefix, if the string is an email address or a phone number",
-    "simpleValueType": true,
-    "defaultValue": "contact_"
-  },
-  {
-    "type": "PARAM_TABLE",
-    "name": "textfilter",
-    "displayName": "Text Filter",
-    "paramTableColumns": [
+    "type": "GROUP",
+    "name": "outbound_settings",
+    "displayName": "Outbound Settings",
+    "groupStyle": "ZIPPY_OPEN_ON_PARAM",
+    "subParams": [
       {
-        "param": {
-          "type": "TEXT",
-          "name": "pattern",
-          "displayName": "Text Filter",
-          "simpleValueType": true
-        },
-        "isUnique": false
+        "type": "TEXT",
+        "name": "cross_domains",
+        "displayName": "Cross Domains",
+        "simpleValueType": true,
+        "help": "Enter the internal Domains, that are no Outbound Domains. Comma-separated"
       },
       {
-        "param": {
-          "type": "CHECKBOX",
-          "name": "isregex",
-          "checkboxText": "RegEx?",
-          "simpleValueType": true
-        },
-        "isUnique": false
+        "type": "SELECT",
+        "name": "cross_matching",
+        "displayName": "CrossDomain Matching",
+        "macrosInSelect": true,
+        "selectItems": [
+          {
+            "value": "domain",
+            "displayValue": "Domain Level"
+          },
+          {
+            "value": "hostname",
+            "displayValue": "Hostname Level"
+          }
+        ],
+        "simpleValueType": true
       },
       {
-        "param": {
-          "type": "TEXT",
-          "name": "replacetext",
-          "displayName": "Replacement Text",
-          "simpleValueType": true,
-          "defaultValue": "***FILTERED***"
-        },
-        "isUnique": false
+        "type": "CHECKBOX",
+        "name": "attach_outbound",
+        "checkboxText": "Attach _outbound to Event Name, if it is an Outbound Link",
+        "simpleValueType": true,
+        "help": "This will only work for Links (a-Elements)"
       }
-    ],
-    "help": "Enter string pattern to exclude text. Text that fits the pattern is blurred out."
+    ]
   },
   {
-    "type": "SIMPLE_TABLE",
-    "name": "addparameter",
-    "displayName": "Additional Event Parameter",
-    "simpleTableColumns": [
+    "type": "GROUP",
+    "name": "contact_options",
+    "displayName": "Contact Options (Email/Phone Clicks)",
+    "groupStyle": "ZIPPY_OPEN_ON_PARAM",
+    "subParams": [
       {
-        "defaultValue": "",
-        "displayName": "Name",
-        "name": "pkey",
-        "type": "TEXT"
+        "type": "CHECKBOX",
+        "name": "usecontact",
+        "checkboxText": "Use a different Event Name, if the clicked object is an email address or a phone number.",
+        "simpleValueType": true
       },
       {
-        "defaultValue": "",
-        "displayName": "Value",
-        "name": "pvalue",
-        "type": "TEXT"
+        "type": "TEXT",
+        "name": "contactprefix",
+        "displayName": "Prefix, if the string is an email address or a phone number",
+        "simpleValueType": true,
+        "defaultValue": "contact_"
+      },
+      {
+        "type": "PARAM_TABLE",
+        "name": "textfilter",
+        "displayName": "Text Filter",
+        "paramTableColumns": [
+          {
+            "param": {
+              "type": "TEXT",
+              "name": "pattern",
+              "displayName": "Text Filter",
+              "simpleValueType": true
+            },
+            "isUnique": false
+          },
+          {
+            "param": {
+              "type": "CHECKBOX",
+              "name": "isregex",
+              "checkboxText": "RegEx?",
+              "simpleValueType": true
+            },
+            "isUnique": false
+          },
+          {
+            "param": {
+              "type": "TEXT",
+              "name": "replacetext",
+              "displayName": "Replacement Text",
+              "simpleValueType": true,
+              "defaultValue": "***FILTERED***"
+            },
+            "isUnique": false
+          }
+        ],
+        "help": "Enter string pattern to exclude text. Text that fits the pattern is blurred out."
       }
-    ],
-    "help": "\u003cstrong\u003eAttention!\u003c/strong\u003e The parameters are set at the time the tag is triggered, not when the actual text copy event occurs."
+    ]
   },
   {
-    "type": "CHECKBOX",
-    "name": "ua_event",
-    "checkboxText": "Add event_category, event_action and event_label",
-    "simpleValueType": true
+    "type": "GROUP",
+    "name": "more_options",
+    "displayName": "More Options ...",
+    "groupStyle": "ZIPPY_OPEN_ON_PARAM",
+    "subParams": [
+      {
+        "type": "SIMPLE_TABLE",
+        "name": "addparameter",
+        "displayName": "Additional Event Parameter",
+        "simpleTableColumns": [
+          {
+            "defaultValue": "",
+            "displayName": "Name",
+            "name": "pkey",
+            "type": "TEXT"
+          },
+          {
+            "defaultValue": "",
+            "displayName": "Value",
+            "name": "pvalue",
+            "type": "TEXT"
+          }
+        ],
+        "help": "\u003cstrong\u003eAttention!\u003c/strong\u003e The parameters are set at the time the tag is triggered, not when the actual text copy event occurs."
+      },
+      {
+        "type": "CHECKBOX",
+        "name": "ua_event",
+        "checkboxText": "Add event_category, event_action and event_label",
+        "simpleValueType": true
+      }
+    ]
   }
 ]
 
@@ -171,6 +226,10 @@ function setConf(target, source, key, type, defaultValue) {
 setConf(o.c, data, 'eventname', 'string', '');
 setConf(o.c, data, 'selector', 'string', 'a');
 setConf(o.c, data, 'downloadevent', 'string', '');
+setConf(o.c, data, 'attach_outbound', 'boolean', false);
+setConf(o.c, data, 'cross_domains', 'string', '');
+if (o.c.cross_domains) o.c.cross_domains = callInWindow('aGTM.f.rReplace', o.c.cross_domains, '[^\\.0-9a-zA-Z_,-]', '');
+setConf(o.c, data, 'cross_matching', 'string', 'domain');
 setConf(o.c, data, 'usecontact', 'boolean', false);
 setConf(o.c, data, 'contactprefix', 'string', '');
 setConf(o.c, data, 'textfilter', 'object', []);
@@ -183,11 +242,26 @@ setConf(o.c, data, 'ua_event', 'boolean', false);
  * @returns {string} - The filtered text after all replacements have been made.
  */
 o.f.textFilter = function (t) {
-  if (typeof t!=='string') return t;
+  if (typeof t!='string') return t;
   o.c.textfilter.forEach(function(row) {
     t = row.isregex ? callInWindow('aGTM.f.rReplace', t, row.pattern, row.replacetext) : t.replace(row.pattern, row.replacetext);
   });
+  t = callInWindow('aGTM.f.rReplace', t, '[\\r\\n]', ' ');
   return t;
+};
+
+/**
+ * Convert hostname to domain
+ * @usage Send a hostname and get back the domain
+ * @param {string} hostname - the hostname to convert
+ * Usage: o.f.hostToDomain('sub.example.com');
+ */
+o.f.hostToDomain = o.f.hostToDomain || function(hostname) {
+  if (typeof hostname!='string' || !hostname) hostname = callInWindow('aGTM.f.getVal','l','hostname');
+  if (typeof hostname!='string') return '';
+  var parts = hostname.split('.');
+  if (parts.length <= 2) return hostname;
+  return parts.slice(-2).join('.');
 };
 
 /**
@@ -239,6 +313,24 @@ o.f.click = o.f.click || function(el) {
     ev.event_action = ev.event;
     ev.event_label = ev.text;
   }
+  ev.tagName = el.tagName || '';
+  if (ev.tagName=='a') {
+    if (!ev.host) ev.host = callInWindow('aGTM.f.getVal','l','hostname');
+    var hostname = o.c.cross_matching=='domain' ? o.f.hostToDomain(ev.host) : ev.host;
+    ev.outbound = 1;
+    cross_domains.forEach(function(cd) {
+      if (cd==hostname) ev.outbound = 0;
+    });
+    if (o.c.attach_outbound && ev.outbound) ev.event+= '_outbound';
+    if (!ev.type) ev.type = 'link_' + ev.event;
+  }
+  if (!ev.type) {
+    if (ev.tagName) {
+      ev.type = ev.tagName+'_click';
+    } else {
+      ev.type = 'click';
+    }
+  }
   ev.target = el.target || '';
   ev.parentID = el.parentID || '';
   ev.parentClass = el.parentClass || '';
@@ -246,10 +338,22 @@ o.f.click = o.f.click || function(el) {
   ev.name = el.name || '';
   ev.class = el.class || '';
   ev.src = el.src || '';
-  ev.html = el.html || null;
+  ev.html = callInWindow('aGTM.f.rReplace', el.html, '[\\r\\n]', ' ') || null;
   callInWindow('aGTM.f.fire', ev);
   o.d.q.push(ev);
 };
+
+// Clean CrossDomain Array
+var selfhost = callInWindow('aGTM.f.getVal','l','hostname') || '';
+if (!o.c.cross_domains && typeof selfhost=='string') o.c.cross_domains = selfhost;
+var cross_domains = o.c.cross_domains ? o.c.cross_domains.split(',') : [];
+if (o.c.cross_matching=='domain') {
+  var selfhost = o.f.hostToDomain(selfhost);
+  for (var i=0; i<cross_domains.length; i++) {
+    cross_domains[i] = o.f.hostToDomain(cross_domains[i]);
+  }
+}
+if (selfhost && cross_domains.indexOf(selfhost) < 0) cross_domains.push(selfhost);
 
 // Run
 callInWindow('aGTM.f.addElLst',o.c.selector,'mousedown',function(e){o.f.click(e);});
@@ -553,6 +657,45 @@ ___WEB_PERMISSIONS___
                   {
                     "type": 1,
                     "string": "aGTM.f.rReplace"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.f.getVal"
                   },
                   {
                     "type": 8,

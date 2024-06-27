@@ -170,7 +170,7 @@ if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
   for (var i=0; i<o.d.f.length; i++) {
     o.d.count++;
     if (o.c.debug) log('info','REPEAT Event '+o.d.count,JSON.parse(JSON.stringify(o.d.f[i])));
-    if (o.d.count > o.c.maxEvents) break;
+    if (o.c.maxEvents && o.d.count > o.c.maxEvents) break;
     var ev = o.d.f[i];
     // Check Send Types
     if (!o.c.gtmFired && (typeof ev.aGTMdl!='boolean' || !ev.aGTMdl)) continue;

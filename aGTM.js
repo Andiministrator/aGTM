@@ -3,7 +3,7 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.1.3pre
+ * @version 1.1.3
  * @lastupdate 25.06.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
@@ -24,7 +24,7 @@ window.aGTM = window.aGTM || {};
 // Use the aGTMinit function to initialize various properties and objects
 aGTMinit(aGTM, 'c', {}); // TM Configuration Settings Object
 aGTMinit(aGTM, 'd', {}); // TM Data Object
-aGTMinit(aGTM.d, 'version', '1.1.3pre'); // aGTM Version
+aGTMinit(aGTM.d, 'version', '1.1.3'); // aGTM Version
 aGTMinit(aGTM.d, 'f', []); // Array for temporary Fire Events
 aGTMinit(aGTM.d, 'config', false); // Check if TM is configured
 aGTMinit(aGTM.d, 'init', false); // Check if TM Initialization is complete
@@ -704,6 +704,7 @@ aGTM.f.getVal = function (o, v) {
     case 'w': return aGTM.f.vOb(window[v]) ? JSON.parse(JSON.stringify(window[v])) : window[v];
     case 'n': return aGTM.f.vOb(navigator[v]) ? JSON.parse(JSON.stringify(navigator[v])) : navigator[v];
     case 'd': return document[v];
+    case 'l': return document.location[v];
     case 'h': return document.head[v];
     case 'b': return document.body[v];
     case 's': return document.getElementsByTagName("html")[0].scrollTop || 0;
