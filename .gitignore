@@ -5,6 +5,8 @@ Thumbs.db
 .vscode
 *.sublime-project
 *.sublime-workspace
+.kateproject.*
+*.kate-swp
 .obsidian
 .idea
 .trash
