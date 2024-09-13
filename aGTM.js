@@ -1,15 +1,13 @@
 //[aGTM.js]BOF
 
-
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.1.3
+ * @version 1.1.4
  * @lastupdate 25.06.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
  */
-
 
 /***** Initialization and Configuration *****/
 
@@ -22,30 +20,37 @@ function aGTMinit(obj, prop, defaultValue) {
 window.aGTM = window.aGTM || {};
 
 // Use the aGTMinit function to initialize various properties and objects
-aGTMinit(aGTM, 'c', {}); // TM Configuration Settings Object
-aGTMinit(aGTM, 'd', {}); // TM Data Object
-aGTMinit(aGTM.d, 'version', '1.1.3'); // aGTM Version
-aGTMinit(aGTM.d, 'f', []); // Array for temporary Fire Events
-aGTMinit(aGTM.d, 'config', false); // Check if TM is configured
-aGTMinit(aGTM.d, 'init', false); // Check if TM Initialization is complete
-aGTMinit(aGTM.d, 'dom_ready', false); // DOM ready state
-aGTMinit(aGTM.d, 'page_ready', false); // Page (complete) Loaded state
-aGTMinit(aGTM.d, 'is_iframe', window.self!==window.top); // iFrame state
-aGTMinit(aGTM.d, 'ev_fct_ctr', 0); // Event Counter
-aGTMinit(aGTM.d, 'timer', {}); // Active Timer
-aGTMinit(aGTM.d, 'error_counter', 0); // Set Error Counter
-aGTMinit(aGTM.d, 'errors', []); // Set Array for Errors
-aGTMinit(aGTM.d, 'dl', []); // Data Layer
-aGTMinit(aGTM.d, 'iframe', { counter: { events: 0 }, origin: '', ifListen:false, topListen:false, handshake: false, timer: null }); // iFrame data
-aGTMinit(aGTM, 'f', {}); // TM Function Library Object
-aGTMinit(aGTM.f, 'tl', {}); // Function Container for Tracking/Library loaded
-aGTMinit(aGTM.f, 'dl', {}); // Function Container for DOM loaded
-aGTMinit(aGTM.f, 'pl', {}); // Function Container for Page loaded
-aGTMinit(aGTM, 'l', []); // TM Log Object for Messages and Errors
-aGTMinit(aGTM, 'n', {});
-aGTMinit(aGTM.n, 'ck', 'co' + 'o' + 'kie');
-aGTMinit(aGTM.n, 'tm', 'goo'+'glet'+'agmanager');
-aGTMinit(aGTM.n, 'ta', 'tag' + 'assi' + 'stant.goo' + 'gle');
+aGTMinit(aGTM, "c", {}); // TM Configuration Settings Object
+aGTMinit(aGTM, "d", {}); // TM Data Object
+aGTMinit(aGTM.d, "version", "1.1.4"); // aGTM Version
+aGTMinit(aGTM.d, "f", []); // Array for temporary Fire Events
+aGTMinit(aGTM.d, "config", false); // Check if TM is configured
+aGTMinit(aGTM.d, "init", false); // Check if TM Initialization is complete
+aGTMinit(aGTM.d, "dom_ready", false); // DOM ready state
+aGTMinit(aGTM.d, "page_ready", false); // Page (complete) Loaded state
+aGTMinit(aGTM.d, "is_iframe", window.self !== window.top); // iFrame state
+aGTMinit(aGTM.d, "ev_fct_ctr", 0); // Event Counter
+aGTMinit(aGTM.d, "timer", {}); // Active Timer
+aGTMinit(aGTM.d, "error_counter", 0); // Set Error Counter
+aGTMinit(aGTM.d, "errors", []); // Set Array for Errors
+aGTMinit(aGTM.d, "dl", []); // Data Layer
+aGTMinit(aGTM.d, "iframe", {
+  counter: { events: 0 },
+  origin: "",
+  ifListen: false,
+  topListen: false,
+  handshake: false,
+  timer: null,
+}); // iFrame data
+aGTMinit(aGTM, "f", {}); // TM Function Library Object
+aGTMinit(aGTM.f, "tl", {}); // Function Container for Tracking/Library loaded
+aGTMinit(aGTM.f, "dl", {}); // Function Container for DOM loaded
+aGTMinit(aGTM.f, "pl", {}); // Function Container for Page loaded
+aGTMinit(aGTM, "l", []); // TM Log Object for Messages and Errors
+aGTMinit(aGTM, "n", {});
+aGTMinit(aGTM.n, "ck", "co" + "o" + "kie");
+aGTMinit(aGTM.n, "tm", "goo" + "glet" + "agmanager");
+aGTMinit(aGTM.n, "ta", "tag" + "assi" + "stant.goo" + "gle");
 
 /**
  * Function to log a message or an error
@@ -54,9 +59,10 @@ aGTMinit(aGTM.n, 'ta', 'tag' + 'assi' + 'stant.goo' + 'gle');
  * @param {object} obj - object for additional information
  * Usage: aGTM.f.log('m3', ev);
  */
-aGTM.f.log = function(id, obj) {
+aGTM.f.log = function (id, obj) {
   // Clone the object if it's an object to avoid mutations
-  var clonedObj = typeof obj === 'object' && obj ? JSON.parse(JSON.stringify(obj)) : obj;
+  var clonedObj =
+    typeof obj === "object" && obj ? JSON.parse(JSON.stringify(obj)) : obj;
   aGTM.l.push({ id: id, timestamp: new Date().getTime(), obj: clonedObj });
 };
 
@@ -67,11 +73,11 @@ aGTM.f.log = function(id, obj) {
  * @returns {string} - cleaned string
  * Usage: aGTM.f.strclean('any "dirty"; string');
  */
-aGTM.f.strclean = function(str) {
+aGTM.f.strclean = function (str) {
   // Ensure the input is a string
-  if (typeof str !== 'string') return '';
+  if (typeof str !== "string") return "";
   // Remove all characters except alphanumerics, German umlauts, dashes, and underscores
-  return str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, '');
+  return str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, "");
 };
 
 /**
@@ -81,65 +87,69 @@ aGTM.f.strclean = function(str) {
  * @param {object} source - The source object from which to retrieve the value.
  * @param {*} defaultValue - The default value to use if the property is not found in the source.
  */
-aGTM.f.an = function(target, property, source, defaultValue) {
+aGTM.f.an = function (target, property, source, defaultValue) {
   // Assign the property from the source or use the default value
-  target[property] = source.hasOwnProperty(property) ? source[property] : defaultValue;
+  target[property] = source.hasOwnProperty(property)
+    ? source[property]
+    : defaultValue;
 };
 
 /**
  * Configures the aGTM object with user-defined settings.
  * @param {object} cfg - Configuration settings provided by the user.
  */
-aGTM.f.config = function(cfg) {
+aGTM.f.config = function (cfg) {
   // Check whether config was already set to avoid reconfiguration
   if (aGTM.d.config) {
-    if (typeof aGTM.f.log=='function') aGTM.f.log('e1', aGTM.c);
+    if (typeof aGTM.f.log == "function") aGTM.f.log("e1", aGTM.c);
     return;
   }
   // Assigning user-defined configurations or default values
-  aGTM.f.an(aGTM.c, 'debug', cfg, false); // If this is true, the optout cookie will be ignored
-  aGTM.f.an(aGTM.c, 'path', cfg, ''); // (relative) path to the directory where aGTM is located, e.g. '/js/''
-  aGTM.f.an(aGTM.c, 'file', cfg, 'aGTM.js'); // Filename of aGTM, default is 'aGTM.js'
-  aGTM.f.an(aGTM.c, 'cmp', cfg, ''); // Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See README.md for possible options.
-  aGTM.c.min = typeof cfg.min=='boolean' ? cfg.min : true; // inject the files as minified versions
-  aGTM.f.an(aGTM.c, 'nonce', cfg, ''); // Nonce value for the file injections
-  aGTM.f.an(aGTM.c, 'iframeSupport', cfg, false); // Nonce value for the file injections
-  aGTM.f.an(aGTM.c, 'useListener', cfg, false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
+  aGTM.f.an(aGTM.c, "debug", cfg, false); // If this is true, the optout cookie will be ignored
+  aGTM.f.an(aGTM.c, "path", cfg, ""); // (relative) path to the directory where aGTM is located, e.g. '/js/''
+  aGTM.f.an(aGTM.c, "file", cfg, "aGTM.js"); // Filename of aGTM, default is 'aGTM.js'
+  aGTM.f.an(aGTM.c, "cmp", cfg, ""); // Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See README.md for possible options.
+  aGTM.c.min = typeof cfg.min == "boolean" ? cfg.min : true; // inject the files as minified versions
+  aGTM.f.an(aGTM.c, "nonce", cfg, ""); // Nonce value for the file injections
+  aGTM.f.an(aGTM.c, "iframeSupport", cfg, false); // Nonce value for the file injections
+  aGTM.f.an(aGTM.c, "useListener", cfg, false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
 
   // GTM-specific configuration
-  aGTM.f.an(aGTM.c, 'gtmID', cfg, ''); // GTM ID for fire hasty Events, by default the last GTM ID of the following object will be used
-  if (cfg.gtm) { // Object with GTM container config, example: cfg.gtm = { 'GTM-xxx': { debug_mode:true } };
+  aGTM.f.an(aGTM.c, "gtmID", cfg, ""); // GTM ID for fire hasty Events, by default the last GTM ID of the following object will be used
+  if (cfg.gtm) {
+    // Object with GTM container config, example: cfg.gtm = { 'GTM-xxx': { debug_mode:true } };
     for (var k in cfg.gtm) {
       if (cfg.gtm.hasOwnProperty(k)) {
         aGTM.c.gtmID = k; // GTM ID
         // Assign GTM-container-specific configurations
         aGTM.c.gtm = {};
         aGTM.c.gtm[k] = cfg.gtm[k] || {};
-        aGTM.f.an(aGTM.c.gtm[k], 'env', cfg.gtm[k], ''); // Environment string (leave it blank you you don't know, what it is)
-        aGTM.f.an(aGTM.c.gtm[k], 'gtmURL', cfg.gtm[k], ''); // If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
-        aGTM.f.an(aGTM.c.gtm[k], 'gtmJS', cfg.gtm[k], ''); // Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
+        aGTM.f.an(aGTM.c.gtm[k], "env", cfg.gtm[k], ""); // Environment string (leave it blank you you don't know, what it is)
+        aGTM.f.an(aGTM.c.gtm[k], "gtmURL", cfg.gtm[k], ""); // If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
+        aGTM.f.an(aGTM.c.gtm[k], "gtmJS", cfg.gtm[k], ""); // Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
       }
     }
   }
-  aGTM.f.an(aGTM.c, 'gdl', cfg, 'dataLayer'); // GTM dataLayer name
-  aGTM.f.an(aGTM.c, 'gtmPurposes', cfg, ''); // The purpose(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Functional'
-  aGTM.f.an(aGTM.c, 'gtmServices', cfg, ''); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
-  aGTM.f.an(aGTM.c, 'gtmVendors', cfg, ''); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
-  aGTM.f.an(aGTM.c, 'gtmAttr', cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
-  aGTM.f.an(aGTM.c, 'dlSet', cfg, {}); // Set dataLayer variables, that should always be attached to an event
-  aGTM.c.dlStateEvents = typeof cfg.dlStateEvents=='boolean' ? cfg.dlStateEvents : false; // Fire GTM dataLayer Events for DOMloaded and PAGEready
-  aGTM.c.vPageview = typeof cfg.vPageview=='boolean' ? cfg.vPageview : false; // Fire vPageview Event
+  aGTM.f.an(aGTM.c, "gdl", cfg, "dataLayer"); // GTM dataLayer name
+  aGTM.f.an(aGTM.c, "gtmPurposes", cfg, ""); // The purpose(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Functional'
+  aGTM.f.an(aGTM.c, "gtmServices", cfg, ""); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
+  aGTM.f.an(aGTM.c, "gtmVendors", cfg, ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
+  aGTM.f.an(aGTM.c, "gtmAttr", cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
+  aGTM.f.an(aGTM.c, "dlSet", cfg, {}); // Set dataLayer variables, that should always be attached to an event
+  aGTM.c.dlStateEvents =
+    typeof cfg.dlStateEvents == "boolean" ? cfg.dlStateEvents : false; // Fire GTM dataLayer Events for DOMloaded and PAGEready
+  aGTM.c.vPageview = typeof cfg.vPageview == "boolean" ? cfg.vPageview : false; // Fire vPageview Event
 
   // Consent configuration
   cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
   aGTM.c.consent = aGTM.c.consent || cfg.consent; // object with consent information that should be set by default (if no consent is given or not yet).
   // Initialize the nested consent properties with default values or from cfg
-  aGTM.f.an(aGTM.c.consent, 'hasResponse', cfg.consent, false); // true (or string) if consent was given, false if consent was not (yet) given (user hasn't interacted with the consent banner)
-  aGTM.f.an(aGTM.c.consent, 'feedback', cfg.consent, ''); // contains a string with a CMP info about whether/how the consent was given
-  aGTM.f.an(aGTM.c.consent, 'purposes', cfg.consent, ''); // contains a string with the acknowledged consent purposes
-  aGTM.f.an(aGTM.c.consent, 'services', cfg.consent, ''); // contains a string with the acknowledged consent services
-  aGTM.f.an(aGTM.c.consent, 'vendors', cfg.consent, ''); // contains a string with the acknowledged consent vendors
-  aGTM.f.an(aGTM.c.consent, 'consent_id', cfg.consent, ''); // ID of the current CMP User to request consent info
+  aGTM.f.an(aGTM.c.consent, "hasResponse", cfg.consent, false); // true (or string) if consent was given, false if consent was not (yet) given (user hasn't interacted with the consent banner)
+  aGTM.f.an(aGTM.c.consent, "feedback", cfg.consent, ""); // contains a string with a CMP info about whether/how the consent was given
+  aGTM.f.an(aGTM.c.consent, "purposes", cfg.consent, ""); // contains a string with the acknowledged consent purposes
+  aGTM.f.an(aGTM.c.consent, "services", cfg.consent, ""); // contains a string with the acknowledged consent services
+  aGTM.f.an(aGTM.c.consent, "vendors", cfg.consent, ""); // contains a string with the acknowledged consent vendors
+  aGTM.f.an(aGTM.c.consent, "consent_id", cfg.consent, ""); // ID of the current CMP User to request consent info
 
   // Initialise the dataLayer
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
@@ -148,9 +158,8 @@ aGTM.f.config = function(cfg) {
   aGTM.d.consent = aGTM.d.consent || JSON.parse(JSON.stringify(aGTM.c.consent)); // Deep copy to avoid reference issues
   aGTM.d.consent.gtmConsent = false; // Initialize GTM consent as false
   aGTM.d.config = true; // Set the configuration status to true
-  if (typeof aGTM.f.log=='function') aGTM.f.log('m1', aGTM.c); // Log the configuration
+  if (typeof aGTM.f.log == "function") aGTM.f.log("m1", aGTM.c); // Log the configuration
 };
-
 
 /***** Consent Functions *****/
 
@@ -161,24 +170,26 @@ aGTM.f.config = function(cfg) {
  * @param {function} callback - The callback function to execute once the script is fully loaded.
  * Usage: aGTM.f.load_cc('cookiebot', callbackFunction);
  */
-aGTM.f.load_cc = function(cmp, callback) {
-  var scriptTag = document.createElement('script');
+aGTM.f.load_cc = function (cmp, callback) {
+  var scriptTag = document.createElement("script");
   // Get the script path, adding a trailing slash if it's missing
-  var scriptPath = aGTM.c.path || '';
-  if (scriptPath.length>0 && scriptPath.charAt(scriptPath.length - 1)!=='/') scriptPath += '/';
+  var scriptPath = aGTM.c.path || "";
+  if (scriptPath.length > 0 && scriptPath.charAt(scriptPath.length - 1) !== "/")
+    scriptPath += "/";
   // Construct the full script URL, cleaning the CMP name and appending the minified suffix if needed
-  var scriptFile = 'cmp/cc_' + aGTM.f.strclean(cmp) + (aGTM.c.min ? '.min' : '') + '.js';
+  var scriptFile =
+    "cmp/cc_" + aGTM.f.strclean(cmp) + (aGTM.c.min ? ".min" : "") + ".js";
   scriptTag.src = scriptPath + scriptFile;
   // Add nonce for Content Security Policy (CSP) if it's provided
   if (aGTM.c.nonce) scriptTag.nonce = aGTM.c.nonce;
   // Set up the callback to execute when the script is loaded
-    //t.onreadystatechange=callback;
-    //t.onload=callback;
-  scriptTag.onreadystatechange = scriptTag.onload = function() {
+  //t.onreadystatechange=callback;
+  //t.onload=callback;
+  scriptTag.onreadystatechange = scriptTag.onload = function () {
     // Ensure the script is fully loaded or completed before executing the callback
     if (!scriptTag.readyState || /loaded|complete/.test(scriptTag.readyState)) {
       // Check if the callback is a function before executing it
-      if (typeof callback === 'function') {
+      if (typeof callback === "function") {
         callback();
       }
     }
@@ -227,8 +238,8 @@ aGTM.f.load_cc = function(cmp, callback) {
 aGTM.f.chelp = function (need_cons, given_cons) {
   var c = true;
   if (need_cons && given_cons) {
-    need_cons.split(',').forEach(function(consent) {
-      if (given_cons.indexOf(',' + consent.trim() + ',') < 0) c = false;
+    need_cons.split(",").forEach(function (consent) {
+      if (given_cons.indexOf("," + consent.trim() + ",") < 0) c = false;
     });
   }
   return c;
@@ -240,15 +251,18 @@ aGTM.f.chelp = function (need_cons, given_cons) {
  * @param {object} consents - The given consents object containing purposes, services, and vendors.
  * @return {boolean} - True if all required consents are given, false otherwise.
  */
-aGTM.f.evalCons = function(obj, consents) {
-  var isConsentGiven = function(list, consentString) {
-    return list.every(function(item) {
-      return consentString.indexOf(',' + item + ',') >= 0;
+aGTM.f.evalCons = function (obj, consents) {
+  var isConsentGiven = function (list, consentString) {
+    return list.every(function (item) {
+      return consentString.indexOf("," + item + ",") >= 0;
     });
   };
-  var purposesGiven = !obj.purposes.length || isConsentGiven(obj.purposes, consents.purposes);
-  var servicesGiven = !obj.services.length || isConsentGiven(obj.services, consents.services);
-  var vendorsGiven = !obj.vendors.length || isConsentGiven(obj.vendors, consents.vendors);
+  var purposesGiven =
+    !obj.purposes.length || isConsentGiven(obj.purposes, consents.purposes);
+  var servicesGiven =
+    !obj.services.length || isConsentGiven(obj.services, consents.services);
+  var vendorsGiven =
+    !obj.vendors.length || isConsentGiven(obj.vendors, consents.vendors);
   return purposesGiven && servicesGiven && vendorsGiven;
 };
 
@@ -260,32 +274,59 @@ aGTM.f.evalCons = function(obj, consents) {
  */
 aGTM.f.run_cc = function (action) {
   // Ensure configuration is set before proceeding
-  if (!aGTM.d.config) { aGTM.f.log('e4', null); return false; }
+  if (!aGTM.d.config) {
+    aGTM.f.log("e4", null);
+    return false;
+  }
   // Validate the action parameter
-  if (typeof action !== 'string' || (action !== 'init' && action !== 'update')) { aGTM.f.log('e5', {action: action}); return false; }
+  if (
+    typeof action !== "string" ||
+    (action !== "init" && action !== "update")
+  ) {
+    aGTM.f.log("e5", { action: action });
+    return false;
+  }
   // Check if consent_check function is defined
-  if (typeof aGTM.f.consent_check !== 'function') { aGTM.f.log('e14', {action: action}); return false; }
+  if (typeof aGTM.f.consent_check !== "function") {
+    aGTM.f.log("e14", { action: action });
+    return false;
+  }
   // Perform the consent check
   var consentCheck = aGTM.f.consent_check(action);
-  if (!consentCheck) { aGTM.f.log('m8', null); return false; }
+  if (!consentCheck) {
+    aGTM.f.log("m8", null);
+    return false;
+  }
   // Set GTM consent status
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
-  if (    aGTM.f.chelp(aGTM.c.gtmPurposes, aGTM.d.consent.purposes)
-       && aGTM.f.chelp(aGTM.c.gtmServices, aGTM.d.consent.services)
-       && aGTM.f.chelp(aGTM.c.gtmVendors, aGTM.d.consent.vendors)) {
+  if (
+    aGTM.f.chelp(aGTM.c.gtmPurposes, aGTM.d.consent.purposes) &&
+    aGTM.f.chelp(aGTM.c.gtmServices, aGTM.d.consent.services) &&
+    aGTM.f.chelp(aGTM.c.gtmVendors, aGTM.d.consent.vendors)
+  ) {
     aGTM.d.consent.gtmConsent = true;
   } else {
-    aGTM.d.consent.gtmConsent = typeof aGTM.d.consent.blocked=='boolean' ? aGTM.d.consent.blocked : false;
+    aGTM.d.consent.gtmConsent =
+      typeof aGTM.d.consent.blocked == "boolean"
+        ? aGTM.d.consent.blocked
+        : false;
   }
   // Update consent status if action is 'update'
-  if (action=='update') {
+  if (action == "update") {
     if (!aGTM.d.init) aGTM.f.inject();
-    window[aGTM.c.gdl].push({ event: 'aGTM_consent_update', aGTMts:new Date().getTime(), aGTMconsent:aGTM.d.consent ? JSON.parse(JSON.stringify(aGTM.d.consent)) : {} });
+    window[aGTM.c.gdl].push({
+      event: "aGTM_consent_update",
+      aGTMts: new Date().getTime(),
+      aGTMconsent: aGTM.d.consent
+        ? JSON.parse(JSON.stringify(aGTM.d.consent))
+        : {},
+    });
   }
   // Execute callback if defined
-  if (typeof aGTM.f.consent_callback === 'function') aGTM.f.consent_callback(action);
+  if (typeof aGTM.f.consent_callback === "function")
+    aGTM.f.consent_callback(action);
   // Log the current consent status
-  aGTM.f.log('m3', aGTM.d.consent);
+  aGTM.f.log("m3", aGTM.d.consent);
   return true;
 };
 
@@ -297,9 +338,13 @@ aGTM.f.run_cc = function (action) {
  */
 aGTM.f.call_cc = function () {
   // Run the consent check
-  if (typeof aGTM.f.run_cc!='function' || !aGTM.f.run_cc('init')) return false; // If consent check failed, return false
+  if (typeof aGTM.f.run_cc != "function" || !aGTM.f.run_cc("init"))
+    return false; // If consent check failed, return false
   // Clear the consent timer if it's set
-  if (typeof aGTM.d.timer.consent!='undefined') { clearInterval(aGTM.d.timer.consent); delete aGTM.d.timer.consent; }
+  if (typeof aGTM.d.timer.consent != "undefined") {
+    clearInterval(aGTM.d.timer.consent);
+    delete aGTM.d.timer.consent;
+  }
   // If initialization hasn't been done, call the inject function
   if (!aGTM.d.init) return aGTM.f.inject();
   // Return true if consent was checked successfully
@@ -311,10 +356,11 @@ aGTM.f.call_cc = function () {
  * @property {function} aGTM.f.consent_listener
  * Usage: aGTM.f.consent_listener();
  */
-if (typeof aGTM.f.consent_listener!='function') aGTM.f.consent_listener = function () {
-  if (!aGTM.c.useListener) aGTM.d.timer.consent = setInterval(aGTM.f.call_cc, 1000);
-};
-
+if (typeof aGTM.f.consent_listener != "function")
+  aGTM.f.consent_listener = function () {
+    if (!aGTM.c.useListener)
+      aGTM.d.timer.consent = setInterval(aGTM.f.call_cc, 1000);
+  };
 
 /***** Google Tag Manager specific Functions *****/
 
@@ -329,35 +375,61 @@ if (typeof aGTM.f.consent_listener!='function') aGTM.f.consent_listener = functi
  * Usage: aGTM.f.gtm_load(window, document, 'XYZ123', 'dataLayer', {gtm_auth: 'abc123', gtm_preview: 'env-1', gtm_cookies_win: 'x'});
  */
 aGTM.f.gtm_load = function (w, d, i, l, o) {
-  if (!aGTM.d.config) { aGTM.f.log('e7', null); return; }
+  if (!aGTM.d.config) {
+    aGTM.f.log("e7", null);
+    return;
+  }
   // Push Start element in DL
-  var consent = aGTM.d.consent ? JSON.parse(JSON.stringify(aGTM.d.consent)) : {};
-  window[aGTM.c.gdl].push({ event:'aGTM_ready', aGTMts:new Date().getTime(), aGTMconsent:aGTM.d.consent ? JSON.parse(JSON.stringify(aGTM.d.consent)) : {}, aGTM: { version:aGTM.d.version, is_iframe:aGTM.d.is_iframe, hastyEvents:aGTM.d.f, errors:aGTM.d.errors } });
-  window[aGTM.c.gdl].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
-  if (aGTM.c.vPageview) window[aGTM.c.gdl].push({ event:'vPageview', aGTMts:new Date().getTime() });
+  var consent = aGTM.d.consent
+    ? JSON.parse(JSON.stringify(aGTM.d.consent))
+    : {};
+  window[aGTM.c.gdl].push({
+    event: "aGTM_ready",
+    aGTMts: new Date().getTime(),
+    aGTMconsent: aGTM.d.consent
+      ? JSON.parse(JSON.stringify(aGTM.d.consent))
+      : {},
+    aGTM: {
+      version: aGTM.d.version,
+      is_iframe: aGTM.d.is_iframe,
+      hastyEvents: aGTM.d.f,
+      errors: aGTM.d.errors,
+    },
+  });
+  window[aGTM.c.gdl].push({
+    "gtm.start": new Date().getTime(),
+    event: "gtm.js",
+  });
+  if (aGTM.c.vPageview)
+    window[aGTM.c.gdl].push({
+      event: "vPageview",
+      aGTMts: new Date().getTime(),
+    });
   // Debug Mode
   var gtm_debug = false;
   // Check Debug Cookie
-  var dc = aGTM.f.gc('aGTMdebug');
-  if (dc && parseInt(dc)>0) gtm_debug = true;
+  var dc = aGTM.f.gc("aGTMdebug");
+  if (dc && parseInt(dc) > 0) gtm_debug = true;
   // Get Debug param
   if (!gtm_debug) {
     var url = new URL(document.location.href);
-    if (url.searchParams.get('gtm_debug')) gtm_debug = true;
+    if (url.searchParams.get("gtm_debug")) gtm_debug = true;
   }
   // Get debug referrer
   if (!gtm_debug && document.referrer) {
     var url = new URL(document.referrer);
-    if (url.hostname==aGTM.n.ta+'.com') gtm_debug = true;
+    if (url.hostname == aGTM.n.ta + ".com") gtm_debug = true;
   }
   // Set debug cookie
-  if (!dc && gtm_debug) aGTM.f.sc('aGTMdebug', '1');
+  if (!dc && gtm_debug) aGTM.f.sc("aGTMdebug", "1");
   // Create a new DOM node (tag) of type "script"
-  var scriptTag = d.createElement('script');
-  scriptTag.id = 'aGTM_tm';
+  var scriptTag = d.createElement("script");
+  scriptTag.id = "aGTM_tm";
   scriptTag.async = true;
-  if (typeof aGTM.c.gtmAttr=='object') {
-    for (var k in aGTM.c.gtmAttr) { scriptTag.setAttribute(k, aGTM.c.gtmAttr[k]); }
+  if (typeof aGTM.c.gtmAttr == "object") {
+    for (var k in aGTM.c.gtmAttr) {
+      scriptTag.setAttribute(k, aGTM.c.gtmAttr[k]);
+    }
   }
   if (aGTM.c.nonce) scriptTag.nonce = aGTM.c.nonce;
   // Set the script content directly if GTM code is provided
@@ -365,12 +437,12 @@ aGTM.f.gtm_load = function (w, d, i, l, o) {
     scriptTag.innerHTML = atob(o.gtmJS);
   } else {
     // Construct the GTM script URL
-    var gtmUrl = o.gtmURL || 'https://www.'+aGTM.n.tm+'.com/gtm.js';
-    var envParam = o.env || '';
-    scriptTag.src = gtmUrl + '?id=' + i + '&l=' + l + envParam;
+    var gtmUrl = o.gtmURL || "https://www." + aGTM.n.tm + ".com/gtm.js";
+    var envParam = o.env || "";
+    scriptTag.src = gtmUrl + "?id=" + i + "&l=" + l + envParam;
   }
   // Insert the GTM script tag into the document
-  var firstScriptTag = d.getElementsByTagName('script')[0];
+  var firstScriptTag = d.getElementsByTagName("script")[0];
   firstScriptTag.parentNode.insertBefore(scriptTag, firstScriptTag);
 };
 
@@ -380,13 +452,13 @@ aGTM.f.gtm_load = function (w, d, i, l, o) {
  * @property {function} aGTM.f.domready
  * Usage: aGTM.f.domready();
  */
-aGTM.f.domready = function(evob) {
+aGTM.f.domready = function (evob) {
   var is_intern = false;
   if (!aGTM.f.vOb(evob)) {
     evob = {};
     is_intern = true;
   }
-  if (!evob.event) evob.event = 'vDOMready';
+  if (!evob.event) evob.event = "vDOMready";
   // Ensure the function runs only once
   if (!aGTM.d.dom_ready || !is_intern) {
     // Fire a custom event if dlStateEvents is enabled
@@ -402,13 +474,13 @@ aGTM.f.domready = function(evob) {
  * @property {function} aGTM.f.pageready
  * Usage: aGTM.f.pageready();
  */
-aGTM.f.pageready = function(evob) {
+aGTM.f.pageready = function (evob) {
   var is_intern = false;
   if (!aGTM.f.vOb(evob)) {
     evob = {};
     is_intern = true;
   }
-  if (!evob.event) evob.event = 'vPAGEready';
+  if (!evob.event) evob.event = "vPAGEready";
   // Ensure the function runs only once
   if (!aGTM.d.page_ready || !is_intern) {
     // Fire a custom event if dlStateEvents is enabled
@@ -418,7 +490,6 @@ aGTM.f.pageready = function(evob) {
   }
 };
 
-
 /***** Injection *****/
 
 /**
@@ -427,10 +498,16 @@ aGTM.f.pageready = function(evob) {
  * @property {function} aGTM.f.initGTM
  * Usage: aGTM.f.initGTM();
  */
-aGTM.f.initGTM = function() {
+aGTM.f.initGTM = function () {
   for (var containerId in aGTM.c.gtm) {
     if (aGTM.c.gtm.hasOwnProperty(containerId)) {
-      aGTM.f.gtm_load(window, document, containerId, aGTM.c.gdl, aGTM.c.gtm[containerId]);
+      aGTM.f.gtm_load(
+        window,
+        document,
+        containerId,
+        aGTM.c.gdl,
+        aGTM.c.gtm[containerId],
+      );
     }
   }
 };
@@ -442,19 +519,19 @@ aGTM.f.initGTM = function() {
  * @property {function} aGTM.f.chkDPready
  * Usage: aGTM.f.chkDPready();
  */
-aGTM.f.chkDPready = function() {
+aGTM.f.chkDPready = function () {
   var state = document.readyState;
   // Check if DOM is ready
-  if (state === 'interactive' || state === 'complete') {
+  if (state === "interactive" || state === "complete") {
     aGTM.f.domready(null);
   } else {
-    aGTM.f.evLstn(document, 'DOMContentLoaded', aGTM.f.domready);
+    aGTM.f.evLstn(document, "DOMContentLoaded", aGTM.f.domready);
   }
   // Check if Page is fully loaded
-  if (state === 'complete') {
+  if (state === "complete") {
     aGTM.f.pageready(null);
   } else {
-    aGTM.f.evLstn(window, 'load', aGTM.f.pageready);
+    aGTM.f.evLstn(window, "load", aGTM.f.pageready);
   }
 };
 
@@ -465,32 +542,45 @@ aGTM.f.chkDPready = function() {
  */
 aGTM.f.inject = function () {
   // Ensure configuration is loaded before proceeding
-  if (!aGTM.d.config) { aGTM.f.log('e8', null); return false; }
+  if (!aGTM.d.config) {
+    aGTM.f.log("e8", null);
+    return false;
+  }
   // Check if consent object exists and has a valid response
-  if (typeof aGTM.d.consent!='object' || typeof aGTM.d.consent.hasResponse!='boolean' || !aGTM.d.consent.hasResponse) { aGTM.f.log('e13', null); return false; }
+  if (
+    typeof aGTM.d.consent != "object" ||
+    typeof aGTM.d.consent.hasResponse != "boolean" ||
+    !aGTM.d.consent.hasResponse
+  ) {
+    aGTM.f.log("e13", null);
+    return false;
+  }
   // Proceed only if not already initialized
   if (!aGTM.d.init) {
     // Temporary store and process dataLayer items
     var dl = window[aGTM.c.gdl] || [];
-    dl.forEach(function(ev, index) {
+    dl.forEach(function (ev, index) {
       if (!ev.aGTMchk) {
         ev.aGTMdl = true;
         var evClone = JSON.parse(JSON.stringify(ev));
-        if (typeof evClone['gtm.uniqueEventId']!='undefined') delete evClone['gtm.uniqueEventId'];
+        if (typeof evClone["gtm.uniqueEventId"] != "undefined")
+          delete evClone["gtm.uniqueEventId"];
         aGTM.d.f.push(evClone);
       }
     });
     // Initialize GTM if enabled and consent given
-    if (aGTM.d.consent.gtmConsent) { aGTM.f.initGTM(); aGTM.d.init = true; }
+    if (aGTM.d.consent.gtmConsent) {
+      aGTM.f.initGTM();
+      aGTM.d.init = true;
+    }
     // Check DOM ready state and call corresponding functions
     if (aGTM.d.init) aGTM.f.chkDPready();
   }
   // Call inject callback if defined and return
-  if (typeof aGTM.f.inject_callback=='function') aGTM.f.inject_callback();
-  aGTM.f.log('m6', null);
+  if (typeof aGTM.f.inject_callback == "function") aGTM.f.inject_callback();
+  aGTM.f.log("m6", null);
   return true;
 };
-
 
 /***** iFrame Support *****/
 
@@ -499,18 +589,22 @@ aGTM.f.inject = function () {
  * @param {Object} ev - The event object to send, containing event details.
  */
 aGTM.f.iFrameFire = function (ev) {
-  if (typeof ev!='object' || !ev) return;
-  if (aGTM.d.is_iframe && typeof ev.event=='string' && /^(aGTM|gtm\.|vDOMready|vPAGEready)/.test(ev.event)) {
+  if (typeof ev != "object" || !ev) return;
+  if (
+    aGTM.d.is_iframe &&
+    typeof ev.event == "string" &&
+    /^(aGTM|gtm\.|vDOMready|vPAGEready)/.test(ev.event)
+  ) {
     window[aGTM.c.gdl].push(ev);
     return;
   }
-  ev.aGTM_source = 'iFrame ' + document.location.hostname;
+  ev.aGTM_source = "iFrame " + document.location.hostname;
   aGTM.d.iframe.counter.events++;
   ev.ifEvCtr = aGTM.d.iframe.counter.events;
-  if (typeof ev.event=='string' && ev.event) {
+  if (typeof ev.event == "string" && ev.event) {
     aGTM.d.iframe.counter[ev.event] = aGTM.d.iframe.counter[ev.event] || 0;
     aGTM.d.iframe.counter[ev.event]++;
-    ev['ifEvCtr_' + ev.event] = aGTM.d.iframe.counter[ev.event];
+    ev["ifEvCtr_" + ev.event] = aGTM.d.iframe.counter[ev.event];
   }
   if (ev.aGTMts) delete ev.aGTMts;
   if (ev.aGTMparams) delete ev.aGTMparams;
@@ -524,17 +618,18 @@ aGTM.f.iFrameFire = function (ev) {
 /**
  * Sends a handshake message to all iframes on the page if the current window is not an iframe and no origin is defined.
  */
-aGTM.f.ifHandshake = function() {
+aGTM.f.ifHandshake = function () {
   // Führe die Operation nur aus, wenn dies nicht ein iFrame ist und der Handshake noch nicht erfolgt ist.
   if (!aGTM.d.is_iframe && !aGTM.d.iframe.handshake) {
-    var iframes = document.getElementsByTagName('iframe');
+    var iframes = document.getElementsByTagName("iframe");
     // Verwende eine frühzeitige Rückkehr, um eine zusätzliche Verschachtelung zu vermeiden
     if (!iframes.length) return;
     // Schleife durch alle iFrames und sende die Handshake-Nachricht
-    for (var i=0; i<iframes.length; i++) {
+    for (var i = 0; i < iframes.length; i++) {
       var iframe = iframes[i];
-      if (!iframe || !iframe.contentWindow || !iframe.contentWindow.postMessage) continue;
-      iframe.contentWindow.postMessage('aGTM_Top2iFrame Handshake', '*');
+      if (!iframe || !iframe.contentWindow || !iframe.contentWindow.postMessage)
+        continue;
+      iframe.contentWindow.postMessage("aGTM_Top2iFrame Handshake", "*");
     }
     // Markiere, dass der Handshake-Versuch unternommen wurde
     aGTM.d.iframe.handshake = true;
@@ -546,17 +641,20 @@ aGTM.f.ifHandshake = function() {
  * @param {MessageEvent} e - The message event object received.
  */
 aGTM.f.ifHSlisten = function (e) {
-  if (aGTM.d.is_iframe && typeof e.data=='string' && e.data=='aGTM_Top2iFrame Handshake') {
+  if (
+    aGTM.d.is_iframe &&
+    typeof e.data == "string" &&
+    e.data == "aGTM_Top2iFrame Handshake"
+  ) {
     aGTM.d.iframe.origin = e.origin;
     aGTM.d.iframe.ifListen = false;
-    window.removeEventListener('message', aGTM.f.ifHSlisten, false);
+    window.removeEventListener("message", aGTM.f.ifHSlisten, false);
     while (aGTM.d.f.length) {
       var ev = aGTM.d.f.shift();
       aGTM.f.iFrameFire(ev);
     }
   }
 };
-
 
 /***** Helper Functions *****/
 
@@ -568,9 +666,9 @@ aGTM.f.ifHSlisten = function (e) {
  * Usage: aGTM.f.strclean('any "dirty"; string');
  */
 aGTM.f.strclean = function (str) {
-  if (typeof str=='undefined' || (typeof str=='object' && !str)) return '';
-  if (typeof str!='string') str = str.toString();
-  return str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, '');
+  if (typeof str == "undefined" || (typeof str == "object" && !str)) return "";
+  if (typeof str != "string") str = str.toString();
+  return str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, "");
 };
 
 /**
@@ -581,7 +679,7 @@ aGTM.f.strclean = function (str) {
  * Usage: if (!aGTM.f.vOb(null)) return;
  */
 aGTM.f.vOb = function (i) {
-  return typeof i==='object' && i!==null;
+  return typeof i === "object" && i !== null;
 };
 
 /**
@@ -593,12 +691,16 @@ aGTM.f.vOb = function (i) {
  */
 aGTM.f.vSt = function (input) {
   // Convert the input to an array if it's a string, or use an empty array if it's neither
-  var inputArray = Array.isArray(input) ? input : typeof input=='string' ? [input] : [];
+  var inputArray = Array.isArray(input)
+    ? input
+    : typeof input == "string"
+      ? [input]
+      : [];
   // Return false immediately if the array is empty
   if (inputArray.length === 0) return false;
   // Check every element in the array to ensure it's a non-empty string
-  return inputArray.every(function(element) {
-    return typeof element=='string' && element!=='';
+  return inputArray.every(function (element) {
+    return typeof element == "string" && element !== "";
   });
 };
 
@@ -615,7 +717,7 @@ aGTM.f.gc = function (cname) {
   try {
     var d = document;
     var match = re.exec(d[aGTM.n.ck]);
-    if (match && match.length>1) value = decodeURIComponent(match[1]);
+    if (match && match.length > 1) value = decodeURIComponent(match[1]);
   } catch (e) {}
   return value;
 };
@@ -628,10 +730,10 @@ aGTM.f.gc = function (cname) {
  * Usage: aGTM.f.sc('consent','true');
  */
 aGTM.f.sc = function (cname, cvalue) {
-  if (typeof cname!='string' || !cname || !cvalue) return;
+  if (typeof cname != "string" || !cname || !cvalue) return;
   try {
     var d = document;
-    d[aGTM.n.ck] = cname+'='+cvalue+'; Secure; SameSite=Lax; path=/';
+    d[aGTM.n.ck] = cname + "=" + cvalue + "; Secure; SameSite=Lax; path=/";
   } catch (e) {}
 };
 
@@ -643,28 +745,38 @@ aGTM.f.sc = function (cname, cvalue) {
  * @param {function} fct - The function to execute when the event is triggered.
  * Usage: aGTM.f.evLstn(document.querySelector('div.button'), 'mousedown', click_fct);
  */
-aGTM.f.evLstn = function(el, ev, fct) {
+aGTM.f.evLstn = function (el, ev, fct) {
   // If 'el' is 'window' or 'document' string, convert it to the actual object
-  if (el==='window') el = window;
-  if (el==='document') el = document;
+  if (el === "window") el = window;
+  if (el === "document") el = document;
   // Validate input parameters
-  if (typeof el!='object' || !el || typeof ev!='string' || typeof fct!='function') {
-    aGTM.f.log('e11', {el: el, ev: ev, fct: fct});
+  if (
+    typeof el != "object" ||
+    !el ||
+    typeof ev != "string" ||
+    typeof fct != "function"
+  ) {
+    aGTM.f.log("e11", { el: el, ev: ev, fct: fct });
     return;
   }
   // Try to add the event listener
   try {
-    if (ev=='message') {
+    if (ev == "message") {
       if (!aGTM.d.iframe.topListen && !aGTM.d.is_iframe) {
         aGTM.d.iframe.topListen = true;
-        el.addEventListener(ev, function(e){ fct(typeof e.data!='undefined' ? e.data : null,typeof e.origin=='string' ? e.origin : ''); });
+        el.addEventListener(ev, function (e) {
+          fct(
+            typeof e.data != "undefined" ? e.data : null,
+            typeof e.origin == "string" ? e.origin : "",
+          );
+        });
       }
     } else {
       el.addEventListener(ev, fct);
     }
   } catch (e) {
     // Log if there is an error adding the event listener
-    aGTM.f.log('e12', {error: e, el: el, ev: ev, fct: fct});
+    aGTM.f.log("e12", { error: e, el: el, ev: ev, fct: fct });
   }
 };
 
@@ -676,10 +788,10 @@ aGTM.f.evLstn = function(el, ev, fct) {
  * @param {function} fct - The function to execute when the event is triggered.
  * Usage: aGTM.f.rmLstn(document.querySelector('div.button'), 'mousedown', click_fct);
  */
-aGTM.f.rmLstn = function(el, ev, fct) {
+aGTM.f.rmLstn = function (el, ev, fct) {
   // If 'el' is 'window' or 'document' string, convert it to the actual object
-  if (el==='window') el = window;
-  if (el==='document') el = document;
+  if (el === "window") el = window;
+  if (el === "document") el = document;
   // Try to remove the event listener
   try {
     el.removeEventListener(ev, fct);
@@ -698,20 +810,40 @@ aGTM.f.rmLstn = function(el, ev, fct) {
  * Usage: aGTM.f.getVal('w', 'location');
  */
 aGTM.f.getVal = function (o, v) {
-  if (!aGTM.f.vSt([o,v]) || !v.match(/[a-z]+/i)) return undefined;
-  if (o=='p' && (typeof performance!='object' || !performance)) return undefined;
+  if (!aGTM.f.vSt([o, v]) || !v.match(/[a-z]+/i)) return undefined;
+  if (o == "p" && (typeof performance != "object" || !performance))
+    return undefined;
   switch (o) {
-    case 'w': return aGTM.f.vOb(window[v]) ? JSON.parse(JSON.stringify(window[v])) : window[v];
-    case 'n': return aGTM.f.vOb(navigator[v]) ? JSON.parse(JSON.stringify(navigator[v])) : navigator[v];
-    case 'd': return document[v];
-    case 'l': return document.location[v];
-    case 'h': return document.head[v];
-    case 'b': return document.body[v];
-    case 's': return document.getElementsByTagName("html")[0].scrollTop || 0;
-    case 'm': return window.screen[v];
-    case 'c': if (window.google_tag_data && window.google_tag_data.ics) { return JSON.parse(JSON.stringify(window.google_tag_data.ics)); } else { return null; }
-    case 'p': return v=='now' ? performance.now() : performance[v];
-    default : return undefined;
+    case "w":
+      return aGTM.f.vOb(window[v])
+        ? JSON.parse(JSON.stringify(window[v]))
+        : window[v];
+    case "n":
+      return aGTM.f.vOb(navigator[v])
+        ? JSON.parse(JSON.stringify(navigator[v]))
+        : navigator[v];
+    case "d":
+      return document[v];
+    case "l":
+      return document.location[v];
+    case "h":
+      return document.head[v];
+    case "b":
+      return document.body[v];
+    case "s":
+      return document.getElementsByTagName("html")[0].scrollTop || 0;
+    case "m":
+      return window.screen[v];
+    case "c":
+      if (window.google_tag_data && window.google_tag_data.ics) {
+        return JSON.parse(JSON.stringify(window.google_tag_data.ics));
+      } else {
+        return null;
+      }
+    case "p":
+      return v == "now" ? performance.now() : performance[v];
+    default:
+      return undefined;
   }
 };
 
@@ -737,13 +869,13 @@ aGTM.f.getNodeAttr = function (s, a) {
  * Usage Example (creating a Canonical Tag URL): aGTM.f.newNode('link','head',{ rel:'canonical', href:'https://www.MySite.com/CurrentPage' });
  */
 aGTM.f.newNode = function (t, p, o) {
-  if (!aGTM.f.vSt([t,p]) || typeof o!='object') return;
+  if (!aGTM.f.vSt([t, p]) || typeof o != "object") return;
   var n = document.createElement(t);
   var parent = document.querySelector(p);
   if (!parent) return;
   for (var k in o) {
     if (o.hasOwnProperty(k)) {
-      var parts = k.split('.');
+      var parts = k.split(".");
       if (parts.length === 1) {
         n.setAttribute(k, o[k]);
       } else {
@@ -778,12 +910,16 @@ aGTM.f.delNode = function (s) {
  */
 aGTM.f.pageinfo = function countContent(options) {
   options = options || {};
-  var wordCount = 0, imageCount = 0;
+  var wordCount = 0,
+    imageCount = 0;
   if (options.countWords) {
     (function getText(node) {
       if (node.nodeType === 3) {
         wordCount += node.textContent.trim().split(/\s+/).length;
-      } else if (node.nodeType === 1 && !/^(script|style|noscript)$/i.test(node.tagName)) {
+      } else if (
+        node.nodeType === 1 &&
+        !/^(script|style|noscript)$/i.test(node.tagName)
+      ) {
         for (var i = 0; i < node.childNodes.length; i++) {
           getText(node.childNodes[i]);
         }
@@ -791,7 +927,7 @@ aGTM.f.pageinfo = function countContent(options) {
     })(document.body);
   }
   if (options.countImages) {
-    var images = document.getElementsByTagName('img');
+    var images = document.getElementsByTagName("img");
     for (var i = 0; i < images.length; i++) {
       if (images[i].naturalWidth > 250 && images[i].naturalHeight > 250) {
         imageCount++;
@@ -811,13 +947,15 @@ aGTM.f.pageinfo = function countContent(options) {
  */
 aGTM.f.cpLst = function (o, e, f) {
   try {
-    o.addEventListener(e, function(event) {
-      var selectedText = '';
+    o.addEventListener(e, function (event) {
+      var selectedText = "";
       if (!window.getSelection) return;
       selectedText = window.getSelection().toString();
       if (selectedText) f(selectedText);
     });
-  } catch(error) { aGTM.f.log('e12', {element: o, error: error}); }
+  } catch (error) {
+    aGTM.f.log("e12", { element: o, error: error });
+  }
 };
 
 /**
@@ -830,10 +968,10 @@ aGTM.f.cpLst = function (o, e, f) {
  */
 aGTM.f.elLst = function (el, ev, cb) {
   try {
-    el.addEventListener(ev, function(event) {
+    el.addEventListener(ev, function (event) {
       var tagName = this.tagName.toLowerCase();
-      var parentId = '';
-      var parentClass = '';
+      var parentId = "";
+      var parentClass = "";
       var parentForm = null;
       var position = null;
       var elementCount = 0;
@@ -841,51 +979,78 @@ aGTM.f.elLst = function (el, ev, cb) {
       // Collect parent ID and class
       while (currentElement && currentElement.parentElement) {
         currentElement = currentElement.parentElement;
-        if (!parentId && currentElement.id) parentId = (typeof currentElement.nodeName === 'string' ? currentElement.nodeName.toLowerCase() + ':' : '') + currentElement.id;
-        if (!parentClass && currentElement.getAttribute('class')) parentClass = (typeof currentElement.nodeName === 'string' ? currentElement.nodeName.toLowerCase() + ':' : '') + currentElement.getAttribute('class');
+        if (!parentId && currentElement.id)
+          parentId =
+            (typeof currentElement.nodeName === "string"
+              ? currentElement.nodeName.toLowerCase() + ":"
+              : "") + currentElement.id;
+        if (!parentClass && currentElement.getAttribute("class"))
+          parentClass =
+            (typeof currentElement.nodeName === "string"
+              ? currentElement.nodeName.toLowerCase() + ":"
+              : "") + currentElement.getAttribute("class");
       }
       // Collect form-related information if the element is a form field
-      if (tagName==='input' || tagName==='select' || tagName==='textarea') {
+      if (
+        tagName === "input" ||
+        tagName === "select" ||
+        tagName === "textarea"
+      ) {
         currentElement = this;
-        while (currentElement && currentElement.parentElement && currentElement.tagName.toLowerCase()!=='form') { currentElement = currentElement.parentElement; }
-        if (currentElement.tagName.toLowerCase()==='form') {
+        while (
+          currentElement &&
+          currentElement.parentElement &&
+          currentElement.tagName.toLowerCase() !== "form"
+        ) {
+          currentElement = currentElement.parentElement;
+        }
+        if (currentElement.tagName.toLowerCase() === "form") {
           parentForm = {
             id: currentElement.id,
-            class: currentElement.getAttribute('class'),
-            name: currentElement.getAttribute('name'),
+            class: currentElement.getAttribute("class"),
+            name: currentElement.getAttribute("name"),
             action: currentElement.action,
-            elements: currentElement.elements.length
+            elements: currentElement.elements.length,
           };
-          position = Array.prototype.indexOf.call(currentElement.elements, this) + 1;
+          position =
+            Array.prototype.indexOf.call(currentElement.elements, this) + 1;
         }
       }
       // Count elements if applicable
-      if (typeof this.elements=='object' && typeof this.elements.length=='number') elementCount = this.elements.length;
+      if (
+        typeof this.elements == "object" &&
+        typeof this.elements.length == "number"
+      )
+        elementCount = this.elements.length;
       // Construct the event object
       var eventObj = {
         tagName: tagName,
-        target: this.target || '',
+        target: this.target || "",
         parentID: parentId,
         parentClass: parentClass,
-        id: this.id || '',
-        name: this.getAttribute('name') || '',
-        class: this.getAttribute('class') || '',
-        href: this.href || '',
-        src: this.src || '',
-        action: this.action || '',
-        type: this.type || '',
+        id: this.id || "",
+        name: this.getAttribute("name") || "",
+        class: this.getAttribute("class") || "",
+        href: this.href || "",
+        src: this.src || "",
+        action: this.action || "",
+        type: this.type || "",
         elements: elementCount,
         position: position,
         form: parentForm,
-        html: this.outerHTML ? this.outerHTML.toString() : '',
-        text: this.outerText ? this.outerText.toString() : ''
+        html: this.outerHTML ? this.outerHTML.toString() : "",
+        text: this.outerText ? this.outerText.toString() : "",
       };
-      if (eventObj.html.length>512) eventObj.html = eventObj.html.slice(0, 509) + '...';
-      if (eventObj.text.length>512) eventObj.text = eventObj.text.slice(0, 509) + '...';
+      if (eventObj.html.length > 512)
+        eventObj.html = eventObj.html.slice(0, 509) + "...";
+      if (eventObj.text.length > 512)
+        eventObj.text = eventObj.text.slice(0, 509) + "...";
       // Trigger the callback function with the event object
       cb(eventObj);
     });
-  } catch(e) { aGTM.f.log('e12', {element: el, error: e}); }
+  } catch (e) {
+    aGTM.f.log("e12", { element: el, error: e });
+  }
 };
 
 /**
@@ -898,15 +1063,15 @@ aGTM.f.elLst = function (el, ev, cb) {
  */
 aGTM.f.addElLst = function (selector, event, callback) {
   // Validate inputs
-  if (!aGTM.f.vSt([selector, event]) || typeof callback!='function') return;
+  if (!aGTM.f.vSt([selector, event]) || typeof callback != "function") return;
   // Select nodes based on the provided selector
   var nodes = document.querySelectorAll(selector);
   // Validate the selected nodes
-  if (!aGTM.f.vOb(nodes) || nodes.length==0) return;
+  if (!aGTM.f.vOb(nodes) || nodes.length == 0) return;
   // Iterate over each node and add the appropriate event listener
-  nodes.forEach(function(node) {
+  nodes.forEach(function (node) {
     switch (event) {
-      case 'copy': // Special case for 'copy' event
+      case "copy": // Special case for 'copy' event
         aGTM.f.cpLst(node, event, callback);
         break;
       default: // Default case for other events
@@ -924,33 +1089,39 @@ aGTM.f.addElLst = function (selector, event, callback) {
  * Usage: aGTM.f.observer('a', 'mousedown', myClickFunction);
  */
 aGTM.f.observer = function (selector, event, callback) {
-    // Validate input parameters
-    if (!aGTM.f.vSt([selector,event]) || typeof callback!='function') return;
-    // Create a new MutationObserver to watch for changes in the DOM
-    var observer = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        // Check if the mutation type is 'childList' and there are added nodes
-        if (mutation.type==='childList' && mutation.addedNodes.length) {
-          Array.prototype.forEach.call(mutation.addedNodes, function(node) {
-            // If the node is an Element and matches the selector, add the event listener
-            if (node.nodeType===1  && typeof node.tagName=='string' && node.tagName.toLowerCase()===selector.toLowerCase()) {
-              aGTM.f.elLst(node, event, callback);
-            }
-            // If the added node has children, check each child node
-            if (node.nodeType===1 && node.querySelectorAll) {
-              var matchingElements = node.querySelectorAll(selector.toLowerCase());
-              Array.prototype.forEach.call(matchingElements, function(element) {
-                aGTM.f.elLst(element, event, callback);
-              });
-            }
-          });
-        }
-      });
+  // Validate input parameters
+  if (!aGTM.f.vSt([selector, event]) || typeof callback != "function") return;
+  // Create a new MutationObserver to watch for changes in the DOM
+  var observer = new MutationObserver(function (mutations) {
+    mutations.forEach(function (mutation) {
+      // Check if the mutation type is 'childList' and there are added nodes
+      if (mutation.type === "childList" && mutation.addedNodes.length) {
+        Array.prototype.forEach.call(mutation.addedNodes, function (node) {
+          // If the node is an Element and matches the selector, add the event listener
+          if (
+            node.nodeType === 1 &&
+            typeof node.tagName == "string" &&
+            node.tagName.toLowerCase() === selector.toLowerCase()
+          ) {
+            aGTM.f.elLst(node, event, callback);
+          }
+          // If the added node has children, check each child node
+          if (node.nodeType === 1 && node.querySelectorAll) {
+            var matchingElements = node.querySelectorAll(
+              selector.toLowerCase(),
+            );
+            Array.prototype.forEach.call(matchingElements, function (element) {
+              aGTM.f.elLst(element, event, callback);
+            });
+          }
+        });
+      }
     });
-    // Configure the observer to watch for added elements
-    var config = { childList: true, subtree: true, attributes: false };
-    // Start observing the document body
-    observer.observe(document.body, config);
+  });
+  // Configure the observer to watch for added elements
+  var config = { childList: true, subtree: true, attributes: false };
+  // Start observing the document body
+  observer.observe(document.body, config);
 };
 
 /**
@@ -962,7 +1133,7 @@ aGTM.f.observer = function (selector, event, callback) {
  * Usage: aGTM.f.rTest('cmpUpdateEvent', 'cmp.*Event');
  */
 aGTM.f.rTest = function (s, p) {
-  return aGTM.f.vSt([s, p]) && new RegExp(p, 'i').test(s);
+  return aGTM.f.vSt([s, p]) && new RegExp(p, "i").test(s);
 };
 
 /**
@@ -987,7 +1158,7 @@ aGTM.f.rMatch = function (s, p) {
  * Usage: aGTM.f.rReplace('Hello World', 'World', 'Andi');
  */
 aGTM.f.rReplace = function (t, p, r) {
-  return aGTM.f.vSt([t, p, r]) ? t.replace(new RegExp(p, 'gi'), r) : t;
+  return aGTM.f.vSt([t, p, r]) ? t.replace(new RegExp(p, "gi"), r) : t;
 };
 
 /**
@@ -995,7 +1166,7 @@ aGTM.f.rReplace = function (t, p, r) {
  * @property {function} aGTM.f.isIFrame
  * @returns {boolean} - True if the page is inside an iframe, false otherwise.
  */
-aGTM.f.isIFrame = function() {
+aGTM.f.isIFrame = function () {
   return window.self !== window.top;
 };
 
@@ -1006,31 +1177,51 @@ aGTM.f.isIFrame = function() {
  */
 aGTM.f.jserrors = function () {
   // Listen for error events on the window object
-  aGTM.f.evLstn(window, 'error', function(ev) {
+  aGTM.f.evLstn(window, "error", function (ev) {
     // Ensure the event object is not null
-    if (ev!==null) {
+    if (ev !== null) {
       // Construct the error message and the filename
-      var msg = typeof ev.message=='string' ? ev.message : '';
-      var filename = typeof ev.filename=='string' ? ev.filename : '';
+      var msg = typeof ev.message == "string" ? ev.message : "";
+      var filename = typeof ev.filename == "string" ? ev.filename : "";
       // Handle "Script error." for CORS issues
-      if (msg.toLowerCase()=='script error.') {
+      if (msg.toLowerCase() == "script error.") {
         if (!filename) return;
-        msg = msg.replace('.', ':') + ' error from other domain.';
+        msg = msg.replace(".", ":") + " error from other domain.";
       }
       // Append filename, line number, and column number to the message
-      if (filename) msg += ' | file: ' + filename;
-      var lineno = aGTM.f.strclean(ev.lineno); if (lineno=='0') lineno = '';
-      if (lineno) msg+= ' | line: ' + lineno;
-      var colno = aGTM.f.strclean(ev.colno); if (colno=='0') colno = '';
-      if (colno) msg+= ' | col: ' + colno;
+      if (filename) msg += " | file: " + filename;
+      var lineno = aGTM.f.strclean(ev.lineno);
+      if (lineno == "0") lineno = "";
+      if (lineno) msg += " | line: " + lineno;
+      var colno = aGTM.f.strclean(ev.colno);
+      if (colno == "0") colno = "";
+      if (colno) msg += " | col: " + colno;
       // Push the error message to the internal error log
       aGTM.d.errors.push(msg);
       // Collect browser information
-      var browser = '';
-      try { browser = navigator.appCodeName + ' | ' + navigator.appName + ' | ' + navigator.appVersion + ' | ' + navigator.platform; } catch (e) {}
+      var browser = "";
+      try {
+        browser =
+          navigator.appCodeName +
+          " | " +
+          navigator.appName +
+          " | " +
+          navigator.appVersion +
+          " | " +
+          navigator.platform;
+      } catch (e) {}
       // Limit the number of errors sent to avoid overwhelming the dataLayer
       if (aGTM.d.error_counter++ >= 100) return;
-      if (aGTM.d.error_counter <= 5) aGTM.f.fire({ event:'exception', errmsg:msg, browser:browser, errtype:'JS Error', timestamp:new Date().getTime(), errct:aGTM.d.error_counter, eventModel:null }); // Push the error information to the GTM dataLayer
+      if (aGTM.d.error_counter <= 5)
+        aGTM.f.fire({
+          event: "exception",
+          errmsg: msg,
+          browser: browser,
+          errtype: "JS Error",
+          timestamp: new Date().getTime(),
+          errct: aGTM.d.error_counter,
+          eventModel: null,
+        }); // Push the error information to the GTM dataLayer
     }
     //return;
   });
@@ -1046,14 +1237,15 @@ aGTM.f.jserrors = function () {
  *   - event: (optional) The name of the event to trigger. Can include '[s]' to be replaced by timer seconds.
  * Usage: aGTM.f.timerfkt({ timer_ms: 1000, timer_ct: 1, event: 'timerEvent[s]' });
  */
-aGTM.f.timerfkt = function(obj) {
+aGTM.f.timerfkt = function (obj) {
   var ev = JSON.parse(JSON.stringify(obj)); // Create a deep copy of the event object to prevent mutating the original object
   ev.timer_ms = ev.timer_ms * 1; // Ensure timer_ms is a number
   ev.timer_ct++; // Increment the timer count
   ev.timer_tm = ev.timer_ms * ev.timer_ct; // Calculate the total time in milliseconds
   ev.timer_sc = parseFloat((ev.timer_tm / 1000).toFixed(3)); // Convert total time to seconds, formatted to three decimal places
-  ev.event = ev.event || 'timer'; // Set a default event name if not provided
-  if (ev.event.indexOf('[s]') !== -1) ev.event = ev.event.replace('[s]', ev.timer_sc.toString()); // Replace '[s]' in the event name with the total seconds
+  ev.event = ev.event || "timer"; // Set a default event name if not provided
+  if (ev.event.indexOf("[s]") !== -1)
+    ev.event = ev.event.replace("[s]", ev.timer_sc.toString()); // Replace '[s]' in the event name with the total seconds
   ev.eventModel = null; // Initialize eventModel properties
   aGTM.f.fire(ev); // Trigger the event with the updated properties
 };
@@ -1069,27 +1261,42 @@ aGTM.f.timerfkt = function(obj) {
  * Usage: aGTM.f.timer('myTimer', myFunction, { event: 'myEvent' }, 15000, 3);
  */
 aGTM.f.timer = function (nm, ft, ev, ms, rp) {
-  if (!nm && typeof ev=='object' && typeof ev.event=='string') nm = ev.event;
-  nm = nm || 'timer';
-  nm += '_' + new Date().getTime().toString() + '_' + Math.floor((Math.random() * 999999) + 1).toString();
+  if (!nm && typeof ev == "object" && typeof ev.event == "string")
+    nm = ev.event;
+  nm = nm || "timer";
+  nm +=
+    "_" +
+    new Date().getTime().toString() +
+    "_" +
+    Math.floor(Math.random() * 999999 + 1).toString();
   // Check if the timer already exists and stop/delete it if it does
   aGTM.f.stoptimer(nm);
   // Initialize the timer object
-  var obj = typeof ev=='object' ? JSON.parse(JSON.stringify(ev)) : {};
+  var obj = typeof ev == "object" ? JSON.parse(JSON.stringify(ev)) : {};
   obj.timer_nm = nm;
   obj.timer_ms = ms;
   obj.timer_rp = rp;
   obj.timer_ct = 0;
   // Set the timer
-  obj.id = obj.timer_rp===1
-    ? setTimeout(function() {
-        if (ft) { ft(obj); } else { aGTM.f.timerfkt(obj); }
-      }, ms)
-    : setInterval(function() {
-        if (ft) { ft(obj); } else { aGTM.f.timerfkt(obj); }
-        obj.timer_ct++;
-        if (obj.timer_rp>0 && obj.timer_ct>=obj.timer_rp) aGTM.f.stoptimer(obj.timer_nm);
-      }, ms);
+  obj.id =
+    obj.timer_rp === 1
+      ? setTimeout(function () {
+          if (ft) {
+            ft(obj);
+          } else {
+            aGTM.f.timerfkt(obj);
+          }
+        }, ms)
+      : setInterval(function () {
+          if (ft) {
+            ft(obj);
+          } else {
+            aGTM.f.timerfkt(obj);
+          }
+          obj.timer_ct++;
+          if (obj.timer_rp > 0 && obj.timer_ct >= obj.timer_rp)
+            aGTM.f.stoptimer(obj.timer_nm);
+        }, ms);
   aGTM.d.timer[nm] = obj;
 };
 
@@ -1100,35 +1307,38 @@ aGTM.f.timer = function (nm, ft, ev, ms, rp) {
  * Usage: aGTM.f.stoptimer('myTimer');
  */
 aGTM.f.stoptimer = function (nm) {
-  if (typeof aGTM.d.timer!='object') aGTM.d.timer = {};
-  if (typeof aGTM.d.timer[nm]=='object') {
+  if (typeof aGTM.d.timer != "object") aGTM.d.timer = {};
+  if (typeof aGTM.d.timer[nm] == "object") {
     var t = aGTM.d.timer[nm];
-    if (t.timer_rp) { clearInterval(t.id); } else { clearTimeout(t.id); }
+    if (t.timer_rp) {
+      clearInterval(t.id);
+    } else {
+      clearTimeout(t.id);
+    }
     delete aGTM.d.timer[nm];
   }
 };
 
-
 /***** Init and Fire Functions *****/
 
 /**
- * Function for to initialize and inject the aGTM 
+ * Function for to initialize and inject the aGTM
  * @property {function} aGTM.f.init
  * Usage: aGTM.f.init();
  */
 aGTM.f.init = function () {
   // Return (and do nothing) if there is a cookie with the name 'aGTMoptout' (and a value)
-  if (!aGTM.c.debug && aGTM.f.gc('aGTMoptout')) return;
+  if (!aGTM.c.debug && aGTM.f.gc("aGTMoptout")) return;
   // Read and set the config
   aGTM.f.config(aGTM.c);
   // Inject the aGTM
   if (aGTM.c.iframeSupport && aGTM.d.is_iframe) {
     aGTM.d.consent.gtmConsent = true;
     aGTM.d.consent.hasResponse = true;
-    aGTM.d.consent.feedback = 'Page is iFrame';
+    aGTM.d.consent.feedback = "Page is iFrame";
     if (!aGTM.d.iframe.ifListen) {
       aGTM.d.iframe.ifListen = true;
-      window.addEventListener('message', aGTM.f.ifHSlisten);
+      window.addEventListener("message", aGTM.f.ifHSlisten);
     }
     if (!aGTM.d.init) aGTM.f.inject();
   } else {
@@ -1150,68 +1360,104 @@ aGTM.f.init = function () {
  */
 aGTM.f.fire = function (o) {
   // Ensure the event object is valid
-  if (typeof o !== 'object') { aGTM.f.log('e9', { o: typeof o }); return; }
+  if (typeof o !== "object") {
+    aGTM.f.log("e9", { o: typeof o });
+    return;
+  }
   // Create a deep copy of the event object
   var obj = JSON.parse(JSON.stringify(o));
-  if (typeof obj.aGTMts=='number' || (typeof obj.eventModel=='object' && obj.eventModel)) return;
-  if (typeof obj.event!='string' && typeof obj.type=='string' && typeof obj.flags=='object' && typeof obj.flags.enableUntaggedPageReporting=='boolean' && obj.flags.enableUntaggedPageReporting) return;
+  if (
+    typeof obj.aGTMts == "number" ||
+    (typeof obj.eventModel == "object" && obj.eventModel)
+  )
+    return;
+  if (
+    typeof obj.event != "string" &&
+    typeof obj.type == "string" &&
+    typeof obj.flags == "object" &&
+    typeof obj.flags.enableUntaggedPageReporting == "boolean" &&
+    obj.flags.enableUntaggedPageReporting
+  )
+    return;
   obj.aGTMts = Date.now();
   obj.eventModel = null;
   // Check for consent update events
-  if (aGTM.c.consent_events && typeof obj.event=='string' && aGTM.c.consent_events.indexOf(',' + obj.event + ',') >= 0) {
-    if (typeof aGTM.c.consent_event_attr[obj.event]=='object') {
+  if (
+    aGTM.c.consent_events &&
+    typeof obj.event == "string" &&
+    aGTM.c.consent_events.indexOf("," + obj.event + ",") >= 0
+  ) {
+    if (typeof aGTM.c.consent_event_attr[obj.event] == "object") {
       for (var k in aGTM.c.consent_event_attr[obj.event]) {
-        if (typeof obj[k]!='undefined') {
-          if (!aGTM.c.consent_event_attr[obj.event][k] || obj[k] == aGTM.c.consent_event_attr[obj.event][k]) aGTM.f.run_cc('update');
+        if (typeof obj[k] != "undefined") {
+          if (
+            !aGTM.c.consent_event_attr[obj.event][k] ||
+            obj[k] == aGTM.c.consent_event_attr[obj.event][k]
+          )
+            aGTM.f.run_cc("update");
         }
       }
-    } else { aGTM.f.run_cc('update'); }
+    } else {
+      aGTM.f.run_cc("update");
+    }
   }
   // Get Standard DL variables
-  if (aGTM.c.dlSet && typeof google_tag_manager=='object' && typeof google_tag_manager[aGTM.c.gtmID]=='object') {
-    Object.keys(aGTM.c.dlSet).forEach(function(key) {
+  if (
+    aGTM.c.dlSet &&
+    typeof google_tag_manager == "object" &&
+    typeof google_tag_manager[aGTM.c.gtmID] == "object"
+  ) {
+    Object.keys(aGTM.c.dlSet).forEach(function (key) {
       var dlkey = aGTM.c.dlSet[key];
       var dlvar = google_tag_manager[aGTM.c.gtmID][aGTM.c.gdl].get(dlkey);
-      if (typeof dlvar!='undefined') obj[key] = dlvar;
+      if (typeof dlvar != "undefined") obj[key] = dlvar;
     });
   }
   // Delay event if no consent is available
-  if ( (     (typeof aGTM.d.consent!='object' || !aGTM.d.consent.hasResponse || !aGTM.d.consent.gtmConsent) 
-          && (typeof obj.event!='string' || obj.event.indexOf('aGTM')!==0)
-       )
-       || (aGTM.c.iframeSupport && aGTM.d.is_iframe && !aGTM.d.iframe.origin)
-     )
-       {
-         delete obj.aGTMts;
-         delete obj.eventModel;
-         aGTM.d.f.push(JSON.parse(JSON.stringify(obj)));
-         return;
-       }
+  if (
+    ((typeof aGTM.d.consent != "object" ||
+      !aGTM.d.consent.hasResponse ||
+      !aGTM.d.consent.gtmConsent) &&
+      (typeof obj.event != "string" || obj.event.indexOf("aGTM") !== 0)) ||
+    (aGTM.c.iframeSupport && aGTM.d.is_iframe && !aGTM.d.iframe.origin)
+  ) {
+    delete obj.aGTMts;
+    delete obj.eventModel;
+    aGTM.d.f.push(JSON.parse(JSON.stringify(obj)));
+    return;
+  }
   // Push event to GTM if enabled and consented
-  if (aGTM.d.consent.gtmConsent || (typeof obj.event=='string' && obj.event.indexOf('aGTM')===0)) {
+  if (
+    aGTM.d.consent.gtmConsent ||
+    (typeof obj.event == "string" && obj.event.indexOf("aGTM") === 0)
+  ) {
     //var gtmobj = JSON.parse(JSON.stringify(obj));
-    if (typeof obj.event!='string' || obj.event.indexOf('aGTM')!==0) {
-      delete obj['gtm.uniqueEventId'];
+    if (typeof obj.event != "string" || obj.event.indexOf("aGTM") !== 0) {
+      delete obj["gtm.uniqueEventId"];
       delete obj.aGTMparams;
       obj.aGTMparams = JSON.parse(JSON.stringify(obj));
     }
     aGTM.d.dl.push(obj);
-    if (aGTM.c.iframeSupport && aGTM.d.is_iframe && typeof obj.event=='string') {
+    if (
+      aGTM.c.iframeSupport &&
+      aGTM.d.is_iframe &&
+      typeof obj.event == "string"
+    ) {
       aGTM.f.iFrameFire(obj);
     } else {
       window[aGTM.c.gdl].push(obj);
     }
   }
   // Execute the callback function if defined and initialized
-  if (typeof aGTM.f.fire_callback=='function' && aGTM.d.init) aGTM.f.fire_callback(obj);
-  aGTM.f.log('m7', obj);
+  if (typeof aGTM.f.fire_callback == "function" && aGTM.d.init)
+    aGTM.f.fire_callback(obj);
+  aGTM.f.log("m7", obj);
 };
-
 
 /**
  * Use this place for One-File-Usage.
  * Insert the consent_check function here and after that the config function call with your configuration.
- * 
+ *
  * Here an example with Cookiebot and a minimal configuration:
 
 // CMP Function
@@ -1224,13 +1470,11 @@ aGTM.f.config({
   ,gtmPurposes: 'statistics' // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
   // aGTM Config End
 });
- 
- * 
- */
 
+ *
+ */
 
 // Initialization
 aGTM.f.init();
-
 
 //[aGTM.js]EOF
