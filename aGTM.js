@@ -1,9 +1,9 @@
-//[aGTM.js]BOF
+/*** aGTM.js | BOF ***/
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.1.4
- * @lastupdate 13.09.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.2
+ * @lastupdate 07.11.2024 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -11,46 +11,55 @@
 
 /***** Initialization and Configuration *****/
 
-// Function to initialize properties within the aGTM object with default values
-function aGTMinit(obj, prop, defaultValue) {
-  obj[prop] = obj[prop] || defaultValue;
-}
-
 // Initialize the main object if it doesn't exist
-window.aGTM = window.aGTM || {};
+window.aGTM = window.aGTM || { f: {} };
 
-// Use the aGTMinit function to initialize various properties and objects
-aGTMinit(aGTM, "c", {}); // TM Configuration Settings Object
-aGTMinit(aGTM, "d", {}); // TM Data Object
-aGTMinit(aGTM.d, "version", "1.1.4"); // aGTM Version
-aGTMinit(aGTM.d, "f", []); // Array for temporary Fire Events
-aGTMinit(aGTM.d, "config", false); // Check if TM is configured
-aGTMinit(aGTM.d, "init", false); // Check if TM Initialization is complete
-aGTMinit(aGTM.d, "dom_ready", false); // DOM ready state
-aGTMinit(aGTM.d, "page_ready", false); // Page (complete) Loaded state
-aGTMinit(aGTM.d, "is_iframe", window.self !== window.top); // iFrame state
-aGTMinit(aGTM.d, "ev_fct_ctr", 0); // Event Counter
-aGTMinit(aGTM.d, "timer", {}); // Active Timer
-aGTMinit(aGTM.d, "error_counter", 0); // Set Error Counter
-aGTMinit(aGTM.d, "errors", []); // Set Array for Errors
-aGTMinit(aGTM.d, "dl", []); // Data Layer
-aGTMinit(aGTM.d, "iframe", {
-  counter: { events: 0 },
-  origin: "",
-  ifListen: false,
-  topListen: false,
-  handshake: false,
-  timer: null,
-}); // iFrame data
-aGTMinit(aGTM, "f", {}); // TM Function Library Object
-aGTMinit(aGTM.f, "tl", {}); // Function Container for Tracking/Library loaded
-aGTMinit(aGTM.f, "dl", {}); // Function Container for DOM loaded
-aGTMinit(aGTM.f, "pl", {}); // Function Container for Page loaded
-aGTMinit(aGTM, "l", []); // TM Log Object for Messages and Errors
-aGTMinit(aGTM, "n", {});
-aGTMinit(aGTM.n, "ck", "co" + "o" + "kie");
-aGTMinit(aGTM.n, "tm", "goo" + "glet" + "agmanager");
-aGTMinit(aGTM.n, "ta", "tag" + "assi" + "stant.goo" + "gle");
+// Function to set properties within the aGTM object with default values
+aGTM.f.propset = function (obj, prop, defaultValue) {
+  obj[prop] = obj[prop] || defaultValue;
+};
+
+// Function to initiate the basic aGTM container
+aGTM.f.objinit = function() {
+  aGTM.n = {};
+  var props = [
+    [aGTM, "c", {}],
+    [aGTM, "d", {}],
+    [aGTM.d, "version", "1.2"],
+    [aGTM.d, "f", []],
+    [aGTM.d, "config", false],
+    [aGTM.d, "init", false],
+    [aGTM.d, "dom_ready", false],
+    [aGTM.d, "page_ready", false],
+    [aGTM.d, "is_iframe", window.self !== window.top],
+    [aGTM.d, "ev_fct_ctr", 0],
+    [aGTM.d, "timer", {}],
+    [aGTM.d, "error_counter", 0],
+    [aGTM.d, "errors", []],
+    [aGTM.d, "dl", []],
+    [aGTM.d, "iframe", {
+      counter: { events: 0 },
+      origin: "",
+      ifListen: false,
+      topListen: false,
+      handshake: false,
+      timer: null
+    }],
+    [aGTM, "f", {}, false],
+    [aGTM.f, "tl", {}],
+    [aGTM.f, "dl", {}],
+    [aGTM.f, "pl", {}],
+    [aGTM, "l", []],
+    [aGTM, "n", {}],
+    [aGTM.n, "ck", "co" + "o" + "kie"],
+    [aGTM.n, "tm", "goo" + "glet" + "agmanager"],
+    [aGTM.n, "ta", "tag" + "assi" + "stant.goo" + "gle"]
+  ];
+  props.forEach(function(item) {
+    aGTM.f.propset(item[0], item[1], item[2]);
+  });
+};
+aGTM.f.objinit();
 
 /**
  * Function to log a message or an error
@@ -74,9 +83,8 @@ aGTM.f.log = function (id, obj) {
  * Usage: aGTM.f.strclean('any "dirty"; string');
  */
 aGTM.f.strclean = function (str) {
-  // Ensure the input is a string
-  if (typeof str !== "string") return "";
-  // Remove all characters except alphanumerics, German umlauts, dashes, and underscores
+  if (typeof str == "undefined" || (typeof str == "object" && !str)) return "";
+  if (typeof str != "string") str = str.toString();
   return str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, "");
 };
 
@@ -120,11 +128,13 @@ aGTM.f.config = function (cfg) {
     // Object with GTM container config, example: cfg.gtm = { 'GTM-xxx': { debug_mode:true } };
     for (var k in cfg.gtm) {
       if (cfg.gtm.hasOwnProperty(k)) {
-        aGTM.c.gtmID = k; // GTM ID
+        aGTM.c.gtmID = aGTM.c.gtmID || k; // GTM ID
         // Assign GTM-container-specific configurations
-        aGTM.c.gtm = {};
+        aGTM.c.gtm = aGTM.c.gtm || {};
         aGTM.c.gtm[k] = cfg.gtm[k] || {};
+        aGTM.f.an(aGTM.c.gtm[k], "noConsent", cfg.gtm[k], false); // Load this GTM without Consent Check, if this setting is true
         aGTM.f.an(aGTM.c.gtm[k], "env", cfg.gtm[k], ""); // Environment string (leave it blank you you don't know, what it is)
+        aGTM.f.an(aGTM.c.gtm[k], "idParam", cfg.gtm[k], ""); // GTM ID URL parameter name (leave it blank you you don't know, what it is)
         aGTM.f.an(aGTM.c.gtm[k], "gtmURL", cfg.gtm[k], ""); // If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
         aGTM.f.an(aGTM.c.gtm[k], "gtmJS", cfg.gtm[k], ""); // Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
       }
@@ -136,9 +146,9 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "gtmVendors", cfg, ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
   aGTM.f.an(aGTM.c, "gtmAttr", cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
   aGTM.f.an(aGTM.c, "dlSet", cfg, {}); // Set dataLayer variables, that should always be attached to an event
-  aGTM.c.dlStateEvents =
-    typeof cfg.dlStateEvents == "boolean" ? cfg.dlStateEvents : false; // Fire GTM dataLayer Events for DOMloaded and PAGEready
+  aGTM.c.dlStateEvents = typeof cfg.dlStateEvents == "boolean" ? cfg.dlStateEvents : false; // Fire GTM dataLayer Events for DOMloaded and PAGEready
   aGTM.c.vPageview = typeof cfg.vPageview == "boolean" ? cfg.vPageview : false; // Fire vPageview Event
+  aGTM.c.sendConsentEvent = typeof cfg.sendConsentEvent == "boolean" ? cfg.sendConsentEvent : false; // Should aGTM send a separate Event with Consent Info?
 
   // Consent configuration
   cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
@@ -158,6 +168,7 @@ aGTM.f.config = function (cfg) {
   aGTM.d.consent = aGTM.d.consent || JSON.parse(JSON.stringify(aGTM.c.consent)); // Deep copy to avoid reference issues
   aGTM.d.consent.gtmConsent = false; // Initialize GTM consent as false
   aGTM.d.config = true; // Set the configuration status to true
+  aGTM.d.gtmLoaded = [];
   if (typeof aGTM.f.log == "function") aGTM.f.log("m1", aGTM.c); // Log the configuration
 };
 
@@ -317,9 +328,7 @@ aGTM.f.run_cc = function (action) {
     window[aGTM.c.gdl].push({
       event: "aGTM_consent_update",
       aGTMts: new Date().getTime(),
-      aGTMconsent: aGTM.d.consent
-        ? JSON.parse(JSON.stringify(aGTM.d.consent))
-        : {},
+      aGTMconsent: aGTM.d.consent ? JSON.parse(JSON.stringify(aGTM.d.consent)) : {}
     });
   }
   // Execute callback if defined
@@ -338,8 +347,7 @@ aGTM.f.run_cc = function (action) {
  */
 aGTM.f.call_cc = function () {
   // Run the consent check
-  if (typeof aGTM.f.run_cc != "function" || !aGTM.f.run_cc("init"))
-    return false; // If consent check failed, return false
+  if (typeof aGTM.f.run_cc != "function" || !aGTM.f.run_cc("init")) return false; // If consent check failed, return false
   // Clear the consent timer if it's set
   if (typeof aGTM.d.timer.consent != "undefined") {
     clearInterval(aGTM.d.timer.consent);
@@ -356,55 +364,168 @@ aGTM.f.call_cc = function () {
  * @property {function} aGTM.f.consent_listener
  * Usage: aGTM.f.consent_listener();
  */
-if (typeof aGTM.f.consent_listener != "function")
-  aGTM.f.consent_listener = function () {
-    if (!aGTM.c.useListener)
-      aGTM.d.timer.consent = setInterval(aGTM.f.call_cc, 1000);
-  };
+if (typeof aGTM.f.consent_listener != "function") aGTM.f.consent_listener = function () {
+  if (!aGTM.c.useListener) {
+    aGTM.d.timer.consent = setInterval(aGTM.f.call_cc, 1000);
+  }
+};
+
+
+/***** Cookie, URL and OptOut Functions *****/
+
+/**
+ * Retrieves the value of a cookie.
+ * @property {function} aGTM.f.gc
+ * @param {string} n - The name of the cookie.
+ * @returns {string|null} - The value of the cookie or null if the cookie does not exist.
+ * Usage: aGTM.f.gc('consent');
+ */
+aGTM.f.gc = function (n) {
+  var re = new RegExp(n + "=([^;]+)");
+  var value = null;
+  try {
+    var d = document;
+    var match = re.exec(d[aGTM.n.ck]);
+    if (match && match.length > 1) value = decodeURIComponent(match[1]);
+  } catch (e) {}
+  return value;
+};
+
+/**
+ * Sets a session cookie.
+ * @property {function} aGTM.f.sc
+ * @param {string} n - The name of the cookie.
+ * @param {string} v - The value of the cookie.
+ * Usage: aGTM.f.sc('consent','true');
+ */
+aGTM.f.sc = function (n, v) {
+  if (typeof n != "string" || !n || !v) return;
+  try {
+    var d = document;
+    d[aGTM.n.ck] = n + "=" + v + "; Secure; SameSite=Lax; path=/";
+  } catch (e) {}
+};
+
+/**
+ * Retrieves the value of a specified URL parameter from a given URL.
+ * @function aGTM.f.urlParam
+ * @param {string} name - The name of the URL parameter to retrieve.
+ * @param {string} url - The URL string to search for the parameter.
+ * @returns {string|null} - The decoded value of the parameter if it exists, otherwise null.
+ * Usage: aGTM.f.urlParam('aGTMoptout', window.location.href);
+ */
+aGTM.f.urlParam = function(name, url) {
+  var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)");
+  var results = regex.exec(url);
+  return results && results[2] ? decodeURIComponent(results[2].replace(/\+/g, " ")) : null;
+};
+
+/**
+ * Manages the opt-out functionality for the aGTM object based on URL parameters and cookies.
+ * - Checks if the URL contains the `aGTMoptout` parameter.
+ * - If `aGTMoptout` is set and not equal to "0", sets a cookie `aGTMoptout` with value "1" and enables opt-out.
+ * - If `aGTMoptout` is equal to "0", removes the `aGTMoptout` cookie if it exists.
+ * - If no URL parameter is present, checks if a `aGTMoptout` cookie exists with a value greater than "0".
+ * - If opt-out is enabled, clears all properties of `aGTM` except `f`, reinitializes the object,
+ *   and calls an optional callback function `aGTM.f.optout_callback`.
+ * @function aGTM.f.optout
+ * @returns {boolean} - Returns true if opt-out is active, otherwise false.
+ */
+aGTM.f.optout = function() {
+  // Initialize the optout variable to false
+  var optout = false;
+  // Check the URL for the aGTMoptout parameter
+  var urlOptoutValue = aGTM.f.urlParam("aGTMoptout",window.location.href);
+  // Handle cases based on the URL parameter value
+  if (urlOptoutValue && urlOptoutValue !== "0") {
+    // If the parameter exists and is not "0", set the cookie and optout flag
+    aGTM.f.sc("aGTMoptout", "1");
+    optout = true;
+  } else if (urlOptoutValue === "0") {
+    // If the parameter exists and is "0", remove the cookie
+    aGTM.f.sc("aGTMoptout", "0"); // Clear the cookie by setting an empty value
+  } else {
+    // If no parameter, check the cookie value
+    var cookieValue = aGTM.f.gc("aGTMoptout");
+    if (cookieValue && cookieValue !== "0") optout = true;
+  }
+  // If optout is true, reset the aGTM object properties and execute callbacks
+  if (optout) {
+    // Delete all properties in aGTM except "f"
+    for (var key in aGTM) {
+      if (aGTM.hasOwnProperty(key) && key !== "f") delete aGTM[key];
+    }
+    // Re-initialize the aGTM object and execute the callback if it exists
+    aGTM.f.objinit();
+    if (typeof aGTM.f.optout_callback === "function") aGTM.f.optout_callback();
+    return true; // End the function and return true
+  }
+  return false; // End the function and return false if optout is not true
+};
+
 
 /***** Google Tag Manager specific Functions *****/
+
+/**
+ * Returns an aGTM Object to fire it into the GTM dataLayer
+ * @property {function} aGTM.f.aGTM_event
+ * @param {string} eventname - The Event Name
+ * @returns {object} - the event object
+ * Usage: aGTM.f.aGTM_event("aGTM_ready");
+ */
+aGTM.f.aGTM_event = function (eventname) {
+  if (typeof aGTM.d.consent != 'object') aGTM.d.consent = null;
+  if (!eventname) eventname = 'aGTM_event';
+  var obj = {
+    event: eventname,
+    aGTMts: new Date().getTime(),
+    aGTMconsent: aGTM.d.consent ? JSON.parse(JSON.stringify(aGTM.d.consent)) : {}
+  };
+  if (eventname == 'aGTM_ready')
+    obj.aGTM = {
+      version: aGTM.d.version,
+      is_iframe: aGTM.d.is_iframe,
+      hastyEvents: aGTM.d.f,
+      errors: aGTM.d.errors
+    };
+  return obj;
+};
 
 /**
  * Initializes the Google Tag Manager with provided settings.
  * @property {function} aGTM.f.gtm_load
  * @param {object} w - The window object, usually: window.
  * @param {object} d - The document object, usually: document.
- * @param {string} i - Google Tag Manager Container ID without "GTM-", e.g., "XYZ123".
+ * @param {string} i - Google Tag Manager Container ID without "GTM-", e.g. "XYZ123".
+ * @param {string} p - Name of GTM container ID URL Parameter, e.g. "st".
  * @param {string} l - Name of the GTM dataLayer, usually: "dataLayer".
  * @param {object} o - Object with further GTM settings like environment string, GTM URL, and GTM code.
  * Usage: aGTM.f.gtm_load(window, document, 'XYZ123', 'dataLayer', {gtm_auth: 'abc123', gtm_preview: 'env-1', gtm_cookies_win: 'x'});
  */
-aGTM.f.gtm_load = function (w, d, i, l, o) {
-  if (!aGTM.d.config) {
-    aGTM.f.log("e7", null);
-    return;
-  }
+aGTM.f.gtm_load = function (w, d, i, p, l, o) {
+  if (!aGTM.d.config) { aGTM.f.log("e7", null); return; }
+  if (typeof aGTM.d.gtmLoaded != 'object') aGTM.d.gtmLoaded = [];
   // Push Start element in DL
-  var consent = aGTM.d.consent
-    ? JSON.parse(JSON.stringify(aGTM.d.consent))
-    : {};
-  window[aGTM.c.gdl].push({
-    event: "aGTM_ready",
-    aGTMts: new Date().getTime(),
-    aGTMconsent: aGTM.d.consent
-      ? JSON.parse(JSON.stringify(aGTM.d.consent))
-      : {},
-    aGTM: {
-      version: aGTM.d.version,
-      is_iframe: aGTM.d.is_iframe,
-      hastyEvents: aGTM.d.f,
-      errors: aGTM.d.errors,
-    },
-  });
-  window[aGTM.c.gdl].push({
-    "gtm.start": new Date().getTime(),
-    event: "gtm.js",
-  });
-  if (aGTM.c.vPageview)
-    window[aGTM.c.gdl].push({
-      event: "vPageview",
-      aGTMts: new Date().getTime(),
-    });
+  if (aGTM.d.gtmLoaded.length<1) {
+    window[aGTM.c.gdl].push(aGTM.f.aGTM_event('aGTM_ready'));
+    if (i) window[aGTM.c.gdl].push({ event: "gtm.js", "gtm.start": new Date().getTime() });
+    if (aGTM.c.vPageview) window[aGTM.c.gdl].push({ event: "vPageview", aGTMts: new Date().getTime() });
+  }
+  // Fire aGTM Consent event
+  aGTM.d.consentEvent_fired = typeof aGTM.d.consentEvent_fired == 'boolean' ? aGTM.d.consentEvent_fired : false;
+  if (
+    aGTM.c.sendConsentEvent &&
+    !aGTM.d.consentEvent_fired &&
+    typeof aGTM.d.consent == "object" &&
+    aGTM.d.consent.hasResponse
+  ) {
+    window[aGTM.c.gdl].push(aGTM.f.aGTM_event('aGTM_consent'));
+    aGTM.d.consentEvent_fired = true;
+  }
+  // Return if no container id
+  if (!i) return;
+  // Set default for GTM ID Parameter
+  if (!p) p = 'id';
   // Debug Mode
   var gtm_debug = false;
   // Check Debug Cookie
@@ -413,7 +534,8 @@ aGTM.f.gtm_load = function (w, d, i, l, o) {
   // Get Debug param
   if (!gtm_debug) {
     var url = new URL(document.location.href);
-    if (url.searchParams.get("gtm_debug")) gtm_debug = true;
+    //if (url.searchParams.get("gtm_debug")) gtm_debug = true;
+    if (aGTM.f.urlParam("gtm_debug",url)) gtm_debug = true;
   }
   // Get debug referrer
   if (!gtm_debug && document.referrer) {
@@ -424,7 +546,7 @@ aGTM.f.gtm_load = function (w, d, i, l, o) {
   if (!dc && gtm_debug) aGTM.f.sc("aGTMdebug", "1");
   // Create a new DOM node (tag) of type "script"
   var scriptTag = d.createElement("script");
-  scriptTag.id = "aGTM_tm";
+  scriptTag.id = "aGTM_tm_" + i;
   scriptTag.async = true;
   if (typeof aGTM.c.gtmAttr == "object") {
     for (var k in aGTM.c.gtmAttr) {
@@ -439,11 +561,13 @@ aGTM.f.gtm_load = function (w, d, i, l, o) {
     // Construct the GTM script URL
     var gtmUrl = o.gtmURL || "https://www." + aGTM.n.tm + ".com/gtm.js";
     var envParam = o.env || "";
-    scriptTag.src = gtmUrl + "?id=" + i + "&l=" + l + envParam;
+    scriptTag.src = gtmUrl + "?" + p + "=" + i + "&l=" + l + envParam;
   }
   // Insert the GTM script tag into the document
   var firstScriptTag = d.getElementsByTagName("script")[0];
   firstScriptTag.parentNode.insertBefore(scriptTag, firstScriptTag);
+  // Add the GTM Container ID to control object
+  aGTM.d.gtmLoaded.push(i ? i : 'no_gtm_id');
 };
 
 /**
@@ -494,21 +618,39 @@ aGTM.f.pageready = function (evob) {
 
 /**
  * Initializes GTM with the given consent status and configuration.
- * This function is called from aGTM.f.inject when GTM consent is granted.
  * @property {function} aGTM.f.initGTM
- * Usage: aGTM.f.initGTM();
+ * @param {boolean} noConsentGTM - Loads only GTM container where the setting "noConsent" is true.
+ * Usage: aGTM.f.initGTM(false);
  */
-aGTM.f.initGTM = function () {
+aGTM.f.initGTM = function (noConsentGTM) {
+  if (typeof aGTM.c.gtm != 'object' || !aGTM.c.gtm) return;
+  var count = 0;
   for (var containerId in aGTM.c.gtm) {
+    count++;
     if (aGTM.c.gtm.hasOwnProperty(containerId)) {
-      aGTM.f.gtm_load(
-        window,
-        document,
-        containerId,
-        aGTM.c.gdl,
-        aGTM.c.gtm[containerId],
-      );
+      if (typeof aGTM.c.gtm[containerId].hasLoaded != 'boolean') aGTM.c.gtm[containerId].hasLoaded = false;
+      if (!aGTM.c.gtm[containerId].hasLoaded && (!noConsentGTM || aGTM.c.gtm[containerId].noConsent)) {
+        aGTM.f.gtm_load(
+          window,
+          document,
+          containerId,
+          aGTM.c.gtm[containerId].idParam ? aGTM.c.gtm[containerId].idParam : '',
+          aGTM.c.gdl,
+          aGTM.c.gtm[containerId]
+        );
+        aGTM.c.gtm[containerId].hasLoaded = true;
+      }
     }
+  }
+  if (!count) {
+    aGTM.f.gtm_load(
+      window,
+      document,
+      '',
+      aGTM.c.gtm[containerId].idParam ? aGTM.c.gtm[containerId].idParam : '',
+      aGTM.c.gdl,
+      null
+    );
   }
 };
 
@@ -570,7 +712,7 @@ aGTM.f.inject = function () {
     });
     // Initialize GTM if enabled and consent given
     if (aGTM.d.consent.gtmConsent) {
-      aGTM.f.initGTM();
+      aGTM.f.initGTM(false);
       aGTM.d.init = true;
     }
     // Check DOM ready state and call corresponding functions
@@ -659,19 +801,6 @@ aGTM.f.ifHSlisten = function (e) {
 /***** Helper Functions *****/
 
 /**
- * Function to clean a string
- * @property {function} aGTM.f.strclean
- * @param {string} str - string to clean
- * @returns {string} - cleaned string
- * Usage: aGTM.f.strclean('any "dirty"; string');
- */
-aGTM.f.strclean = function (str) {
-  if (typeof str == "undefined" || (typeof str == "object" && !str)) return "";
-  if (typeof str != "string") str = str.toString();
-  return str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, "");
-};
-
-/**
  * Function to check if a variable is an object and nut null
  * @property {function} aGTM.f.vOb
  * @param {*} i - The input to be checked.
@@ -702,39 +831,6 @@ aGTM.f.vSt = function (input) {
   return inputArray.every(function (element) {
     return typeof element == "string" && element !== "";
   });
-};
-
-/**
- * Retrieves the value of a cookie.
- * @property {function} aGTM.f.gc
- * @param {string} cname - The name of the cookie.
- * @returns {string|null} - The value of the cookie or null if the cookie does not exist.
- * Usage: aGTM.f.gc('consent');
- */
-aGTM.f.gc = function (cname) {
-  var re = new RegExp(cname + "=([^;]+)");
-  var value = null;
-  try {
-    var d = document;
-    var match = re.exec(d[aGTM.n.ck]);
-    if (match && match.length > 1) value = decodeURIComponent(match[1]);
-  } catch (e) {}
-  return value;
-};
-
-/**
- * Sets a session cookie.
- * @property {function} aGTM.f.sc
- * @param {string} cname - The name of the cookie.
- * @param {string} cvalue - The value of the cookie.
- * Usage: aGTM.f.sc('consent','true');
- */
-aGTM.f.sc = function (cname, cvalue) {
-  if (typeof cname != "string" || !cname || !cvalue) return;
-  try {
-    var d = document;
-    d[aGTM.n.ck] = cname + "=" + cvalue + "; Secure; SameSite=Lax; path=/";
-  } catch (e) {}
 };
 
 /**
@@ -908,7 +1004,7 @@ aGTM.f.delNode = function (s) {
  * @param {boolean} [options.countImages=true] - Whether to count images.
  * @returns {Object} - An object containing the counts of words and/or images.
  */
-aGTM.f.pageinfo = function countContent(options) {
+aGTM.f.pageinfo = function (options) {
   options = options || {};
   var wordCount = 0,
     imageCount = 0;
@@ -1010,7 +1106,7 @@ aGTM.f.elLst = function (el, ev, cb) {
             class: currentElement.getAttribute("class"),
             name: currentElement.getAttribute("name"),
             action: currentElement.action,
-            elements: currentElement.elements.length,
+            elements: currentElement.elements.length
           };
           position =
             Array.prototype.indexOf.call(currentElement.elements, this) + 1;
@@ -1039,7 +1135,7 @@ aGTM.f.elLst = function (el, ev, cb) {
         position: position,
         form: parentForm,
         html: this.outerHTML ? this.outerHTML.toString() : "",
-        text: this.outerText ? this.outerText.toString() : "",
+        text: this.outerText ? this.outerText.toString() : ""
       };
       if (eventObj.html.length > 512)
         eventObj.html = eventObj.html.slice(0, 509) + "...";
@@ -1220,7 +1316,7 @@ aGTM.f.jserrors = function () {
           errtype: "JS Error",
           timestamp: new Date().getTime(),
           errct: aGTM.d.error_counter,
-          eventModel: null,
+          eventModel: null
         }); // Push the error information to the GTM dataLayer
     }
     //return;
@@ -1328,10 +1424,10 @@ aGTM.f.stoptimer = function (nm) {
  */
 aGTM.f.init = function () {
   // Return (and do nothing) if there is a cookie with the name 'aGTMoptout' (and a value)
-  if (!aGTM.c.debug && aGTM.f.gc("aGTMoptout")) return;
+  if (!aGTM.c.debug && aGTM.f.optout()) return;
   // Read and set the config
   aGTM.f.config(aGTM.c);
-  // Inject the aGTM
+  // Inject the aGTM for iFrame
   if (aGTM.c.iframeSupport && aGTM.d.is_iframe) {
     aGTM.d.consent.gtmConsent = true;
     aGTM.d.consent.hasResponse = true;
@@ -1341,11 +1437,23 @@ aGTM.f.init = function () {
       window.addEventListener("message", aGTM.f.ifHSlisten);
     }
     if (!aGTM.d.init) aGTM.f.inject();
+  // Inject aGTM for (non-iFrame) Pages
   } else {
-    if (aGTM.c.cmp) {
-      aGTM.f.load_cc(aGTM.c.cmp, aGTM.f.consent_listener);
+    // Check consent check
+    if (typeof aGTM.c.cmp == 'string' && aGTM.c.cmp) {
+      // Insert GTM, if no Consent Check is required
+      if (aGTM.c.cmp == 'none') {
+        aGTM.d.consent = { gtmConsent: true, hasResponse: true, feedback: "No Consent Check configured" };
+        aGTM.f.inject();
+      // Otherwise load Consent Check
+      } else {
+        aGTM.f.load_cc(aGTM.c.cmp, aGTM.f.consent_listener);
+        aGTM.f.initGTM(true);
+      }
+    // Use Consent Listener, if no Consent Check was specified
     } else {
       aGTM.f.consent_listener();
+      aGTM.f.initGTM(true);
     }
   }
   // Run JS error monitoring
@@ -1454,27 +1562,29 @@ aGTM.f.fire = function (o) {
   aGTM.f.log("m7", obj);
 };
 
-/**
- * Use this place for One-File-Usage.
- * Insert the consent_check function here and after that the config function call with your configuration.
- *
- * Here an example with Cookiebot and a minimal configuration:
-
-// CMP Function
-aGTM.f.consent_check=function(t){if("string"!=typeof t||"init"!=t&&"update"!=t)return"function"==typeof aGTM.f.log&&aGTM.f.log("e10",{action:t}),!1;if(aGTM.d.consent=aGTM.d.consent||{},"init"==t&&aGTM.d.consent.hasResponse)return!0;if("object"!=typeof Cookiebot)return!1;var n=Cookiebot;if("boolean"!=typeof n.hasResponse||"object"!=typeof n.consent)return!1;if(!n.hasResponse)return!1;var e=aGTM.c.purposes?aGTM.c.purposes.split(","):[],o=0,r=0;for(k in n.consent)"stamp"!=k&&"method"!=k&&"boolean"==typeof n.consent[k]&&(r++,n.consent[k]&&(o++,e.push(k)));aGTM.d.consent.purposes=e.length>0?","+e.join(",")+",":"";var s="Consent available";return 0==r?s="No purposes available":o<=r?s="Consent (partially or full) declined":o>r&&(s="Consent accepted"),aGTM.d.consent.feedback=s,"string"==typeof n.consentID&&(aGTM.d.consent.consent_id=n.consentID),aGTM.d.consent.hasResponse=!0,"function"==typeof aGTM.f.log&&aGTM.f.log("m2",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};
-
-// Configuration
-aGTM.f.config({
-  // aGTM Config Start
-   gtm: { 'GTM-XYZ123': { 'debug_mode':true } } // your GTM Container - with ID, ...
-  ,gtmPurposes: 'statistics' // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
-  // aGTM Config End
-});
-
- *
- */
-
-// Initialization
+// Initialization --> Delete the following line for One-File-Usage and read the instructions below
 aGTM.f.init();
 
-//[aGTM.js]EOF
+
+
+/***
+ * Use this place for One-File-Usage.
+ * Important: First delete the line "aGTM.f.init();" above !!!
+ * Insert the consent_check function here, after that the config function call with your configuration and after that the init call.
+ * Here an example with Cookiebot and a minimal configuration:
+
+aGTM.f.consent_check=function(t){if("string"!=typeof t||"init"!=t&&"update"!=t)return"function"==typeof aGTM.f.log&&aGTM.f.log("e10",{action:t}),!1;if(aGTM.d.consent=aGTM.d.consent||{},"init"==t&&aGTM.d.consent.hasResponse)return!0;if("object"!=typeof Cookiebot)return!1;var n=Cookiebot;if("boolean"!=typeof n.hasResponse||"object"!=typeof n.consent)return!1;if(!n.hasResponse)return!1;var e=aGTM.c.purposes?aGTM.c.purposes.split(","):[],o=0,r=0;for(k in n.consent)"stamp"!=k&&"method"!=k&&"boolean"==typeof n.consent[k]&&(r++,n.consent[k]&&(o++,e.push(k)));aGTM.d.consent.purposes=e.length>0?","+e.join(",")+",":"";var s="Consent available";return 0==r?s="No purposes available":o<=r?s="Consent (partially or full) declined":o>r&&(s="Consent accepted"),aGTM.d.consent.feedback=s,"string"==typeof n.consentID&&(aGTM.d.consent.consent_id=n.consentID),aGTM.d.consent.hasResponse=!0,"function"==typeof aGTM.f.log&&aGTM.f.log("m2",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};
+
+aGTM.f.config({
+   gtm: { 'GTM-XYZ123': {} }
+  ,gtmPurposes: 'statistics'
+});
+
+aGTM.f.init();
+
+ * End of example for One-File-Usage.
+***/
+
+
+
+/*** aGTM.js | EOF ***/
