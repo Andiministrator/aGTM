@@ -2,104 +2,210 @@
 
 ![aGTM  a Galactic Tagging Modulator](/data/_Projects/aGTM/assets/aGTMdeveloper-100px.png)
 
+#### Overview
+
+`aGTM.js` is a global implementation script designed for developers who want to extend, customize, or integrate Google Tag Manager (GTM) and Google Analytics (GA) functionality based on user consent. This documentation covers the internal workings, extensibility options, and callback functions for developers.
+
+- **Version**: 1.0
+- **Last Updated**: 07.11.2024
+- **Author**: Andi Petzoldt [andi@petzoldt.net](mailto:andi@petzoldt.net)
+- **Repository**: [GitHub Repository](https://github.com/Andiministrator/aGTM/)
+
 ## Table of Contents
 
-- [What is it for? - General Information](#what-is-this-document-it-for)
-- [Function execution sequence](#function-execution-sequence)
-- [Callback Functions](#callback-functions)
+1. [Initialization and Configuration](#initialization-and-configuration)
+2. [Consent Management](#consent-management)
+3. [GTM Integration](#gtm-integration)
+4. [Callbacks](#callbacks)
+5. [Utility Functions](#utility-functions)
+6. [Extending `aGTM`](#extending-agtm)
+7. [Usage Examples](#usage-examples)
+
+## Initialization and Configuration
+
+### Initializing the `aGTM` Object
+
+The main object is initialized if it doesn't already exist:
+
+```javascript
+window.aGTM = window.aGTM || { f: {} };
+```
+
+### Configuration Function
+
+Use `aGTM.f.config()` to set up configurations for GTM containers, consent management, and other settings.
+
+#### Example Configuration
+
+```javascript
+aGTM.f.config({
+  gtm: { 'GTM-XYZ123': {} },
+  gtmPurposes: 'statistics',
+  sendConsentEvent: true
+});
+```
+
+## Consent Management
+
+### Consent Check
+
+The `aGTM.f.run_cc()` method checks and updates the consent status.
+
+```javascript
+aGTM.f.run_cc('init');
+```
+
+### Loading Consent Tools
+
+Load consent scripts like Cookiebot using:
+
+```javascript
+aGTM.f.load_cc('cookiebot', function() {
+  console.log('Cookiebot loaded');
+});
+```
+
+### Consent Callback
+
+To execute a function when consent changes, define `aGTM.f.consent_callback`:
+
+```javascript
+aGTM.f.consent_callback = function(action) {
+  console.log("Consent status updated:", action);
+};
+```
+
+## GTM Integration
+
+### Loading GTM Containers
+
+The `aGTM.f.gtm_load()` function loads the GTM script based on a container ID.
+
+```javascript
+aGTM.f.gtm_load(window, document, 'GTM-XYZ123', 'dataLayer', {});
+```
+
+### Event Firing
+
+To push events to GTM's dataLayer:
+
+```javascript
+aGTM.f.fire({ event: 'pageview', pagetype: 'blog' });
+```
+
+## Callbacks
+
+### Available Callback Functions
+
+Developers can utilize or override the following callbacks:
+
+- **`aGTM.f.consent_callback(action)`**: Executes when consent status is checked or updated.
+  - `action`: `'init'` or `'update'`
+- **`aGTM.f.inject_callback()`**: Executes after GTM scripts are injected.
+- **`aGTM.f.fire_callback(eventObj)`**: Executes after an event is fired into the dataLayer.
+  - `eventObj`: The event object pushed to the dataLayer.
+- **`aGTM.f.optout_callback()`**: Executes when the user opts out via a cookie or URL parameter.
+
+### Example Usage of Callbacks
+
+```javascript
+aGTM.f.fire_callback = function(event) {
+  console.log("Event fired:", event);
+};
+aGTM.f.inject_callback = function() {
+  console.log("GTM scripts injected");
+};
+```
+
+## Utility Functions
+
+### Logging and Debugging
+
+Log messages and errors using `aGTM.f.log()`:
+
+```javascript
+aGTM.f.log('m3', { message: 'Event triggered' });
+```
+
+### String Sanitization
+
+Clean strings using:
+
+```javascript
+var cleanStr = aGTM.f.strclean('dirty;string');
+```
+
+### URL Parameter Handling
+
+Extract URL parameters using:
+
+```javascript
+var param = aGTM.f.urlParam('utm_source', window.location.href);
+```
+
+## Extending `aGTM`
+
+### Adding Custom GTM Containers
+
+You can extend the existing functionality by adding new GTM containers dynamically:
+
+```javascript
+aGTM.c.gtm['GTM-NEWID'] = { debug_mode: true };
+aGTM.f.initGTM();
+```
+
+### Creating Custom Consent Checks
+
+Override the default consent check function:
+
+```javascript
+aGTM.f.consent_check = function(action) {
+  return myCustomConsentFunction();
+};
+```
+
+### Handling Dynamic Elements
+
+Use the `aGTM.f.observer()` function to track dynamically added elements:
+
+```javascript
+aGTM.f.observer('button', 'click', function(event) {
+  console.log('Button clicked:', event);
+});
+```
+
+## Usage Examples
+
+### Minimal Setup with Cookiebot
+
+```javascript
+aGTM.f.config({
+  cmp: 'cookiebot',
+  gtm: { 'GTM-XYZ123': {} }
+});
+aGTM.f.init();
+```
+
+### Tracking Form Interactions
+
+```javascript
+aGTM.f.addElLst('form', 'submit', function(event) {
+  console.log('Form submitted:', event);
+});
+```
+
+### Error Monitoring
+
+Monitor JavaScript errors:
+
+```javascript
+aGTM.f.jserrors();
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/Andiministrator/aGTM/blob/main/LICENSE) file for details.
 
 ---
 
-## What is this document for?
-
-This is the Documentation for Developers. It describes how aGTM works internal, what functions it container, which extensions exist and so on.
-
-It may be also useful for developers to dive deeper into the aGTM, e.g. to use callback functions, ...
-
----
-
-## Function execution sequence
-
-### init()
-
-*called from the integration script* Initialization of aGTM.
-Calls **config(aGTM.c);**
-
-- If the CMP setting is "none" or page is within an iFrame, it will skip tzhe Consent Check and start to inject the GTM(s)
-- If a CMP (aGTM.c.cmp) was specified: **load_cc(aGTM.c.cmp, aGTM.f.consent_listener);**
-- If no CMP (aGTM.c.cmp) was specified: **consent_listener();**
-
-### config(config)
-
-*called from init()* Gets the configuration options and stes the necessary data options.
-
-### consent_listener
-
-*called from init()* Checks, whether an Event Listener calls the call_cc() or if a timer has top be set for calling call_cc().
-Calls **call_cc()**
-
-### call_cc
-
-*called from consent_listener() or an external event listener* Checks the consent with `run_cc('init')` and returns `false` if the consent isn't ready. Otherwise it deletes the timer (if it is set), runs `inject()` and returns true.
-Calls **run_cc('init')**, **inject()**
-
-### run_cc
-
-*called from call_cc() or fire(o)* Runs the Consent Check. Returns `true` if the consent is available and `false` if not.
-Calls **consent_check('init|update')**, **gtag(update)**, **fire(event:aGTM_consent_update)** Callback: consent_callback(init|update)
-
-### load_cc()
-
-*called from init()* Loads the Consent Check function (as external file or code) for the specified CMP.
-Calls: **consent_listener()** (after consent_check function has loaded)
-
-### inject()
-
-*called from call_cc() through timer or event listener* Injects the GTM and/or GTAG(for Analytics).
-Calls: **gtag(init)**, **gtag(for Analytics)**, **gtm_load(GTM-Config)**, **fire(event:aGTM_consent_init)**, **domready()**, **pageready()**, **evLstn(DOMContentLoaded)**, **evLstn([window]load)** Callbacks: gtag_inject_callback(), inject_callback()
-
-### gtm_load(GTM-Config)
-
-*called from inject()* Function to initialize the Google Tag Manager
-
-### evLstn(DOMobject,EventName,Fkt)
-
-*called from inject()* Function for adding an Event Listener
-
-### domready()
-
-*called from inject()* Function to run by DOMready state, fires a dataLayer event 'vDOMready'
-Calls: **fire(event:vDOMready)**
-
-### pageready()
-
-*called from inject()* Function to run by PAGEloaded state, fires a dataLayer event 'vPAGEready'
-Calls: **fire(event:vPAGEready)**
-
-### gc(cookiename)
-
-*called from init()* Returns a value of a cookie
-
-### fire(event)
-
-*called from inject(), run_cc(), domready(), pageready()* Function for GTM dataLayer.push()
-Calls: **gtag(for Analytics)** Callback: fire_callback()
-
----
-
-## Callback Functions
-
-There are some callback function that you can use:
-
-### Callback after (successful) Consent Check
-
-If the consent (check) function got the available consent information, the following callback function is called: `aGTM.f.consent_callback(a)` The Parameter "a" gives you the action that was submitted to the original consent. It can be 'init' or 'update'.
-'init' stands for the (first) initial consent check on a page, 'update', if the consent was changed (after an init).
-
-### Callback after injecting the Google Tag Manager
-
-After the Google Tag Manager was (successful) injected into a page, the following callback function is called: `aGTM.f.inject_callback()`
-
-### Callback after an event was fired
-
-If an event was fired (through aGTM.f.fire), the following callback function is called: `aGTM.f.fire_callback(obj)` The parameter "obj" contains the whole event object.
+**End of Documentation**
