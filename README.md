@@ -8,6 +8,7 @@
 - [Usage](#usage)
 - [Configuration options](#configuration-options)
 - [Consent Handling](#consent-handling)
+- [Optout](#optout)
 - [Integration options for Google Tag Manager](#integration-options-for-google-tag-manager)
 - [GTM Custom Templates for the use with aGTM](#gtm-custom-templates-for-the-use-with-agtm)
 - [DataLayer Events that aGTM uses](#datalayer-events-that-agtm-uses)
@@ -79,7 +80,7 @@ To use it as normal, follow these steps:
 1. **Upload the necessary files**
    Upload the necessary files, that means at least the library itself (aGTM.js and/or the minified version aGTM.min.js) and the directory with the consent check function files.
    Assuming you uploaded aGTM direct to a directory "js", it should at least look like this:
-
+   
    ```
    js/
      |--> cmp/
@@ -96,7 +97,7 @@ To use it as normal, follow these steps:
    To understand, what settings you can use and what the meaning of each setting is, read the chapter "Configuration options".
    Here we give you an integration example with the most of available configuration options. In a normal setup you need just a few of them.
    Example integration code:
-
+   
    ```html
    <!-- aGTM Start -->
    <script type="text/javascript" id="aGTMcontainer" nonce="abc123">
@@ -125,7 +126,7 @@ To use it as normal, follow these steps:
 
 3. _optional_ **Send events**
    You can now send events using the following command:
-
+   
    ```javascript
    aGTM.f.fire({ event:'button_click', button:'Sign Up Button' });
    ```
@@ -158,7 +159,7 @@ With this integration variant you get out a Javascript code, which conatins all 
    Use the following (minimal) code as example and change the settings to your needs.
    To understand, what settings you can use and what the meaning of each setting is, read the chapter "Configuration options".
    Example (minimal) integration code:
-
+   
    ```javascript
    aGTM.f.config({
       gtm: { 'GTM-XYZ123': {} } /* your GTM Container - with ID, ...*/
@@ -169,7 +170,7 @@ With this integration variant you get out a Javascript code, which conatins all 
 4. **Add the init function**
    Go to the end of the file (after the just inserted configuration) and press <Enter> for a new line.
    Insert the following code:
-
+   
    ```javascript
    aGTM.f.init();
    ```
@@ -177,7 +178,7 @@ With this integration variant you get out a Javascript code, which conatins all 
 5. **Save the aGTM file and use it**
    Now the code is complete. Save it and add it to your website templates.
    Here a (minimal) example of code with Cookiebot as cmp function for the One-File-Usage what has to be after the normal aGTM code:
-
+   
    ```javascript
    aGTM.f.consent_check=function(t){if("string"!=typeof t||"init"!=t&&"update"!=t)return"function"==typeof aGTM.f.log&&aGTM.f.log("e10",{action:t}),!1;if(aGTM.d.consent=aGTM.d.consent||{},"init"==t&&aGTM.d.consent.hasResponse)return!0;if("object"!=typeof Cookiebot)return!1;var n=Cookiebot;if("boolean"!=typeof n.hasResponse||"object"!=typeof n.consent)return!1;if(!n.hasResponse)return!1;var e=aGTM.c.purposes?aGTM.c.purposes.split(","):[],o=0,r=0;for(k in n.consent)"stamp"!=k&&"method"!=k&&"boolean"==typeof n.consent[k]&&(r++,n.consent[k]&&(o++,e.push(k)));aGTM.d.consent.purposes=e.length>0?","+e.join(",")+",":"";var s="Consent available";return 0==r?s="No purposes available":o<=r?s="Consent (partially or full) declined":o>r&&(s="Consent accepted"),aGTM.d.consent.feedback=s,"string"==typeof n.consentID&&(aGTM.d.consent.consent_id=n.consentID),aGTM.d.consent.hasResponse=!0,"function"==typeof aGTM.f.log&&aGTM.f.log("m2",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};
    aGTM.f.config({
@@ -186,7 +187,7 @@ With this integration variant you get out a Javascript code, which conatins all 
    });
    aGTM.f.init();
    ```
-
+   
    Don't forget to remove the `aGTM.f.init()` - see above.
    _Notice:_ If you want to insert the code into a HTML template, don't forget to add `<script>` before and `</script>` after the code.
    You can also use the code in a GTM container (as Custom HTML Code).
@@ -195,7 +196,7 @@ With this integration variant you get out a Javascript code, which conatins all 
 6. _optional_ **Send events**
    Pleas use our GTM templates (find it in the folder "gtm") for a lot of auto-events.
    You can also use the integrated aGTM fire function to send events using Javascript:
-
+   
    ```javascript
    aGTM.f.fire({ event:'button_click', button:'Sign Up Button' });
    ```
@@ -207,38 +208,49 @@ With this integration variant you get out a Javascript code, which conatins all 
 There are a lot configuration options. But you need only to use the options, where you want another setting as the default value.
 
 ### debug
+
 If this is true, the optout cookie will be ignored
+
 - Type: boolean
 - Example: `true`
 - Default: `false`
 
 ### path
+
 The (relative) path to the directory where aGTM is located, e.g. '/js/''
+
 - Type: string
 - Example: `'/js/'`
 - Default: `''`
 
 ### cmp
+
 Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'.
 Find the available options in the document [aGTM - Supported Consent Tools (CMP)](cmp/README-cmp.md).
 Use `none` to skip the Consent Check.
+
 - Type: string
 - Example: `cookiebot`
 - Default: `''`
 
 ### min
+
 Inject the files as minified versions
+
 - Type: boolean
 - Example: `false`
 - Default: `true`
 
 ### nonce
+
 Nonce value for the file injections. If it is set, the nonce will be added to all script-injections.
+
 - Type: string
 - Example: `ABC123`
 - Default: `''`
 
 ### useListener
+
 Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent.
 You should add the following command to your Consent Event Listener:
 `aGTM.f.call_cc();`
@@ -246,36 +258,47 @@ The function returns `true`, if the consent info has loaded successful, otherwis
 Make sure, that the aGTM lib is loaded before the event listener runs!*
 If you don't know what that means, leave this option to false (default).
 For more information, read the chapter "[Use Event Listeners instead of the default timer](#use-event-listeners-instead-of-the-default-timer)".
+
 - Type: boolean
 - Example: `true`
 - Default: `false`
 
 ### gdl
+
 Name of GTM dataLayer
+
 - Type: string
 - Example: `'dataLayer'`
 - Default: `'dataLayer'`
 
 ### dlStateEvents
+
 Fires GTM dataLayer Events for `DOMloaded` and `PAGEready`
+
 - Type: boolean
 - Example: `true`
 - Default: `false`
 
 ### vPageview
+
 Fires a GTM dataLayer Event `vPageview`
+
 - Type: boolean
 - Example: `true`
 - Default: `false`
 
 ### sendConsentEvent
+
 If it set to true, a separate Consent Event named `aGTM_consent` will be fired (after Consent Info is available)
+
 - Type: boolean
 - Example: `true`
 - Default: `false`
 
 ### gtm
+
 The object with the GTM containers to inject (GTM container ID as key, options as value).
+
 - Type: object
 - Simple Example: `{ 'GTM-XYZ123': {} }`
 - Default: `undefined`
@@ -314,26 +337,34 @@ The object with the GTM containers to inject (GTM container ID as key, options a
     - Example with options: `{ 'GTM-XYZ123': { env:'&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x', 'debug_mode':true } }`
 
 ### gtmPurposes
+
 The purpose(s) that must be agreed to in order to activate the GTM (comma-separated)
+
 - Type: string
 - Example: `'Functional'`
 - Default: `''`
 
 ### gtmServices
+
 The services(s) that must be agreed to in order to activate the GTM (comma-separated)
+
 - Type: string
 - Example: `'Google Tag Manager'`
 - Default: `''`
 
 ### gtmVendors
+
 The vendor(s) that must be agreed to in order to activate the GTM (comma-separated)
+
 - Type: string
 - Example: `'Google Inc'`
 - Default: `''`
 
 ### consent_events
+
 string with consent events (comma-separated) for updating the consent
 For more Information, read the chapter [Updating Consent Information](#updating-consent-information)
+
 - Type: string
 - Example: `'cmpEvent,cmpUpdate'`
 - Default: `''`
@@ -369,6 +400,7 @@ If it is empty (or undefined), the aGTM got no consent information (yet).
 ### GTM and/or GTAG Purposes and Vendors
 
 There are 4 config options to inject the GTM consent-depending:
+
 - gtmPurposes
 - gtmServices
 - gtmVendors
@@ -432,6 +464,35 @@ aGTM.f.config({
 ```
 
 See also chapter "Configuration Options" and especially "gtm".
+
+---
+
+## Optout
+
+You can use an OptOut option of aGTM. Therefore exists the URL Parameter `aGTMoptout`.
+
+If you add it to an URL and set the value to `1`, the execution of the aGTM will stop, all aGTM settings and data will be destroyed and an OptOut (Session) Cookie `aGTMoptout` will be set with the value of `1`.
+The cookie ensures that the opt-out remains active for the current session.
+
+You can stop the opt-out state using the URL Parameter `aGTMoptout` with the value `0`. This removes the OptOut Cookie.
+
+**Opt-Out enabled together with Debug enabled**
+
+If you use the aGTM Setting `debug` with the value `true`, an existing opt-out state will be ignored.
+You could use this to de-activate an aGTM within a Live-Website (using the opt-out) and inject after that your own aGTM code (with enabled debug).
+
+**Callback Function**
+
+You can use a Callback Function named `aGTM.f.optout_callback` - it will run after the aGTM OptOut was excecuted.
+
+**OptOut Functionality in short**
+
+* - Checks if the URL contains the `aGTMoptout` parameter.
+* - If `aGTMoptout` is set and not equal to "0", sets a cookie `aGTMoptout` with value "1" and enables opt-out.
+* - If `aGTMoptout` is equal to "0", removes the `aGTMoptout` cookie if it exists.
+* - If no URL parameter is present, checks if a `aGTMoptout` cookie exists with a value greater than "0".
+* - If opt-out is enabled, clears all properties of `aGTM` except `f`, reinitializes the object,
+* and calls an optional callback function `aGTM.f.optout_callback`.
 
 ---
 
@@ -529,8 +590,8 @@ A: Therefore we have started a [Developer Documentation](README-for-Developers.m
 Feel free to contact me if you found problems or improvements:
 
 **Andi Petzoldt**
-🕮 https://andiministrator.de
-🖂 andi@petzoldt.net
+☛ https://andiministrator.de
+✉ andi@petzoldt.net
 🧳 https://www.linkedin.com/in/andiministrator/
 🐘 https://mastodon.social/@andiministrator
 👥 https://friendica.opensocial.space/profile/andiministrator
@@ -543,6 +604,7 @@ Feel free to contact me if you found problems or improvements:
 ## Changelog
 
 - Version 1.2, *07.11.2024*
+  
   - New option for "gtm" setting: noConsent - use it to fire GTM Container without consent check
   - New option for "cmp" setting: none - use it if you don't want to check the consent
   - New Setting: "sendConsentEvent" - if it set to true, a separate Consent Event will be fired (after Consent Info is available)
@@ -555,28 +617,34 @@ Feel free to contact me if you found problems or improvements:
   - README and inline comments updated
 
 - Version 1.1.3, *27.06.2024*
+  
   - Filter for GTM PINGs in fire Function added
   - New settings in GTM Repeat Template
   - New settings/infos in GTM Click Template
 
 - Version 1.1.2, *19.06.2024*
+  
   - Bugfix for JS Error Listener
   - Shopware Acris Cookie Check added
   - Clickskeks Cookiecheck added
 
 - Version 1.1.1, *13.06.2024*
+  
   - Bugfix for DOMready and PAGEready listener and vPageview template
 
 - Version 1.1, *04.06.2024*
+  
   - Improved functions for Custom GTM Template usage
   - New Custom GTM Template for vPageview or State Events (providing Device and Page Infos and Bot Detection)
   - **Attention!** The default values of `dlStateEvents` and `vPageview` have changed from `true` to `false`!
 
 - Version 1.0.1, *28.05.2024*
+  
   - Bugfix in config function (if cfg.consent hasn't exist)
   - Some adjustments in Docu and implementation script
 
 - Version 1.0, *10.04.2024*
+  
   - Initial Version of aGTM
 
 ---
