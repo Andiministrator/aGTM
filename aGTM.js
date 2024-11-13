@@ -12,7 +12,7 @@
 /***** Initialization and Configuration *****/
 
 // Initialize the main object if it doesn't exist
-window.aGTM = window.aGTM || { f: {} };
+window.aGTM = window.aGTM || { c:{}, d:{}, f:{}, n:{} };
 
 // Function to set properties within the aGTM object with default values
 aGTM.f.propset = function (obj, prop, defaultValue) {
@@ -21,10 +21,7 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
-  aGTM.n = {};
   var props = [
-    [aGTM, "c", {}],
-    [aGTM, "d", {}],
     [aGTM.d, "version", "1.2"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
@@ -45,12 +42,10 @@ aGTM.f.objinit = function() {
       handshake: false,
       timer: null
     }],
-    [aGTM, "f", {}, false],
     [aGTM.f, "tl", {}],
     [aGTM.f, "dl", {}],
     [aGTM.f, "pl", {}],
     [aGTM, "l", []],
-    [aGTM, "n", {}],
     [aGTM.n, "ck", "co" + "o" + "kie"],
     [aGTM.n, "tm", "goo" + "glet" + "agmanager"],
     [aGTM.n, "ta", "tag" + "assi" + "stant.goo" + "gle"]
