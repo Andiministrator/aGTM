@@ -6,6 +6,6 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 .obsidian
-.kateproject.nodes
+.kateproject.notes
 .idea
 .trash
