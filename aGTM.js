@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.2
- * @lastupdate 07.11.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.2.1
+ * @lastupdate 22.01.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -12,7 +12,7 @@
 /***** Initialization and Configuration *****/
 
 // Initialize the main object if it doesn't exist
-window.aGTM = window.aGTM || { c:{}, d:{}, f:{}, n:{} };
+window.aGTM = window.aGTM || { c:{}, d:{}, f:{}, l:[], n:{} };
 
 // Function to set properties within the aGTM object with default values
 aGTM.f.propset = function (obj, prop, defaultValue) {
@@ -22,7 +22,7 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
   var props = [
-    [aGTM.d, "version", "1.2"],
+    [aGTM.d, "version", "1.2.1"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],

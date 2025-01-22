@@ -178,7 +178,7 @@ if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
     // Check GTM and aGTM Events
     if (typeof ev.event=='string' && ev.event=='aGTM_ready') continue;
     if (typeof ev.event!='string' && typeof ev.type=='string' && typeof ev.flags=='object' && typeof ev.flags.enableUntaggedPageReporting=='boolean' && ev.flags.enableUntaggedPageReporting) continue;
-    if (o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) continue;
+    if (!o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) continue;
     // Add Repeat Marker
     ev.aGTMrepeated = true;
     // Whitelist

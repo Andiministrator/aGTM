@@ -5,6 +5,7 @@ window.aGTM = window.aGTM || {};
 aGTM.d = aGTM.d || { config: false, init: false, fired: false };
 aGTM.f = aGTM.f || {};
 aGTM.l = aGTM.l || [];
+aGTM.n = aGTM.n || {};
 
 /**
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
@@ -24,7 +25,8 @@ aGTM.f.consent_check = function (action) {
   aGTM.d.consent = aGTM.d.consent || {};
   if (action=='init' && aGTM.d.consent.hasResponse) return true;
   // Check Usercentrics object
-  if (typeof __ucCmp != 'object' || typeof __ucCmp.cmpController != 'object' || typeof __ucCmp.cmpController.dps != 'object' || typeof __ucCmp.cmpController.dps.categories != 'object' || typeof __ucCmp.cmpController.dps.services != 'object') return false;
+  if (typeof __ucCmp != 'object' || typeof __ucCmp.cmpController != 'object' || typeof __ucCmp.cmpController.consent != 'object' || typeof __ucCmp.cmpController.dps != 'object' || typeof __ucCmp.cmpController.dps.categories != 'object' || typeof __ucCmp.cmpController.dps.services != 'object') return false;
+  if (typeof __ucCmp.cmpController.consent.required!='boolean' || __ucCmp.cmpController.consent.required) return false;
   // Get Purposes
   var cats = __ucCmp.cmpController.dps.categories;
   var purposes = [];

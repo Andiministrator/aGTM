@@ -153,6 +153,7 @@ setConf(o.c, data, 'usecontact', 'boolean', false);
 setConf(o.c, data, 'contactprefix', 'string', '');
 setConf(o.c, data, 'textfilter', 'object', []);
 setConf(o.c, data, 'addparameter', 'object', []);
+setConf(o.c, data, 'ua_event', 'boolean', false);
 
 // Prepare event
 o.c.addparameter.forEach(function(row) {
@@ -212,6 +213,11 @@ o.f.copied = function(co) {
   }
   ev.text = o.f.textFilter(obj.text) || null;
   ev.text_length = obj.len || null;
+  if (o.c.ua_event) {
+    ev.event_category = 'User Experience';
+    ev.event_action = ev.event;
+    ev.event_label = ev.text;
+  }
   ev.type = obj.type || null;
   callInWindow('aGTM.f.fire', ev);
   o.d.q.push(ev);
