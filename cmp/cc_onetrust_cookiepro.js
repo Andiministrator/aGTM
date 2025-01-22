@@ -5,6 +5,7 @@ window.aGTM = window.aGTM || {};
 aGTM.d = aGTM.d || { config: false, init: false, fired: false };
 aGTM.f = aGTM.f || {};
 aGTM.l = aGTM.l || [];
+aGTM.n = aGTM.n || {};
 
 /**
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
@@ -19,9 +20,9 @@ aGTM.l = aGTM.l || [];
  * Usage: aGTM.f.consent_check('init');
  */
 aGTM.f.consent_check = function (action) {
-  
+
   if (typeof action!='string' || (action!='init'&&action!='update')) { if (typeof aGTM.f.log=='function') aGTM.f.log('e10', {action:action}); return false; }
-  
+
   // Check whether response was already given
   aGTM.d.consent = aGTM.d.consent || {};
   if (action=='init' && aGTM.d.consent.hasResponse) return true;

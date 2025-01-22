@@ -12,6 +12,7 @@ window.aGTM = window.aGTM || {};
 aGTM.d = aGTM.d || { config: false, init: false, fired: false };
 aGTM.f = aGTM.f || {};
 aGTM.l = aGTM.l || [];
+aGTM.n = aGTM.n || {};
 
 /**
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors

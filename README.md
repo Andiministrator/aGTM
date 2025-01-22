@@ -80,7 +80,6 @@ To use it as normal, follow these steps:
 1. **Upload the necessary files**
    Upload the necessary files, that means at least the library itself (aGTM.js and/or the minified version aGTM.min.js) and the directory with the consent check function files.
    Assuming you uploaded aGTM direct to a directory "js", it should at least look like this:
-   
    ```
    js/
      |--> cmp/
@@ -97,7 +96,6 @@ To use it as normal, follow these steps:
    To understand, what settings you can use and what the meaning of each setting is, read the chapter "Configuration options".
    Here we give you an integration example with the most of available configuration options. In a normal setup you need just a few of them.
    Example integration code:
-   
    ```html
    <!-- aGTM Start -->
    <script type="text/javascript" id="aGTMcontainer" nonce="abc123">
@@ -126,7 +124,6 @@ To use it as normal, follow these steps:
 
 3. _optional_ **Send events**
    You can now send events using the following command:
-   
    ```javascript
    aGTM.f.fire({ event:'button_click', button:'Sign Up Button' });
    ```
@@ -159,7 +156,6 @@ With this integration variant you get out a Javascript code, which conatins all 
    Use the following (minimal) code as example and change the settings to your needs.
    To understand, what settings you can use and what the meaning of each setting is, read the chapter "Configuration options".
    Example (minimal) integration code:
-   
    ```javascript
    aGTM.f.config({
       gtm: { 'GTM-XYZ123': {} } /* your GTM Container - with ID, ...*/
@@ -170,7 +166,6 @@ With this integration variant you get out a Javascript code, which conatins all 
 4. **Add the init function**
    Go to the end of the file (after the just inserted configuration) and press <Enter> for a new line.
    Insert the following code:
-   
    ```javascript
    aGTM.f.init();
    ```
@@ -178,7 +173,6 @@ With this integration variant you get out a Javascript code, which conatins all 
 5. **Save the aGTM file and use it**
    Now the code is complete. Save it and add it to your website templates.
    Here a (minimal) example of code with Cookiebot as cmp function for the One-File-Usage what has to be after the normal aGTM code:
-   
    ```javascript
    aGTM.f.consent_check=function(t){if("string"!=typeof t||"init"!=t&&"update"!=t)return"function"==typeof aGTM.f.log&&aGTM.f.log("e10",{action:t}),!1;if(aGTM.d.consent=aGTM.d.consent||{},"init"==t&&aGTM.d.consent.hasResponse)return!0;if("object"!=typeof Cookiebot)return!1;var n=Cookiebot;if("boolean"!=typeof n.hasResponse||"object"!=typeof n.consent)return!1;if(!n.hasResponse)return!1;var e=aGTM.c.purposes?aGTM.c.purposes.split(","):[],o=0,r=0;for(k in n.consent)"stamp"!=k&&"method"!=k&&"boolean"==typeof n.consent[k]&&(r++,n.consent[k]&&(o++,e.push(k)));aGTM.d.consent.purposes=e.length>0?","+e.join(",")+",":"";var s="Consent available";return 0==r?s="No purposes available":o<=r?s="Consent (partially or full) declined":o>r&&(s="Consent accepted"),aGTM.d.consent.feedback=s,"string"==typeof n.consentID&&(aGTM.d.consent.consent_id=n.consentID),aGTM.d.consent.hasResponse=!0,"function"==typeof aGTM.f.log&&aGTM.f.log("m2",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};
    aGTM.f.config({
@@ -187,7 +181,6 @@ With this integration variant you get out a Javascript code, which conatins all 
    });
    aGTM.f.init();
    ```
-   
    Don't forget to remove the `aGTM.f.init()` - see above.
    _Notice:_ If you want to insert the code into a HTML template, don't forget to add `<script>` before and `</script>` after the code.
    You can also use the code in a GTM container (as Custom HTML Code).
@@ -196,7 +189,6 @@ With this integration variant you get out a Javascript code, which conatins all 
 6. _optional_ **Send events**
    Pleas use our GTM templates (find it in the folder "gtm") for a lot of auto-events.
    You can also use the integrated aGTM fire function to send events using Javascript:
-   
    ```javascript
    aGTM.f.fire({ event:'button_click', button:'Sign Up Button' });
    ```
@@ -603,48 +595,46 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog
 
+- Version 1.2.1, *22.01.2025*
+  - New and modified CMP Functions
+  - Problems with missing aGTM.n object solved
+
 - Version 1.2, *07.11.2024*
-  
   - New option for "gtm" setting: noConsent - use it to fire GTM Container without consent check
   - New option for "cmp" setting: none - use it if you don't want to check the consent
   - New Setting: "sendConsentEvent" - if it set to true, a separate Consent Event will be fired (after Consent Info is available)
   - Possibility added to load aGTM without loading a container
   - OptOut Function added, with clearing the aGTM object
   - Bugfix for loading more than one GTM container
+  - MS Consent Mode added in GTM Consent Mode Template
   - New CMP Functions
   - GTM Templates are now within a subdiectory for each available Template
   - Some GTM Template Updates
   - README and inline comments updated
 
 - Version 1.1.3, *27.06.2024*
-  
   - Filter for GTM PINGs in fire Function added
   - New settings in GTM Repeat Template
   - New settings/infos in GTM Click Template
 
 - Version 1.1.2, *19.06.2024*
-  
   - Bugfix for JS Error Listener
   - Shopware Acris Cookie Check added
   - Clickskeks Cookiecheck added
 
 - Version 1.1.1, *13.06.2024*
-  
   - Bugfix for DOMready and PAGEready listener and vPageview template
 
 - Version 1.1, *04.06.2024*
-  
   - Improved functions for Custom GTM Template usage
   - New Custom GTM Template for vPageview or State Events (providing Device and Page Infos and Bot Detection)
   - **Attention!** The default values of `dlStateEvents` and `vPageview` have changed from `true` to `false`!
 
 - Version 1.0.1, *28.05.2024*
-  
   - Bugfix in config function (if cfg.consent hasn't exist)
   - Some adjustments in Docu and implementation script
 
 - Version 1.0, *10.04.2024*
-  
   - Initial Version of aGTM
 
 ---
