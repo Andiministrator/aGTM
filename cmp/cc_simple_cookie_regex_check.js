@@ -33,9 +33,9 @@ aGTM.f.consent_check = function (action) {
   if (typeof v=='undefined') {var v='';} else {v=(v!=null) ? v[1] : ''; if(typeof v!='string')v=v.toString();} if (!v) return false;
   // Decode cookie content and check the value
   var consent = typeof v==='string' && v.length > 0 && cv.test(v);
-  aGTM.d.consent.purposes = consent ? 'all' : '';
-  aGTM.d.consent.services = consent ? 'all' : '';
-  aGTM.d.consent.vendors = consent ? 'all' : '';
+  aGTM.d.consent.purposes = consent ? ',all,' : '';
+  aGTM.d.consent.services = consent ? ',all,' : '';
+  aGTM.d.consent.vendors  = consent ? ',all,' : '';
   // Set Response
   aGTM.d.consent.feedback = consent ? 'Consent accepted' : 'Consent declined';
   aGTM.d.consent.hasResponse = true;

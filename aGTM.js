@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.2.1
- * @lastupdate 22.01.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.2.2
+ * @lastupdate 10.02.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -12,17 +12,25 @@
 /***** Initialization and Configuration *****/
 
 // Initialize the main object if it doesn't exist
-window.aGTM = window.aGTM || { c:{}, d:{}, f:{}, l:[], n:{} };
+window.aGTM = window.aGTM || {};
+window.aGTM.c = window.aGTM.c || {};
+window.aGTM.d = window.aGTM.d || {};
+window.aGTM.f = window.aGTM.f || {};
+window.aGTM.l = window.aGTM.l || [];
+window.aGTM.n = window.aGTM.n || {};
 
 // Function to set properties within the aGTM object with default values
 aGTM.f.propset = function (obj, prop, defaultValue) {
-  obj[prop] = obj[prop] || defaultValue;
+  try { obj[prop] = obj[prop] || defaultValue; }
+  catch (e) {
+    //console.warn('aGTM (aGTM.f.propset): Cannot create variable '+prop+'. Object Type: '+typeof obj+', Value:', defaultValue);
+  }
 };
 
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
   var props = [
-    [aGTM.d, "version", "1.2.1"],
+    [aGTM.d, "version", "1.2.2"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
@@ -574,7 +582,7 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
 aGTM.f.domready = function (evob) {
   var is_intern = false;
   if (!aGTM.f.vOb(evob)) {
-    evob = {};
+    evob = { aMSG: 'Empty DOMready event fired.' };
     is_intern = true;
   }
   if (!evob.event) evob.event = "vDOMready";
@@ -596,7 +604,7 @@ aGTM.f.domready = function (evob) {
 aGTM.f.pageready = function (evob) {
   var is_intern = false;
   if (!aGTM.f.vOb(evob)) {
-    evob = {};
+    evob = { aMSG: 'Empty PAGEready event fired.' };
     is_intern = true;
   }
   if (!evob.event) evob.event = "vPAGEready";
@@ -608,6 +616,7 @@ aGTM.f.pageready = function (evob) {
     if (is_intern) aGTM.d.page_ready = true;
   }
 };
+
 
 /***** Injection *****/
 
@@ -799,11 +808,13 @@ aGTM.f.ifHSlisten = function (e) {
  * Function to check if a variable is an object and nut null
  * @property {function} aGTM.f.vOb
  * @param {*} i - The input to be checked.
- * @returns {boolean} - Returns true if the input is an object and not null, false otherwise.
+ * @returns {boolean} - Returns true if the input is an valid object and not null, false otherwise.
  * Usage: if (!aGTM.f.vOb(null)) return;
  */
 aGTM.f.vOb = function (i) {
-  return typeof i === "object" && i !== null;
+  if (typeof i != 'object' || !i) return false;
+  try { var o = JSON.parse(JSON.stringify(i)); } catch (e) { return false; };
+  return true;
 };
 
 /**
@@ -1463,12 +1474,27 @@ aGTM.f.init = function () {
  */
 aGTM.f.fire = function (o) {
   // Ensure the event object is valid
-  if (typeof o !== "object") {
+  if (typeof o != "object" || !o) {
     aGTM.f.log("e9", { o: typeof o });
     return;
   }
   // Create a deep copy of the event object
-  var obj = JSON.parse(JSON.stringify(o));
+  try {
+    var obj = JSON.parse(JSON.stringify(o));
+  } catch (e) {
+    var m = 'aGTM Fire Error (JSON.parse)';
+    if (typeof o.event == 'string') m = m + ' (Event: '+o.event+')';
+    var obj = {
+      event: "exception",
+      errmsg: e.message,
+      errtype: m,
+      timestamp: new Date().getTime(),
+      errct: aGTM.d.error_counter || 1,
+      eventModel: null
+    };
+    aGTM.f.log("e15", obj);
+  }
+  // Some more checks
   if (
     typeof obj.aGTMts == "number" ||
     (typeof obj.eventModel == "object" && obj.eventModel)

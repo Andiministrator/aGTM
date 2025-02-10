@@ -4,8 +4,8 @@
 
 The **aGTM Consent Mode Template** is designed to set Google Consent Mode signals according to the consent information provided by aGTM. This template is especially useful for ensuring that consent signals are accurately reflected in GTM from the first event (`Consent Initialization`).
 
-- **Version**: 1.0
-- **Last Updated**: 07.03.2024
+- **Version**: 1.1
+- **Last Updated**: 10.02.2025
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
