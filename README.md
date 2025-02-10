@@ -595,6 +595,11 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog
 
+- Version 1.2.2, *10.02.2025*
+  - Exception Handling for curious event objects
+  - Bugfix for Initialization in combination for old CMP functions
+  - MS Consent Mode bug fixed
+
 - Version 1.2.1, *22.01.2025*
   - New and modified CMP Functions
   - Problems with missing aGTM.n object solved

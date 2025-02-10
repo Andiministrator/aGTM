@@ -2,8 +2,8 @@
 
 /**
  * Debug Functionallity for aGTMlib - this is a part of aGTMlib and cannot be used standalone
- * @version 1.0
- * @lastupdate 30.03.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 10.02.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @usage use it together with aGTMlib and see the documentation there
  */
@@ -30,6 +30,7 @@ aGTM.d.logmap = aGTM.d.logmap || {
   ,e12: { type:'err', msg:'aGTM.f.addEvListener called, but there is a problem with with addEventListener' }
   ,e13: { type:'err', msg:'call of function aGTM.f.tm_inject, but consent not available' }
   ,e14: { type:'err', msg:'call of function aGTM.f.run_cc, but consent_check function not available' }
+  ,e15: { type:'err', msg:'aGTM.f.fire Error, Object cannot be parsed with JSON.parse' }
   ,m1:  { type:'msg', msg:'aGTM.f.config was successful set' }
   ,m2:  { type:'msg', msg:'aGTM.f.consent_check has checked the consent and consent is available now' }
   ,m3:  { type:'msg', msg:'Consent Setup complete' }
