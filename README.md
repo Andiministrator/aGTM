@@ -22,7 +22,7 @@
 
 ## What is it for? - General Information
 
-aGTM can help you to make your live easier, if you use the Google Tag Manager depending on user consent.
+aGTM can help you to make your life easier, if you use the Google Tag Manager depending on user consent.
 
 ### In short
 
@@ -594,6 +594,13 @@ Feel free to contact me if you found problems or improvements:
 ---
 
 ## Changelog
+
+- Version 1.3, *25.03.2025*
+  - Added a aGTM Client Template for serverside GTM
+  - Added own function for JSON.stringify to avoid Exceptions with Circular Objects
+  - Problem solved, if DL entry is no object
+  - Consent Check for Secure Privacy added
+  - Consent Check for Perspective Funnel added
 
 - Version 1.2.2, *10.02.2025*
   - Exception Handling for curious event objects

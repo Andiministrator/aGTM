@@ -31,6 +31,7 @@ aGTM.d.logmap = aGTM.d.logmap || {
   ,e13: { type:'err', msg:'call of function aGTM.f.tm_inject, but consent not available' }
   ,e14: { type:'err', msg:'call of function aGTM.f.run_cc, but consent_check function not available' }
   ,e15: { type:'err', msg:'aGTM.f.fire Error, Object cannot be parsed with JSON.parse' }
+  ,e16: { type:'err', msg:'aGTM.f.sStrf Error, no object (or null) given' }
   ,m1:  { type:'msg', msg:'aGTM.f.config was successful set' }
   ,m2:  { type:'msg', msg:'aGTM.f.consent_check has checked the consent and consent is available now' }
   ,m3:  { type:'msg', msg:'Consent Setup complete' }

@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.2.2
- * @lastupdate 10.02.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.3
+ * @lastupdate 25.03.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -30,7 +30,7 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
   var props = [
-    [aGTM.d, "version", "1.2.2"],
+    [aGTM.d, "version", "1.3"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
@@ -73,8 +73,7 @@ aGTM.f.objinit();
  */
 aGTM.f.log = function (id, obj) {
   // Clone the object if it's an object to avoid mutations
-  var clonedObj =
-    typeof obj === "object" && obj ? JSON.parse(JSON.stringify(obj)) : obj;
+  var clonedObj = typeof obj === "object" && obj ? JSON.parse(JSON.stringify(obj)) : obj;
   aGTM.l.push({ id: id, timestamp: new Date().getTime(), obj: clonedObj });
 };
 
@@ -89,6 +88,31 @@ aGTM.f.strclean = function (str) {
   if (typeof str == "undefined" || (typeof str == "object" && !str)) return "";
   if (typeof str != "string") str = str.toString();
   return str.replace(/[^a-zäöüßA-ZÄÖÜ0-9_-]/g, "");
+};
+
+/**
+ * Function for safe JSON.stringify
+ * @property {function} aGTM.f.sStrf
+ * @param {object} obj - object to stringify
+ * @returns {string} - cleaned stringified object
+ * Usage: aGTM.f.sStrf(obj);
+ */
+aGTM.f.sStrf = function (obj) {
+  if (typeof obj!='object' || !obj) {
+    var o = JSON.stringify({ event: 'exception', errmsg: 'DataLayer Entry is no object', errtype: "DL Error", obj_type: typeof obj, obj_value: obj });
+    aGTM.f.log("e16", JSON.parse(o));
+    return o;
+  }
+  var seen = [];
+  return JSON.stringify(obj, function(key, value) {
+    if (typeof value === "object" && value !== null) {
+      if (seen.indexOf(value) !== -1) {
+        return "[Circular]";
+      }
+      seen.push(value);
+    }
+    return value;
+  });
 };
 
 /**
@@ -168,7 +192,7 @@ aGTM.f.config = function (cfg) {
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
 
   // Initialize after settings
-  aGTM.d.consent = aGTM.d.consent || JSON.parse(JSON.stringify(aGTM.c.consent)); // Deep copy to avoid reference issues
+  aGTM.d.consent = aGTM.d.consent || JSON.parse(aGTM.f.sStrf(aGTM.c.consent)); // Deep copy to avoid reference issues
   aGTM.d.consent.gtmConsent = false; // Initialize GTM consent as false
   aGTM.d.config = true; // Set the configuration status to true
   aGTM.d.gtmLoaded = [];
@@ -331,7 +355,7 @@ aGTM.f.run_cc = function (action) {
     window[aGTM.c.gdl].push({
       event: "aGTM_consent_update",
       aGTMts: new Date().getTime(),
-      aGTMconsent: aGTM.d.consent ? JSON.parse(JSON.stringify(aGTM.d.consent)) : {}
+      aGTMconsent: aGTM.d.consent ? JSON.parse(aGTM.f.sStrf(aGTM.d.consent)) : {}
     });
   }
   // Execute callback if defined
@@ -482,7 +506,7 @@ aGTM.f.aGTM_event = function (eventname) {
   var obj = {
     event: eventname,
     aGTMts: new Date().getTime(),
-    aGTMconsent: aGTM.d.consent ? JSON.parse(JSON.stringify(aGTM.d.consent)) : {}
+    aGTMconsent: aGTM.d.consent ? JSON.parse(aGTM.f.sStrf(aGTM.d.consent)) : {}
   };
   if (eventname == 'aGTM_ready')
     obj.aGTM = {
@@ -708,7 +732,7 @@ aGTM.f.inject = function () {
     dl.forEach(function (ev, index) {
       if (!ev.aGTMchk) {
         ev.aGTMdl = true;
-        var evClone = JSON.parse(JSON.stringify(ev));
+        var evClone = JSON.parse(aGTM.f.sStrf(ev));
         if (typeof evClone["gtm.uniqueEventId"] != "undefined")
           delete evClone["gtm.uniqueEventId"];
         aGTM.d.f.push(evClone);
@@ -813,7 +837,7 @@ aGTM.f.ifHSlisten = function (e) {
  */
 aGTM.f.vOb = function (i) {
   if (typeof i != 'object' || !i) return false;
-  try { var o = JSON.parse(JSON.stringify(i)); } catch (e) { return false; };
+  try { var o = JSON.parse(aGTM.f.sStrf(i)); } catch (e) { return false; };
   return true;
 };
 
@@ -918,11 +942,11 @@ aGTM.f.getVal = function (o, v) {
   switch (o) {
     case "w":
       return aGTM.f.vOb(window[v])
-        ? JSON.parse(JSON.stringify(window[v]))
+        ? JSON.parse(aGTM.f.sStrf(window[v]))
         : window[v];
     case "n":
       return aGTM.f.vOb(navigator[v])
-        ? JSON.parse(JSON.stringify(navigator[v]))
+        ? JSON.parse(aGTM.f.sStrf(navigator[v]))
         : navigator[v];
     case "d":
       return document[v];
@@ -938,7 +962,7 @@ aGTM.f.getVal = function (o, v) {
       return window.screen[v];
     case "c":
       if (window.google_tag_data && window.google_tag_data.ics) {
-        return JSON.parse(JSON.stringify(window.google_tag_data.ics));
+        return JSON.parse(aGTM.f.sStrf(window.google_tag_data.ics));
       } else {
         return null;
       }
@@ -1340,7 +1364,7 @@ aGTM.f.jserrors = function () {
  * Usage: aGTM.f.timerfkt({ timer_ms: 1000, timer_ct: 1, event: 'timerEvent[s]' });
  */
 aGTM.f.timerfkt = function (obj) {
-  var ev = JSON.parse(JSON.stringify(obj)); // Create a deep copy of the event object to prevent mutating the original object
+  var ev = JSON.parse(aGTM.f.sStrf(obj)); // Create a deep copy of the event object to prevent mutating the original object
   ev.timer_ms = ev.timer_ms * 1; // Ensure timer_ms is a number
   ev.timer_ct++; // Increment the timer count
   ev.timer_tm = ev.timer_ms * ev.timer_ct; // Calculate the total time in milliseconds
@@ -1374,7 +1398,7 @@ aGTM.f.timer = function (nm, ft, ev, ms, rp) {
   // Check if the timer already exists and stop/delete it if it does
   aGTM.f.stoptimer(nm);
   // Initialize the timer object
-  var obj = typeof ev == "object" ? JSON.parse(JSON.stringify(ev)) : {};
+  var obj = typeof ev == "object" ? JSON.parse(aGTM.f.sStrf(ev)) : {};
   obj.timer_nm = nm;
   obj.timer_ms = ms;
   obj.timer_rp = rp;
@@ -1480,7 +1504,7 @@ aGTM.f.fire = function (o) {
   }
   // Create a deep copy of the event object
   try {
-    var obj = JSON.parse(JSON.stringify(o));
+    var obj = JSON.parse(aGTM.f.sStrf(o));
   } catch (e) {
     var m = 'aGTM Fire Error (JSON.parse)';
     if (typeof o.event == 'string') m = m + ' (Event: '+o.event+')';
@@ -1552,7 +1576,7 @@ aGTM.f.fire = function (o) {
   ) {
     delete obj.aGTMts;
     delete obj.eventModel;
-    aGTM.d.f.push(JSON.parse(JSON.stringify(obj)));
+    aGTM.d.f.push(JSON.parse(aGTM.f.sStrf(obj)));
     return;
   }
   // Push event to GTM if enabled and consented
@@ -1560,11 +1584,11 @@ aGTM.f.fire = function (o) {
     aGTM.d.consent.gtmConsent ||
     (typeof obj.event == "string" && obj.event.indexOf("aGTM") === 0)
   ) {
-    //var gtmobj = JSON.parse(JSON.stringify(obj));
+    //var gtmobj = JSON.parse(aGTM.f.sStrf(obj));
     if (typeof obj.event != "string" || obj.event.indexOf("aGTM") !== 0) {
       delete obj["gtm.uniqueEventId"];
       delete obj.aGTMparams;
-      obj.aGTMparams = JSON.parse(JSON.stringify(obj));
+      obj.aGTMparams = JSON.parse(aGTM.f.sStrf(obj));
     }
     aGTM.d.dl.push(obj);
     if (
