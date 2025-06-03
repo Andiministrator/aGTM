@@ -32,13 +32,15 @@ aGTM.d.logmap = aGTM.d.logmap || {
   ,e14: { type:'err', msg:'call of function aGTM.f.run_cc, but consent_check function not available' }
   ,e15: { type:'err', msg:'aGTM.f.fire Error, Object cannot be parsed with JSON.parse' }
   ,e16: { type:'err', msg:'aGTM.f.sStrf Error, no object (or null) given' }
+  ,e17: { type:'err', msg:'aGTM.f.inject Error, DataLayer Object is not an object (or null)' }
   ,m1:  { type:'msg', msg:'aGTM.f.config was successful set' }
   ,m2:  { type:'msg', msg:'aGTM.f.consent_check has checked the consent and consent is available now' }
   ,m3:  { type:'msg', msg:'Consent Setup complete' }
   ,m5:  { type:'msg', msg:'GTAG initial call injected' }
   ,m6:  { type:'msg', msg:'GTM initial call injected' }
-  ,m7:  { type:'msg', msg:'Event fired' }
+  ,m7:  { type:'msg', msg:'Event prepared for dataLayer.push' }
   ,m8:  { type:'msg', msg:'Consent Setup called, but consent not (yet) available' }
+  ,m9:  { type:'msg', msg:'Event fired to dataLayer' }
 };
 
 /**

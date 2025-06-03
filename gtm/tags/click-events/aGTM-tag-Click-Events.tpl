@@ -1,4 +1,12 @@
-﻿___INFO___
+﻿___TERMS_OF_SERVICE___
+
+By creating or modifying this file you agree to Google Tag Manager's Community
+Template Gallery Developer Terms of Service available at
+https://developers.google.com/tag-manager/gallery-tos (or such other URL as
+Google may provide), as modified from time to time.
+
+
+___INFO___
 
 {
   "type": "TAG",
@@ -83,11 +91,12 @@ ___TEMPLATE_PARAMETERS___
         "simpleValueType": true
       },
       {
-        "type": "CHECKBOX",
-        "name": "attach_outbound",
-        "checkboxText": "Attach _outbound to Event Name, if it is an Outbound Link",
+        "type": "TEXT",
+        "name": "outbound_event",
+        "displayName": "Event Name for Outbound Clicks",
         "simpleValueType": true,
-        "help": "This will only work for Links (a-Elements)"
+        "defaultValue": "click_outbound",
+        "valueHint": "click_outbound"
       }
     ]
   },
@@ -187,6 +196,13 @@ ___TEMPLATE_PARAMETERS___
 
 ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
+/**
+ * aGTM Click Listener
+ * @version 1.2
+ * @lastupdate 03.04.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @author Andi Petzoldt <andi@petzoldt.net>
+*/
+
 // Import needed libraries
 const log = require('logToConsole');
 const JSON = require('JSON');
@@ -195,9 +211,7 @@ const callInWindow = require('callInWindow');
 const copyFromWindow = require('copyFromWindow');
 
 /**
- * Build ND aGTM shadow object
- * @lastupdate 12.02.2024 by Andi Petzoldt <andi@petzoldt.net>
- * @author Andi Petzoldt <andi@petzoldt.net>
+ * Build aGTM shadow object
  * @property {object} o
  * @param {object} c - config
  *   @param {object} c.debug - debug messages in browser console
@@ -226,7 +240,7 @@ function setConf(target, source, key, type, defaultValue) {
 setConf(o.c, data, 'eventname', 'string', '');
 setConf(o.c, data, 'selector', 'string', 'a');
 setConf(o.c, data, 'downloadevent', 'string', '');
-setConf(o.c, data, 'attach_outbound', 'boolean', false);
+setConf(o.c, data, 'outbound_event', 'string', '');
 setConf(o.c, data, 'cross_domains', 'string', '');
 if (o.c.cross_domains) o.c.cross_domains = callInWindow('aGTM.f.rReplace', o.c.cross_domains, '[^\\.0-9a-zA-Z_,-]', '');
 setConf(o.c, data, 'cross_matching', 'string', 'domain');
@@ -316,13 +330,20 @@ o.f.click = o.f.click || function(el) {
   ev.tagName = el.tagName || '';
   if (ev.tagName=='a') {
     if (!ev.host) ev.host = callInWindow('aGTM.f.getVal','l','hostname');
-    var hostname = o.c.cross_matching=='domain' ? o.f.hostToDomain(ev.host) : ev.host;
-    ev.outbound = 1;
-    cross_domains.forEach(function(cd) {
-      if (cd==hostname) ev.outbound = 0;
-    });
-    if (o.c.attach_outbound && ev.outbound) ev.event+= '_outbound';
-    if (!ev.type) ev.type = 'link_' + ev.event;
+    if (!ev.host) {
+      ev.type = 'link';
+      ev.outbound = 0;
+    } else {
+      var hostname = o.c.cross_matching=='domain' ? o.f.hostToDomain(ev.host) : ev.host;
+      ev.outbound = 1;
+      if (cross_domains) {
+        for (var i=0; i<cross_domains.length; i++) {
+          if (cross_domains[i]==hostname) ev.outbound = 0;
+        }
+      }
+      if (ev.outbound && o.c.outbound_event) ev.event = o.c.outbound_event;
+      if (!ev.type) ev.type = 'link_' + ev.event;
+    }
   }
   if (!ev.type) {
     if (ev.tagName) {
@@ -345,15 +366,17 @@ o.f.click = o.f.click || function(el) {
 
 // Clean CrossDomain Array
 var selfhost = callInWindow('aGTM.f.getVal','l','hostname') || '';
-if (!o.c.cross_domains && typeof selfhost=='string') o.c.cross_domains = selfhost;
+if (typeof o.c.cross_domains!='string') o.c.cross_domains = '';
 var cross_domains = o.c.cross_domains ? o.c.cross_domains.split(',') : [];
+if (selfhost && cross_domains.indexOf(selfhost) === -1) {
+  cross_domains.push(selfhost);
+}
+// Check cross domain matching (domain or hostname scope)
 if (o.c.cross_matching=='domain') {
-  var selfhost = o.f.hostToDomain(selfhost);
   for (var i=0; i<cross_domains.length; i++) {
     cross_domains[i] = o.f.hostToDomain(cross_domains[i]);
   }
 }
-if (selfhost && cross_domains.indexOf(selfhost) < 0) cross_domains.push(selfhost);
 
 // Run
 callInWindow('aGTM.f.addElLst',o.c.selector,'mousedown',function(e){o.f.click(e);});

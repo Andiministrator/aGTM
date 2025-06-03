@@ -59,7 +59,8 @@ Before you include the code to your website (template), you need to upload the n
 <script type="text/javascript">
 (function(c){
 var w=window,d=document;w.aGTM=w.aGTM||{};aGTM.d=aGTM.d||{};aGTM.d.f=aGTM.d.f||[];aGTM.f=aGTM.f||{};aGTM.f.fire=aGTM.f.fire||function(o){aGTM.d.f.push(o);};
-aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!='/')p+='/';if(p)t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
+aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!=='/')p+='/';if(p)t.src=p+'aGTM'+m+'.js';t.async=true;
+t.onload=function(){(aGTM.f.init?aGTM.f.init:function(){console.warn('aGTM.f.init missing');})();};d.head.appendChild(t);
 })({
    path: '/templates/scripts/'
   ,cmp: 'consentmanager'
@@ -101,7 +102,8 @@ To use it as normal, follow these steps:
    <script type="text/javascript" id="aGTMcontainer" nonce="abc123">
    (function(c){
    var w=window,d=document;w.aGTM=w.aGTM||{};aGTM.d=aGTM.d||{};aGTM.d.f=aGTM.d.f||[];aGTM.f=aGTM.f||{};aGTM.f.fire=aGTM.f.fire||function(o){aGTM.d.f.push(o);};
-   aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!='/')p+='/';if(p)t.src=c.path+'aGTM'+m+'.js';t.async=true;d.head.appendChild(t);
+   aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!=='/')p+='/';if(p)t.src=p+'aGTM'+m+'.js';t.async=true;
+   t.onload=function(){(aGTM.f.init?aGTM.f.init:function(){console.warn('aGTM.f.init missing');})();};d.head.appendChild(t);
    })({
    /* aGTM Config Start */
       path: '/js/' /* (relative) path to the directory where aGTM is located, e.g. '/js/'' */
@@ -133,14 +135,7 @@ To use it as normal, follow these steps:
 With this integration variant you get out a Javascript code, which conatins all you need. You can use this code either to have just one Javascript file or to integrate it in a CMS script field, or GTM container or whatever you have.
 
 1. **Insert the consent_check function code to the aGTM.js**
-   Open the aGTM.js file with your Text- or Code-Editor.
-   Go to the end of the file - you'll find a line with the content:
-   `aGTM.f.init();`
-   Delete it.
-   _Notice:_
-   If you use the minimized version of aGTM (aGTM.min.js), you'll find only one line.
-   Go to the end of this line and remove this: `,aGTM.f.init()`
-   But leave the semicolon at the end!
+   Open the aGTM.js (or better aGTM.min.js) file with your Text- or Code-Editor and place your cursor at the end of the file.
 
 2. **Get the code of the consent_check function and paste it to the aGTM file**
    Now you need to know, which Consent Tool (Cookie Banner) you use for your website. See the point "cmp" in the chapter "Configuration options" for available Consent Tools.
@@ -181,7 +176,6 @@ With this integration variant you get out a Javascript code, which conatins all 
    });
    aGTM.f.init();
    ```
-   Don't forget to remove the `aGTM.f.init()` - see above.
    _Notice:_ If you want to insert the code into a HTML template, don't forget to add `<script>` before and `</script>` after the code.
    You can also use the code in a GTM container (as Custom HTML Code).
    We recommend to minify the code (e.g. with https://minify-js.com/). Keep care that you don't minify the function names (option "keep_fnames" for minify-js.com).
@@ -263,6 +257,23 @@ Name of GTM dataLayer
 - Example: `'dataLayer'`
 - Default: `'dataLayer'`
 
+### dlOrgPush
+
+If the (GTM-)original dataLayer.push Function is changed (hooked), send an exception event ("log") or use the original dataLayer.push ("use") or replace the hooked dataLayer.push ("restore"). If you don't want to use it, leave it blank.
+Possible Values:
+- ""
+  Do nothing.
+- "log"
+  Attach a flag/attribute to the dataLayer object with the name "dlPushFunction" and the value "overwritten".
+- "use"
+  Use the original (GTM) dataLayer.push function if it was overwritten (hooked) instead of the new (hooked) one.
+- "restore"
+  Restores the overwritten (hooked) dataLayer.push function with the original (GTM) one.
+
+- Type: string
+- Example: `"log"`
+- Default: `""`
+
 ### dlStateEvents
 
 Fires GTM dataLayer Events for `DOMloaded` and `PAGEready`
@@ -271,9 +282,28 @@ Fires GTM dataLayer Events for `DOMloaded` and `PAGEready`
 - Example: `true`
 - Default: `false`
 
-### vPageview
+### aPageview
 
-Fires a GTM dataLayer Event `vPageview`
+Fires a GTM dataLayer Event `aPageview` after the page has load and (a)GTM is ready.
+
+- Type: boolean
+- Example: `true`
+- Default: `false`
+
+### vPageview (deprecated)
+
+Fires a GTM dataLayer Event `vPageview` after the page has load and (a)GTM is ready.
+**Attention!** The vPageview event was replaced by the aPageview event in aGTM 1.4 and will be removed in aGTM 2.0!
+
+- Type: boolean
+- Example: `true`
+- Default: `false`
+
+### vPageviews
+
+Send (dataLayer) Events if the URL changes, but no page reload takes place (virtual Pageviews through History Change).
+The GTM dataLayer Event for a virtual Pageview has the event name `vPageview`.
+*Notice:* There are two more configuration options (`vPageviewsTimer` and `vPageviewsFallback`). At normally you don't need to use them. Read the developer docu for more information about it.
 
 - Type: boolean
 - Example: `true`
@@ -594,6 +624,18 @@ Feel free to contact me if you found problems or improvements:
 ---
 
 ## Changelog
+
+- Version 1.4, *27.05.2025*
+  - sStrf-function and -use improved
+  - Bug in Click Listener Tag fixed (for Outbound Clicks)
+  - Click Listener Tag has now a configurable outbound link click Event Name
+  - Pageview Feature (and GTM template) can now recognize virtual Pageviews
+    **Attention!** With the introduction of virtual pageviews, the event name of the "normal" pageview has changed from "vPageview" to "aPageview." Virtual pageviews are sent as "vPageview."
+    The vPageview (with setting) is still available, but will be removed in version 2.0
+  - dataLayer monitoring and restoring feature added (configurable)
+  - **Attention!** The aGTM.js and aGTM.min.js are without `aGTM.f.init();` at the end
+  - **Attention!** A new implamentation code for a normal integration
+  - New Base64 aGTM Version (aGTM.base64) added, based on aGTM.min.js
 
 - Version 1.3, *25.03.2025*
   - Added a aGTM Client Template for serverside GTM

@@ -1,0 +1,8 @@
+homepage: "https://github.com/Andiministrator/aGTM/sgtmClient"
+documentation: "https://github.com/Andiministrator/aGTM/sgtmClient/blob/main/README.md"
+versions:
+  # Latest version
+  - sha:
+    changeNotes: v1.0 Initial Release
+  # Older versions
+  

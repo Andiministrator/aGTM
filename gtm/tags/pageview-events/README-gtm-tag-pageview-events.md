@@ -72,6 +72,10 @@ You can define additional attributes to be included in the dataLayer with the Pa
 - **Parameter**: `use_js_check`
 - Enables bot detection using JavaScript execution time checks.
 
+### Virtual Pageviews
+- **Parameter**: `vPageviews`
+- Virtual Pageviews (if the URL changes but no page (re)load takes place)
+
 ### Human Test
 - **Parameter**: `humanTest`
 - Allows you to check if the user is a human based on interactions like mouse movement or scroll events.

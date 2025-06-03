@@ -36,7 +36,8 @@ ___TEMPLATE_PARAMETERS___
         "type": "NON_EMPTY"
       }
     ],
-    "defaultValue": "vPageview"
+    "defaultValue": "aPageview",
+    "help": "This event will be fired after a Page (Re)Load."
   },
   {
     "type": "SELECT",
@@ -185,6 +186,55 @@ ___TEMPLATE_PARAMETERS___
   },
   {
     "type": "GROUP",
+    "name": "virtualPageviews",
+    "displayName": "Virtual Pageviews",
+    "groupStyle": "ZIPPY_OPEN_ON_PARAM",
+    "subParams": [
+      {
+        "type": "CHECKBOX",
+        "name": "vPageviews",
+        "checkboxText": "Use Virtual Pageviews",
+        "simpleValueType": true,
+        "defaultValue": false,
+        "help": "Send Virtual Pageviews (at History/URL Changes)"
+      },
+      {
+        "type": "TEXT",
+        "name": "vPageviewEvent",
+        "displayName": "Event Name for a Virtual Pageview",
+        "simpleValueType": true,
+        "defaultValue": "vPageview",
+        "valueValidators": [
+          {
+            "type": "NON_EMPTY"
+          }
+        ],
+        "valueHint": "vPageview"
+      },
+      {
+        "type": "CHECKBOX",
+        "name": "vPageviewsFallback",
+        "checkboxText": "Use Timer Fallback",
+        "simpleValueType": true,
+        "defaultValue": false,
+        "help": "If Proxy Object is not available (older browsers), activate a Timer to check URL changes automatically (Fallback)."
+      },
+      {
+        "type": "TEXT",
+        "name": "vPageviewsTimer",
+        "displayName": "Timer to Check URL changes (for fallback)",
+        "simpleValueType": true,
+        "defaultValue": 200,
+        "help": "\u003cp\u003eSet the time in MilliSeconds to check for URL changes.\u003cbr /\u003e\nThis is just for the Fallback Method (older browsers), where the Proxy method isn\u0027t available.\u003c/p\u003e\n\u003cp\u003eSet it to 0 for deactivating.\u003c/p\u003e",
+        "valueValidators": [],
+        "valueHint": "200",
+        "valueUnit": "ms"
+      }
+    ],
+    "help": "Virtual Pageviews (if the URL changes but no page (re)load takes place)"
+  },
+  {
+    "type": "GROUP",
     "name": "humanTest",
     "displayName": "Human Test",
     "groupStyle": "ZIPPY_OPEN_ON_PARAM",
@@ -297,11 +347,13 @@ ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 const log = require('logToConsole');
 const JSON = require('JSON');
 const callInWindow = require('callInWindow');
+const setInWindow = require('setInWindow');
 const copyFromWindow = require('copyFromWindow');
 const copyFromDataLayer = require('copyFromDataLayer');
 //const Object = require('Object');
 const queryPermission = require('queryPermission');
 const Math = require('Math');
+const makeNumber = require('makeNumber');
 const templateStorage = require('templateStorage');
 
 /**
@@ -325,6 +377,10 @@ o.c.pv_fire = data.pv_fire;
 o.c.max_fire = o.c.max_fire || data.max_fire; if (typeof o.c.max_fire=='string') o.c.max_fire = o.c.max_fire * 1; if (typeof o.c.max_fire!='number' || o.c.max_fire===0) o.c.max_fire = 999;
 o.c.pv_attributes = typeof data.pv_attributes=='object' ? data.pv_attributes : [];
 o.c.use_js_check = typeof data.use_js_check=='boolean' ? data.use_js_check : false;
+o.c.vPageviews = typeof data.vPageviews=='boolean' ? data.vPageviews : false;
+o.c.vPageviewEvent = data.vPageviewEvent || 'vPageview';
+o.c.vPageviewsFallback = typeof data.vPageviewsFallback=='boolean' ? data.vPageviewsFallback : false;
+o.c.vPageviewsTimer = typeof data.vPageviewsTimer=='string' ? makeNumber(data.vPageviewsTimer) : 200;
 o.c.useHumanTest = typeof data.useHumanTest=='boolean' ? data.useHumanTest : false;
 o.c.humanEvent = data.humanEvent;
 o.c.humanField = data.humanField;
@@ -844,6 +900,13 @@ if (counter<=o.c.max_fire && ((o.c.use_js_check && o.d.device_type!='Bot') || o.
   callInWindow('aGTM.f.timer', o.c.bottest_jsexct, o.f.checkExecutionTiming, {}, 100, 1);
 } else if (counter<=o.c.max_fire) {
   o.f.fire(e);
+}
+
+log('info','aGTM.f.urlListener calling',{ac:o.c.vPageviews,ev:o.c.vPageviewEvent,ti:o.c.vPageviewsTimer,fa:o.c.vPageviewsFallback});
+// Activate Listener for virtual vPageviews
+if (o.c.vPageviews) {
+  log('info','aGTM.f.urlListener called',{ev:o.c.vPageviews});
+  callInWindow('aGTM.f.urlListener', o.c.vPageviewEvent, o.c.vPageviewsTimer, o.c.vPageviewsFallback);
 }
 
 // Inject Ad Blocker Test Pixel
@@ -1464,6 +1527,45 @@ ___WEB_PERMISSIONS___
                   {
                     "type": 1,
                     "string": "aGTM.f.pageready"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.f.urlListener"
                   },
                   {
                     "type": 8,

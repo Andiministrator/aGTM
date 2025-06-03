@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.3
- * @lastupdate 25.03.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.4
+ * @lastupdate 27.05.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -30,7 +30,7 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
   var props = [
-    [aGTM.d, "version", "1.3"],
+    [aGTM.d, "version", "1.4"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
@@ -50,6 +50,7 @@ aGTM.f.objinit = function() {
       handshake: false,
       timer: null
     }],
+    [aGTM.d, "last_url", location.href],
     [aGTM.f, "tl", {}],
     [aGTM.f, "dl", {}],
     [aGTM.f, "pl", {}],
@@ -101,7 +102,7 @@ aGTM.f.sStrf = function (obj) {
   if (typeof obj!='object' || !obj) {
     var o = JSON.stringify({ event: 'exception', errmsg: 'DataLayer Entry is no object', errtype: "DL Error", obj_type: typeof obj, obj_value: obj });
     aGTM.f.log("e16", JSON.parse(o));
-    return o;
+    return JSON.stringify(null);
   }
   var seen = [];
   return JSON.stringify(obj, function(key, value) {
@@ -147,7 +148,9 @@ aGTM.f.config = function (cfg) {
   aGTM.c.min = typeof cfg.min == "boolean" ? cfg.min : true; // inject the files as minified versions
   aGTM.f.an(aGTM.c, "nonce", cfg, ""); // Nonce value for the file injections
   aGTM.f.an(aGTM.c, "iframeSupport", cfg, false); // Nonce value for the file injections
-  aGTM.f.an(aGTM.c, "useListener", cfg, false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
+  aGTM.f.an(aGTM.c, "vPageviews", cfg, false); // Send (dataLayer) Events if the URL changes, but no page reload takes place (virtual Pageviews through History Change)
+  aGTM.f.an(aGTM.c, "vPageviewsTimer", cfg, 0); // Timer to continuous checking the url for changes (set it to 0 for deactivating)
+  aGTM.f.an(aGTM.c, "vPageviewsFallback", cfg, false); // If Proxy Object is not available (older browsers), activate vPageviewsTimer with 500(ms) automatically
 
   // GTM-specific configuration
   aGTM.f.an(aGTM.c, "gtmID", cfg, ""); // GTM ID for fire hasty Events, by default the last GTM ID of the following object will be used
@@ -173,8 +176,11 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "gtmVendors", cfg, ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
   aGTM.f.an(aGTM.c, "gtmAttr", cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
   aGTM.f.an(aGTM.c, "dlSet", cfg, {}); // Set dataLayer variables, that should always be attached to an event
+  aGTM.f.an(aGTM.c, "useListener", cfg, false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
+  aGTM.f.an(aGTM.c, "dlOrgPush", cfg, ""); // "" or "log" or "use" or "restore": If the (GTM-)original dataLayer.push Function is changed (hooked), send an exception event ("log") or use the original dataLayer.push ("use") or replace the hooked dataLayer.push ("restore"). If you don't want to use it, leave it blank.
   aGTM.c.dlStateEvents = typeof cfg.dlStateEvents == "boolean" ? cfg.dlStateEvents : false; // Fire GTM dataLayer Events for DOMloaded and PAGEready
-  aGTM.c.vPageview = typeof cfg.vPageview == "boolean" ? cfg.vPageview : false; // Fire vPageview Event
+  aGTM.c.aPageview = typeof cfg.aPageview == "boolean" ? cfg.aPageview : false; // Fire aPageview Event
+/* deprecated */  aGTM.c.vPageview = typeof cfg.vPageview == "boolean" ? cfg.vPageview : false; // Fire vPageview Event
   aGTM.c.sendConsentEvent = typeof cfg.sendConsentEvent == "boolean" ? cfg.sendConsentEvent : false; // Should aGTM send a separate Event with Consent Info?
 
   // Consent configuration
@@ -352,7 +358,7 @@ aGTM.f.run_cc = function (action) {
   // Update consent status if action is 'update'
   if (action == "update") {
     if (!aGTM.d.init) aGTM.f.inject();
-    window[aGTM.c.gdl].push({
+    aGTM.f.sendnaus({
       event: "aGTM_consent_update",
       aGTMts: new Date().getTime(),
       aGTMconsent: aGTM.d.consent ? JSON.parse(aGTM.f.sStrf(aGTM.d.consent)) : {}
@@ -519,6 +525,83 @@ aGTM.f.aGTM_event = function (eventname) {
 };
 
 /**
+ * Checks whether the JavaScript Proxy API is fully supported and usable.
+ * This includes basic detection and a functional test for the "apply" trap.
+ * Some older or non-standard environments may define Proxy but throw errors on use.
+ * This function ensures that a Proxy can be instantiated and used safely.
+ * @property {function} aGTM.f.proxySupport
+ * @returns {boolean} True if Proxy is fully supported and usable, false otherwise.
+ * @example
+ * if (proxySupport()) { console.log('Safe to use new Proxy(...)'; }
+ */
+aGTM.f.proxySupport = function () {
+  if (typeof Proxy !== 'function') return false;
+  try {
+    var test = new Proxy(function () {}, {
+      apply: function () { return true; }
+    });
+    return test();
+  } catch (e) {
+    return false;
+  }
+};
+
+/**
+ * Listens for URL changes without full page reload using Proxy and/or polling fallback.
+ * Supported mechanisms:
+ * - Intercepts history.pushState and history.replaceState using Proxy (if available)
+ * - Monitors popstate and hashchange events
+ * - Uses polling as fallback (if enabled)
+ * @property {function} aGTM.f.urlListener
+ * @param {string} eventname - The Event Name
+ * @param {number} interval - Polling interval in milliseconds. Set to 0 to disable polling completely.
+ * @param {boolean} fallback - If true, enables polling as a fallback when Proxy is not supported.
+ * Example usage: Include this code early in your HTML to track client-side navigation changes.
+ */
+aGTM.f.urlListener = function (eventname, interval, fallback) {
+  console.log('URL Listener started', {eventname:eventname,interval:interval,fallback:fallback});
+  if (typeof interval != 'number') interval = 500;
+  if (typeof fallback != 'boolean') fallback = false;
+  aGTM.d.last_url = aGTM.d.last_url || aGTM.f.getVal('l', 'href');
+  if (typeof aGTM.d.last_url != 'string' || !aGTM.d.last_url) aGTM.d.last_url = '';
+  // Core function
+  var checkUrlChange = function() {
+    var currentURL = aGTM.f.getVal('l', 'href') || '';
+    if (currentURL != aGTM.d.last_url) {
+      if (typeof eventname != 'string') eventname = 'vPageview';
+      var ev = { event: eventname };
+      ev.oldURL = aGTM.d.last_url;
+      ev.newURL = currentURL;
+      ev.newTitle = document.title;
+      aGTM.f.fire(ev);
+      aGTM.d.last_url = currentURL;
+    }
+  };
+  // Listener
+  aGTM.f.evLstn('window', 'popstate', checkUrlChange);
+  aGTM.f.evLstn('window', 'hashchange', checkUrlChange);
+  // Try Proxy-based interception, fallback to timer if configured
+  var proxyUsed = false;
+  if(aGTM.f.proxySupport) {
+    var handler = {
+      apply: function (target, thisArg, argumentsList) {
+        var result = target.apply(thisArg, argumentsList);
+        checkUrlChange();
+        return result;
+      }
+    };
+    history.pushState = new Proxy(history.pushState, handler);
+    history.replaceState = new Proxy(history.replaceState, handler);
+    proxyUsed = true;
+  }
+  // Fallback polling if Proxy isn't available or polling is explicitly enabled
+  if ((interval > 0 && !proxyUsed && fallback) || (interval > 0 && !fallback)) {
+    aGTM.f.timer('urlListener', checkUrlChange, null, interval, 0);
+    //setInterval(checkUrlChange, interval);
+  }
+};
+
+/**
  * Initializes the Google Tag Manager with provided settings.
  * @property {function} aGTM.f.gtm_load
  * @param {object} w - The window object, usually: window.
@@ -534,9 +617,11 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
   if (typeof aGTM.d.gtmLoaded != 'object') aGTM.d.gtmLoaded = [];
   // Push Start element in DL
   if (aGTM.d.gtmLoaded.length<1) {
-    window[aGTM.c.gdl].push(aGTM.f.aGTM_event('aGTM_ready'));
-    if (i) window[aGTM.c.gdl].push({ event: "gtm.js", "gtm.start": new Date().getTime() });
-    if (aGTM.c.vPageview) window[aGTM.c.gdl].push({ event: "vPageview", aGTMts: new Date().getTime() });
+    aGTM.f.sendnaus(aGTM.f.aGTM_event('aGTM_ready'));
+    if (i) aGTM.f.sendnaus({ event: "gtm.js", "gtm.start": new Date().getTime() });
+    if (aGTM.c.aPageview) aGTM.f.sendnaus({ event: "aPageview", aGTMts: new Date().getTime() });
+/* deprecated */    if (aGTM.c.vPageview) aGTM.f.sendnaus({ event: "vPageview", aGTMts: new Date().getTime() });
+    if (aGTM.c.vPageviews) aGTM.f.urlListener ('vPageview', aGTM.c.vPageviewsTimer, aGTM.c.vPageviewsFallback);
   }
   // Fire aGTM Consent event
   aGTM.d.consentEvent_fired = typeof aGTM.d.consentEvent_fired == 'boolean' ? aGTM.d.consentEvent_fired : false;
@@ -546,7 +631,7 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
     typeof aGTM.d.consent == "object" &&
     aGTM.d.consent.hasResponse
   ) {
-    window[aGTM.c.gdl].push(aGTM.f.aGTM_event('aGTM_consent'));
+    aGTM.f.sendnaus(aGTM.f.aGTM_event('aGTM_consent'));
     aGTM.d.consentEvent_fired = true;
   }
   // Return if no container id
@@ -588,7 +673,8 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
     // Construct the GTM script URL
     var gtmUrl = o.gtmURL || "https://www." + aGTM.n.tm + ".com/gtm.js";
     var envParam = o.env || "";
-    scriptTag.src = gtmUrl + "?" + p + "=" + i + "&l=" + l + envParam;
+    var q = gtmUrl.indexOf("?")===-1 ? "?" : "&";
+    scriptTag.src = gtmUrl + q + p + "=" + i + "&l=" + l + envParam;
   }
   // Insert the GTM script tag into the document
   var firstScriptTag = d.getElementsByTagName("script")[0];
@@ -609,7 +695,7 @@ aGTM.f.domready = function (evob) {
     evob = { aMSG: 'Empty DOMready event fired.' };
     is_intern = true;
   }
-  if (!evob.event) evob.event = "vDOMready";
+  if (!evob.event) evob.event = "aDOMready";
   // Ensure the function runs only once
   if (!aGTM.d.dom_ready || !is_intern) {
     // Fire a custom event if dlStateEvents is enabled
@@ -631,7 +717,7 @@ aGTM.f.pageready = function (evob) {
     evob = { aMSG: 'Empty PAGEready event fired.' };
     is_intern = true;
   }
-  if (!evob.event) evob.event = "vPAGEready";
+  if (!evob.event) evob.event = "aPAGEready";
   // Ensure the function runs only once
   if (!aGTM.d.page_ready || !is_intern) {
     // Fire a custom event if dlStateEvents is enabled
@@ -730,11 +816,13 @@ aGTM.f.inject = function () {
     // Temporary store and process dataLayer items
     var dl = window[aGTM.c.gdl] || [];
     dl.forEach(function (ev, index) {
-      if (!ev.aGTMchk) {
+      if (typeof ev != 'object' || !ev) {
+        aGTM.f.log("e17", { obj_type: typeof ev, obj_value: ev, index: index });
+        aGTM.d.f.push({ event: 'exception', errmsg: 'DataLayer Entry is no object', errtype: "DL Error", obj_type: typeof ev, obj_value: ev });
+      } else if (!ev.aGTMchk) {
         ev.aGTMdl = true;
         var evClone = JSON.parse(aGTM.f.sStrf(ev));
-        if (typeof evClone["gtm.uniqueEventId"] != "undefined")
-          delete evClone["gtm.uniqueEventId"];
+        if (typeof evClone["gtm.uniqueEventId"] != "undefined") delete evClone["gtm.uniqueEventId"];
         aGTM.d.f.push(evClone);
       }
     });
@@ -763,9 +851,9 @@ aGTM.f.iFrameFire = function (ev) {
   if (
     aGTM.d.is_iframe &&
     typeof ev.event == "string" &&
-    /^(aGTM|gtm\.|vDOMready|vPAGEready)/.test(ev.event)
+    /^(aGTM|gtm\.|[av]DOMready|[av]PAGEready)/.test(ev.event)
   ) {
-    window[aGTM.c.gdl].push(ev);
+    aGTM.f.sendnaus(ev);
     return;
   }
   ev.aGTM_source = "iFrame " + document.location.hostname;
@@ -837,7 +925,7 @@ aGTM.f.ifHSlisten = function (e) {
  */
 aGTM.f.vOb = function (i) {
   if (typeof i != 'object' || !i) return false;
-  try { var o = JSON.parse(aGTM.f.sStrf(i)); } catch (e) { return false; };
+  try { var o = JSON.parse(JSON.stringify(i)); } catch (e) { return false; };
   return true;
 };
 
@@ -930,7 +1018,7 @@ aGTM.f.rmLstn = function (el, ev, fct) {
 /**
  * Retrieves a specific attribute value from window, document, or body.
  * @property {function} aGTM.f.getVal
- * @param {string} o - A single character representing the DOM object ('w' for window, 'n' for navigator, 'd' for document, 'h' for head, 'b' for body, 's' for scroll top, 'm' for window.screen (monitor)).
+ * @param {string} o - A single character representing the DOM object ( 'w' for window, 'n' for navigator, 'd' for document, 'l' for location, 'h' for head, 'b' for body, 's' for scroll top, 'm' for window.screen (monitor), 'c' for google_tag_data (consent), 'p' for performance (v="now" for performance.now()), 'u' for (URL) window.history ).
  * @param {string} v - The name of the attribute to retrieve.
  * @returns {string|number|boolean|object|undefined} - The value of the requested attribute, or undefined if not found or invalid.
  * Usage: aGTM.f.getVal('w', 'location');
@@ -1193,7 +1281,7 @@ aGTM.f.addElLst = function (selector, event, callback) {
   // Select nodes based on the provided selector
   var nodes = document.querySelectorAll(selector);
   // Validate the selected nodes
-  if (!aGTM.f.vOb(nodes) || nodes.length == 0) return;
+  if (typeof nodes!='object' || typeof nodes.length!='number' || nodes.length == 0) return;
   // Iterate over each node and add the appropriate event listener
   nodes.forEach(function (node) {
     switch (event) {
@@ -1387,18 +1475,13 @@ aGTM.f.timerfkt = function (obj) {
  * Usage: aGTM.f.timer('myTimer', myFunction, { event: 'myEvent' }, 15000, 3);
  */
 aGTM.f.timer = function (nm, ft, ev, ms, rp) {
-  if (!nm && typeof ev == "object" && typeof ev.event == "string")
-    nm = ev.event;
+  if (!nm && typeof ev == "object" && ev && typeof ev.event == "string") nm = ev.event;
   nm = nm || "timer";
-  nm +=
-    "_" +
-    new Date().getTime().toString() +
-    "_" +
-    Math.floor(Math.random() * 999999 + 1).toString();
+  nm+= "_" + new Date().getTime().toString() + "_" + Math.floor(Math.random() * 999999 + 1).toString();
   // Check if the timer already exists and stop/delete it if it does
   aGTM.f.stoptimer(nm);
   // Initialize the timer object
-  var obj = typeof ev == "object" ? JSON.parse(aGTM.f.sStrf(ev)) : {};
+  if (typeof ev == "object" && ev) { var obj = JSON.parse(aGTM.f.sStrf(ev)); } else { var obj = {}; }
   obj.timer_nm = nm;
   obj.timer_ms = ms;
   obj.timer_rp = rp;
@@ -1491,7 +1574,52 @@ aGTM.f.init = function () {
 };
 
 /**
- * Pushes an event object to the GTM dataLayer with additional logic for consent and error checking.
+ * Pushes an event object to the GTM dataLayer with checking dataLayer.
+ * @property {function} aGTM.f.sendnaus
+ * @param {object} o - The event object to be pushed to the dataLayer.
+ * Usage: aGTM.f.send({ event: 'pageview', pagetype: 'blogarticle' });
+ */
+aGTM.f.sendnaus = function (o) {
+  // Preparations
+  if (!o || typeof o !== 'object') return;
+  var dl = window[aGTM.c.gdl];
+  var currentPush = window[aGTM.c.gdl].push;
+  // Save original push function if not already saved and if it looks like sandboxed
+  if (!aGTM.d.originalDLpush && /sandbox/i.test(currentPush.toString())) aGTM.d.originalDLpush = currentPush;
+  // Check if push was overwritten - log it and replace it if configured
+  var useOrgPush = false;
+  if (aGTM.c.dlOrgPush && aGTM.d.originalDLpush && aGTM.d.originalDLpush.toString() !== currentPush.toString()) {
+    useOrgPush = true;
+    if (!aGTM.d.dlHookLogged) {
+      aGTM.d.originalDLpush({
+        event: 'exception',
+        errtype: 'DL Error',
+        errmsg: 'Function dataLayer.push hooked - no longer from GTM',
+        fct_hook: currentPush.toString(),
+        fct_orig: aGTM.d.originalDLpush.toString(),
+        timestamp: new Date().getTime(),
+        eventModel: null
+      });
+      aGTM.d.dlHookLogged = true;
+    }
+    if (aGTM.c.dlOrgPush === 'replace') {
+      window[aGTM.c.gdl].push = aGTM.d.originalDLpush;
+      useOrgPush = false;
+    }
+  }
+  // Decide which push Function to use and fire
+  if (useOrgPush && aGTM.c.dlOrgPush==='use') {
+    aGTM.d.originalDLpush(o);
+  } else {
+    window[aGTM.c.gdl].push(o);
+  }
+  // Execute the callback function if defined and initialized
+  if (typeof aGTM.f.sendnaus_callback=='function') aGTM.f.sendnaus_callback(o);
+  aGTM.f.log('m9', o);
+};
+
+/**
+ * Prepares an event object to send it to the GTM dataLayer with additional logic for consent and error checking.
  * @property {function} aGTM.f.fire
  * @param {object} o - The event object to be pushed to the dataLayer.
  * Usage: aGTM.f.fire({ event: 'pageview', pagetype: 'blogarticle' });
@@ -1505,6 +1633,10 @@ aGTM.f.fire = function (o) {
   // Create a deep copy of the event object
   try {
     var obj = JSON.parse(aGTM.f.sStrf(o));
+    if (!obj) {
+      aGTM.f.log("e15", obj);
+      return;
+    }
   } catch (e) {
     var m = 'aGTM Fire Error (JSON.parse)';
     if (typeof o.event == 'string') m = m + ' (Event: '+o.event+')';
@@ -1598,17 +1730,16 @@ aGTM.f.fire = function (o) {
     ) {
       aGTM.f.iFrameFire(obj);
     } else {
-      window[aGTM.c.gdl].push(obj);
+      aGTM.f.sendnaus(obj);
     }
   }
   // Execute the callback function if defined and initialized
-  if (typeof aGTM.f.fire_callback == "function" && aGTM.d.init)
-    aGTM.f.fire_callback(obj);
+  if (typeof aGTM.f.fire_callback == "function") aGTM.f.fire_callback(obj);
   aGTM.f.log("m7", obj);
 };
 
 // Initialization --> Delete the following line for One-File-Usage and read the instructions below
-aGTM.f.init();
+//aGTM.f.init();
 
 
 
