@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Usercentrics3
- * @version 1.0
- * @lastupdate 07.08.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 04.07.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -81,17 +81,20 @@ aGTM.f.consent_check = function (action) {
   aGTM.d.consent.feedback = feedback;
   // Get Consent ID
   aGTM.d.consent.consent_id = '';
-  if (typeof __ucCmp.cmpController.consent=='object' && typeof __ucCmp.cmpController.consent.controllerId=='string') aGTM.d.consent.consent_id = __ucCmp.cmpController.consent.controllerId;
+  if (typeof __ucCmp.cmpController.consent.controllerId=='string') aGTM.d.consent.consent_id = __ucCmp.cmpController.consent.controllerId;
+  if (typeof __ucCmp.cmpController.consent.setting=='object' && __ucCmp.cmpController.consent.setting) {
+    aGTM.d.consent.cmp_id = __ucCmp.cmpController.consent.setting.id || null;
+    aGTM.d.consent.legal = __ucCmp.cmpController.consent.setting.legal || null;
+  }
+  aGTM.d.consent.language = __ucCmp.cmpController.consent.language || null;
+  aGTM.d.consent.required = __ucCmp.cmpController.consent.required || null;
+  aGTM.d.consent.status = __ucCmp.cmpController.consent.status || null;
+  aGTM.d.consent.type = __ucCmp.cmpController.consent.type || null;
+  aGTM.d.consent.updatedBy = __ucCmp.cmpController.consent.updatedBy || null;
+  aGTM.d.consent.version = __ucCmp.cmpController.consent.version || null;
   // Store info in window object
   var obj = JSON.parse(JSON.stringify(aGTM.d.consent));
-  obj.purposes = purposes;
-  obj.purpose_counter = purpose_counter;
-  obj.services = services;
-  obj.service_ids = service_ids;
-  obj.service_counter = service_counter;
-  obj.service_essential_counter = service_essential_counter;
-  obj.feedback = feedback;
-  obj.consent_id = aGTM.d.consent.consent_id;
+  obj.hasResponse = true;
   window.usercentrics_aData = obj;
   // Set Response, run Callback and Return
   aGTM.d.consent.hasResponse = true;

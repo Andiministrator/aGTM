@@ -5,7 +5,7 @@
 ## Table of Contents
 
 - [What is it for? - General Information](#what-is-it-for----general-information)
-- [Usage](#usage)
+- [Integration and Usage](#integration-and-usage)
 - [Configuration options](#configuration-options)
 - [Consent Handling](#consent-handling)
 - [Optout](#optout)
@@ -40,39 +40,99 @@ In any case, with the GTM setup you no longer have to worry about whether and wh
 ### Even more information
 
 Feel free to use or change the code. If you have suggestions for improvement, please write to me.
-**Licence:** MIT License
+**Licence:** Apache 2.0 License
 **Repository:** [Github aGTM Repository](https://github.com/Andiministrator/aGTM)
 
 ---
 
-## Usage
+## Integration and Usage
 
-Some help for the usage of aGTM:
+The easiest way to create the integration code for aGTM is to use the aGTM Configurator:
+[aGTM Configurator](https://andiministrator.github.io/aGTM/configurator/index.html)
 
-### Complete short integration code example
+Now some help for the usage with the integration code of aGTM:
 
-Before you include the code to your website (template), you need to upload the necessary files. In this code example it was uploaded to the public directory /templates/scripts/.
-*For Consentmanager and without consent mode support*:
+### Complete shortened integration code example
+
+Here a shortened integration Code of aGTM.
+Please don't use this code as it is, the code lines are not complete - it is just to show the order of Code.
 
 ```html
 <!-- aGTM Start -->
 <script type="text/javascript">
-(function(c){
-var w=window,d=document;w.aGTM=w.aGTM||{};aGTM.d=aGTM.d||{};aGTM.d.f=aGTM.d.f||[];aGTM.f=aGTM.f||{};aGTM.f.fire=aGTM.f.fire||function(o){aGTM.d.f.push(o);};
-aGTM.c=c;var s='script',t=d.createElement(s),m=c.min?'.min':'',p=c.path||'';if(p.length>0&&p.substring(p.length-1)!=='/')p+='/';if(p)t.src=p+'aGTM'+m+'.js';t.async=true;
-t.onload=function(){(aGTM.f.init?aGTM.f.init:function(){console.warn('aGTM.f.init missing');})();};d.head.appendChild(t);
-})({
-   path: '/templates/scripts/'
-  ,cmp: 'consentmanager'
-  ,gtm: { 'GTM-XYZ123': {} }
-  ,gtmPurposes:'Funktional'
+// aGTM Library
+window.aGTM=window.aGTM||{},... /* Place your minified aGTM Code in this line */
+// CMP Check function
+aGTM.f.consent_check=function(e){... /* Place your minified CMP Function Code in this line */
+// aGTM Configuration
+aGTM.f.config({
+   gtm: { 'GTM-XXXXXXXX': {} }
   ,gtmServices:'Google Tag Manager'
 });
+// aGTM Init
+aGTM.f.init();
 </script>
 <!-- aGTM End -->
 ```
 
-### Normal Usage in explained steps
+### Recommended Integration Variant: One-File Usage in explained steps
+
+With this integration variant you get out a Javascript code, which conatins all you need. You can use this code either to have just one Javascript file or to integrate it in a CMS script field, or GTM container or whatever you have.
+
+1. **Insert the consent_check function code to the aGTM.js**
+   Open the aGTM.js (or better aGTM.min.js) file with your Text- or Code-Editor and place your cursor at the end of the file.
+
+2. **Get the code of the consent_check function and paste it to the aGTM file**
+   Now you need to know, which Consent Tool (Cookie Banner) you use for your website. See the point "cmp" in the chapter "Configuration options" for available Consent Tools.
+   You'll find a folder with the name "cmp" within the project folder. This folder contains different files, two files for one Consent Tool (each in a normal and a minimized version). Open the file for your Consent Tool in a Text- or Code-Editor (we recommend to use the minimized version).
+   Copy the file's code to your clipboard.
+   _Notice:_ You don't need to copy the first part of the file. You can start from the part with `aGTM.f.consent_check = function `...
+   Open the aGTM.js file (or aGTM.min.js), go to the end of the file and press <Enter> for a new line.
+   Paste the copied code for the CMP function and press <Enter> again for another new line.
+   Leave the file open.
+
+3. **Add the configuration**
+   Now we need to add the configuration after the inserted consent_check function.
+   Use the following (minimal) code as example and change the settings to your needs.
+   To understand, what settings you can use and what the meaning of each setting is, read the chapter "Configuration options".
+   Example (minimal) integration code:
+   ```javascript
+   aGTM.f.config({
+      gtm: { 'GTM-XXXXXXXX': {} } /* your GTM Container - with ID, ...*/
+     ,gtmServices: 'Google Tag Manager' /* The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager' */
+   });
+   ```
+
+4. **Add the init function**
+   Go to the end of the file (after the just inserted configuration) and press <Enter> for a new line.
+   Insert the following code:
+   ```javascript
+   aGTM.f.init();
+   ```
+
+5. **Save the aGTM file and use it**
+   Now the code is complete. Save it and add it to your website templates.
+   Here a (minimal) example of code with Cookiebot as cmp function for the One-File-Usage what has to be after the normal aGTM code:
+   ```javascript
+   aGTM.f.consent_check=function(t){if("string"!=typeof t||"init"!=t&&"update"!=t)return"function"==typeof aGTM.f.log&&aGTM.f.log("e10",{action:t}),!1;if(aGTM.d.consent=aGTM.d.consent||{},"init"==t&&aGTM.d.consent.hasResponse)return!0;if("object"!=typeof Cookiebot)return!1;var n=Cookiebot;if("boolean"!=typeof n.hasResponse||"object"!=typeof n.consent)return!1;if(!n.hasResponse)return!1;var e=aGTM.c.purposes?aGTM.c.purposes.split(","):[],o=0,r=0;for(k in n.consent)"stamp"!=k&&"method"!=k&&"boolean"==typeof n.consent[k]&&(r++,n.consent[k]&&(o++,e.push(k)));aGTM.d.consent.purposes=e.length>0?","+e.join(",")+",":"";var s="Consent available";return 0==r?s="No purposes available":o<=r?s="Consent (partially or full) declined":o>r&&(s="Consent accepted"),aGTM.d.consent.feedback=s,"string"==typeof n.consentID&&(aGTM.d.consent.consent_id=n.consentID),aGTM.d.consent.hasResponse=!0,"function"==typeof aGTM.f.log&&aGTM.f.log("m2",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};
+   aGTM.f.config({
+      gtm: { 'GTM-XXXXXXXX': {} }
+     ,gtmPurposes: 'statistics'
+   });
+   aGTM.f.init();
+   ```
+   _Notice:_ If you want to insert the code into a HTML template, don't forget to add `<script>` before and `</script>` after the code.
+   You can also use the code in a GTM container (as Custom HTML Code).
+   We recommend to minify the code (e.g. with https://minify-js.com/). Keep care that you don't minify the function names (option "keep_fnames" for minify-js.com).
+
+6. _optional_ **Send events**
+   Pleas use our GTM templates (find it in the folder "gtm") for a lot of auto-events.
+   You can also use the integrated aGTM fire function to send events using Javascript:
+   ```javascript
+   aGTM.f.fire({ event:'button_click', button:'Sign Up Button' });
+   ```
+
+### Alternative Integration Variant: Web-Folder-based Usage in explained steps
 
 This is the normal usage, where you upload the aGTM folder to your webserver.
 _There is also a possibility to use it just in one file (or Javascript code), see the next chapter for that._
@@ -110,7 +170,7 @@ To use it as normal, follow these steps:
      ,min: true /* inject the files as minified versions */
      ,cmp: 'cookiebot' /* Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See chapters below for possible options. */
      ,nonce: 'ABC123' /* Nonce value for the file injections */
-     ,gtm: { 'GTM-XYZ123': { 'debug_mode':true } } /* your GTM Container - with ID, ... */
+     ,gtm: { 'GTM-XXXXXXXX': { 'debug_mode':true } } /* your GTM Container - with ID, ... */
      ,gtmPurposes: 'Functional' /* The purpose(s) that must be agreed to in order to activate the GTM (comma-separated) */
      ,gtmServices: 'Google Tag Manager' /* The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager' */
      ,gtmVendors: 'Google Inc' /* The vendor(s) that must be agreed to in order to activate the GTM (comma-separated) */
@@ -126,63 +186,6 @@ To use it as normal, follow these steps:
 
 3. _optional_ **Send events**
    You can now send events using the following command:
-   ```javascript
-   aGTM.f.fire({ event:'button_click', button:'Sign Up Button' });
-   ```
-
-### One-File Usage in explained steps
-
-With this integration variant you get out a Javascript code, which conatins all you need. You can use this code either to have just one Javascript file or to integrate it in a CMS script field, or GTM container or whatever you have.
-
-1. **Insert the consent_check function code to the aGTM.js**
-   Open the aGTM.js (or better aGTM.min.js) file with your Text- or Code-Editor and place your cursor at the end of the file.
-
-2. **Get the code of the consent_check function and paste it to the aGTM file**
-   Now you need to know, which Consent Tool (Cookie Banner) you use for your website. See the point "cmp" in the chapter "Configuration options" for available Consent Tools.
-   You'll find a folder with the name "cmp" within the project folder. This folder contains different files, two files for one Consent Tool (each in a normal and a minimized version). Open the file for your Consent Tool in a Text- or Code-Editor (we recommend to use the minimized version).
-   Copy the file's code to your clipboard.
-   _Notice:_ You don't need to copy the first part of the file. You can start from the part with `aGTM.f.consent_check = function `...
-   Open the aGTM.js file (or aGTM.min.js), go to the end of the file and press <Enter> for a new line.
-   Paste the copied code for the CMP function and press <Enter> again for another new line.
-   Leave the file open.
-
-3. **Add the configuration**
-   Now we need to add the configuration after the inserted consent_check function.
-   Use the following (minimal) code as example and change the settings to your needs.
-   To understand, what settings you can use and what the meaning of each setting is, read the chapter "Configuration options".
-   Example (minimal) integration code:
-   ```javascript
-   aGTM.f.config({
-      gtm: { 'GTM-XYZ123': {} } /* your GTM Container - with ID, ...*/
-     ,gtmServices: 'Google Tag Manager' /* The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager' */
-   });
-   ```
-
-4. **Add the init function**
-   Go to the end of the file (after the just inserted configuration) and press <Enter> for a new line.
-   Insert the following code:
-   ```javascript
-   aGTM.f.init();
-   ```
-
-5. **Save the aGTM file and use it**
-   Now the code is complete. Save it and add it to your website templates.
-   Here a (minimal) example of code with Cookiebot as cmp function for the One-File-Usage what has to be after the normal aGTM code:
-   ```javascript
-   aGTM.f.consent_check=function(t){if("string"!=typeof t||"init"!=t&&"update"!=t)return"function"==typeof aGTM.f.log&&aGTM.f.log("e10",{action:t}),!1;if(aGTM.d.consent=aGTM.d.consent||{},"init"==t&&aGTM.d.consent.hasResponse)return!0;if("object"!=typeof Cookiebot)return!1;var n=Cookiebot;if("boolean"!=typeof n.hasResponse||"object"!=typeof n.consent)return!1;if(!n.hasResponse)return!1;var e=aGTM.c.purposes?aGTM.c.purposes.split(","):[],o=0,r=0;for(k in n.consent)"stamp"!=k&&"method"!=k&&"boolean"==typeof n.consent[k]&&(r++,n.consent[k]&&(o++,e.push(k)));aGTM.d.consent.purposes=e.length>0?","+e.join(",")+",":"";var s="Consent available";return 0==r?s="No purposes available":o<=r?s="Consent (partially or full) declined":o>r&&(s="Consent accepted"),aGTM.d.consent.feedback=s,"string"==typeof n.consentID&&(aGTM.d.consent.consent_id=n.consentID),aGTM.d.consent.hasResponse=!0,"function"==typeof aGTM.f.log&&aGTM.f.log("m2",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};
-   aGTM.f.config({
-      gtm: { 'GTM-XYZ123': {} }
-     ,gtmPurposes: 'statistics'
-   });
-   aGTM.f.init();
-   ```
-   _Notice:_ If you want to insert the code into a HTML template, don't forget to add `<script>` before and `</script>` after the code.
-   You can also use the code in a GTM container (as Custom HTML Code).
-   We recommend to minify the code (e.g. with https://minify-js.com/). Keep care that you don't minify the function names (option "keep_fnames" for minify-js.com).
-
-6. _optional_ **Send events**
-   Pleas use our GTM templates (find it in the folder "gtm") for a lot of auto-events.
-   You can also use the integrated aGTM fire function to send events using Javascript:
    ```javascript
    aGTM.f.fire({ event:'button_click', button:'Sign Up Button' });
    ```
@@ -322,7 +325,7 @@ If it set to true, a separate Consent Event named `aGTM_consent` will be fired (
 The object with the GTM containers to inject (GTM container ID as key, options as value).
 
 - Type: object
-- Simple Example: `{ 'GTM-XYZ123': {} }`
+- Simple Example: `{ 'GTM-XXXXXXXX': {} }`
 - Default: `undefined`
 - Possible Options:
   - **noConsent**
@@ -356,7 +359,7 @@ The object with the GTM containers to inject (GTM container ID as key, options a
   - *Other, optional (GTM-special) options*
     - Type: string
     - Example: `'debug_mode':true`
-    - Example with options: `{ 'GTM-XYZ123': { env:'&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x', 'debug_mode':true } }`
+    - Example with options: `{ 'GTM-XXXXXXXX': { env:'&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x', 'debug_mode':true } }`
 
 ### gtmPurposes
 
@@ -460,7 +463,7 @@ Example of aGTM configuration:
 
 ```javascript
 aGTM.f.config({
-   gtm: { 'GTM-XYZ123': {} }
+   gtm: { 'GTM-XXXXXXXX': {} }
   ,cmp: 'none'
 });
 ```
@@ -478,8 +481,8 @@ Example of aGTM configuration:
 aGTM.f.config({
    cmp: 'cookiebot'
   ,gtm: {
-      'GTM-XYZ123': {}
-     ,'GTM-XYZ234': { noConsent: true }
+      'GTM-XXXXXXXX': {}
+     ,'GTM-YYYYYYYY': { noConsent: true }
    }
   ,gtmPurposes: 'statistics'
 });
@@ -624,6 +627,13 @@ Feel free to contact me if you found problems or improvements:
 ---
 
 ## Changelog
+
+- Version 1.4.1, *04.07.2025*
+  - Improved Usercentrics v3 Consent Check
+  - New Consent Check for Shopify CMP
+  - Improved Click Listener
+  - Added an aGTM Configurator (thanks to marco.brenn@inbiz.de 👍)
+  - README modifications
 
 - Version 1.4, *27.05.2025*
   - sStrf-function and -use improved

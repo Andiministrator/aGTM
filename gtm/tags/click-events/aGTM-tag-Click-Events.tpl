@@ -164,6 +164,13 @@ ___TEMPLATE_PARAMETERS___
     "groupStyle": "ZIPPY_OPEN_ON_PARAM",
     "subParams": [
       {
+        "type": "CHECKBOX",
+        "name": "fire_double_events",
+        "checkboxText": "Double Events active",
+        "simpleValueType": true,
+        "help": "If a link is a File Download or an EMail/Phone Click and at the same time an Outbound Link, fire both events."
+      },
+      {
         "type": "SIMPLE_TABLE",
         "name": "addparameter",
         "displayName": "Additional Event Parameter",
@@ -198,8 +205,8 @@ ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 /**
  * aGTM Click Listener
- * @version 1.2
- * @lastupdate 03.04.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.3
+ * @lastupdate 04.07.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
 */
 
@@ -249,6 +256,7 @@ setConf(o.c, data, 'contactprefix', 'string', '');
 setConf(o.c, data, 'textfilter', 'object', []);
 setConf(o.c, data, 'addparameter', 'object', []);
 setConf(o.c, data, 'ua_event', 'boolean', false);
+setConf(o.c, data, 'fire_double_events', 'boolean', false);
 
 /**
  * Filters a text string by replacing specified patterns.
@@ -286,6 +294,7 @@ o.f.hostToDomain = o.f.hostToDomain || function(hostname) {
  */
 o.f.click = o.f.click || function(el) {
   if (typeof el!='object') return;
+  var is_sp_event = false;
   // Prepare event
   o.c.addparameter.forEach(function(row) {
     o.d.e[row.pkey] = row.pvalue;
@@ -314,24 +323,17 @@ o.f.click = o.f.click || function(el) {
     if (callInWindow('aGTM.f.rTest', el.text, '^\\W{0,5}([A-Z0-9._%+-]+(\\s*@\\s*|\\(\\s*[A-Z]{0,3}\\s*[DT]\\s*\\)\\s*|\\[\\s*[A-Z]{0,3}\\s*[DT]\\s*\\]\\s*|\\{\\s*[A-Z]{0,3}\\s*[DT]\\s*\\}\\s*)[A-Z0-9.-]+\\.[A-Z]{2,4})\\W{0,5}$')) ev.type = 'email';
   }
   ev.event = o.c.eventname || 'click';
-  if (o.c.usecontact && ev.type && (ev.type=='email' || ev.type=='phone')) ev.event = o.c.contactprefix + ev.type;
-  if (ev.type=='download' && o.c.downloadevent) ev.event = o.c.downloadevent;
   ev.action = 'click';
   ev.href = o.f.textFilter(el.href) || '';
   var urlobj = ev.href ? parseUrl(ev.href) : null;
   if (typeof urlobj!='object' || !urlobj) urlobj = {};
   ev.host = urlobj.hostname || '';
   ev.text = o.f.textFilter(el.text) || '';
-  if (o.c.ua_event) {
-    ev.event_category = 'User Experience';
-    ev.event_action = ev.event;
-    ev.event_label = ev.text;
-  }
   ev.tagName = el.tagName || '';
   if (ev.tagName=='a') {
     if (!ev.host) ev.host = callInWindow('aGTM.f.getVal','l','hostname');
     if (!ev.host) {
-      ev.type = 'link';
+      if (!ev.type) ev.type = 'link';
       ev.outbound = 0;
     } else {
       var hostname = o.c.cross_matching=='domain' ? o.f.hostToDomain(ev.host) : ev.host;
@@ -352,6 +354,14 @@ o.f.click = o.f.click || function(el) {
       ev.type = 'click';
     }
   }
+  if (o.c.usecontact && ev.type && (ev.type=='email' || ev.type=='phone')) {
+    ev.event = o.c.contactprefix + ev.type;
+    is_sp_event = true;
+  }
+  if (ev.type=='download' && o.c.downloadevent) {
+    ev.event = o.c.downloadevent;
+    is_sp_event = true;
+  }
   ev.target = el.target || '';
   ev.parentID = el.parentID || '';
   ev.parentClass = el.parentClass || '';
@@ -360,8 +370,18 @@ o.f.click = o.f.click || function(el) {
   ev.class = el.class || '';
   ev.src = el.src || '';
   ev.html = callInWindow('aGTM.f.rReplace', el.html, '[\\r\\n]', ' ') || null;
+  if (o.c.ua_event) {
+    ev.event_category = 'User Experience';
+    ev.event_action = ev.event;
+    ev.event_label = ev.text;
+  }
   callInWindow('aGTM.f.fire', ev);
   o.d.q.push(ev);
+  if ( o.c.fire_double_events && ev.outbound && o.c.outbound_event && is_sp_event) {
+    ev.event = o.c.outbound_event;
+    callInWindow('aGTM.f.fire', ev);
+    o.d.q.push(ev);
+  }
 };
 
 // Clean CrossDomain Array

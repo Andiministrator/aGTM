@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<!--
+  aGTM One-File Konfigurations-Generator
+  Version: 1.5.1 beta – Vollständige Konfiguration, GitHub-Fetch, Live-Vorschau, LocalStorage (ohne aGTM-Versionsanzeige)
+  © 2025 InBiz Online Marketing GmbH & Co. KG · Entwickler: Marco Brenn
+-->
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>aGTM One-File Konfig-Generator</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Babel (ES5-Transpile) -->
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+
+    <!-- Terser (Minify) -->
+    <script src="https://cdn.jsdelivr.net/npm/terser@5.29.1/dist/bundle.min.js"></script>
+
+    <!-- Prism (Highlighting) -->
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css" />
+  </head>
+
+  <body class="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen flex flex-col items-center py-8">
+
+    <h1 class="text-3xl md:text-4xl font-bold mb-2 text-center">
+      aGTM One-File Konfigurations-Generator
+    </h1>
+    <p class="text-center text-sm text-gray-600 mb-4">
+      Version 1.5.1 beta
+    </p>
+
+    <!-- UI-Container -->
+    <div id="generator"
+         class="w-full max-w-3xl bg-white shadow-xl rounded-2xl p-6"></div>
+
+    <!-- *************************  SCRIPT  ************************* -->
+    <script>
+/*────────────────── Konstanten ──────────────────*/
+const AGTM_URL     = "https://andiministrator.github.io/aGTM/aGTM.min.js";
+const CMP_API      = "https://api.github.com/repos/Andiministrator/aGTM/contents/cmp";
+const CMP_BASE_URL = "https://andiministrator.github.io/aGTM/cmp/";
+const LS_KEY       = "agtmGeneratorSettings_v151";
+
+/*─────────────── Hilfs-Kurzfunktionen ───────────────*/
+const $  = (sel,ctx=document)=>ctx.querySelector(sel);
+const $$ = (sel,ctx=document)=>[...ctx.querySelectorAll(sel)];
+const saveLS = () => localStorage.setItem(LS_KEY, JSON.stringify(getFormData()));
+const loadLS = () => { try {return JSON.parse(localStorage.getItem(LS_KEY)||"{}");}catch{ return {}; }};
+
+/*─────────────── LocalStorage Mapping ───────────────*/
+function getFormData(){
+  const out={};
+  $$("input,textarea,select").forEach(el=>{
+    if(!el.id && !el.name) return;
+    if(["checkbox","radio"].includes(el.type)){
+      const key = el.id || `${el.name}-${el.value}`;
+      out[key] = el.checked;
+    }else out[el.id]=el.value;
+  });
+  return out;
+}
+function setFormData(map){
+  Object.entries(map).forEach(([k,v])=>{
+    let el = document.getElementById(k);
+    if(!el) el = $(`[name='${k.split('-')[0]}'][value='${k.split('-')[1]}']`);
+    if(!el) return;
+    if(["checkbox","radio"].includes(el.type)) el.checked=v; else el.value=v;
+  });
+}
+
+/*──────────────── Helper ────────────────*/
+const extractConsent = c => {
+  const i=c.indexOf("aGTM.f.consent_check");
+  return i>=0 ? c.slice(i) : c;
+};
+
+/*────────────── UI-Rendering (HTML-Template) ──────────────*/
+function renderUI(){
+  $('#generator').innerHTML = `
+  <!-- Reload aGTM -->
+  <div class="flex justify-end mb-4">
+    <button id="reloadAgtmBtn"
+      class="bg-slate-200 hover:bg-slate-300 rounded-lg px-3 py-1 text-sm">
+      aGTM neu laden
+    </button>
+  </div>
+
+  <!-- CMP-Auswahl -->
+  <div class="mb-6">
+    <label class="block text-lg font-medium mb-1">CMP consent_check Datei:</label>
+    <div class="flex gap-2 items-center">
+      <select id="cmpSelect"
+              class="flex-1 border border-slate-300 rounded-lg p-2"></select>
+      <button id="refreshCmpBtn"
+              class="bg-slate-200 hover:bg-slate-300 rounded-lg px-3 py-1 text-sm">
+        Liste aktualisieren
+      </button>
+    </div>
+  </div>
+
+  <!-- GTM-ID -->
+  <div class="mb-6">
+    <label class="block text-lg font-medium mb-1" for="gtmId">GTM-Container ID:</label>
+    <input id="gtmId" type="text" placeholder="GTM-XXXXXXX"
+           class="w-full border border-slate-300 rounded-lg p-2" />
+  </div>
+
+  <!-- Weitere GTM-Optionen -->
+  <details class="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6">
+    <summary class="text-lg font-semibold cursor-pointer select-none">
+      Weitere GTM-Optionen
+    </summary>
+    <div class="mt-4 space-y-4">
+      <label class="inline-flex items-center gap-2">
+        <input id="gtmNoConsent" type="checkbox"
+               class="h-5 w-5 text-indigo-600" />
+        <span><strong>noConsent</strong></span>
+      </label>
+      <div>
+        <label class="block font-medium mb-1" for="gtmURL">gtmURL (eigene Script-URL)</label>
+        <input id="gtmURL" type="text" placeholder="https://…"
+               class="w-full border border-slate-300 rounded-lg p-2" />
+      </div>
+      <div>
+        <label class="block font-medium mb-1" for="gtmJS">gtmJS (Base64-Inhalt)</label>
+        <textarea id="gtmJS" rows="2" placeholder="(optional)"
+                  class="w-full border border-slate-300 rounded-lg p-2"></textarea>
+      </div>
+      <div>
+        <label class="block font-medium mb-1" for="gtmEnv">env (Environment-String)</label>
+        <input id="gtmEnv" type="text" placeholder="&gtm_auth=…&gtm_preview=…"
+               class="w-full border border-slate-300 rounded-lg p-2" />
+      </div>
+      <div>
+        <label class="block font-medium mb-1" for="gtmIdParam">idParam (Parameter-Name für ID)</label>
+        <input id="gtmIdParam" type="text" placeholder="id"
+               class="w-full border border-slate-300 rounded-lg p-2" />
+      </div>
+    </div>
+  </details>
+
+  <!-- CMP-Typ -->
+  <div class="mb-6">
+    <span class="block text-lg font-medium mb-1">CMP-Einstellung wählen:</span>
+    <div class="flex flex-col gap-2 md:flex-row md:items-center">
+      <label class="flex items-center gap-2">
+        <input type="radio" name="confType" value="gtmServices"
+               class="h-5 w-5 text-indigo-600" checked>
+        <span>gtmServices</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <input type="radio" name="confType" value="gtmPurposes"
+               class="h-5 w-5 text-indigo-600">
+        <span>gtmPurposes</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <input type="radio" name="confType" value="gtmVendors"
+               class="h-5 w-5 text-indigo-600">
+        <span>gtmVendors</span>
+      </label>
+    </div>
+    <input id="confValue" type="text" placeholder="Google Tag Manager"
+           class="mt-2 w-full border border-slate-300 rounded-lg p-2" />
+  </div>
+
+  <!-- Flags -->
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    ${['debugToggle:Debug',
+        'useListenerToggle:useListener',
+        'dlStateEventsToggle:dlStateEvents',
+        'aPageviewToggle:aPageview',
+        'vPageviewsToggle:vPageviews',
+        'sendConsentEventToggle:sendConsentEvent']
+       .map(idText=>{
+         const [id,txt]=idText.split(':');
+         return `<label class="inline-flex items-center gap-2">
+                   <input id="${id}" type="checkbox"
+                          class="h-5 w-5 text-indigo-600">
+                   <span>${txt}</span>
+                 </label>`;
+       }).join('')}
+  </div>
+
+  <!-- gdl & dlOrgPush -->
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div>
+      <label class="block font-medium mb-1" for="gdlInput">dataLayer-Name (gdl)</label>
+      <input id="gdlInput" type="text" placeholder="dataLayer"
+             class="w-full border border-slate-300 rounded-lg p-2" />
+    </div>
+    <div>
+      <label class="block font-medium mb-1" for="dlOrgPushSelect">dlOrgPush</label>
+      <select id="dlOrgPushSelect"
+              class="w-full border border-slate-300 rounded-lg p-2">
+        <option value="">keine Aktion</option>
+        <option value="log">log</option>
+        <option value="use">use</option>
+        <option value="restore">restore</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- consent_events -->
+  <div class="mb-6">
+    <label class="block font-medium mb-1" for="consentEventsInput">
+      Consent-Events (optional)
+    </label>
+    <input id="consentEventsInput" type="text"
+           placeholder="cmpEvent,cmpUpdate"
+           class="w-full border border-slate-300 rounded-lg p-2" />
+  </div>
+
+  <!-- Minify-Option -->
+  <div class="mb-4">
+    <label class="inline-flex items-center gap-2">
+      <input id="minifyToggle" type="checkbox"
+             class="h-5 w-5 text-indigo-600">
+      <span>Code minifizieren (Terser)</span>
+    </label>
+  </div>
+
+  <!-- Action-Buttons -->
+  <div class="flex flex-wrap gap-4 mb-8">
+    <button id="generateBtn"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white text-lg
+                   rounded-xl py-3 px-5 transition-transform hover:scale-105">
+      Finale Datei generieren
+    </button>
+    <button id="copyBtn"
+            class="hidden bg-emerald-600 hover:bg-emerald-700 text-white
+                   rounded-xl py-3 px-5">
+      In Zwischenablage kopieren
+    </button>
+  </div>
+
+  <!-- Preview Tabs + Output -->
+  <div id="tabBar" class="mb-2 flex gap-6 text-sm font-medium
+                          border-b border-slate-200"></div>
+  <textarea id="output" rows="14"
+            class="w-full border border-slate-300 rounded-lg
+                   p-3 font-mono text-sm"></textarea>
+  `;
+}
+
+/*──────────────── GitHub-Ladevorgänge ───────────────*/
+let agtmCodeCache="";
+
+async function loadAGTM(force=false){
+  if(agtmCodeCache && !force) return agtmCodeCache;
+  const res = await fetch(AGTM_URL);
+  if(!res.ok) throw new Error("aGTM laden fehlgeschlagen");
+  agtmCodeCache = await res.text(); return agtmCodeCache;
+}
+
+async function loadCMPList(){
+  const sel=$('#cmpSelect');
+  sel.innerHTML='<option>⏳ lädt…</option>';
+  const res=await fetch(CMP_API);
+  if(!res.ok) throw new Error("CMP-Liste laden fehlgeschlagen");
+  const files=(await res.json())
+    .filter(f=>f.name.endsWith(".min.js"))
+    .map(f=>f.name).sort();
+  sel.innerHTML = files.map(f=>`<option>${f}</option>`).join('');
+  const saved=loadLS().cmpSelect; if(saved) sel.value=saved;
+}
+
+const fetchSelectedCMP = () => {
+  const f=$('#cmpSelect').value;
+  if(!f) throw new Error("Keine CMP-Datei gewählt");
+  return fetch(CMP_BASE_URL+f).then(r=>{
+    if(!r.ok) throw new Error("CMP Datei laden fehlgeschlagen");
+    return r.text();
+  });
+};
+
+/*──────────── Generate → Preview Tabs ────────────*/
+async function generate(){
+  try{
+    const gtmId=$('#gtmId').value.trim();
+    if(!gtmId) return alert("GTM-ID fehlt.");
+
+    const [agtmRaw,cmpRaw] = await Promise.all([loadAGTM(),fetchSelectedCMP()]);
+    const cmpCode = extractConsent(cmpRaw);
+
+    /* gtmOptions */
+    const gtmOpts={};
+    if($('#gtmNoConsent').checked) gtmOpts.noConsent=true;
+    const map=['gtmURL','gtmJS','gtmEnv','gtmIdParam'];
+    map.forEach(id=>{ const v=$(`#${id}`).value.trim(); if(v) gtmOpts[id]=v; });
+    const gtmConf=JSON.stringify(gtmOpts);
+
+    /* CMP-Key + Konfig-Flags */
+    const confKey=$('input[name=confType]:checked').value;
+    const confVal=$('#confValue').value.trim()||$('#confValue').placeholder;
+    const flags=[];
+    if($('#debugToggle').checked) flags.push("debug: true");
+    ['useListener','dlStateEvents','aPageview','vPageviews',
+     'sendConsentEvent'].forEach(id=>{
+      flags.push(`${id}: ${$(`#${id}Toggle`).checked}`);
+    });
+    if($('#gdlInput').value.trim())
+      flags.push(`gdl: '${$('#gdlInput').value.trim().replace(/'/g,"\\'")}'`);
+    if($('#dlOrgPushSelect').value)
+      flags.push(`dlOrgPush: '${$('#dlOrgPushSelect').value}'`);
+    if($('#consentEventsInput').value.trim())
+      flags.push(`consent_events: '${$('#consentEventsInput').value.trim()
+                   .replace(/'/g,"\\'")}'`);
+
+    /* Config-Block */
+    let cfg=`gtm: { '${gtmId}': ${gtmConf} },\n  ${confKey}: '${confVal}'`;
+    if(flags.length) cfg+=",\n  "+flags.join(",\n  ");
+
+    /* ES2015 Code */
+    let es2015=[
+      agtmRaw.trim(),
+      "// ---------- CMP consent_check ----------",
+      cmpCode.trim(),
+      "\n// ---------- Konfiguration ----------",
+      `aGTM.f.config({\n  ${cfg}\n});`,
+      "\n// ---------- Initialisierung ----------",
+      "aGTM.f.init();"
+    ].join("\n\n");
+
+    /* ES5 Code (Babel) */
+    const es5 = Babel.transform(es2015,{
+      presets:[["env",{targets:{ie:"11"},bugfixes:true}]],
+      comments:false
+    }).code;
+
+    /* Minify */
+    const minOpts = ecma=>({compress:{ecma,passes:2,booleans:false},
+                            mangle:false,output:{ecma}});
+    const es2015Min=(await Terser.minify(es2015,minOpts(2015))).code;
+    const es5Min   =(await Terser.minify(es5   ,minOpts(5)   )).code;
+
+    /* Tabs + Preview */
+    const previews={
+      "ES2015":    es2015,
+      "ES2015-min":es2015Min,
+      "ES5":       es5,
+      "ES5-min":   es5Min
+    };
+    renderTabs(previews);
+
+    saveLS();
+  }catch(e){ console.error(e); alert(e.message||"Fehler beim Generieren"); }
+}
+
+/*──────────── Tabs + Clipboard ────────────*/
+function renderTabs(pre){
+  const tb=$('#tabBar');
+  tb.innerHTML=Object.keys(pre).map((k,i)=>`
+    <button data-tab="${k}"
+      class="pb-1 border-b-2 ${!i?'border-indigo-600 text-indigo-600':
+                               'border-transparent text-slate-500 hover:text-slate-700'}">
+      ${k}
+    </button>`).join('');
+  const out=$('#output'); out.value=pre["ES2015"]; Prism.highlightElement(out);
+
+  $$('button[data-tab]').forEach(btn=>btn.onclick=()=>{
+    $$('button[data-tab]').forEach(b=>b.classList.remove(
+      'border-indigo-600','text-indigo-600'));
+    btn.classList.add('border-indigo-600','text-indigo-600');
+    out.value=pre[btn.dataset.tab]; Prism.highlightElement(out);
+  });
+
+  $('#copyBtn').classList.remove('hidden');
+  $('#copyBtn').onclick=()=>{
+    navigator.clipboard.writeText(out.value).then(()=>{ const b=$('#copyBtn');
+      b.textContent='✓ Kopiert'; setTimeout(()=>b.textContent='In Zwischenablage kopieren',2000);
+    });
+  };
+}
+
+/*──────────── Initialisierung ────────────*/
+(async function init(){
+  renderUI();
+  await loadCMPList();
+  setFormData(loadLS());
+
+  /* Events */
+  $('#generateBtn').onclick = generate;
+  $('#reloadAgtmBtn').onclick = ()=>loadAGTM(true).then(()=>alert("aGTM neu geladen"));
+  $('#refreshCmpBtn').onclick = loadCMPList;
+  $('#generator').addEventListener('change',e=>{
+    if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) saveLS();
+  });
+})();
+    </script>
+  </body>
+</html>
