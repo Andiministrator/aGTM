@@ -58,10 +58,10 @@ aGTM.f.consent_check = function (action) {
     }
   }
   // Save result
-  aGTM.d.consent.services = services;
-  aGTM.d.consent.purposes = purposes;
+  aGTM.d.consent.services = services.length ? ',' + services.join(',') + ',' : '';
+  aGTM.d.consent.purposes = purposes.length ? ',' + purposes.join(',') + ',' : '';
   // Set Response
-  aGTM.d.consent.feedback = consent.length ? 'Consent accepted' : 'Consent declined';
+  aGTM.d.consent.feedback = services.length ? 'Consent accepted' : 'Consent declined';
   aGTM.d.consent.hasResponse = true;
   // Callback and Return
   if (typeof aGTM.f.log=='function') aGTM.f.log('m2', JSON.parse(JSON.stringify(aGTM.d.consent)));
