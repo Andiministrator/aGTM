@@ -42,16 +42,14 @@ aGTM.f.consent_check = function (action) {
       if (!parsed.groups.hasOwnProperty(groupName)) continue;
       var group = parsed.groups[groupName];
       // Group active?
-      if (group && group.active === true) {
-        purposes.push(group.name);
+      if (group && group.active === true) purposes.push(group.name);
         // Check Cookies
-        if (group.cookies) {
-          for (var cookieName in group.cookies) {
-            if (!group.cookies.hasOwnProperty(cookieName)) continue;
-            var cookieObj = group.cookies[cookieName];
-            if (cookieObj && cookieObj.active === true && typeof cookieObj.name === "string") {
-              services.push(cookieObj.name);
-            }
+      if (group && group.cookies) {
+        for (var cookieName in group.cookies) {
+          if (!group.cookies.hasOwnProperty(cookieName)) continue;
+          var cookieObj = group.cookies[cookieName];
+          if (cookieObj && cookieObj.active === true && typeof cookieObj.name === "string") {
+            services.push(cookieObj.name);
           }
         }
       }
