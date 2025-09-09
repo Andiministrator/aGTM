@@ -394,6 +394,65 @@ For more Information, read the chapter [Updating Consent Information](#updating-
 - Example: `'cmpEvent,cmpUpdate'`
 - Default: `''`
 
+### Consent-based GTM URL Parameter Handling
+
+aGTM can dynamically append an additional parameter to the GTM request URL (`gtm.js`) based on the user’s consent state.
+This mechanism was originally intended to control cookie usage, but it is flexible and can be applied to any purpose where consent-based signaling is required.
+
+Whenever at least one consent condition is configured, a parameter named `ck is automatically appended to the GTM request URL, e.g.:
+`https://tm.my-own-website.org/my-gtm.js?id=GTM-XXXXXX&ck=2`
+
+**Possible URL parameter values:**
+- `ck=0` → Feature inactive (no consent configuration provided)
+- `ck=1` → Active, but required consent not granted
+- `ck=2` → Active, required consent granted
+
+**Configuration options:**
+- **`ckServices`**
+  List of service(s) that require consent before the parameter value can become `2`.
+  - Type: string (comma-separated list)
+  - Example: `"User ID Service"`
+  - Default: `""`
+- **`ckVendors`**
+  List of vendor(s) that require consent.
+  - Type: string (comma-separated list)
+  - Example: `"The Analytics Company"`
+  - Default: `""`
+- **`ckPurposes`**
+  List of purpose(s) that require consent.
+  - Type: string (comma-separated list)
+  - Example: `"Functional"`
+  - Default: `""`
+
+⚠️ If multiple options are configured, all of them must be granted for the parameter value to switch to `2.
+
+**Example use case:**
+- A website appends `ck=2` only if the user has given consent for a User ID purpose.
+- This signal can then be used in GTM to enable consent-based tags or to conditionally allow cookies to be created.
+- If consent is missing, the parameter value remains `1`, ensuring full GDPR compliance and transparent behavior.
+
+**How it works:**
+- aGTM listens to the consent state provided by your Consent Management Platform (CMP).
+- The configured conditions are evaluated before the GTM request is sent.
+- Depending on the result, the parameter value is set accordingly.
+
+**Server-side GTM integration:**
+
+When using Server-side GTM (sGTM) to deliver your client-side GTM container, the `ck` parameter becomes especially useful.
+Normally, the sGTM only receives the request URL from the browser and has no direct information about the user’s consent state.
+
+By appending the consent value as a URL parameter, aGTM enables the sGTM to:
+- Set or withhold cookies during the delivery of the web GTM container.
+- Inject or remove JavaScript snippets into the delivered container depending on the consent value.
+- Control conditional features server-side without requiring extra client-server communication.
+
+This makes the `ck` parameter a simple yet powerful bridge between:
+- your Consent Management Platform (CMP),
+- the client-side GTM (webGTM), and
+- the server-side GTM (sGTM).
+
+In this way, consent logic can flow seamlessly across both environments, ensuring GDPR-compliant behavior with minimal complexity.
+
 ---
 
 ## Consent Handling
@@ -627,6 +686,11 @@ Feel free to contact me if you found problems or improvements:
 ---
 
 ## Changelog
+
+- Version 1.4.2, *01.09.2025*
+  - Check added for CMP Service/Vendor/Purpose, if a cookie can be stored
+  - Bot Check API added to the sGTM template
+  - GTM Variable Templates added
 
 - Version 1.4.1, *04.07.2025*
   - Improved Usercentrics v3 Consent Check

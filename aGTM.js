@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.4.1
- * @lastupdate 04.07.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.4.2
+ * @lastupdate 01.09.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -30,7 +30,7 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
   var props = [
-    [aGTM.d, "version", "1.4.1"],
+    [aGTM.d, "version", "1.4.2"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
@@ -175,6 +175,9 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "gtmServices", cfg, ""); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
   aGTM.f.an(aGTM.c, "gtmVendors", cfg, ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
   aGTM.f.an(aGTM.c, "gtmAttr", cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
+  aGTM.f.an(aGTM.c, "ckPurposes", cfg, ""); // The purpose(s) that must be agreed to set a cookie (comma-separated), e.g. 'Functional'
+  aGTM.f.an(aGTM.c, "ckServices", cfg, ""); // The services(s) that must be agreed to set a cookie (comma-separated), e.g. 'TP User ID Cookie'
+  aGTM.f.an(aGTM.c, "ckVendors", cfg, ""); // The vendors(s) that must be agreed to set a cookie (comma-separated), e.g. 'The Cookie Company'
   aGTM.f.an(aGTM.c, "dlSet", cfg, {}); // Set dataLayer variables, that should always be attached to an event
   aGTM.f.an(aGTM.c, "useListener", cfg, false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
   aGTM.f.an(aGTM.c, "dlOrgPush", cfg, ""); // "" or "log" or "use" or "restore": If the (GTM-)original dataLayer.push Function is changed (hooked), send an exception event ("log") or use the original dataLayer.push ("use") or replace the hooked dataLayer.push ("restore"). If you don't want to use it, leave it blank.
@@ -670,11 +673,24 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
   if (o.gtmJS && !gtm_debug) {
     scriptTag.innerHTML = atob(o.gtmJS);
   } else {
+    // Check Consent-based cookie feature
+    var ckf = '';
+    if (aGTM.c.ckPurposes || aGTM.c.ckServices || aGTM.c.ckVendors) {
+      if (
+        aGTM.f.chelp(aGTM.c.ckPurposes, aGTM.d.consent.purposes) &&
+        aGTM.f.chelp(aGTM.c.ckServices, aGTM.d.consent.services) &&
+        aGTM.f.chelp(aGTM.c.ckVendors, aGTM.d.consent.vendors)
+      ) {
+        ckf = '&ck=2';
+      } else {
+        ckf = '&ck=1';
+      }
+    }
     // Construct the GTM script URL
     var gtmUrl = o.gtmURL || "https://www." + aGTM.n.tm + ".com/gtm.js";
     var envParam = o.env || "";
     var q = gtmUrl.indexOf("?")===-1 ? "?" : "&";
-    scriptTag.src = gtmUrl + q + p + "=" + i + "&l=" + l + envParam;
+    scriptTag.src = gtmUrl + q + p + "=" + i + "&l=" + l + ckf + envParam;
   }
   // Insert the GTM script tag into the document
   var firstScriptTag = d.getElementsByTagName("script")[0];
