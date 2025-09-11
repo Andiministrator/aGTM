@@ -102,10 +102,11 @@ const sendCode = function (code) {
 
 // Bot Check
 var boturl = data.botCheck;
+var botCheckEnabled = typeof data.botCheckEnabled=='boolean' ? data.botCheckEnabled : false;
 const clientIP = getRequestHeader('X-Forwarded-For');
 const userAgent = getRequestHeader('User-Agent');
 //const userAgent = 'curl';
-if (!boturl) {
+if (!botCheckEnabled || !boturl) {
   sendCode(jsCode);
 } else {
   // Build Object for payload

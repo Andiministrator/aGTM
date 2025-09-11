@@ -211,6 +211,10 @@ Please contact me if you found problems or have improvements:
 
 ## Changelog
 
+- Version 1.1, *11.09.2025*
+  - aGTM version update to v1.4.2
+  - Some Features and Consent Checks added
+
 - Version 1.0, *01.06.2025*
   - Initial Version
 

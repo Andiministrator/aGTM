@@ -687,10 +687,11 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog
 
-- Version 1.4.2, *01.09.2025*
+- Version 1.4.2, *11.09.2025*
   - Check added for CMP Service/Vendor/Purpose, if a cookie can be stored
   - Bot Check API added to the sGTM template
   - GTM Variable Templates added
+  - Consent Check Functions added for Shopware 5 Cookie and Shopware 6 Cookie
 
 - Version 1.4.1, *04.07.2025*
   - Improved Usercentrics v3 Consent Check
