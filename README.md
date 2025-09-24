@@ -360,6 +360,9 @@ The object with the GTM containers to inject (GTM container ID as key, options a
     - Type: string
     - Example: `'debug_mode':true`
     - Example with options: `{ 'GTM-XXXXXXXX': { env:'&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x', 'debug_mode':true } }`
+  - *comment*
+    - Type: string
+    - Example: `'Client XYZ'`
 
 ### gtmPurposes
 
