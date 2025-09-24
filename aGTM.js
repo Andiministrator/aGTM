@@ -167,6 +167,7 @@ aGTM.f.config = function (cfg) {
         aGTM.f.an(aGTM.c.gtm[k], "idParam", cfg.gtm[k], ""); // GTM ID URL parameter name (leave it blank you you don't know, what it is)
         aGTM.f.an(aGTM.c.gtm[k], "gtmURL", cfg.gtm[k], ""); // If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
         aGTM.f.an(aGTM.c.gtm[k], "gtmJS", cfg.gtm[k], ""); // Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
+        aGTM.f.an(aGTM.c.gtm[k], "comment", cfg.gtm[k], ""); // Environment string (leave it blank you you don't know, what it is)
       }
     }
   }

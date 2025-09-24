@@ -13,7 +13,7 @@ ___INFO___
   "id": "cvt_temp_public_id",
   "version": 1,
   "securityGroups": [],
-  "displayName": "aGTM",
+  "displayName": "aGTM v1.4.2",
   "brand": {
     "id": "brand_dummy",
     "displayName": "Andiministrator",
@@ -31,42 +31,21 @@ ___TEMPLATE_PARAMETERS___
 [
   {
     "type": "GROUP",
-    "name": "aGTMid",
-    "displayName": "Use different aGTM Setups using ID\u0027s",
-    "groupStyle": "ZIPPY_OPEN_ON_PARAM",
-    "subParams": [
-      {
-        "type": "PARAM_TABLE",
-        "name": "ids",
-        "displayName": "Allowed (a)GTM ID(s)",
-        "paramTableColumns": [
-          {
-            "param": {
-              "type": "TEXT",
-              "name": "id",
-              "displayName": "(a)GTM ID",
-              "simpleValueType": true,
-              "notSetText": "You need to setup an ID. Otherwise delete this row.",
-              "help": "Set an ID to load this aGTM only for special uses.\u003cbr /\u003e You can use any sting, even a GTM ID, like GTM-XYZ123, but it won\u0027t have an effect for the GTM Setup.",
-              "valueHint": "GTM-XYZ123"
-            },
-            "isUnique": true
-          }
-        ],
-        "help": "Set allowed IDs to load this aGTM only for special uses.\u003cbr /\u003e You can use any sting, even a GTM ID, like GTM-XYZ123, but it won\u0027t have an effect for the GTM Setup.\u003cBR /\u003e Leave it blank if the aGTM Setup should alway load."
-      }
-    ]
-  },
-  {
-    "type": "GROUP",
     "name": "aGTMsetup",
     "displayName": "GTM Container Setup",
     "groupStyle": "ZIPPY_OPEN",
     "subParams": [
       {
+        "type": "CHECKBOX",
+        "name": "gtm_id_match",
+        "checkboxText": "Fire only GTM container matching the ID in URL",
+        "simpleValueType": true,
+        "help": "If not checked, all of the following GTM Containers will be fired."
+      },
+      {
         "type": "SIMPLE_TABLE",
         "name": "gtm",
-        "displayName": "",
+        "displayName": "Configure GTM Container",
         "simpleTableColumns": [
           {
             "defaultValue": "",
@@ -84,38 +63,49 @@ ___TEMPLATE_PARAMETERS___
             "selectItems": [
               {
                 "value": true,
-                "displayValue": "Yes"
+                "displayValue": "yes"
               },
               {
                 "value": false,
-                "displayValue": "No"
+                "displayValue": "no"
+              }
+            ],
+            "macrosInSelect": true
+          },
+          {
+            "defaultValue": false,
+            "displayName": "Use env Parameter",
+            "name": "gtm_use",
+            "type": "SELECT",
+            "valueHint": "Example: \u0027\u0026gtm_auth\u003dABC123xyz\u0026gtm_preview\u003denv-1\u0026gtm_cookies_win\u003dx\u0027",
+            "selectItems": [
+              {
+                "value": true,
+                "displayValue": "yes"
+              },
+              {
+                "value": false,
+                "displayValue": "no"
               }
             ]
           },
           {
-            "defaultValue": "",
-            "displayName": "Environment String",
-            "name": "gtm_env",
-            "type": "TEXT",
-            "valueHint": "Example: \u0027\u0026gtm_auth\u003dABC123xyz\u0026gtm_preview\u003denv-1\u0026gtm_cookies_win\u003dx\u0027"
-          },
-          {
             "defaultValue": "https://www.googletagmanager.com/gtm.js",
-            "displayName": "Container URL",
+            "displayName": "GTM Container URL",
             "name": "gtm_url",
             "type": "TEXT",
             "valueHint": "If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don\u0027t know what this means. If this option is not set (or if it is empty) the standard GTM URL will be used (https://www.googletagmanager.com/gtm.js)."
           },
           {
             "defaultValue": "",
-            "displayName": "Client ID",
-            "name": "cl_id",
+            "displayName": "Comment",
+            "name": "comment",
             "type": "TEXT"
           }
         ],
         "newRowButtonText": "Add a GTM Container",
-        "notSetText": "Please setup at least one GHTM Container.\u003cbr/\u003e Otherwise no GTM Container will load (through aGTM) ...",
-        "help": "Configure the GTM Container(s) that should fire ..."
+        "notSetText": "Please setup at least one GTM Container.\u003cbr/\u003e Otherwise no GTM Container will load (through aGTM) ...",
+        "help": "\u003cb\u003eConfigure the GTM Container(s)\u003c/b\u003e that should fire. \u003cbr /\u003e\u003cbr /\u003e\nSettings: \u003cbr /\u003e\u003cbr /\u003e\n\u003cul\u003e\n  \u003cli\u003e\u003cb\u003eGTM Container ID:\u003c/b\u003e The ID of the (web)GTM Container, \u003cbr /\u003ee.g. GTM-XYZ123\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eConsent Check:\u003c/b\u003e If \"Yes\", the GTM container will only be fired once user consent is obtained. \u003cbr /\u003eOtherwise the Container will be fired independing on the User Consent.\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eUse env Parameter:\u003c/b\u003e If \"Yes\", all (env-)URL parameters (of the aGTM Request), that starts with \"gtm_\" are adopted and appended to the container URL. \u003cbr /\u003eExample for env Parameters: \u003cbr /\u003e\"...aGTM.js?id\u003dGTM-XXXXX\u003cb\u003e\u0026amp;gtm_auth\u003dABC123xyz\u0026amp;gtm_preview\u003denv-1\u0026amp;gtm_cookies_win\u003dx\u003c/b\u003e\"\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eGTM Container URL:\u003c/b\u003e The source URL from which the GTM container should be loaded. \u003cbr /\u003eTypically: \u003cbr /\u003ehttps://YOUR.SERVERSIDE-TAG-MANAGER-HOSTNAME/gtm.js \u003cbr /\u003eor (without serverside tagging) \u003cbr /\u003ehttps://www.googletagmanager.com/gtm.js\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eComment:\u003c/b\u003e Just a comment, \u003cbr /\u003ee.g. to better distinguish between different containers/customers\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n\u003c/ul\u003e"
       },
       {
         "type": "LABEL",
@@ -484,11 +474,29 @@ ___TEMPLATE_PARAMETERS___
         "simpleValueType": true,
         "defaultValue": false,
         "help": "If this is ticked, the optout cookie will be ignored"
+      }
+    ]
+  },
+  {
+    "type": "GROUP",
+    "name": "aGTMinfo",
+    "displayName": "aGTM Info and Implementation Code",
+    "groupStyle": "ZIPPY_CLOSED",
+    "subParams": [
+      {
+        "type": "LABEL",
+        "name": "space1",
+        "displayName": "\u0026nbsp;"
       },
       {
         "type": "LABEL",
         "name": "aGTM Version",
-        "displayName": "aGTM v1.4.2"
+        "displayName": "\u003cb\u003eaGTM Version:\u003c/b\u003e v1.4.2"
+      },
+      {
+        "type": "LABEL",
+        "name": "implementation_code",
+        "displayName": "\u003cb\u003eaGTM Implementation Code:\u003c/b\u003e\u003cbr /\u003e\u003cbr /\u003e\n\n\u0026lt;script\u0026gt;\u003cbr /\u003e\n(function(w,d,s,u){\u003cbr /\u003e\n\u0026nbsp;\u0026nbsp;var t\u003dd.getElementsByTagName(s)[0],e\u003dd.createElement(s);\u003cbr /\u003e\n\u0026nbsp;\u0026nbsp;e.async\u003dtrue;e.src\u003du;\u003cbr /\u003e\n\u0026nbsp;\u0026nbsp;t.parentNode.insertBefore(e,t);\u003cbr /\u003e\n})(window,document,\u0027script\u0027,\u0027https://[HOSTNAME]/[PATH]/aGTM.js?id\u003d[GTM-ID][ENV-PARAMETER]\u0027);\u003cbr /\u003e\n\u0026lt;/script\u0026gt;\u003cbr /\u003e\u003cbr /\u003e\n\nPlaceholder:\u003cbr /\u003e\u003cbr /\u003e\n\u003cul\u003e\n  \u003cli\u003e[HOSTNAME]: The Hostname of the Webserver of the aGTM script \u003cbr /\u003e(or the Hostname of your Serversie-Tagging-Server).\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003ci\u003e[PATH] (optional):\u003c/i\u003e The Path where the aGTM script is located \u003cbr /\u003e(or the Path of your Serversie-Tagging-Server).\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003ci\u003e[GTM-ID] (optional):\u003c/i\u003e The ID of the (web)GTM Container what schould be fired through aGTM.\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003ci\u003e[ENV-PARAMETER] (optional):\u003c/i\u003e An (webGTM) Enviromment URL string, \u003cbr /\u003ee.g. \"\u0026gtm_auth\u003dABC123xyz\u0026gtm_preview\u003denv-1\u0026gtm_cookies_win\u003dx\"\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n\u003c/ul\u003e"
       }
     ]
   }
@@ -523,16 +531,17 @@ if (rpath.length < 8 || rpath.slice(rpath.length - 8) !== '/aGTM.js') return;
 // Get URL Request Parameters and id
 const queryParameters = getRequestQueryParameters();
 const id = queryParameters.id || null;
+if (!data.gtm) { logToConsole('warn', '✗ No GTM Container configured'); /*return;*/ }
 // Return if id is set but not allowed
-if (id) {
+if (id && data.gtm) {
   let id_allowed = false;
-  for (const val of data.ids) {
-    if (val.id===id) {
+  for (const val of data.gtm) {
+    if (val.gtm_id===id) {
       id_allowed = true;
       break;
     }
   }
-  if (!id_allowed) return;
+  if (!id_allowed) { logToConsole('warn', '✗ No matching GTM ID'); return; }
 }
 // Claim Request
 claimRequest();
@@ -541,13 +550,14 @@ claimRequest();
 const cmp = data.cmp ? data.cmp : "";
 
 // Build aGTM Config
-const gtm = data.gtm;
 const c = {};
 // Build gtm object
 if (data.gtm) {
+  var gtm_id_match = typeof data.gtm_id_match=='boolean' ? data.gtm_id_match : false;
+  const qp_id = typeof id=='string' ? id : '';
   const gtm = {};
   for (const val of data.gtm) {
-    if (val.gtm_id) {
+    if (val.gtm_id && (!gtm_id_match || val.gtm_id==qp_id)) {
       gtm[val.gtm_id] = {};
       if (!val.gtm_consent) gtm[val.gtm_id].noConsent = true;
       if (val.gtm_env) gtm[val.gtm_id].env = val.gtm_env;
