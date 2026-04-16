@@ -754,7 +754,15 @@ Feel free to contact me if you found problems or improvements:
 ## Changelog
 
 - Version 1.5, *10.04.2026*
-  - 
+  - New Consent Check Functions added for JTL Consent and JTL EU Cookie
+  - New GTM Variable Templates added: Consent Check and Consent Info
+  - GTM Template files renamed to use spaces for better readability (unified naming convention)
+  - New configuration options documented: `iframeSupport`, `gtmAttr`, `dlSet`, `vPageviewsTimer`, `vPageviewsFallback`
+  - Build script added (`build.sh`) for automated minification and Base64 generation
+  - Developer documentation expanded (build process, ES5 requirement, git workflow, release process)
+  - Debug console.log removed from urlListener
+  - String obfuscation for Google identifiers improved and unified
+
 
 - Version 1.4.2, *11.09.2025*
   - Check added for CMP Service/Vendor/Purpose, if a cookie can be stored
