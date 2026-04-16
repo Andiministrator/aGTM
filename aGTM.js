@@ -1690,9 +1690,11 @@ aGTM.f.xfetch = function(url, data, encrypt, salt, callback) {
       }
     };
     xhr.send(body);
+    return xhr;
   } catch(e) {
     aGTM.f.log('e_xfetch', { msg: e.message, url: url });
     if (typeof callback === 'function') callback(null);
+    return null;
   }
 };
 
@@ -1711,14 +1713,8 @@ aGTM.f.session_fetch = function() {
   }
   var timeout = (typeof aGTM.c.session_timeout === 'number' && aGTM.c.session_timeout > 0) ? aGTM.c.session_timeout : 5000;
   var done = false;
-  // Timeout fallback: unblock inject() if endpoint is too slow
-  var timer = setTimeout(function() {
-    if (done) return;
-    done = true;
-    aGTM.f.log('m_session_timeout', null);
-    aGTM.d.session_ready = true;
-    if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
-  }, timeout);
+  var xhr_inst = null;
+  var timer = null;
   // Build request payload
   var payload = {
     user_id: aGTM.c.user_id,
@@ -1726,7 +1722,8 @@ aGTM.f.session_fetch = function() {
     ref: document.referrer || ''
   };
   var salt = (typeof aGTM.c.session_salt === 'number' && aGTM.c.session_salt >= 1) ? aGTM.c.session_salt : 0;
-  aGTM.f.xfetch(aGTM.c.session_url, payload, salt >= 1, salt, function(resp) {
+  // Start request; capture xhr instance for potential abort on timeout
+  xhr_inst = aGTM.f.xfetch(aGTM.c.session_url, payload, salt >= 1, salt, function(resp) {
     if (done) return; // timeout already fired
     done = true;
     clearTimeout(timer);
@@ -1749,6 +1746,7 @@ aGTM.f.session_fetch = function() {
         aGTM.d.consent.hasResponse = true;
         aGTM.d.consent.feedback = 'Consent denied by aGTM';
         aGTM.d.consent.services = ',aGTMconsent,';
+        // blocked=true means gtmConsent=true in run_cc() fallback — allows GTM despite denial
         aGTM.d.consent.blocked = (aGTM.c.session_gtm_on_deny === true);
         aGTM.d.consent.gtmConsent = aGTM.d.consent.blocked;
       }
@@ -1756,6 +1754,15 @@ aGTM.f.session_fetch = function() {
     // Trigger injection if waiting for session
     if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
   });
+  // Timeout fallback: abort request and unblock inject() if endpoint is too slow
+  timer = setTimeout(function() {
+    if (done) return;
+    done = true;
+    if (xhr_inst) { try { xhr_inst.abort(); } catch(e) {} }
+    aGTM.f.log('m_session_timeout', null);
+    aGTM.d.session_ready = true;
+    if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
+  }, timeout);
 };
 
 /**
