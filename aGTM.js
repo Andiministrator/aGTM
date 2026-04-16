@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.4.2
- * @lastupdate 01.09.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.5
+ * @lastupdate 10.04.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -29,8 +29,9 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
+  var n1 = 'oo', n2 = 'tag', n3 = 'kie', n4 = 'gle';
   var props = [
-    [aGTM.d, "version", "1.4.2"],
+    [aGTM.d, "version", "1.5"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
@@ -55,9 +56,9 @@ aGTM.f.objinit = function() {
     [aGTM.f, "dl", {}],
     [aGTM.f, "pl", {}],
     [aGTM, "l", []],
-    [aGTM.n, "ck", "co" + "o" + "kie"],
-    [aGTM.n, "tm", "goo" + "glet" + "agmanager"],
-    [aGTM.n, "ta", "tag" + "assi" + "stant.goo" + "gle"]
+    [aGTM.n, "ck", "c" + n1 + n3],
+    [aGTM.n, "tm", "g" + n1 + n4 + n2 + "manager"],
+    [aGTM.n, "ta", n2 + "assi" + "stant.g" + n1 + n4]
   ];
   props.forEach(function(item) {
     aGTM.f.propset(item[0], item[1], item[2]);
@@ -563,7 +564,6 @@ aGTM.f.proxySupport = function () {
  * Example usage: Include this code early in your HTML to track client-side navigation changes.
  */
 aGTM.f.urlListener = function (eventname, interval, fallback) {
-  console.log('URL Listener started', {eventname:eventname,interval:interval,fallback:fallback});
   if (typeof interval != 'number') interval = 500;
   if (typeof fallback != 'boolean') fallback = false;
   aGTM.d.last_url = aGTM.d.last_url || aGTM.f.getVal('l', 'href');
@@ -1041,6 +1041,7 @@ aGTM.f.rmLstn = function (el, ev, fct) {
  * Usage: aGTM.f.getVal('w', 'location');
  */
 aGTM.f.getVal = function (o, v) {
+  var n1 = "oog";
   if (!aGTM.f.vSt([o, v]) || !v.match(/[a-z]+/i)) return undefined;
   if (o == "p" && (typeof performance != "object" || !performance))
     return undefined;
@@ -1066,8 +1067,8 @@ aGTM.f.getVal = function (o, v) {
     case "m":
       return window.screen[v];
     case "c":
-      if (window.google_tag_data && window.google_tag_data.ics) {
-        return JSON.parse(aGTM.f.sStrf(window.google_tag_data.ics));
+      if (window["g"+n1+"le_tag_data"] && window["g"+n1+"le_tag_data"].ics) {
+        return JSON.parse(aGTM.f.sStrf(window["g"+n1+"le_tag_data"].ics));
       } else {
         return null;
       }
@@ -1642,6 +1643,7 @@ aGTM.f.sendnaus = function (o) {
  * Usage: aGTM.f.fire({ event: 'pageview', pagetype: 'blogarticle' });
  */
 aGTM.f.fire = function (o) {
+  var n1 = "oog";
   // Ensure the event object is valid
   if (typeof o != "object" || !o) {
     aGTM.f.log("e9", { o: typeof o });
@@ -1706,12 +1708,12 @@ aGTM.f.fire = function (o) {
   // Get Standard DL variables
   if (
     aGTM.c.dlSet &&
-    typeof google_tag_manager == "object" &&
-    typeof google_tag_manager[aGTM.c.gtmID] == "object"
+    typeof window["g"+n1+"le_tag_manager"] == "object" &&
+    typeof window["g"+n1+"le_tag_manager"][aGTM.c.gtmID] == "object"
   ) {
     Object.keys(aGTM.c.dlSet).forEach(function (key) {
       var dlkey = aGTM.c.dlSet[key];
-      var dlvar = google_tag_manager[aGTM.c.gtmID][aGTM.c.gdl].get(dlkey);
+      var dlvar = window["g"+n1+"le_tag_manager"][aGTM.c.gtmID][aGTM.c.gdl].get(dlkey);
       if (typeof dlvar != "undefined") obj[key] = dlvar;
     });
   }
