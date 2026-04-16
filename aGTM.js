@@ -564,7 +564,6 @@ aGTM.f.proxySupport = function () {
  * Example usage: Include this code early in your HTML to track client-side navigation changes.
  */
 aGTM.f.urlListener = function (eventname, interval, fallback) {
-  console.log('URL Listener started', {eventname:eventname,interval:interval,fallback:fallback});
   if (typeof interval != 'number') interval = 500;
   if (typeof fallback != 'boolean') fallback = false;
   aGTM.d.last_url = aGTM.d.last_url || aGTM.f.getVal('l', 'href');

@@ -111,14 +111,17 @@ aGTM.f.fire(o)
   ├─ aGTM.f.sStrf(o) + JSON.parse()   — deep copy of event object
   ├─ obj.aGTMts = Date.now()           — timestamp
   ├─ aGTM.f.run_cc("update")          — triggered when o.event matches a consent_event
+  ├─ Get Standard DL variables         — enrich obj from GTM data model if loaded
   │
-  ├─ [no consent yet]
-  │    └─ push to aGTM.d.f (queue)    — replayed once consent is available
-  │
-  ├─ [POST configured: obj._post && !obj._post_sent]
+  ├─ [_post && !_post_sent]            — fires ALWAYS, consent-independent
   │    └─ aGTM.f.xsend(url, data, encrypt, salt)
   │         ├─ plain:     POST body {"e": <obj>}
   │         └─ encrypted: POST body {"q": "<aGTM.f.enc(...)>"}
+  │    obj._post_sent = true           — set after POST; prevents double-send on replay
+  │
+  ├─ [no consent yet]
+  │    └─ push to aGTM.d.f (queue)    — replayed once consent is available
+  │                                      (_post_sent survives in queue → no re-POST)
   │
   └─ [consent present]
        ├─ aGTM.d.dl.push(obj)         — internal event log

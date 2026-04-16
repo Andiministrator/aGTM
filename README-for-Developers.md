@@ -104,8 +104,13 @@ aGTM.f.fire(o)
   │
   ├─ Deep copy via sStrf() + JSON.parse()
   ├─ Consent-event check → aGTM.f.run_cc("update")
+  ├─ Get Standard DL variables
+  │
+  ├─ [_post && !_post_sent]   POST fires always, consent-independent
+  │    └─ aGTM.f.xsend()     obj._post_sent = true after send
   │
   ├─ [no consent yet]  →  queued in aGTM.d.f, replayed on consent
+  │                        (_post_sent survives → no re-POST on replay)
   │
   └─ [consent present]
        ├─ aGTM.d.dl.push()           internal event log
