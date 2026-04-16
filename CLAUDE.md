@@ -64,15 +64,20 @@ If an uncommented `aGTM.f.init();` ever appears at the end of `aGTM.js` (e.g. le
 
 ### Build setup (first time)
 
-Requires Node.js and npm. On Arch/CachyOS:
+Requires Bun. On Arch/CachyOS:
 ```bash
-sudo pacman -S npm
-npm install --no-bin-links
+sudo pacman -S bun
 ```
 
-Note: `--no-bin-links` is required because the `/data` partition is vfat (FAT32), which does not support symlinks. The build script calls terser directly via `node ./node_modules/terser/bin/terser` for the same reason.
+No `npm install` needed — `bunx terser` fetches terser from Bun's cache on first run.
 
-This installs `terser` as a dev dependency (defined in `package.json`).
+### Running tests
+
+```bash
+bun test
+```
+
+Tests live in `test/`. Browser globals are set up via `test/setup.js` (loaded automatically by `bunfig.toml`). See `test/helpers.js` for `MockXHR` and `resetAGTM()`.
 
 ### Minification rules
 

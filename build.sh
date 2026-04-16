@@ -6,43 +6,31 @@
 #   ./build.sh          Build all files
 #   ./build.sh --check  Dry run: only check if build tools are available
 #
-# Requirements: Node.js + npm, terser (npm install)
+# Requirements: Bun (https://bun.sh) — installs terser on first run via bunx
 
 set -e
 
-TERSER="node ./node_modules/terser/bin/terser"
+TERSER="bunx terser"
 TERSER_OPTS="--ecma 5 --keep-fnames --compress --mangle"
 
 # ── Preflight checks ────────────────────────────────────────────────────────
 
-if ! command -v node &>/dev/null; then
-  echo "ERROR: node not found. Install Node.js (Arch: sudo pacman -S nodejs)." >&2
-  exit 1
-fi
-
-if [ ! -f "./node_modules/terser/bin/terser" ]; then
-  echo "ERROR: terser not found. Run: npm install --no-bin-links" >&2
+if ! command -v bun &>/dev/null; then
+  echo "ERROR: bun not found. Install Bun (Arch: sudo pacman -S bun)." >&2
   exit 1
 fi
 
 if [ "$1" = "--check" ]; then
-  echo "OK: node $(node --version), terser available"
+  echo "OK: bun $(bun --version), terser available via bunx"
   exit 0
 fi
 
 # ── Safety check: no uncommented aGTM.f.init() in aGTM.js ───────────────────
 # The source must NOT contain an active init call (only commented ones).
-# Uses Node.js to strip block comments and line comments before checking,
-# because a simple grep cannot reliably detect multi-line block comments.
+# Strips block and line comments before checking.
 # See CLAUDE.md, section "The aGTM.f.init() situation".
 
-ACTIVE_INIT=$(node -e "
-  var fs = require('fs');
-  var code = fs.readFileSync('aGTM.js', 'utf8');
-  code = code.replace(/\/\*[\s\S]*?\*\//g, '');
-  code = code.replace(/\/\/.*/g, '');
-  if (/aGTM\.f\.init\s*\(\s*\)/.test(code)) { process.stdout.write('found'); }
-")
+ACTIVE_INIT=$(bun run scripts/check-init.js)
 if [ "$ACTIVE_INIT" = "found" ]; then
   echo "ERROR: Uncommented aGTM.f.init() found in aGTM.js." >&2
   echo "       Comment it out or remove it before building." >&2
@@ -59,7 +47,6 @@ echo "  Done: aGTM.min.js ($(wc -c < aGTM.min.js) bytes)"
 
 echo "Building cmp/*.min.js..."
 for src in cmp/cc_*.js; do
-  # Skip already-minified files
   [[ "$src" == *.min.js ]] && continue
   out="${src%.js}.min.js"
   $TERSER "$src" $TERSER_OPTS --output "$out"

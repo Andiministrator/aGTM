@@ -1665,7 +1665,7 @@ aGTM.f.xsend = function(url, data, encrypt, salt) {
 aGTM.f.xfetch = function(url, data, encrypt, salt, callback) {
   if (!url || typeof url !== 'string') {
     if (typeof callback === 'function') callback(null);
-    return;
+    return null;
   }
   try {
     var xhr = new XMLHttpRequest();

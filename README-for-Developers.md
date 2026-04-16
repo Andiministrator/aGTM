@@ -623,17 +623,41 @@ The derived files (`aGTM.min.js`, `cmp/*.min.js`, `aGTM.base64`) are generated f
 
 **Setup (first time):**
 ```bash
-# Install Node.js and npm if not present (Arch/CachyOS)
-sudo pacman -S nodejs npm
-
-# Install build dependencies (--no-bin-links required on FAT32/vfat filesystems)
-npm install --no-bin-links
+# Install Bun (Arch/CachyOS)
+sudo pacman -S bun
+# No further installation needed — bunx fetches terser automatically on first build
 ```
 
 **Build:**
 ```bash
 ./build.sh
 ```
+
+### Tests
+
+Tests are written for [Bun](https://bun.sh) and live in the `test/` directory.
+
+```bash
+bun test
+```
+
+**Structure:**
+
+| File | What it tests |
+|---|---|
+| `test/setup.js` | Browser globals + loads aGTM.js (auto-loaded via `bunfig.toml`) |
+| `test/helpers.js` | `MockXHR` class, `resetAGTM()` helper |
+| `test/xfetch.test.js` | `aGTM.f.xfetch()` — response handling, encryption, return value |
+| `test/session_fetch.test.js` | `aGTM.f.session_fetch()` — activation, storage, auto-denial, timeout |
+| `test/inject.test.js` | `aGTM.f.inject()` — `session_wait` gate |
+| `test/run_cc.test.js` | `aGTM.f.run_cc()` — `blocked` flag deletion on `update` |
+| `test/fire_salt.test.js` | `aGTM.f.fire()` — POST salt fallback chain |
+
+**Helpers:**
+
+- `resetAGTM(cfg?)` — wipes `aGTM.d`/`aGTM.c`, calls `objinit()`, optionally applies config. Call in `beforeEach()`.
+- `MockXHR.install()` — replaces `globalThis.XMLHttpRequest` with a controllable mock.
+- `MockXHR.last.respond(status, data)` — simulates a server response synchronously.
 
 **What gets built:**
 
