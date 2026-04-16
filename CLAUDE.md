@@ -99,6 +99,62 @@ There are no feature branches or hotfix branches by convention — the project i
 
 ---
 
+## Core Function Architecture
+
+### Event dispatch call graph
+
+The central path from an external event push to the GTM dataLayer:
+
+```
+aGTM.f.fire(o)
+  │
+  ├─ aGTM.f.sStrf(o) + JSON.parse()   — deep copy of event object
+  ├─ aGTM.f.run_cc("update")          — triggered when o.event matches a consent_event
+  │
+  ├─ [no consent yet]
+  │    └─ push to aGTM.d.f (queue)    — replayed once consent is available
+  │
+  └─ [consent present]
+       ├─ aGTM.d.dl.push(obj)         — internal event log
+       │
+       ├─ [iframe mode]
+       │    └─ aGTM.f.iFrameFire(obj)
+       │         ├─ [aGTM/GTM internal events] → aGTM.f.sendnaus(obj)
+       │         └─ [user events] → window.top.postMessage(obj, origin)
+       │                            (or queue until handshake)
+       │
+       ├─ [normal mode]
+       │    └─ aGTM.f.sendnaus(obj)
+       │         ├─ detect/protect against dataLayer.push hooks
+       │         ├─ window[gdl].push(obj)   — actual GTM dataLayer push
+       │         └─ aGTM.f.sendnaus_callback(obj)  — if defined
+       │
+       └─ aGTM.f.fire_callback(obj)    — if defined
+```
+
+### Key callbacks (overridable by integrators)
+
+| Callback | Triggered by | Receives |
+|---|---|---|
+| `aGTM.f.fire_callback` | end of `fire()` | final event object |
+| `aGTM.f.sendnaus_callback` | end of `sendnaus()` | event object pushed to DL |
+| `aGTM.f.consent_callback` | end of `run_cc()` | action (`"init"` / `"update"`) |
+| `aGTM.f.inject_callback` | after GTM script injection | — |
+| `aGTM.f.optout_callback` | on opt-out detection | — |
+
+### Data stores
+
+| Object | Purpose |
+|---|---|
+| `aGTM.c` | Configuration (set via `aGTM.f.config()`) |
+| `aGTM.d` | Runtime data (consent state, queues, counters, …) |
+| `aGTM.d.f` | Queue for events delayed until consent is available |
+| `aGTM.d.dl` | Internal copy of all events passed through `fire()` |
+| `aGTM.d.consent` | Current consent state written by `consent_check` |
+| `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
+
+---
+
 ## CMP Files
 
 Each file in `cmp/` implements the `aGTM.f.consent_check` function for a specific Consent Management Platform. The function signature is always:

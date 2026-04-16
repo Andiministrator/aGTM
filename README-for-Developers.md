@@ -20,6 +20,7 @@
 5. [Utility Functions](#utility-functions)
 6. [Extending `aGTM`](#extending-agtm)
 7. [Usage Examples](#usage-examples)
+8. [Contributing & Development Setup](#contributing--development-setup)
 
 ## Initialization and Configuration
 
@@ -87,11 +88,44 @@ aGTM.f.gtm_load(window, document, 'GTM-XYZ123', 'dataLayer', {});
 
 ### Event Firing
 
-To push events to GTM's dataLayer:
+To push events to GTM's dataLayer, use `aGTM.f.fire()`:
 
 ```javascript
 aGTM.f.fire({ event: 'pageview', pagetype: 'blog' });
 ```
+
+`fire()` is the main entry point for all user-initiated events. It handles consent gating, queuing, and delegates to the appropriate dispatch path. Do not call `sendnaus()` directly for user events — always go through `fire()`.
+
+#### Internal call graph
+
+```
+aGTM.f.fire(o)
+  │
+  ├─ Deep copy via sStrf() + JSON.parse()
+  ├─ Consent-event check → aGTM.f.run_cc("update")
+  │
+  ├─ [no consent yet]  →  queued in aGTM.d.f, replayed on consent
+  │
+  └─ [consent present]
+       ├─ aGTM.d.dl.push()           internal event log
+       ├─ [iframe mode] → aGTM.f.iFrameFire()
+       │     ├─ internal events  → aGTM.f.sendnaus()
+       │     └─ user events      → window.top.postMessage() (or queue)
+       └─ [normal mode] → aGTM.f.sendnaus()
+             ├─ dataLayer hook detection/protection
+             ├─ window[gdl].push()   actual GTM dataLayer push
+             └─ sendnaus_callback()
+```
+
+After the dispatch, `fire()` calls `aGTM.f.fire_callback()` if defined.
+
+#### Consent gating
+
+Events fired before consent is available are stored in `aGTM.d.f` and replayed automatically once consent arrives. Events whose `event` property starts with `aGTM` bypass the consent gate and are always dispatched immediately (internal lifecycle events).
+
+#### dataLayer hook protection
+
+`sendnaus()` detects when `dataLayer.push` has been replaced by a third party. Depending on `aGTM.c.dlOrgPush`, it can log the hook, use the original push function, or replace the hook with the original. This protects against tracking tools that intercept the dataLayer.
 
 ## Callbacks
 
