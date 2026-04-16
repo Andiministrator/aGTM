@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.4.1
- * @lastupdate 04.07.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.5
+ * @lastupdate 10.04.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -30,7 +30,7 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
   var props = [
-    [aGTM.d, "version", "1.4.1"],
+    [aGTM.d, "version", "1.5"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
