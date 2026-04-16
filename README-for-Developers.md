@@ -131,6 +131,60 @@ Events fired before consent is available are stored in `aGTM.d.f` and replayed a
 
 `sendnaus()` detects when `dataLayer.push` has been replaced by a third party. Depending on `aGTM.c.dlOrgPush`, it can log the hook, use the original push function, or replace the hook with the original. This protects against tracking tools that intercept the dataLayer.
 
+#### Event property reference
+
+This is the complete reference for all properties on the event object that `fire()` reads, acts upon, or writes. Properties are grouped by direction.
+
+##### Properties you can set (read by `fire()`)
+
+| Property | Type | Effect |
+|---|---|---|
+| `event` | string | If the value starts with `aGTM`, the consent gate is bypassed — the event is always dispatched immediately. |
+| `_noConsent` | boolean | `true` bypasses the consent gate entirely. The event is pushed to the dataLayer and POST is sent without waiting for consent. The property is preserved in the dataLayer event. See [`_noConsent` flag](#_noconsent-flag). |
+| `_post` | boolean \| object | Triggers an HTTP POST via `aGTM.f.xsend()`. `true` uses global transport defaults. An object `{ url, enc, salt, consent }` overrides individual settings. POST respects the consent gate unless `_noConsent: true` is also set. See [POST Transport](#post-transport). |
+| `_post_sent` | boolean | If `true` when `fire()` is called, the POST step is skipped. Prevents double-sending when the event is replayed from the queue. Set by aGTM after sending; can also be set externally. |
+| `aGTMts` | number | If already set to a number when `fire()` is called, the event is **skipped entirely** — it is considered already processed. Do not set this manually. |
+| `eventModel` | object \| null | If set to a non-null value when `fire()` is called, the event is **skipped** (it is a GTM-internal ping event). `fire()` sets this to `null` on all events it processes. Do not set this manually. |
+
+##### Properties written by `fire()`
+
+| Property | Type | Written when | Description |
+|---|---|---|---|
+| `aGTMts` | number | Always, early in `fire()` | Timestamp (`Date.now()`). Also serves as the "already processed" guard — its presence causes a second pass through `fire()` to be skipped. |
+| `eventModel` | null | Always, early in `fire()` | Set to `null` to neutralise GTM-internal ping detection. |
+| `aGTMparams` | object | On dispatch (non-aGTM events) | Deep copy of the final event object, attached to the event before the dataLayer push. GTM variables can read individual fields from `aGTMparams` without depending on dataLayer scoping. |
+| `_post_sent` | boolean `true` | After POST is sent | Deduplication flag. Prevents the POST from being sent a second time if the event passes through `fire()` again (e.g. during queue replay). |
+
+##### Auto-enrichment from config (`dlSet`)
+
+If `aGTM.c.dlSet` is configured and a GTM container is already loaded, `fire()` reads the specified variables from the GTM data model and adds them to every event before dispatch:
+
+```javascript
+aGTM.f.config({
+  dlSet: { 'userId': 'user_id' }  // reads GTM DL variable 'user_id', adds as 'userId'
+});
+```
+
+This is useful for automatically appending persistent context (e.g. user ID, page type) to all events without repeating it in every `fire()` call.
+
+##### Consent-event triggers (`consent_events` / `consent_event_attr`)
+
+If `aGTM.c.consent_events` is set, `fire()` checks every incoming event name against that list. A match triggers `aGTM.f.run_cc('update')` to re-read and update the consent state.
+
+You can optionally require a specific attribute value on the event for the trigger to fire, using bracket notation in the config:
+
+```javascript
+aGTM.f.config({
+  consent_events: 'cmpEvent[userChoiceType:useraction],cmpUpdate'
+});
+```
+
+- `cmpEvent[userChoiceType:useraction]` — triggers consent update only when `event == 'cmpEvent'` AND `userChoiceType == 'useraction'`
+- `cmpEvent[userChoiceType]` — triggers when `event == 'cmpEvent'` AND `userChoiceType` exists (any value)
+- `cmpUpdate` — triggers on event name match alone, no attribute check
+
+The parsed attribute conditions are stored in `aGTM.c.consent_event_attr` (object keyed by event name).
+
 ### Injection & Consent Flow
 
 Understanding when and how GTM gets injected into the DOM is essential for extending aGTM or debugging consent-related issues.
