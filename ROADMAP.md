@@ -8,6 +8,7 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 - `aGTM.f.enc()` for payload obfuscation (Base64 + Caesar shift, compatible with aEvents GTM tag)
 - New config options: `transport_url`, `transport_enc`, `transport_salt`
 - `_post` event property in `aGTM.f.fire()` for per-event POST configuration and encryption
+- `_noConsent` event property: bypasses consent gate for both DL push and POST
 - Foundation for standalone aGTM usage without a webGTM container
 - New CMPs: JTL Consent, JTL EU Cookie
 - New GTM Variable Templates: Consent Check, Consent Info

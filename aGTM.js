@@ -1757,7 +1757,21 @@ aGTM.f.fire = function (o) {
       if (typeof dlvar != "undefined") obj[key] = dlvar;
     });
   }
-  // Send as POST if _post is configured and not yet sent (bypasses consent gate)
+  // Delay event if no consent is available (bypass for aGTM-internal events and _noConsent flag)
+  if (
+    ((typeof aGTM.d.consent != "object" ||
+      !aGTM.d.consent.hasResponse ||
+      !aGTM.d.consent.gtmConsent) &&
+      (typeof obj.event != "string" || obj.event.indexOf("aGTM") !== 0) &&
+      !obj._noConsent) ||
+    (aGTM.c.iframeSupport && aGTM.d.is_iframe && !aGTM.d.iframe.origin)
+  ) {
+    delete obj.aGTMts;
+    delete obj.eventModel;
+    aGTM.d.f.push(JSON.parse(aGTM.f.sStrf(obj)));
+    return;
+  }
+  // Send as POST if _post is configured and not yet sent
   if (obj._post && !obj._post_sent) {
     var postCfg = (typeof obj._post === 'object') ? obj._post : {};
     var postUrl = (typeof postCfg.url === 'string' && postCfg.url) ? postCfg.url : aGTM.c.transport_url;
@@ -1775,23 +1789,11 @@ aGTM.f.fire = function (o) {
       obj._post_sent = true;
     }
   }
-  // Delay event if no consent is available
-  if (
-    ((typeof aGTM.d.consent != "object" ||
-      !aGTM.d.consent.hasResponse ||
-      !aGTM.d.consent.gtmConsent) &&
-      (typeof obj.event != "string" || obj.event.indexOf("aGTM") !== 0)) ||
-    (aGTM.c.iframeSupport && aGTM.d.is_iframe && !aGTM.d.iframe.origin)
-  ) {
-    delete obj.aGTMts;
-    delete obj.eventModel;
-    aGTM.d.f.push(JSON.parse(aGTM.f.sStrf(obj)));
-    return;
-  }
-  // Push event to GTM if enabled and consented
+  // Push event to GTM if enabled and consented (or _noConsent bypass active)
   if (
     aGTM.d.consent.gtmConsent ||
-    (typeof obj.event == "string" && obj.event.indexOf("aGTM") === 0)
+    (typeof obj.event == "string" && obj.event.indexOf("aGTM") === 0) ||
+    obj._noConsent
   ) {
     //var gtmobj = JSON.parse(aGTM.f.sStrf(obj));
     if (typeof obj.event != "string" || obj.event.indexOf("aGTM") !== 0) {

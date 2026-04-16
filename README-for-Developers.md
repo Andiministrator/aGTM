@@ -106,13 +106,11 @@ aGTM.f.fire(o)
   ├─ Consent-event check → aGTM.f.run_cc("update")
   ├─ Get Standard DL variables
   │
-  ├─ [_post && !_post_sent]   POST fires always, consent-independent
-  │    └─ aGTM.f.xsend()     obj._post_sent = true after send
+  ├─ [no consent && !_noConsent]  →  queued in aGTM.d.f, replayed on consent
   │
-  ├─ [no consent yet]  →  queued in aGTM.d.f, replayed on consent
-  │                        (_post_sent survives → no re-POST on replay)
-  │
-  └─ [consent present]
+  └─ [consent present OR _noConsent]
+       ├─ [_post && !_post_sent]  → aGTM.f.xsend()  (_post_sent = true after send)
+       │
        ├─ aGTM.d.dl.push()           internal event log
        ├─ [iframe mode] → aGTM.f.iFrameFire()
        │     ├─ internal events  → aGTM.f.sendnaus()
@@ -133,9 +131,21 @@ Events fired before consent is available are stored in `aGTM.d.f` and replayed a
 
 `sendnaus()` detects when `dataLayer.push` has been replaced by a third party. Depending on `aGTM.c.dlOrgPush`, it can log the hook, use the original push function, or replace the hook with the original. This protects against tracking tools that intercept the dataLayer.
 
+### `_noConsent` flag
+
+Set `_noConsent: true` on any event to bypass the consent gate in `aGTM.f.fire()`. The event is pushed to the dataLayer immediately without waiting for consent.
+
+```javascript
+aGTM.f.fire({ event: 'form_submit', form_id: 'contact', _noConsent: true });
+```
+
+`_noConsent` is preserved in the dataLayer event so GTM tags can react to it. It also controls POST: a `_post` event without `_noConsent` will only send the POST once consent is available.
+
+Use this for events that must be tracked regardless of consent (e.g. functional events, error tracking, legal notifications).
+
 ### POST Transport
 
-`aGTM.f.fire()` can send events directly as HTTP POST to a configurable endpoint — bypassing the consent gate and independent of the webGTM container. This is the foundation for standalone aGTM usage without webGTM.
+`aGTM.f.fire()` can send events directly as HTTP POST to a configurable endpoint — independent of the webGTM container. By default, POST respects the consent gate like any other event; set `_noConsent: true` to send immediately without consent.
 
 #### Configuration (global defaults)
 
