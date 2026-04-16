@@ -54,6 +54,70 @@ Use the following value for the `cmp` Parameter:
 
 - shopware_acris_cookie
 
+### JTL Consent
+
+Consent check for the JTL shop platform using the JTL Consent Manager.
+
+Use the following value for the `cmp` Parameter:
+
+- jtl_consent
+
+### JTL EU Cookie
+
+Consent check for the JTL shop platform using the JTL EU Cookie plugin.
+
+Use the following value for the `cmp` Parameter:
+
+- jtl_eu_cookie
+
+### Perspective Funnel
+
+Consent check for Perspective Funnel.
+
+Use the following value for the `cmp` Parameter:
+
+- perspectivefunnel
+
+### Secure Privacy
+
+Consent check for Secure Privacy.
+
+Use the following value for the `cmp` Parameter:
+
+- secure_privacy
+
+### Shopify Consent
+
+Consent check for the Shopify built-in Customer Privacy API.
+
+Use the following value for the `cmp` Parameter:
+
+- shopify_consent
+
+### Shopware 5 Cookie
+
+Consent check for the Shopware 5 built-in cookie consent.
+
+Use the following value for the `cmp` Parameter:
+
+- shopware5_cookie
+
+### Shopware 6 Cookie
+
+Consent check for the Shopware 6 built-in cookie consent.
+
+Use the following value for the `cmp` Parameter:
+
+- shopware6_cookie
+
+### Simple Cookie Regex Check
+
+A generic consent check based on reading a cookie value via a regular expression. Useful as a fallback for custom or less common cookie banners.
+
+Use the following value for the `cmp` Parameter:
+
+- simple_cookie_regex_check
+
 ### Borlabs Cookie (Wordpress)
 
 Use the following value for the `cmp` Parameter for Borlabs Version 2:

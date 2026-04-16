@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: OneTrust CookiePro
- * @version 1.0
- * @lastupdate 13.03.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 05.11.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -33,9 +33,12 @@ aGTM.f.consent_check = function (action) {
   if (typeof obj.ConsentIntegrationData!='object' || typeof obj.ConsentIntegrationData.consentPayload!='object' || typeof obj.ConsentIntegrationData.consentPayload.customPayload!='object' || typeof obj.ConsentIntegrationData.consentPayload.purposes!='object' || typeof obj.ConsentModel!='object' || typeof obj.ConsentModel.Name!='string') return false;
   var cData = obj.ConsentIntegrationData.consentPayload;
   if (typeof cData.customPayload.Interaction!='number') return false;
-  aGTM.d.consent.interactions = cData.customPayload.Interaction;
-  //if (obj.ConsentModel.Name=='opt-in' && (typeof cData.customPayload.Interaction!='number' || cData.customPayload.Interaction==0)) return false;
   if (typeof cData.dsDataElements!='object' || typeof cData.dsDataElements.Country!='string') return false;
+  aGTM.d.consent.interactions = cData.customPayload.Interaction;
+  var interaction = false;
+  if (typeof cData.dsDataElements.InteractionType=='string' && cData.dsDataElements.InteractionType) interaction = true;
+  if (obj.ConsentModel.Name=='opt-in' && typeof cData.customPayload.Interaction=='number' && cData.customPayload.Interaction>0) interaction = true;
+  if (!interaction) return false;
 
   // Set Consent Model and Consent ID
   aGTM.d.consent.consent_model = obj.ConsentModel.Name;
@@ -78,7 +81,7 @@ aGTM.f.consent_check = function (action) {
   aGTM.d.consent.purposes = ',' + purpose_names.join(',') + ',';
 
   // Build Feedback
-  if (aGTM.d.consent.interaction_type) { aGTM.d.consent.feedback = trConfig.cmp.interaction_type; }
+  if (aGTM.d.consent.interaction_type) { aGTM.d.consent.feedback = aGTM.d.consent.interaction_type; }
   else if (cats_total==cats_essential_count) { aGTM.d.consent.feedback = 'No OptIn Categories available'; }
   else if (cats_count==cats_total) { aGTM.d.consent.feedback = 'Consent full accepted'; }
   else if (cats_count==cats_essential_count) { aGTM.d.consent.feedback = 'Consent declined'; }

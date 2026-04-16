@@ -1,12 +1,74 @@
-tmp/
-desktop.ini
-Thumbs.db
+
+# ── Generated data & models ─────────────────────────────────
+data/
+dataset/
+checkpoints/
+*.pt
+*.bin
+*.onnx
+*.gguf
+*.safetensors
+
+# ── Allow web/ assets for GitHub Pages ──────────────────────
+!docs/*.onnx
+!docs/*.json
+
+# ── Go build artifacts ───────────────────────────────────────
+orchestrator/orchestrator
+orchestrator/*.exe
+
+# ── Python ──────────────────────────────────────────────────
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Notebook checkpoints ───────────────────────────────────
+.ipynb_checkpoints/
+
+# ── OS ──────────────────────────────────────────────────────
 .DS_Store
-.vscode
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.trash
+
+# ── IDE / Editor ────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.claude/
+.settings/
 *.sublime-project
 *.sublime-workspace
 .kateproject.*
 *.kate-swp
 .obsidian
 .idea
-.trash
+
+# ── Secrets ──────────────────────────────────────────────────
+.env
+.runner
+
+# ── Node.js ─────────────────────────────────────────────────
+node_modules/
+
+# ── Logs & temp ─────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+logs/
+tmp/

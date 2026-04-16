@@ -41,9 +41,11 @@ List of available **GTM Tag Templates***:
 
 List of available **GTM Variable Templates**:
 
-- **[Device and Page Info](variables/device-and-page-info/README-gtm-var-device-and-page-info.md)**
-  Provides information about the Page and the User Device, like Browser Info, Screen, Canonical Tag, ...
 - **[Content Counter](variables/content-counter/README-gtm-var-content-counter.md)**
-  Counts the word and images of a page.
+  Counts the words and images of a page.
+- **[Consent Check](variables/consent-check/README-gtm-var-consent-check.md)**
+  Variable to check a specific consent signal (purpose, service, or vendor) from aGTM's consent data.
+- **[Consent Info](variables/consent-info/README-gtm-var-consent-info.md)**
+  Variable that returns consent and Google Consent Mode signals from aGTM's consent data.
 
 ---

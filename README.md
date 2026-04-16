@@ -252,6 +252,16 @@ For more information, read the chapter "[Use Event Listeners instead of the defa
 - Example: `true`
 - Default: `false`
 
+### iframeSupport
+
+Enables aGTM inside an iframe context. When set to `true` and the page is running inside an iframe (`window.self !== window.top`), aGTM automatically grants consent and injects GTM — bypassing the normal CMP consent check. The iframe then listens for messages from the parent frame via `postMessage`.
+Use this if you want to run GTM inside an iframe without requiring its own consent banner.
+If the page is not an iframe, this setting has no effect.
+
+- Type: boolean
+- Example: `true`
+- Default: `false`
+
 ### gdl
 
 Name of GTM dataLayer
@@ -306,7 +316,29 @@ Fires a GTM dataLayer Event `vPageview` after the page has load and (a)GTM is re
 
 Send (dataLayer) Events if the URL changes, but no page reload takes place (virtual Pageviews through History Change).
 The GTM dataLayer Event for a virtual Pageview has the event name `vPageview`.
-*Notice:* There are two more configuration options (`vPageviewsTimer` and `vPageviewsFallback`). At normally you don't need to use them. Read the developer docu for more information about it.
+aGTM detects URL changes via `popstate`/`hashchange` event listeners and — where the browser supports it — by intercepting `history.pushState`/`replaceState` with a Proxy. See also `vPageviewsTimer` and `vPageviewsFallback` below.
+
+- Type: boolean
+- Example: `true`
+- Default: `false`
+
+### vPageviewsTimer
+
+Polling interval in milliseconds for detecting URL changes when `vPageviews` is enabled.
+Set to `0` (default) to disable polling entirely and rely solely on the Proxy/event-listener approach.
+When set to a value > 0 and `vPageviewsFallback` is `false`, polling runs **always** alongside the other mechanisms.
+When set to a value > 0 and `vPageviewsFallback` is `true`, polling runs **only** when the browser does not support the ES6 Proxy API.
+
+- Type: number (milliseconds)
+- Example: `500`
+- Default: `0`
+
+### vPageviewsFallback
+
+Controls whether `vPageviewsTimer` polling is used as a fallback only (true) or always (false).
+Only relevant when `vPageviewsTimer` is set to a value > 0.
+- `false` (default): polling runs always if `vPageviewsTimer` > 0, regardless of Proxy support
+- `true`: polling runs only if the browser does not support the ES6 Proxy API
 
 - Type: boolean
 - Example: `true`
@@ -387,6 +419,22 @@ The vendor(s) that must be agreed to in order to activate the GTM (comma-separat
 - Type: string
 - Example: `'Google Inc'`
 - Default: `''`
+
+### gtmAttr
+
+Additional HTML attributes to add to the GTM `<script>` tag. Useful e.g. for CMP attribute-based consent systems that require a specific `data-*` attribute on the script tag.
+
+- Type: object
+- Example: `{ 'data-cmp-ab': 'c905' }`
+- Default: `null`
+
+### dlSet
+
+Object that maps event property names to GTM dataLayer variable names. When set, aGTM reads the specified variables from the GTM dataLayer and automatically appends them to every fired event.
+
+- Type: object (key: target property name, value: dataLayer variable name)
+- Example: `{ 'userId': 'user_id' }` — reads the GTM dataLayer variable `user_id` and adds it as `userId` to every event
+- Default: `{}`
 
 ### consent_events
 
@@ -672,6 +720,21 @@ A: Therefore we have started a [Developer Documentation](README-for-Developers.m
 
 ---
 
+## Contributing / Building from Source
+
+If you want to contribute or build the derived files (`aGTM.min.js`, `cmp/*.min.js`, `aGTM.base64`) yourself:
+
+**Requirements:** Node.js and npm (Arch/CachyOS: `sudo pacman -S npm`)
+
+```bash
+npm install --no-bin-links   # first time only — installs terser
+./build.sh    # builds all minified and base64 files
+```
+
+For details on the build process, ES5 requirements, and project conventions, see [Developer Documentation](README-for-Developers.md).
+
+---
+
 ## Author and Contact
 
 Feel free to contact me if you found problems or improvements:
@@ -690,11 +753,15 @@ Feel free to contact me if you found problems or improvements:
 
 ## Changelog
 
+- Version 1.5, *10.04.2026*
+  - 
+
 - Version 1.4.2, *11.09.2025*
   - Check added for CMP Service/Vendor/Purpose, if a cookie can be stored
   - Bot Check API added to the sGTM template
   - GTM Variable Templates added
   - Consent Check Functions added for Shopware 5 Cookie and Shopware 6 Cookie
+  - Bugfix in Ontrust CookiePro Consent Check
 
 - Version 1.4.1, *04.07.2025*
   - Improved Usercentrics v3 Consent Check

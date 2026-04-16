@@ -6,8 +6,8 @@
 
 `aGTM.js` is a global implementation script designed for developers who want to extend, customize, or integrate Google Tag Manager (GTM) and Google Analytics (GA) functionality based on user consent. This documentation covers the internal workings, extensibility options, and callback functions for developers.
 
-- **Version**: 1.0
-- **Last Updated**: 07.11.2024
+- **Version**: 1.5
+- **Last Updated**: 16.04.2026
 - **Author**: Andi Petzoldt [andi@petzoldt.net](mailto:andi@petzoldt.net)
 - **Repository**: [GitHub Repository](https://github.com/Andiministrator/aGTM/)
 
@@ -202,9 +202,88 @@ Monitor JavaScript errors:
 aGTM.f.jserrors();
 ```
 
+## Contributing & Development Setup
+
+### ES5 Requirement
+
+**All JavaScript in this repository must be written in ES5.** This applies to `aGTM.js`, all `cmp/*.js` files, GTM templates, and extensions.
+
+Reason: The code may be executed inside the Google Tag Manager sandboxed JavaScript environment, which only supports ECMAScript 5. Do **not** use:
+- `let` / `const` → use `var`
+- Arrow functions `() => {}` → use `function() {}`
+- Classes, template literals, destructuring, spread operator, `Promise`, etc.
+
+### Build Process
+
+The derived files (`aGTM.min.js`, `cmp/*.min.js`, `aGTM.base64`) are generated from source using a build script. **Do not edit the `.min.js` or `.base64` files directly** — they will be overwritten on the next build.
+
+**Setup (first time):**
+```bash
+# Install Node.js and npm if not present (Arch/CachyOS)
+sudo pacman -S nodejs npm
+
+# Install build dependencies (--no-bin-links required on FAT32/vfat filesystems)
+npm install --no-bin-links
+```
+
+**Build:**
+```bash
+./build.sh
+```
+
+**What gets built:**
+
+| Source | Output | Notes |
+|---|---|---|
+| `aGTM.js` | `aGTM.min.js` | Minified (terser, ES5, keep_fnames) |
+| `cmp/cc_<name>.js` | `cmp/cc_<name>.min.js` | Minified |
+| `aGTM.min.js` | `aGTM.base64` | Base64-encoded, embedded in sGTM client template |
+
+**Minification flags:** `--ecma 5 --keep-fnames --compress --mangle`
+- `--ecma 5`: enforces ES5-compatible output
+- `--keep-fnames`: function names are preserved because aGTM references them by name internally
+
+### The `aGTM.f.init()` call
+
+`aGTM.js` intentionally has **no active `aGTM.f.init()` call** at the end of the library code:
+- Line ~1761: `//aGTM.f.init();` — commented out (marks the insertion point for single-file usage)
+- A second occurrence exists inside a `/*** ... ***/` block comment (example code only)
+
+Both are stripped automatically by the minifier. The build script also checks for any accidentally uncommented init call and aborts if one is found. The init call is the responsibility of the integrating developer, not the library.
+
+### Git Workflow
+
+- **`dev`** — all development happens here
+- **`main`** — stable releases only; updated by merging from `dev`
+- **Tags** — Git tags ARE the version numbers. Every release gets a tag matching the version (e.g. `v1.4.1`, `v1.5`). The tag is the authoritative reference for a release.
+
+**Tag naming:** `v` prefix + semantic version, matching the version in `aGTM.js` and the changelog in `README.md`.
+
+**Release flow:**
+1. Update version in `aGTM.js` (`@version` in the header comment and `aGTM.d.version` in `aGTM.f.objinit()`)
+2. Add changelog entry in `README.md`
+3. Run `./build.sh` to regenerate all derived files
+4. Merge `dev` → `main`
+5. Tag the release: `git tag v<version>`
+
+### Adding a new CMP
+
+1. Create `cmp/cc_<name>.js` — implement `aGTM.f.consent_check = function(action) { ... }`
+   - `action` is either `"init"` or `"update"`
+   - Return `true` on success, `false` otherwise
+   - Write consent results to `aGTM.d.consent`
+2. Run `./build.sh` — this generates `cmp/cc_<name>.min.js` automatically
+3. Document the new CMP in `cmp/README-cmp.md`
+
+### GTM Template File Naming
+
+Template files use spaces in their names: `aGTM tag - Click Events.tpl` (not dashes like `aGTM-tag-Click-Events.tpl`). Each template lives in its own subdirectory under `gtm/tags/` or `gtm/variables/` alongside a `README-gtm-*.md` documentation file.
+
+---
+
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/Andiministrator/aGTM/blob/main/LICENSE) file for details.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](https://github.com/Andiministrator/aGTM/blob/main/LICENSE) file for details.
 
 ---
 

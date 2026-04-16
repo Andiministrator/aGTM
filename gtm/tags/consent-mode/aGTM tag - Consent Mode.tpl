@@ -1,4 +1,12 @@
-﻿___INFO___
+﻿___TERMS_OF_SERVICE___
+
+By creating or modifying this file you agree to Google Tag Manager's Community
+Template Gallery Developer Terms of Service available at
+https://developers.google.com/tag-manager/gallery-tos (or such other URL as
+Google may provide), as modified from time to time.
+
+
+___INFO___
 
 {
   "type": "TAG",
@@ -6,7 +14,7 @@
   "__wm": "VGVtcGFsdGUtQXV0aG9yX0NvbnNlbnRNb2RlLVNpbW8tQWhhdmE\u003d",
   "version": 1,
   "securityGroups": [],
-  "displayName": "aGTM Consent Mode",
+  "displayName": "aGTM - Consent Mode",
   "categories": [
     "UTILITY",
     "ANALYTICS",
@@ -29,9 +37,36 @@ ___TEMPLATE_PARAMETERS___
 [
   {
     "type": "CHECKBOX",
+    "name": "debug",
+    "checkboxText": "Debug Mode",
+    "simpleValueType": true
+  },
+  {
+    "type": "CHECKBOX",
     "name": "cm_update",
     "checkboxText": "Use it as Consent Update (instead of Default)",
-    "simpleValueType": true
+    "simpleValueType": true,
+    "enablingConditions": [
+      {
+        "paramName": "cm_update_after_default",
+        "paramValue": true,
+        "type": "NOT_EQUALS"
+      }
+    ]
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "cm_update_after_default",
+    "checkboxText": "Fire a Consent Mode Update Event after a Consent Mode Default",
+    "simpleValueType": true,
+    "help": "First it fires a Consent Mode Default Event with all flags denied. After that a Consent Mode Update Event will fire with the correct flags.",
+    "enablingConditions": [
+      {
+        "paramName": "cm_update",
+        "paramValue": true,
+        "type": "NOT_EQUALS"
+      }
+    ]
   },
   {
     "type": "GROUP",
@@ -181,6 +216,23 @@ ___TEMPLATE_PARAMETERS___
     ]
   },
   {
+    "type": "LABEL",
+    "name": "eu_regions",
+    "displayName": "\u003cb\u003eEEA Countries:\u003c/b\u003e\u003cbr /\u003eAT,BE,BG,CY,CZ,DE,DK,EE,ES,FI,FR,GR,HR,HU,IE,IS,IT,LI,LT,LU,LV,MT,NL,NO,PL,PT,RO,SE,SI,SK,CH,GB",
+    "enablingConditions": [
+      {
+        "paramName": "cm_update",
+        "paramValue": true,
+        "type": "NOT_EQUALS"
+      }
+    ]
+  },
+  {
+    "type": "LABEL",
+    "name": "further_options",
+    "displayName": "\u003cbr /\u003e\u003cb\u003eFurther Options:\u003c/b\u003e\u003cbr /\u003e"
+  },
+  {
     "type": "CHECKBOX",
     "name": "url_passthrough",
     "checkboxText": "Pass through URL parameters",
@@ -214,6 +266,13 @@ ___TEMPLATE_PARAMETERS___
     "checkboxText": "Fire Microsoft Consent Mode",
     "simpleValueType": true,
     "help": "F.ire the (UET) signal for Microsoft Consent Mode"
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "cm_event",
+    "checkboxText": "DataLayer Event",
+    "simpleValueType": true,
+    "help": "Fire a separate dataLayer event with Consent Mode signals"
   },
   {
     "type": "GROUP",
@@ -384,25 +443,30 @@ ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Import needed libraries
 const log = require('logToConsole');
+const JSON = require('JSON');
+const Object = require('Object');
 const copyFromWindow = require('copyFromWindow');
 const setInWindow = require('setInWindow');
+const callInWindow = require('callInWindow');
 const dataLayerPush = require('createQueue')('dataLayer');
 const gtagSet = require('gtagSet');
 const makeNumber = require('makeNumber');
 const makeTableMap = require('makeTableMap');
+const createQueue = require('createQueue');
 const setDefaultConsentState = require('setDefaultConsentState');
 const updateConsentState = require('updateConsentState');
 
+// Config
+const debug = typeof data.debug=='boolean' ? data.debug : false;
+
 /**
- * Build ND aGTM shadow object
- * @lastupdate 12.02.2024 by Andi Petzoldt <andi@petzoldt.net>
- * @author Andi Petzoldt <andi@petzoldt.net>
+ * Build aGTM shadow object
  * @property {object} o
  * @param {object} c - config
- *   @param {object} c.debug - debug messages in browser console
+ * @param {object} c.debug - debug messages in browser console
  * @param {object} d - data object
- *   @param {object} d.f - Events that have been fired before GTM has loaded
- *   @param {object} d.q - event queue
+ * @param {object} d.f - Events that have been fired before GTM has loaded
+ * @param {object} d.q - event queue
  * @param {object} f - function library
  */
 var o = o || { c: {debug:false}, d:{}, f:{} };
@@ -417,17 +481,26 @@ o.c.cm_signals = [
 ];
 
 // Get tag configuration
-//log('info','Tag Configuration',data);
+if (debug) log('info','Tag Configuration',data);
 o.c.cm_update = typeof data.cm_update=='boolean' ? data.cm_update : false;
+o.c.cm_update_after_default = typeof data.cm_update_after_default=='boolean' ? data.cm_update_after_default : false;
 o.c.cm_attributes = data.cm_attributes || [];
 o.c.cm_wait = typeof data.cm_wait=='string' ? makeNumber(data.cm_wait) : 0;
 o.c.cm_regions = typeof data.cm_regions=='string' ? data.cm_regions : 'all';
 o.c.url_passthrough = typeof data.url_passthrough=='boolean' ? data.url_passthrough : false;
 o.c.ads_data_redaction = typeof data.ads_data_redaction=='boolean' ? data.ads_data_redaction : false;
 o.c.ms_consent_mode = typeof data.ms_consent_mode=='boolean' ? data.ms_consent_mode : false;
+o.c.cm_event = typeof data.cm_event=='boolean' ? data.cm_event : false;
 
 // Get consent signals from aGTM
 var consent = copyFromWindow('aGTM.d.consent');
+if (debug) log('info','aGTM Consent Info', JSON.parse(JSON.stringify(consent)));
+
+// Run Consent Check Fallback
+if (debug && typeof consent.hasResponse!='boolean' || !consent.hasResponse) {
+  const c_check = callInWindow('aGTM.f.consent_check', 'init');
+  if (debug) log('info','consent_check Info', c_check);
+}
 
 // Helper function to check a defined consent in aGTM
 o.f.chk_cons = function (consKey, consVal) {
@@ -451,8 +524,19 @@ for (var i=0; i<o.c.cm_signals.length; i++) {
   if (!c && data[s]=='not_set') continue;
   o.d.cm[s] = c ? c : data[s];
 }
-if (!o.c.cm_update && o.c.cm_wait>0) o.d.cm.wait_for_update = o.c.cm_wait;
-if (!o.c.cm_update && o.c.cm_regions!='all' && o.c.cm_regions) o.d.cm.region = o.c.cm_regions.split(',').map(r => r.trim());
+if (!o.c.cm_update && o.c.cm_wait>0 && !o.c.cm_update_after_default) o.d.cm.wait_for_update = o.c.cm_wait;
+if (!o.c.cm_update && o.c.cm_regions!='all' && o.c.cm_regions) {
+  o.d.cm.region = o.c.cm_regions.split(',').map(r => r.trim());
+  o.d.cm.region = o.d.cm.region.filter((val, idx) => o.d.cm.region.indexOf(val) === idx);
+  if (debug) log('info','CM Regions', o.d.cm.region);
+}
+
+// Fire Consent Mode dataLayer Event
+if (o.c.cm_event) {
+  const c_ev = { event:'aGTM_consent_mode', cm_signals:o.d.cm };
+  //dataLayerPush(c_ev);
+  callInWindow('aGTM.f.fire', c_ev);
+}
 
 // Other settings
 if (!o.c.cm_update) {
@@ -463,17 +547,46 @@ if (!o.c.cm_update) {
 }
 
 // Set the consent state
-if (o.c.cm_update) { updateConsentState(o.d.cm); } else { setDefaultConsentState(o.d.cm); }
+if (o.c.cm_update) {
+  updateConsentState(o.d.cm);
+  if (debug) log('info','Consent Update', JSON.parse(JSON.stringify(o.d.cm)));
+} else {
+  if (o.c.cm_update_after_default) {
+    o.d.cmd = {};
+    for (var i=0; i<o.c.cm_signals.length; i++) {
+      var s = o.c.cm_signals[i];
+      o.d.cmd[s] = 'denied';
+    }
+    setDefaultConsentState(o.d.cmd);
+    if (debug) log('info','Consent Default before Update', 'Default', JSON.parse(JSON.stringify(o.d.cmd)), 'Update', JSON.parse(JSON.stringify(o.d.cm)));
+    let cm = JSON.parse(JSON.stringify(o.d.cm));
+    Object.delete(cm, 'wait_for_update');
+    Object.delete(cm, 'region');
+    updateConsentState(cm);
+    if (debug) log('info','Consent Update after Default', JSON.parse(JSON.stringify(cm)));
+  } else {
+    setDefaultConsentState(o.d.cm);
+    if (debug) log('info','Consent Default', JSON.parse(JSON.stringify(o.d.cmd)));
+  }
+}
 
 // Fire Microsoft Consent Mode
-if (data.ms_consent_mode && o.d.cm.ad_storage) {
-  require('createQueue')('uetq')('consent', o.c.cm_update ? 'update' : 'default', {    
-    'ad_storage': o.d.cm.ad_storage
-  });
+if (data.ms_consent_mode) {
+  const clarityFct = () => {
+    const clarity = copyFromWindow('clarity');
+    if (clarity) return clarity;
+    setInWindow('clarity', function() { callInWindow('clarity.q.push', arguments); });
+    createQueue('clarity.q');
+    return copyFromWindow('clarity');
+  };
+  const uetq = createQueue('uetq');
+  uetq('consent', o.c.cm_update ? 'update' : 'default', { 'ad_storage': o.d.cm.ad_storage });
+  const clarity = clarityFct();
+  clarity('consentv2', { ad_Storage: o.d.cm.ad_storage, analytics_Storage: o.d.cm.analytics_storage });
 }
 
 // Set aGTM.d.cm
-setInWindow('aGTM.d.cm', o.d.cm, true);
+setInWindow('aGTM.d.cm', JSON.parse(JSON.stringify(o.d.cm)), true);
 
 // Call data.gtmOnSuccess when the tag is finished.
 data.gtmOnSuccess();
@@ -493,7 +606,7 @@ ___WEB_PERMISSIONS___
           "key": "environments",
           "value": {
             "type": 1,
-            "string": "all"
+            "string": "debug"
           }
         }
       ]
@@ -668,6 +781,201 @@ ___WEB_PERMISSIONS___
                   {
                     "type": 8,
                     "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.f.fire"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.f.consent_check"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "clarity"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "clarity.q"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "clarity.q.push"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
                   }
                 ]
               }
@@ -978,9 +1286,9 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.1
+- Version 1.3
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 10.05.2025
+- Last Update: 25.09.2025
 
 ## Description
 
