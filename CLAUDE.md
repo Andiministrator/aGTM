@@ -221,7 +221,49 @@ aGTM.f.inject()
 | `aGTM.d.dl` | Internal copy of all events passed through `fire()` |
 | `aGTM.d.consent` | Current consent state written by `consent_check`; `.gtmConsent` controls GTM injection |
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
+| `aGTM.d.session` | Session & user data returned by the session endpoint (see Session Feature below) |
+| `aGTM.d.session_ready` | `true` once session data has been received and stored (or feature is inactive/timed out) |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
+
+### Session Feature
+
+Optional feature. Activated when both `user_id` and `session_url` are set in config. Fetches session and user data from a server-side endpoint early in `init()`, stores result in `aGTM.d.session`, and optionally delays GTM injection until data is available.
+
+**Config options:**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `user_id` | string | `""` | User identifier sent to the session endpoint |
+| `session_url` | string | `""` | POST endpoint URL for session data |
+| `session_salt` | number | `0` | Encryption salt for the session request; also used as fallback salt for POST transport when no per-event or `transport_salt` is set |
+| `session_wait` | boolean | `false` | If `true`, GTM injection is delayed until session data arrives (or timeout) |
+| `session_timeout` | number | `5000` | Milliseconds before session fetch is abandoned and `session_ready` is set to `true` anyway |
+| `session_gtm_on_deny` | boolean | `true` | If `true`, GTM is injected even when auto-denial is applied |
+
+**Request** (`aGTM.f.xfetch`): POST to `session_url`, body encrypted with `session_salt`. Payload: `{ user_id, url, ref }` (current page URL and referrer).
+
+**Response fields** (all except `sid` optional):
+
+| Field | Type | Description |
+|---|---|---|
+| `sid` | string | Session ID (required — missing or empty disables the feature) |
+| `uid` | string | User ID |
+| `sst` | boolean | Session status: `true` = real user, `false` = bot/uncertain |
+| `ret` | boolean | `true` = returning visitor |
+| `cst` | boolean | `true` = consent decision already on record |
+| `ref` | string | Referrer as seen server-side |
+| `vct` | number | Visit count |
+| *(any)* | * | Additional fields are stored as-is in `aGTM.d.session` |
+
+**Auto-denial logic:** When `ret === true` AND `cst === false` (returning visitor, no recorded consent decision → banner was blocked or not shown):
+- `aGTM.d.consent.hasResponse = true`
+- `aGTM.d.consent.feedback = "Consent denied by aGTM"`
+- `aGTM.d.consent.services = ",aGTMconsent,"`
+- `aGTM.d.consent.gtmConsent = true` if `session_gtm_on_deny: true`, otherwise `false`
+
+Services that require `aGTMconsent` will fire; services requiring other consent (e.g. `Google Analytics`) will not.
+
+**`aGTM.f.xfetch(url, data, encrypt, salt, callback)`** — new function. POST with optional encryption, reads response. Calls `callback(parsedJSON)` on success, `callback(null)` on error or timeout.
 
 ### POST Transport & consent bypass
 

@@ -356,6 +356,130 @@ aGTM.f.init();
 aGTM.f.fire({ event: 'pageview', _post: { enc: true } });
 ```
 
+## Session & User Data
+
+aGTM can fetch session and user data from a server-side endpoint early in the page lifecycle, before GTM is injected. The data is stored in `aGTM.d.session` and is accessible from webGTM variables, GTM Custom Templates, and any JavaScript on the page.
+
+### Activation
+
+The feature is active when **both** `user_id` and `session_url` are set in the config. If either is missing, the feature is silently disabled.
+
+```javascript
+aGTM.f.config({
+  user_id:      'u-12345',
+  session_url:  'https://session.example.com/api/session',
+  session_salt: 42
+});
+```
+
+### Configuration options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `user_id` | string | `""` | User identifier sent to the session endpoint |
+| `session_url` | string | `""` | POST endpoint URL |
+| `session_salt` | number | `0` | Encryption salt for the request payload; also used as fallback salt for POST transport (`_post`) when neither the event nor `transport_salt` provides one |
+| `session_wait` | boolean | `false` | Delay GTM injection until session data is available (or timeout reached) |
+| `session_timeout` | number | `5000` | Milliseconds before the session fetch is abandoned; GTM injection proceeds regardless |
+| `session_gtm_on_deny` | boolean | `true` | Inject GTM even when auto-denial is applied (see below) |
+
+### How it works
+
+During `aGTM.f.init()`, the session fetch starts immediately — in parallel with the CMP consent check. The request is sent via `aGTM.f.xfetch()` as an encrypted POST.
+
+**Request payload:**
+```json
+{ "user_id": "u-12345", "url": "<current page URL>", "ref": "<referrer>" }
+```
+The payload is encrypted using `aGTM.f.enc()` with `session_salt`.
+
+**On response:**
+1. Response JSON is parsed.
+2. If `sid` (session ID) is missing or empty → feature disabled at this point, `aGTM.d.session` remains empty.
+3. Otherwise: all response fields are stored in `aGTM.d.session`, and `aGTM.d.session_ready` is set to `true`.
+4. Auto-denial logic is evaluated (see below).
+5. If `session_wait: true` and GTM was waiting → injection proceeds now.
+
+**On timeout or error:** `aGTM.d.session_ready` is set to `true` (so `session_wait` doesn't block indefinitely), `aGTM.d.session` stays empty.
+
+### `aGTM.f.xfetch(url, data, encrypt, salt, callback)`
+
+New function for POST requests that need to read the response. Same encryption logic as `aGTM.f.xsend()`, but calls `callback(parsedJSON)` on success and `callback(null)` on network error or non-200 response.
+
+```javascript
+aGTM.f.xfetch(
+  'https://session.example.com/api/session',
+  { user_id: 'u-12345', url: location.href, ref: document.referrer },
+  true,   // encrypt
+  42,     // salt
+  function(response) {
+    if (response && response.sid) {
+      console.log('Session:', response);
+    }
+  }
+);
+```
+
+### Session response format
+
+The endpoint must return JSON. `sid` is the only required field — everything else is optional. All fields are stored as-is in `aGTM.d.session`.
+
+| Field | Type | Description |
+|---|---|---|
+| `sid` | string | **Required.** Session ID. Missing or empty → feature disabled. |
+| `uid` | string | User ID (server-side) |
+| `sst` | boolean | Session status: `true` = real/validated user, `false` = bot or uncertain |
+| `ret` | boolean | `true` = returning visitor |
+| `cst` | boolean | `true` = consent decision already on record for this user |
+| `ref` | string | Referrer as seen server-side |
+| `vct` | number | Visit count (number of sessions for this user) |
+| *(any)* | * | Additional fields (click IDs, attribution, etc.) are passed through and stored |
+
+### Accessing session data
+
+```javascript
+// In any JavaScript on the page:
+aGTM.d.session.sid        // session ID
+aGTM.d.session.sst        // real user?
+aGTM.d.session.ret        // returning visitor?
+aGTM.d.session_ready      // true once fetch completed (or timed out)
+```
+
+In a GTM Custom Template or variable, the same paths are accessible via the `aGTM` object in the dataLayer.
+
+### Auto-denial
+
+When the session data indicates a **returning visitor without a recorded consent decision** (`ret === true && cst === false`), this means the consent banner was likely blocked (e.g. by an ad blocker or browser setting) or was never shown. In this case, aGTM applies auto-denial:
+
+| Property | Value set |
+|---|---|
+| `aGTM.d.consent.hasResponse` | `true` |
+| `aGTM.d.consent.feedback` | `"Consent denied by aGTM"` |
+| `aGTM.d.consent.services` | `",aGTMconsent,"` |
+| `aGTM.d.consent.gtmConsent` | `true` if `session_gtm_on_deny: true`, otherwise `false` |
+
+**Effect:** The consent gate in `aGTM.f.fire()` opens (events are no longer queued). GTM is injected (if `session_gtm_on_deny: true`). Tags configured to require `aGTMconsent` will fire; tags requiring any other consent signal (e.g. `Google Analytics`) will not.
+
+Auto-denial only has its full effect on GTM delivery when `session_wait: true`, because then the session data is guaranteed to arrive before `inject()` runs. With `session_wait: false`, GTM may already be loaded by the time auto-denial fires.
+
+### `session_wait` and timing
+
+```
+init()
+  ├─ start xfetch(session_url)         — async, runs in parallel
+  ├─ load CMP script (if configured)
+  ├─ start consent polling timer
+  │
+  ├─ [session_wait: false]
+  │    └─ inject() runs as soon as consent is available
+  │         session data stored whenever xfetch completes
+  │
+  └─ [session_wait: true]
+       └─ inject() waits until BOTH are true:
+            - consent available (or auto-denial applied)
+            - session_ready == true (data received or timeout)
+```
+
 ## Callbacks
 
 ### Available Callback Functions

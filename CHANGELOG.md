@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 1.6 — *in development*
+- Session & User Data feature: `aGTM.f.xfetch()` for POST requests with response handling
+- New config options: `user_id`, `session_url`, `session_salt`, `session_wait`, `session_timeout`, `session_gtm_on_deny`
+- Session data stored in `aGTM.d.session` (fields: `sid`, `uid`, `sst`, `ret`, `cst`, `ref`, `vct` + dynamic)
+- Auto-denial: returning visitors without consent decision get consent auto-denied (`aGTMconsent` service set)
+- `session_salt` used as fallback salt for POST transport
+
 ## Version 1.5 — *10.04.2026*
 - POST transport layer added: `aGTM.f.xsend()` for direct HTTP POST, `aGTM.f.enc()` for payload obfuscation
 - New config options: `transport_url`, `transport_enc`, `transport_salt`

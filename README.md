@@ -445,6 +445,54 @@ For more Information, read the chapter [Updating Consent Information](#updating-
 - Example: `'cmpEvent,cmpUpdate'`
 - Default: `''`
 
+### user_id
+
+User identifier sent to the session endpoint. Required to activate the session feature (together with `session_url`).
+
+- Type: string
+- Example: `'u-12345'`
+- Default: `''`
+
+### session_url
+
+POST endpoint URL for fetching session and user data. Required to activate the session feature (together with `user_id`).
+
+- Type: string
+- Example: `'https://session.example.com/api/session'`
+- Default: `''`
+
+### session_salt
+
+Encryption salt for the session request payload. Uses the same obfuscation algorithm as the POST transport (`aGTM.f.enc()`). Also serves as fallback salt for the POST transport feature when no per-event salt and no `transport_salt` is configured.
+
+- Type: number (integer ≥ 1)
+- Example: `42`
+- Default: `0` (no encryption)
+
+### session_wait
+
+If `true`, GTM injection is delayed until session data has been received (or the timeout has elapsed). Enables the auto-denial logic to take effect before GTM loads.
+
+- Type: boolean
+- Example: `true`
+- Default: `false`
+
+### session_timeout
+
+Time in milliseconds to wait for the session endpoint response before proceeding without session data.
+
+- Type: number
+- Example: `3000`
+- Default: `5000`
+
+### session_gtm_on_deny
+
+If `true`, GTM is injected even when auto-denial is applied (returning visitor with no recorded consent decision). If `false`, GTM is not injected in that case.
+
+- Type: boolean
+- Example: `false`
+- Default: `true`
+
 ### Consent-based GTM URL Parameter Handling
 
 aGTM can dynamically append an additional parameter to the GTM request URL (`gtm.js`) based on the user’s consent state.
