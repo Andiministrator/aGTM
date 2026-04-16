@@ -1,6 +1,10 @@
 # Changelog
 
 ## Version 1.5 — *10.04.2026*
+- POST transport layer added: `aGTM.f.xsend()` for direct HTTP POST, `aGTM.f.enc()` for payload obfuscation
+- New config options: `transport_url`, `transport_enc`, `transport_salt`
+- `_post` event property in `aGTM.f.fire()` for per-event POST configuration (bypass consent gate, optional encryption, deduplication via `_post_sent`)
+- Foundation for standalone aGTM usage without webGTM
 - New CMPs: JTL Consent, JTL EU Cookie
 - New GTM Variable Templates: Consent Check, Consent Info
 - GTM template files renamed (spaces instead of dashes)

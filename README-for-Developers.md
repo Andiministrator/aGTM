@@ -16,6 +16,7 @@
 1. [Initialization and Configuration](#initialization-and-configuration)
 2. [Consent Management](#consent-management)
 3. [GTM Integration](#gtm-integration)
+   - 3a. [POST Transport](#post-transport)
 4. [Callbacks](#callbacks)
 5. [Utility Functions](#utility-functions)
 6. [Extending `aGTM`](#extending-agtm)
@@ -126,6 +127,69 @@ Events fired before consent is available are stored in `aGTM.d.f` and replayed a
 #### dataLayer hook protection
 
 `sendnaus()` detects when `dataLayer.push` has been replaced by a third party. Depending on `aGTM.c.dlOrgPush`, it can log the hook, use the original push function, or replace the hook with the original. This protects against tracking tools that intercept the dataLayer.
+
+### POST Transport
+
+`aGTM.f.fire()` can send events directly as HTTP POST to a configurable endpoint — bypassing the consent gate and independent of the webGTM container. This is the foundation for standalone aGTM usage without webGTM.
+
+#### Configuration (global defaults)
+
+```javascript
+aGTM.f.config({
+  transport_url:  'https://sgtm.example.com/collect',
+  transport_enc:  true,
+  transport_salt: 42
+});
+```
+
+#### Per-event POST trigger
+
+Add a `_post` property to the event object passed to `aGTM.f.fire()`:
+
+```javascript
+// POST with global defaults
+aGTM.f.fire({ event: 'purchase', revenue: 99.9, _post: true });
+
+// POST with per-event overrides (all keys optional)
+aGTM.f.fire({
+  event: 'purchase',
+  revenue: 99.9,
+  _post: { url: 'https://sgtm.example.com/collect', enc: true, salt: 42, consent: true }
+});
+```
+
+| `_post` key | Type | Description |
+|---|---|---|
+| `url` | string | Endpoint URL (overrides `transport_url`) |
+| `enc` | boolean | Encrypt payload (overrides `transport_enc`) |
+| `salt` | number | Salt for encryption (overrides `transport_salt`) |
+| `consent` | boolean | Attach current consent state to POST body |
+
+`_post_sent: true` is set on the event object by aGTM after the POST is sent. The webGTM Community Tag checks this flag and skips its own `sendPixel` call to avoid double-sending.
+
+#### POST body format
+
+Plain (`enc: false`):
+```json
+{ "e": { "event": "purchase", "revenue": 99.9, ... } }
+```
+
+Encrypted (`enc: true`):
+```json
+{ "q": "<obfuscated string>" }
+```
+
+The encryption uses Base64 + Caesar shift, compatible with the aEvents GTM tag. The sGTM server can decode both formats with the same logic.
+
+#### Standalone usage (no webGTM)
+
+When no GTM container is configured, `aGTM.f.fire()` still sends the POST and pushes to the local dataLayer. No GTM is required:
+
+```javascript
+aGTM.f.config({ transport_url: 'https://sgtm.example.com/collect', transport_salt: 42 });
+aGTM.f.init();
+aGTM.f.fire({ event: 'pageview', _post: { enc: true } });
+```
 
 ## Callbacks
 
@@ -312,6 +376,10 @@ Both are stripped automatically by the minifier. The build script also checks fo
 ### GTM Template File Naming
 
 Template files use spaces in their names: `aGTM tag - Click Events.tpl` (not dashes like `aGTM-tag-Click-Events.tpl`). Each template lives in its own subdirectory under `gtm/tags/` or `gtm/variables/` alongside a `README-gtm-*.md` documentation file.
+
+---
+
+**Roadmap:** [ROADMAP.md](ROADMAP.md)
 
 ---
 

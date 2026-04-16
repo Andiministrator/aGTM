@@ -109,10 +109,16 @@ The central path from an external event push to the GTM dataLayer:
 aGTM.f.fire(o)
   │
   ├─ aGTM.f.sStrf(o) + JSON.parse()   — deep copy of event object
+  ├─ obj.aGTMts = Date.now()           — timestamp
   ├─ aGTM.f.run_cc("update")          — triggered when o.event matches a consent_event
   │
   ├─ [no consent yet]
   │    └─ push to aGTM.d.f (queue)    — replayed once consent is available
+  │
+  ├─ [POST configured: obj._post && !obj._post_sent]
+  │    └─ aGTM.f.xsend(url, data, encrypt, salt)
+  │         ├─ plain:     POST body {"e": <obj>}
+  │         └─ encrypted: POST body {"q": "<aGTM.f.enc(...)>"}
   │
   └─ [consent present]
        ├─ aGTM.d.dl.push(obj)         — internal event log
@@ -153,6 +159,14 @@ aGTM.f.fire(o)
 | `aGTM.d.consent` | Current consent state written by `consent_check` |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
 
+### POST Transport
+
+The POST transport fires independently of the consent gate and the webGTM container.
+
+- **`aGTM.c.transport_url`** / **`transport_enc`** / **`transport_salt`** — global defaults, set via `aGTM.f.config()`
+- **`_post`** event property — per-event POST control; `true` uses global defaults, or an object `{ url, enc, salt, consent }` with optional overrides
+- **`_post_sent`** — deduplication flag; set to `true` by aGTM after the POST is sent, prevents double-sending during dataLayer replay
+
 ---
 
 ## CMP Files
@@ -176,3 +190,7 @@ Template files use the `.tpl` format (GTM's JSON-based template format). File na
 Each template subdirectory contains:
 - The `.tpl` file
 - A `README-gtm-tag-<name>.md` documentation file
+
+---
+
+**Roadmap:** [ROADMAP.md](ROADMAP.md)
