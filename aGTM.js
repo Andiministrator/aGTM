@@ -44,6 +44,7 @@ aGTM.f.objinit = function() {
     [aGTM.d, "dl", []],
     [aGTM.d, "session", {}],
     [aGTM.d, "session_ready", false],
+    [aGTM.d, "session_status", ""],
     [aGTM.d, "iframe", {
       counter: { events: 0 },
       origin: "",
@@ -1647,8 +1648,10 @@ aGTM.f.xsend = function(url, data, encrypt, salt) {
       body = '{"e":' + aGTM.f.sStrf(data) + '}';
     }
     xhr.send(body);
+    return xhr;
   } catch(e) {
     aGTM.f.log('e_xsend', { msg: e.message, url: url });
+    return null;
   }
 };
 
@@ -1713,6 +1716,7 @@ aGTM.f.session_fetch = function() {
   // Feature disabled if either required config is missing
   if (!aGTM.c.user_id || !aGTM.c.session_url) {
     aGTM.d.session_ready = true;
+    aGTM.d.session_status = 'inactive';
     return;
   }
   var timeout = (typeof aGTM.c.session_timeout === 'number' && aGTM.c.session_timeout > 0) ? aGTM.c.session_timeout : 5000;
@@ -1735,12 +1739,14 @@ aGTM.f.session_fetch = function() {
     if (!resp || typeof resp !== 'object' || typeof resp.sid !== 'string' || !resp.sid) {
       aGTM.f.log('m_session_invalid', resp);
       aGTM.d.session_ready = true;
+      aGTM.d.session_status = resp === null ? 'error' : 'invalid';
       if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
       return;
     }
     // Store all session data
     aGTM.d.session = resp;
     aGTM.d.session_ready = true;
+    aGTM.d.session_status = 'ok';
     aGTM.f.log('m_session_ok', resp);
     // Auto-denial: returning visitor with no recorded consent decision
     // Only applies if no consent decision has been set yet
@@ -1765,6 +1771,7 @@ aGTM.f.session_fetch = function() {
     if (xhr_inst) { try { xhr_inst.abort(); } catch(e) {} }
     aGTM.f.log('m_session_timeout', null);
     aGTM.d.session_ready = true;
+    aGTM.d.session_status = 'timeout';
     if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
   }, timeout);
 };

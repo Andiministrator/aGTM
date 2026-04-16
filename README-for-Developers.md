@@ -281,6 +281,19 @@ Set `useListener: true` in the config so the polling timer is not started. The C
 
 For consent *updates* (user changes their decision after initial load), call `aGTM.f.run_cc('update')` instead — or configure `consent_events` in the config so aGTM picks up the update event automatically when it passes through `fire()`.
 
+#### Combining `useListener: true` with `session_wait: true`
+
+When both options are active, the two async processes run in parallel:
+
+- `session_fetch()` starts immediately in `init()` and will call `inject()` once session data arrives
+- The consent decision is signalled manually by the integrator via `aGTM.f.call_cc()`
+
+`inject()` requires **both** to be ready before it proceeds:
+1. `session_ready === true` (session data received or timed out)
+2. `aGTM.d.consent.hasResponse === true` (consent decision or auto-denial)
+
+Whichever arrives last triggers `inject()`, which then checks both conditions and proceeds if both are met. **No deadlock is possible**: the session timeout guarantees `session_ready` becomes `true` after at most `session_timeout` ms even if the endpoint is unavailable.
+
 ### `_noConsent` flag
 
 Set `_noConsent: true` on any event to bypass the consent gate in `aGTM.f.fire()`. The event is pushed to the dataLayer immediately without waiting for consent.
@@ -452,7 +465,21 @@ aGTM.d.session.sid        // session ID
 aGTM.d.session.sst        // real user?
 aGTM.d.session.ret        // returning visitor?
 aGTM.d.session_ready      // true once fetch completed (or timed out)
+aGTM.d.session_status     // outcome — see table below
 ```
+
+**`aGTM.d.session_status` values:**
+
+| Value | Meaning |
+|---|---|
+| `""` | Session fetch not yet started (initial state) |
+| `"ok"` | Valid response received, `sid` present, data stored |
+| `"invalid"` | Response received but `sid` missing or not a string |
+| `"error"` | Network error or non-2xx HTTP status |
+| `"timeout"` | Endpoint did not respond within `session_timeout` ms |
+| `"inactive"` | Feature disabled — `user_id` or `session_url` not configured |
+
+GTM Custom Templates can read `aGTM.d.session_status` to branch logic (e.g. skip personalisation on `"timeout"` or `"error"`).
 
 In a GTM Custom Template or variable, the same paths are accessible via the `aGTM` object in the dataLayer.
 

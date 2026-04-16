@@ -6,9 +6,15 @@
 - Session data stored in `aGTM.d.session` (fields: `sid`, `uid`, `sst`, `ret`, `cst`, `ref`, `vct` + dynamic)
 - Auto-denial: returning visitors without consent decision get `hasResponse=true`, `services=",aGTMconsent,"`, `gtmConsent=session_gtm_on_deny`; explicit later CMP decision always overrides
 - `session_salt` doubles as fallback salt for POST transport
+- `aGTM.d.session_status`: status string after session fetch (`"ok"`, `"invalid"`, `"error"`, `"timeout"`, `"inactive"`)
+- `aGTM.f.xsend()` and `aGTM.f.xfetch()` both return the `XMLHttpRequest` instance
 - iframe queue bug fixed: `iFrameFire()` now correctly queues to `aGTM.d.f`
 - Consent polling interval changed from 1000ms to 500ms
 - POST transport layer added: `aGTM.f.xsend()` for direct HTTP POST, `aGTM.f.enc()` for payload obfuscation
+- Build system migrated to Bun (`bunx terser`); no `npm install` required
+- `VERSION` file as single source of truth for version number; build propagates to all files
+- `sgtmClient/template.tpl` base64 payload and version auto-updated on each build
+- Test suite added (`bun test`, 75 tests across 9 files)
 - New config options: `transport_url`, `transport_enc`, `transport_salt`
 - `_post` event property in `aGTM.f.fire()` for per-event POST configuration (optional encryption, deduplication via `_post_sent`)
 - `_noConsent` event property: bypasses consent gate in `fire()` for both DL push and POST; event remains visible in dataLayer

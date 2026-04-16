@@ -79,6 +79,21 @@ bun test
 
 Tests live in `test/`. Browser globals are set up via `test/setup.js` (loaded automatically by `bunfig.toml`). See `test/helpers.js` for `MockXHR` and `resetAGTM()`.
 
+### Build system overview
+
+| File | Role |
+|---|---|
+| `VERSION` | Single source of truth for the version number. Change this, run `./build.sh`. Convention: `1.6-pre` on `dev`, `1.6` before release merge. |
+| `build.sh` | Orchestrates the full build: inject version → safety check → minify → base64 → update sGTM template |
+| `scripts/inject-version.js` | Reads `VERSION`, writes `@version` + `aGTM.d.version` in `aGTM.js`, updates `@lastupdate`, updates `package.json` |
+| `scripts/check-init.js` | Strips comments from `aGTM.js` and checks for an accidental uncommented `aGTM.f.init()` call |
+| `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` |
+| `bunfig.toml` | Configures `bun test`: preloads `test/setup.js` before every test file |
+| `test/setup.js` | Sets up browser globals (`window`, `document`, etc.) and loads `aGTM.js` into global scope via indirect eval |
+| `test/helpers.js` | `MockXHR` class and `resetAGTM()` — used in every test file |
+
+**Release flow:** edit `VERSION` → `./build.sh` → commit → merge `dev` → `main` → `git tag v<version>`
+
 ### Minification rules
 
 All minification uses **terser** with these flags:
@@ -241,6 +256,7 @@ aGTM.f.inject()
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
 | `aGTM.d.session` | Session & user data returned by the session endpoint (see Session Feature below) |
 | `aGTM.d.session_ready` | `true` once session data has been received and stored (or feature is inactive/timed out) |
+| `aGTM.d.session_status` | Outcome of session fetch: `""` (not run), `"ok"`, `"invalid"`, `"error"`, `"timeout"`, `"inactive"` |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
 
 ### Session Feature
