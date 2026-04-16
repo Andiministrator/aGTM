@@ -59,5 +59,10 @@ echo "Building aGTM.base64..."
 base64 -w 0 aGTM.min.js > aGTM.base64
 echo "  Done: aGTM.base64 ($(wc -c < aGTM.base64) bytes)"
 
+# ── Inject base64 + version into sGTM client template ────────────────────────
+
+echo "Updating sgtmClient/template.tpl..."
+bun run scripts/update-sgtm-template.js
+
 echo ""
 echo "Build complete."
