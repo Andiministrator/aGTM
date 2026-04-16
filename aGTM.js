@@ -404,7 +404,7 @@ aGTM.f.call_cc = function () {
  */
 if (typeof aGTM.f.consent_listener != "function") aGTM.f.consent_listener = function () {
   if (!aGTM.c.useListener) {
-    aGTM.d.timer.consent = setInterval(aGTM.f.call_cc, 1000);
+    aGTM.d.timer.consent = setInterval(aGTM.f.call_cc, 500);
   }
 };
 
@@ -873,7 +873,7 @@ aGTM.f.iFrameFire = function (ev) {
   if (aGTM.d.iframe.origin) {
     window.top.postMessage(ev, aGTM.d.iframe.origin);
   } else {
-    aGTM.d.f.queue.push(ev);
+    aGTM.d.f.push(ev);
   }
 };
 

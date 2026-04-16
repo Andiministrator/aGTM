@@ -475,7 +475,9 @@ Whenever at least one consent condition is configured, a parameter named `ck is 
   - Example: `"Functional"`
   - Default: `""`
 
-⚠️ If multiple options are configured, all of them must be granted for the parameter value to switch to `2.
+⚠️ If multiple options are configured, all of them must be granted for the parameter value to switch to `2`.
+
+> **Note:** The `ck` parameter feature is documented here for reference. The code implementation (`ckServices`, `ckVendors`, `ckPurposes` config options and URL parameter appending in `gtm_load()`) is not yet present in the current version. It will be reviewed and potentially implemented or removed in a future version.
 
 **Example use case:**
 - A website appends `ck=2` only if the user has given consent for a User ID purpose.
@@ -510,7 +512,7 @@ In this way, consent logic can flow seamlessly across both environments, ensurin
 
 ### Use Event Listeners instead of the default timer
 
-By default, a timer is used to check whether the initial consent information is available. It will check every 100ms, whether the user hase given his consent (or declined it).
+By default, a timer is used to check whether the initial consent information is available. It will check every 500ms, whether the user has given his consent (or declined it).
 If you have the possibility to use an Event Listener for this, you can set the option "useListener" to true. In this case, no timer will start. But you need to add the following command to your Event Listener function:
 `aGTM.f.call_cc();`
 This command should run after the user has initial decided for consent.
