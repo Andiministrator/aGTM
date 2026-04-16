@@ -91,7 +91,7 @@ All minification uses **terser** with these flags:
 - **`main`** — stable release branch. Only updated when a version is finished and tested.
 - **Tags** — Git tags ARE the version numbers. Every release on `main` gets a tag matching the version (e.g. `v1.4.1`, `v1.5`). The tag is the authoritative reference for a release.
 
-**Release flow:** develop on `dev` → test → update version number in `aGTM.js` (`@version` header + `aGTM.d.version`) + changelog entry in `README.md` → run `./build.sh` → merge to `main` → `git tag v<version>`.
+**Release flow:** develop on `dev` → test → update version number in `aGTM.js` (`@version` header + `aGTM.d.version`) + changelog entry in `CHANGELOG.md` → run `./build.sh` → merge to `main` → `git tag v<version>`.
 
 **Tag naming:** `v` prefix + semantic version, e.g. `v1.0`, `v1.2.1`, `v1.5`. Matches the version in `aGTM.js` and the changelog in `README.md`.
 
@@ -158,13 +158,12 @@ aGTM.f.fire(o)
 | `aGTM.d.consent` | Current consent state written by `consent_check` |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
 
-### POST Transport
+### POST Transport & consent bypass
 
-The POST transport fires independently of the consent gate and the webGTM container.
-
-- **`aGTM.c.transport_url`** / **`transport_enc`** / **`transport_salt`** — global defaults, set via `aGTM.f.config()`
-- **`_post`** event property — per-event POST control; `true` uses global defaults, or an object `{ url, enc, salt, consent }` with optional overrides
+- **`aGTM.c.transport_url`** / **`transport_enc`** / **`transport_salt`** — global defaults for POST, set via `aGTM.f.config()`
+- **`_post`** event property — per-event POST control; `true` uses global defaults, or an object `{ url, enc, salt, consent }` with optional overrides; POST respects the consent gate like any other event
 - **`_post_sent`** — deduplication flag; set to `true` by aGTM after the POST is sent, prevents double-sending during dataLayer replay
+- **`_noConsent`** event property — bypasses the consent gate for both DL push and POST; the property remains visible in the dataLayer event; use for functional/legal events that must be tracked regardless of consent
 
 ---
 
