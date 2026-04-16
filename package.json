@@ -1,10 +1,10 @@
 {
   "name": "agtm",
-  "version": "1.5.0",
+  "version": "1.5",
   "description": "a Galactic Tagging Modulator - consent-aware Google Tag Manager loader",
   "scripts": {
     "build": "bash build.sh",
-    "test":  "bun test"
+    "test": "bun test"
   },
   "devDependencies": {
     "terser": "^5.39.0"

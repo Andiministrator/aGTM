@@ -15,7 +15,7 @@ const agtmSource = readFileSync(AGTM_JS_PATH,  'utf8');
 
 // ── Extract version from aGTM.js ───────────────────────────────────────────
 
-const versionMatch = agtmSource.match(/@version\s+([\d.]+)/);
+const versionMatch = agtmSource.match(/@version\s+([\d.a-zA-Z-]+)/);
 if (!versionMatch) {
   process.stderr.write('ERROR: Could not find @version in aGTM.js\n');
   process.exit(1);
@@ -33,7 +33,7 @@ let updated = template.replace(b64Pattern, "const agtm = fromBase64('" + newBase
 
 // ── Replace displayName version ────────────────────────────────────────────
 
-const verPattern = /"displayName":\s*"aGTM v[\d.]+"/;
+const verPattern = /"displayName":\s*"aGTM v[\d.a-zA-Z-]+"/;
 if (verPattern.test(updated)) {
   updated = updated.replace(verPattern, '"displayName": "aGTM v' + version + '"');
 }

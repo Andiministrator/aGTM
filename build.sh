@@ -25,6 +25,11 @@ if [ "$1" = "--check" ]; then
   exit 0
 fi
 
+# ── Inject version from VERSION file into aGTM.js and package.json ───────────
+
+echo "Injecting version..."
+bun run scripts/inject-version.js
+
 # ── Safety check: no uncommented aGTM.f.init() in aGTM.js ───────────────────
 # The source must NOT contain an active init call (only commented ones).
 # Strips block and line comments before checking.
