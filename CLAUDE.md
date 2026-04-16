@@ -169,6 +169,17 @@ aGTM.f.init()
             ├─ aGTM.f.consent_listener()
             └─ aGTM.f.initGTM(true)       — load noConsent containers early
 
+aGTM.f.session_fetch()       — runs in parallel (async XHR)
+  ├─ [user_id or session_url missing] → session_ready = true immediately
+  ├─ [timeout after session_timeout ms] → session_ready = true, inject() if session_wait
+  ├─ [sid missing in response] → session_ready = true, inject() if session_wait
+  └─ [valid response]
+       ├─ aGTM.d.session = resp, session_ready = true
+       ├─ [ret==true && cst==false && !hasResponse] → auto-denial:
+       │    hasResponse=true, services=",aGTMconsent,", blocked=session_gtm_on_deny,
+       │    gtmConsent=blocked  (blocked=true means GTM allowed despite denial)
+       └─ inject() if session_wait
+
 aGTM.f.consent_listener()
   ├─ [useListener == false]  setInterval(aGTM.f.call_cc, 500ms)
   └─ [useListener == true]   — no timer; integrator calls aGTM.f.call_cc() manually
@@ -179,10 +190,12 @@ aGTM.f.call_cc()             — called by timer or manually
   │    ├─ aGTM.f.consent_check('init')   — CMP-specific function (from cmp/ file)
   │    │    └─ writes result to aGTM.d.consent
   │    └─ evaluates gtmPurposes/Services/Vendors → sets aGTM.d.consent.gtmConsent
+  │         (fallback: blocked=true → gtmConsent=true, set by auto-denial; init only)
   ├─ clearInterval(consent timer)
   └─ aGTM.f.inject()
 
 aGTM.f.inject()
+  ├─ [session_wait && !session_ready] → return false (wait for session_fetch)
   ├─ copy pre-existing window[gdl] items → aGTM.d.f (queue)
   ├─ [gtmConsent == true]
   │    ├─ aGTM.f.initGTM(false)

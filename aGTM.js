@@ -357,6 +357,9 @@ aGTM.f.run_cc = function (action) {
     return false;
   }
   // Set GTM consent status
+  // On 'update' (explicit user CMP decision), clear auto-denial blocked flag
+  // so the real user decision takes full effect
+  if (action === 'update') delete aGTM.d.consent.blocked;
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
   if (
     aGTM.f.chelp(aGTM.c.gtmPurposes, aGTM.d.consent.purposes) &&
@@ -365,6 +368,7 @@ aGTM.f.run_cc = function (action) {
   ) {
     aGTM.d.consent.gtmConsent = true;
   } else {
+    // blocked=true means "allow GTM despite denial" (used by auto-denial on init only)
     aGTM.d.consent.gtmConsent =
       typeof aGTM.d.consent.blocked == "boolean"
         ? aGTM.d.consent.blocked

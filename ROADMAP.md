@@ -2,7 +2,7 @@
 
 This roadmap outlines planned features and milestones for aGTM. It reflects current intentions and may change.
 
-## v1.5 — in development
+## v1.5 — released *16.04.2026*
 
 - POST transport layer: `aGTM.f.xsend()` for direct HTTP POST to a configurable endpoint
 - `aGTM.f.enc()` for payload obfuscation (Base64 + Caesar shift, compatible with aEvents GTM tag)

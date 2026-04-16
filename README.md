@@ -493,6 +493,21 @@ If `true`, GTM is injected even when auto-denial is applied (returning visitor w
 - Example: `false`
 - Default: `true`
 
+### Auto-denial behavior (session feature)
+
+When session data indicates a returning visitor without a recorded consent decision (`ret: true, cst: false`), aGTM applies auto-denial — setting the consent state as follows:
+
+| Field | Value |
+|---|---|
+| `aGTM.d.consent.hasResponse` | `true` |
+| `aGTM.d.consent.feedback` | `"Consent denied by aGTM"` |
+| `aGTM.d.consent.services` | `",aGTMconsent,"` |
+| `aGTM.d.consent.gtmConsent` | `true` if `session_gtm_on_deny: true`, otherwise `false` |
+
+GTM tags configured to require the `aGTMconsent` service will fire; tags requiring any other consent signal will not.
+
+If the user subsequently makes an explicit decision in the consent banner, that decision always takes precedence — auto-denial is overridden automatically.
+
 ### Consent-based GTM URL Parameter Handling
 
 aGTM can dynamically append an additional parameter to the GTM request URL (`gtm.js`) based on the user’s consent state.

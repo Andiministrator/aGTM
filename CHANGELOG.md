@@ -4,7 +4,7 @@
 - Session & User Data feature: `aGTM.f.xfetch()` for POST with response handling
 - New config options: `user_id`, `session_url`, `session_salt`, `session_wait`, `session_timeout`, `session_gtm_on_deny`
 - Session data stored in `aGTM.d.session` (fields: `sid`, `uid`, `sst`, `ret`, `cst`, `ref`, `vct` + dynamic)
-- Auto-denial: returning visitors without consent decision get consent auto-set (`aGTMconsent` service, GTM still delivered by default)
+- Auto-denial: returning visitors without consent decision get `hasResponse=true`, `services=",aGTMconsent,"`, `gtmConsent=session_gtm_on_deny`; explicit later CMP decision always overrides
 - `session_salt` doubles as fallback salt for POST transport
 - iframe queue bug fixed: `iFrameFire()` now correctly queues to `aGTM.d.f`
 - Consent polling interval changed from 1000ms to 500ms

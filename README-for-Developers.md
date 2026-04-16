@@ -404,10 +404,16 @@ The payload is encrypted using `aGTM.f.enc()` with `session_salt`.
 
 ### `aGTM.f.xfetch(url, data, encrypt, salt, callback)`
 
-New function for POST requests that need to read the response. Same encryption logic as `aGTM.f.xsend()`, but calls `callback(parsedJSON)` on success and `callback(null)` on network error or non-200 response.
+New function for POST requests that need to read the response. Same body format and encryption logic as `aGTM.f.xsend()`.
+
+**Returns:** the `XMLHttpRequest` instance (or `null` on a synchronous setup error). Useful for aborting the request externally if needed.
+
+**Callback behaviour:**
+- `callback(parsedJSON)` — on HTTP 2xx with valid JSON response body
+- `callback(null)` — on HTTP non-2xx, JSON parse error, network error, or synchronous setup failure
 
 ```javascript
-aGTM.f.xfetch(
+var xhr = aGTM.f.xfetch(
   'https://session.example.com/api/session',
   { user_id: 'u-12345', url: location.href, ref: document.referrer },
   true,   // encrypt
@@ -415,9 +421,12 @@ aGTM.f.xfetch(
   function(response) {
     if (response && response.sid) {
       console.log('Session:', response);
+    } else {
+      console.warn('Session fetch failed or invalid response');
     }
   }
 );
+// xhr can be used to abort the request if needed: xhr.abort();
 ```
 
 ### Session response format
@@ -461,6 +470,14 @@ When the session data indicates a **returning visitor without a recorded consent
 **Effect:** The consent gate in `aGTM.f.fire()` opens (events are no longer queued). GTM is injected (if `session_gtm_on_deny: true`). Tags configured to require `aGTMconsent` will fire; tags requiring any other consent signal (e.g. `Google Analytics`) will not.
 
 Auto-denial only has its full effect on GTM delivery when `session_wait: true`, because then the session data is guaranteed to arrive before `inject()` runs. With `session_wait: false`, GTM may already be loaded by the time auto-denial fires.
+
+**Interaction with later CMP decisions (`blocked` flag):**
+
+Auto-denial sets `aGTM.d.consent.blocked = true` (when `session_gtm_on_deny: true`). This flag is used by `run_cc()` as a fallback: when no consent purposes/services match, `gtmConsent` is set to `blocked` instead of `false`. This ensures GTM stays loaded through subsequent `run_cc("init")` calls (e.g. from the consent polling timer).
+
+However, if the user later makes an **explicit decision in the CMP** (which triggers `run_cc("update")`), `blocked` is deleted before re-evaluation. This means a real user decline always overrides auto-denial — `gtmConsent` becomes `false` correctly. A real user acceptance sets `gtmConsent = true` normally.
+
+In short: `blocked` survives `init` re-checks but is cleared by any explicit user CMP decision.
 
 ### `session_wait` and timing
 
