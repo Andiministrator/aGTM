@@ -101,6 +101,8 @@ There are no feature branches or hotfix branches by convention — the project i
 
 ## Core Function Architecture
 
+> **Documentation maintenance:** When modifying any core function (`fire`, `inject`, `run_cc`, `call_cc`, `consent_listener`, `gtm_load`, `initGTM`, `sendnaus`), update the call graphs and reference tables in this section **and** in `README-for-Developers.md` in the same commit. These documents are the primary source of truth for future agents and developers — outdated docs are worse than no docs.
+
 ### Event dispatch call graph
 
 The central path from an external event push to the GTM dataLayer:
@@ -110,8 +112,10 @@ aGTM.f.fire(o)
   │
   ├─ aGTM.f.sStrf(o) + JSON.parse()   — deep copy of event object
   ├─ obj.aGTMts = Date.now()           — timestamp
-  ├─ aGTM.f.run_cc("update")          — triggered when o.event matches a consent_event
-  ├─ Get Standard DL variables         — enrich obj from GTM data model if loaded
+  ├─ aGTM.f.run_cc("update")          — if o.event matches aGTM.c.consent_events
+  │                                      (optional attr check via consent_event_attr)
+  ├─ dlSet enrichment                  — reads GTM DL variables, appends to obj
+  │                                      (only if aGTM.c.dlSet configured + GTM loaded)
   │
   ├─ [no consent && !_noConsent && event not "aGTM*"]
   │    └─ push to aGTM.d.f (queue)    — replayed once consent is available
@@ -209,10 +213,14 @@ aGTM.f.inject()
 | Object | Purpose |
 |---|---|
 | `aGTM.c` | Configuration (set via `aGTM.f.config()`) |
+| `aGTM.c.consent_events` | Comma-separated event names that trigger `run_cc('update')` when seen in `fire()` |
+| `aGTM.c.consent_event_attr` | Parsed attribute conditions for `consent_events` (keyed by event name) |
+| `aGTM.c.dlSet` | Map of `{ targetProp: dlVariableName }` — auto-appended to every event in `fire()` |
 | `aGTM.d` | Runtime data (consent state, queues, counters, …) |
-| `aGTM.d.f` | Queue for events delayed until consent is available |
+| `aGTM.d.f` | Queue for events delayed until consent is available; also carries pre-existing DL items for `hastyEvents` replay |
 | `aGTM.d.dl` | Internal copy of all events passed through `fire()` |
-| `aGTM.d.consent` | Current consent state written by `consent_check` |
+| `aGTM.d.consent` | Current consent state written by `consent_check`; `.gtmConsent` controls GTM injection |
+| `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
 
 ### POST Transport & consent bypass
