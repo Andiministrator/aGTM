@@ -42,6 +42,8 @@ aGTM.f.objinit = function() {
     [aGTM.d, "error_counter", 0],
     [aGTM.d, "errors", []],
     [aGTM.d, "dl", []],
+    [aGTM.d, "session", {}],
+    [aGTM.d, "session_ready", false],
     [aGTM.d, "iframe", {
       counter: { events: 0 },
       origin: "",
@@ -187,6 +189,14 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "transport_url", cfg, ""); // Endpoint URL for direct POST transport (e.g. sGTM collect endpoint)
   aGTM.f.an(aGTM.c, "transport_enc", cfg, false); // Default: encrypt POST payload
   aGTM.f.an(aGTM.c, "transport_salt", cfg, 0); // Default salt for POST payload encryption (integer >= 1)
+
+  // Session configuration
+  aGTM.f.an(aGTM.c, "user_id", cfg, ""); // User identifier sent to the session endpoint
+  aGTM.f.an(aGTM.c, "session_url", cfg, ""); // POST endpoint URL for session data
+  aGTM.f.an(aGTM.c, "session_salt", cfg, 0); // Salt for session request encryption; also fallback for POST transport salt
+  aGTM.c.session_wait = typeof cfg.session_wait == "boolean" ? cfg.session_wait : false; // Wait for session data before GTM injection (default: false)
+  aGTM.f.an(aGTM.c, "session_timeout", cfg, 5000); // ms before session fetch is abandoned
+  aGTM.c.session_gtm_on_deny = typeof cfg.session_gtm_on_deny == "boolean" ? cfg.session_gtm_on_deny : true; // Inject GTM even on auto-denial
 
   // Consent configuration
   cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
@@ -804,6 +814,10 @@ aGTM.f.inject = function () {
   // Ensure configuration is loaded before proceeding
   if (!aGTM.d.config) {
     aGTM.f.log("e8", null);
+    return false;
+  }
+  // Wait for session data if session_wait is enabled
+  if (aGTM.c.session_wait && !aGTM.d.session_ready) {
     return false;
   }
   // Check if consent object exists and has a valid response
@@ -1544,6 +1558,8 @@ aGTM.f.init = function () {
   if (!aGTM.c.debug && aGTM.f.optout()) return;
   // Read and set the config
   aGTM.f.config(aGTM.c);
+  // Start session fetch early — runs in parallel with consent check
+  aGTM.f.session_fetch();
   // Inject the aGTM for iFrame
   if (aGTM.c.iframeSupport && aGTM.d.is_iframe) {
     aGTM.d.consent.gtmConsent = true;
@@ -1630,6 +1646,116 @@ aGTM.f.xsend = function(url, data, encrypt, salt) {
   } catch(e) {
     aGTM.f.log('e_xsend', { msg: e.message, url: url });
   }
+};
+
+/**
+ * Sends data as an HTTP POST and invokes a callback with the parsed JSON response.
+ * Shares the same body format and encryption logic as aGTM.f.xsend().
+ * @property {function} aGTM.f.xfetch
+ * @param {string} url - The endpoint URL.
+ * @param {object} data - The data object to send.
+ * @param {boolean} encrypt - Whether to encrypt the payload.
+ * @param {number} salt - Salt for encryption (integer >= 1).
+ * @param {function} callback - Called with parsed JSON on success, null on error or non-2xx response.
+ */
+aGTM.f.xfetch = function(url, data, encrypt, salt, callback) {
+  if (!url || typeof url !== 'string') {
+    if (typeof callback === 'function') callback(null);
+    return;
+  }
+  try {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    var body;
+    if (encrypt && typeof salt === 'number' && salt >= 1) {
+      body = '{"q":"' + aGTM.f.enc(aGTM.f.sStrf(data), salt) + '"}';
+    } else {
+      body = '{"e":' + aGTM.f.sStrf(data) + '}';
+    }
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4) {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            var resp = JSON.parse(xhr.responseText);
+            if (typeof callback === 'function') callback(resp);
+          } catch(e) {
+            aGTM.f.log('e_xfetch', { msg: 'JSON parse error', url: url });
+            if (typeof callback === 'function') callback(null);
+          }
+        } else {
+          aGTM.f.log('e_xfetch', { msg: 'HTTP ' + xhr.status, url: url });
+          if (typeof callback === 'function') callback(null);
+        }
+      }
+    };
+    xhr.send(body);
+  } catch(e) {
+    aGTM.f.log('e_xfetch', { msg: e.message, url: url });
+    if (typeof callback === 'function') callback(null);
+  }
+};
+
+/**
+ * Fetches session and user data from the configured session endpoint.
+ * Activated only when both aGTM.c.user_id and aGTM.c.session_url are set.
+ * Stores result in aGTM.d.session, sets aGTM.d.session_ready = true.
+ * Applies auto-denial if session indicates returning visitor without consent decision.
+ * @property {function} aGTM.f.session_fetch
+ */
+aGTM.f.session_fetch = function() {
+  // Feature disabled if either required config is missing
+  if (!aGTM.c.user_id || !aGTM.c.session_url) {
+    aGTM.d.session_ready = true;
+    return;
+  }
+  var timeout = (typeof aGTM.c.session_timeout === 'number' && aGTM.c.session_timeout > 0) ? aGTM.c.session_timeout : 5000;
+  var done = false;
+  // Timeout fallback: unblock inject() if endpoint is too slow
+  var timer = setTimeout(function() {
+    if (done) return;
+    done = true;
+    aGTM.f.log('m_session_timeout', null);
+    aGTM.d.session_ready = true;
+    if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
+  }, timeout);
+  // Build request payload
+  var payload = {
+    user_id: aGTM.c.user_id,
+    url: aGTM.f.getVal('l', 'href') || '',
+    ref: document.referrer || ''
+  };
+  var salt = (typeof aGTM.c.session_salt === 'number' && aGTM.c.session_salt >= 1) ? aGTM.c.session_salt : 0;
+  aGTM.f.xfetch(aGTM.c.session_url, payload, salt >= 1, salt, function(resp) {
+    if (done) return; // timeout already fired
+    done = true;
+    clearTimeout(timer);
+    // sid is required — disable feature if missing
+    if (!resp || typeof resp !== 'object' || typeof resp.sid !== 'string' || !resp.sid) {
+      aGTM.f.log('m_session_invalid', resp);
+      aGTM.d.session_ready = true;
+      if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
+      return;
+    }
+    // Store all session data
+    aGTM.d.session = resp;
+    aGTM.d.session_ready = true;
+    aGTM.f.log('m_session_ok', resp);
+    // Auto-denial: returning visitor with no recorded consent decision
+    // Only applies if no consent decision has been set yet
+    if (resp.ret === true && resp.cst === false) {
+      aGTM.d.consent = aGTM.d.consent || {};
+      if (!aGTM.d.consent.hasResponse) {
+        aGTM.d.consent.hasResponse = true;
+        aGTM.d.consent.feedback = 'Consent denied by aGTM';
+        aGTM.d.consent.services = ',aGTMconsent,';
+        aGTM.d.consent.blocked = (aGTM.c.session_gtm_on_deny === true);
+        aGTM.d.consent.gtmConsent = aGTM.d.consent.blocked;
+      }
+    }
+    // Trigger injection if waiting for session
+    if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
+  });
 };
 
 /**
@@ -1777,7 +1903,7 @@ aGTM.f.fire = function (o) {
     var postUrl = (typeof postCfg.url === 'string' && postCfg.url) ? postCfg.url : aGTM.c.transport_url;
     if (postUrl) {
       var postEnc = (typeof postCfg.enc === 'boolean') ? postCfg.enc : !!aGTM.c.transport_enc;
-      var postSalt = (typeof postCfg.salt === 'number' && postCfg.salt >= 1) ? postCfg.salt : (aGTM.c.transport_salt || 0);
+      var postSalt = (typeof postCfg.salt === 'number' && postCfg.salt >= 1) ? postCfg.salt : ((typeof aGTM.c.transport_salt === 'number' && aGTM.c.transport_salt >= 1) ? aGTM.c.transport_salt : (aGTM.c.session_salt || 0));
       var postData = JSON.parse(aGTM.f.sStrf(obj));
       delete postData._post;
       delete postData._post_sent;
