@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.5
- * @lastupdate 10.04.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.4.1
+ * @lastupdate 04.07.2025 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -29,9 +29,8 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
-  var n1 = 'oo', n2 = 'tag', n3 = 'kie', n4 = 'gle';
   var props = [
-    [aGTM.d, "version", "1.5"],
+    [aGTM.d, "version", "1.4.1"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
@@ -56,9 +55,9 @@ aGTM.f.objinit = function() {
     [aGTM.f, "dl", {}],
     [aGTM.f, "pl", {}],
     [aGTM, "l", []],
-    [aGTM.n, "ck", "c" + n1 + n3],
-    [aGTM.n, "tm", "g" + n1 + n4 + n2 + "manager"],
-    [aGTM.n, "ta", n2 + "assi" + "stant.g" + n1 + n4]
+    [aGTM.n, "ck", "co" + "o" + "kie"],
+    [aGTM.n, "tm", "goo" + "glet" + "agmanager"],
+    [aGTM.n, "ta", "tag" + "assi" + "stant.goo" + "gle"]
   ];
   props.forEach(function(item) {
     aGTM.f.propset(item[0], item[1], item[2]);
@@ -168,7 +167,6 @@ aGTM.f.config = function (cfg) {
         aGTM.f.an(aGTM.c.gtm[k], "idParam", cfg.gtm[k], ""); // GTM ID URL parameter name (leave it blank you you don't know, what it is)
         aGTM.f.an(aGTM.c.gtm[k], "gtmURL", cfg.gtm[k], ""); // If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
         aGTM.f.an(aGTM.c.gtm[k], "gtmJS", cfg.gtm[k], ""); // Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
-        aGTM.f.an(aGTM.c.gtm[k], "comment", cfg.gtm[k], ""); // Just a comment for this GTM container, it has no functionallity
       }
     }
   }
@@ -177,9 +175,6 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "gtmServices", cfg, ""); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
   aGTM.f.an(aGTM.c, "gtmVendors", cfg, ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
   aGTM.f.an(aGTM.c, "gtmAttr", cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
-  aGTM.f.an(aGTM.c, "ckPurposes", cfg, ""); // The purpose(s) that must be agreed to set a cookie (comma-separated), e.g. 'Functional'
-  aGTM.f.an(aGTM.c, "ckServices", cfg, ""); // The services(s) that must be agreed to set a cookie (comma-separated), e.g. 'TP User ID Cookie'
-  aGTM.f.an(aGTM.c, "ckVendors", cfg, ""); // The vendors(s) that must be agreed to set a cookie (comma-separated), e.g. 'The Cookie Company'
   aGTM.f.an(aGTM.c, "dlSet", cfg, {}); // Set dataLayer variables, that should always be attached to an event
   aGTM.f.an(aGTM.c, "useListener", cfg, false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
   aGTM.f.an(aGTM.c, "dlOrgPush", cfg, ""); // "" or "log" or "use" or "restore": If the (GTM-)original dataLayer.push Function is changed (hooked), send an exception event ("log") or use the original dataLayer.push ("use") or replace the hooked dataLayer.push ("restore"). If you don't want to use it, leave it blank.
@@ -187,6 +182,11 @@ aGTM.f.config = function (cfg) {
   aGTM.c.aPageview = typeof cfg.aPageview == "boolean" ? cfg.aPageview : false; // Fire aPageview Event
 /* deprecated */  aGTM.c.vPageview = typeof cfg.vPageview == "boolean" ? cfg.vPageview : false; // Fire vPageview Event
   aGTM.c.sendConsentEvent = typeof cfg.sendConsentEvent == "boolean" ? cfg.sendConsentEvent : false; // Should aGTM send a separate Event with Consent Info?
+
+  // Transport/POST configuration
+  aGTM.f.an(aGTM.c, "transport_url", cfg, ""); // Endpoint URL for direct POST transport (e.g. sGTM collect endpoint)
+  aGTM.f.an(aGTM.c, "transport_enc", cfg, false); // Default: encrypt POST payload
+  aGTM.f.an(aGTM.c, "transport_salt", cfg, 0); // Default salt for POST payload encryption (integer >= 1)
 
   // Consent configuration
   cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
@@ -564,6 +564,7 @@ aGTM.f.proxySupport = function () {
  * Example usage: Include this code early in your HTML to track client-side navigation changes.
  */
 aGTM.f.urlListener = function (eventname, interval, fallback) {
+  console.log('URL Listener started', {eventname:eventname,interval:interval,fallback:fallback});
   if (typeof interval != 'number') interval = 500;
   if (typeof fallback != 'boolean') fallback = false;
   aGTM.d.last_url = aGTM.d.last_url || aGTM.f.getVal('l', 'href');
@@ -674,24 +675,11 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
   if (o.gtmJS && !gtm_debug) {
     scriptTag.innerHTML = atob(o.gtmJS);
   } else {
-    // Check Consent-based cookie feature
-    var ckf = '';
-    if (aGTM.c.ckPurposes || aGTM.c.ckServices || aGTM.c.ckVendors) {
-      if (
-        aGTM.f.chelp(aGTM.c.ckPurposes, aGTM.d.consent.purposes) &&
-        aGTM.f.chelp(aGTM.c.ckServices, aGTM.d.consent.services) &&
-        aGTM.f.chelp(aGTM.c.ckVendors, aGTM.d.consent.vendors)
-      ) {
-        ckf = '&ck=2';
-      } else {
-        ckf = '&ck=1';
-      }
-    }
     // Construct the GTM script URL
     var gtmUrl = o.gtmURL || "https://www." + aGTM.n.tm + ".com/gtm.js";
     var envParam = o.env || "";
     var q = gtmUrl.indexOf("?")===-1 ? "?" : "&";
-    scriptTag.src = gtmUrl + q + p + "=" + i + "&l=" + l + ckf + envParam;
+    scriptTag.src = gtmUrl + q + p + "=" + i + "&l=" + l + envParam;
   }
   // Insert the GTM script tag into the document
   var firstScriptTag = d.getElementsByTagName("script")[0];
@@ -1041,7 +1029,6 @@ aGTM.f.rmLstn = function (el, ev, fct) {
  * Usage: aGTM.f.getVal('w', 'location');
  */
 aGTM.f.getVal = function (o, v) {
-  var n1 = "oog";
   if (!aGTM.f.vSt([o, v]) || !v.match(/[a-z]+/i)) return undefined;
   if (o == "p" && (typeof performance != "object" || !performance))
     return undefined;
@@ -1067,8 +1054,8 @@ aGTM.f.getVal = function (o, v) {
     case "m":
       return window.screen[v];
     case "c":
-      if (window["g"+n1+"le_tag_data"] && window["g"+n1+"le_tag_data"].ics) {
-        return JSON.parse(aGTM.f.sStrf(window["g"+n1+"le_tag_data"].ics));
+      if (window.google_tag_data && window.google_tag_data.ics) {
+        return JSON.parse(aGTM.f.sStrf(window.google_tag_data.ics));
       } else {
         return null;
       }
@@ -1592,6 +1579,61 @@ aGTM.f.init = function () {
 };
 
 /**
+ * Obfuscates a string using Base64 + Caesar shift. Compatible with the aEvents GTM tag encoder.
+ * @property {function} aGTM.f.enc
+ * @param {string} str - The string to encode.
+ * @param {number} salt - Integer >= 1. Effective shift = salt % 63 + 1 (range 1-63).
+ * @returns {string} URL-safe encoded string [a-zA-Z0-9\-_~].
+ */
+aGTM.f.enc = function(str, salt) {
+  var B64_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  var OUT_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  var PAD_CHAR = '~';
+  var PAD_POS = 3;
+  var shift = salt % 63 + 1;
+  var b = btoa(unescape(encodeURIComponent(str)));
+  var pad = 0;
+  if (b.charAt(b.length - 1) === '=') pad++;
+  if (b.charAt(b.length - 2) === '=') pad++;
+  b = b.slice(0, b.length - pad);
+  var padStr = pad === 1 ? PAD_CHAR : (pad === 2 ? PAD_CHAR + PAD_CHAR : '');
+  var out = '';
+  for (var i = 0; i < b.length; i++) {
+    var idx = B64_ALPHA.indexOf(b.charAt(i));
+    out += idx < 0 ? b.charAt(i) : OUT_ALPHA.charAt((idx + shift) % 64);
+  }
+  return pad ? out.slice(0, PAD_POS) + padStr + out.slice(PAD_POS) : out;
+};
+
+/**
+ * Sends data as an HTTP POST request to a given URL.
+ * Plain body format:     {"e": <data object>}
+ * Encrypted body format: {"q": "<encoded string>"}
+ * @property {function} aGTM.f.xsend
+ * @param {string} url - The endpoint URL.
+ * @param {object} data - The data object to send.
+ * @param {boolean} encrypt - Whether to encrypt the payload.
+ * @param {number} salt - Salt for encryption (integer >= 1).
+ */
+aGTM.f.xsend = function(url, data, encrypt, salt) {
+  if (!url || typeof url !== 'string') return;
+  try {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    var body;
+    if (encrypt && typeof salt === 'number' && salt >= 1) {
+      body = '{"q":"' + aGTM.f.enc(aGTM.f.sStrf(data), salt) + '"}';
+    } else {
+      body = '{"e":' + aGTM.f.sStrf(data) + '}';
+    }
+    xhr.send(body);
+  } catch(e) {
+    aGTM.f.log('e_xsend', { msg: e.message, url: url });
+  }
+};
+
+/**
  * Pushes an event object to the GTM dataLayer with checking dataLayer.
  * @property {function} aGTM.f.sendnaus
  * @param {object} o - The event object to be pushed to the dataLayer.
@@ -1643,7 +1685,6 @@ aGTM.f.sendnaus = function (o) {
  * Usage: aGTM.f.fire({ event: 'pageview', pagetype: 'blogarticle' });
  */
 aGTM.f.fire = function (o) {
-  var n1 = "oog";
   // Ensure the event object is valid
   if (typeof o != "object" || !o) {
     aGTM.f.log("e9", { o: typeof o });
@@ -1708,14 +1749,32 @@ aGTM.f.fire = function (o) {
   // Get Standard DL variables
   if (
     aGTM.c.dlSet &&
-    typeof window["g"+n1+"le_tag_manager"] == "object" &&
-    typeof window["g"+n1+"le_tag_manager"][aGTM.c.gtmID] == "object"
+    typeof google_tag_manager == "object" &&
+    typeof google_tag_manager[aGTM.c.gtmID] == "object"
   ) {
     Object.keys(aGTM.c.dlSet).forEach(function (key) {
       var dlkey = aGTM.c.dlSet[key];
-      var dlvar = window["g"+n1+"le_tag_manager"][aGTM.c.gtmID][aGTM.c.gdl].get(dlkey);
+      var dlvar = google_tag_manager[aGTM.c.gtmID][aGTM.c.gdl].get(dlkey);
       if (typeof dlvar != "undefined") obj[key] = dlvar;
     });
+  }
+  // Send as POST if _post is configured and not yet sent (bypasses consent gate)
+  if (obj._post && !obj._post_sent) {
+    var postCfg = (typeof obj._post === 'object') ? obj._post : {};
+    var postUrl = (typeof postCfg.url === 'string' && postCfg.url) ? postCfg.url : aGTM.c.transport_url;
+    if (postUrl) {
+      var postEnc = (typeof postCfg.enc === 'boolean') ? postCfg.enc : !!aGTM.c.transport_enc;
+      var postSalt = (typeof postCfg.salt === 'number' && postCfg.salt >= 1) ? postCfg.salt : (aGTM.c.transport_salt || 0);
+      var postData = JSON.parse(aGTM.f.sStrf(obj));
+      delete postData._post;
+      delete postData._post_sent;
+      delete postData.eventModel;
+      if (postCfg.consent && typeof aGTM.d.consent === 'object') {
+        postData.consent = JSON.parse(aGTM.f.sStrf(aGTM.d.consent));
+      }
+      aGTM.f.xsend(postUrl, postData, postEnc, postSalt);
+      obj._post_sent = true;
+    }
   }
   // Delay event if no consent is available
   if (
