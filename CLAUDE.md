@@ -137,6 +137,63 @@ aGTM.f.fire(o)
        └─ aGTM.f.fire_callback(obj)    — if defined
 ```
 
+### GTM injection & consent call graph
+
+The path from `aGTM.f.init()` to the GTM `<script>` tag being inserted into the DOM:
+
+```
+aGTM.f.init()
+  │
+  ├─ aGTM.f.optout()              — abort if opt-out cookie/param set
+  ├─ aGTM.f.config(aGTM.c)       — apply configuration
+  │
+  ├─ [iframe mode: iframeSupport && is_iframe]
+  │    └─ consent forced true → aGTM.f.inject()
+  │         └─ aGTM.f.initGTM(false) → aGTM.f.gtm_load()  (GTM in DOM)
+  │
+  └─ [normal mode]
+       ├─ [cmp == 'none']
+       │    └─ consent forced true → aGTM.f.inject()
+       │         └─ aGTM.f.initGTM(false) → aGTM.f.gtm_load()  (GTM in DOM)
+       │
+       ├─ [cmp == '<name>']
+       │    ├─ aGTM.f.load_cc(cmp)        — load cmp/<name>.min.js
+       │    │    └─ on load: aGTM.f.consent_listener()
+       │    └─ aGTM.f.initGTM(true)       — load noConsent containers early
+       │
+       └─ [no cmp configured]
+            ├─ aGTM.f.consent_listener()
+            └─ aGTM.f.initGTM(true)       — load noConsent containers early
+
+aGTM.f.consent_listener()
+  ├─ [useListener == false]  setInterval(aGTM.f.call_cc, 500ms)
+  └─ [useListener == true]   — no timer; integrator calls aGTM.f.call_cc() manually
+                                from their own CMP event listener
+
+aGTM.f.call_cc()             — called by timer or manually
+  ├─ aGTM.f.run_cc('init')
+  │    ├─ aGTM.f.consent_check('init')   — CMP-specific function (from cmp/ file)
+  │    │    └─ writes result to aGTM.d.consent
+  │    └─ evaluates gtmPurposes/Services/Vendors → sets aGTM.d.consent.gtmConsent
+  ├─ clearInterval(consent timer)
+  └─ aGTM.f.inject()
+
+aGTM.f.inject()
+  ├─ copy pre-existing window[gdl] items → aGTM.d.f (queue)
+  ├─ [gtmConsent == true]
+  │    ├─ aGTM.f.initGTM(false)
+  │    │    └─ aGTM.f.gtm_load() per container
+  │    │         ├─ sendnaus(aGTM_ready)  — carries aGTM.hastyEvents = aGTM.d.f
+  │    │         ├─ sendnaus(gtm.js)
+  │    │         └─ insert <script> tag into DOM  — GTM loads asynchronously
+  │    └─ aGTM.d.init = true
+  └─ aGTM.f.chkDPready()    — fire aDOMready / aPAGEready if configured
+```
+
+**Queue & replay:** Events fired via `aGTM.f.fire()` before consent is available are stored in `aGTM.d.f`. When `inject()` runs, `aGTM.d.f` is passed as `hastyEvents` inside the `aGTM_ready` dataLayer event. A GTM Custom Template (see `gtm/`) reads this array and replays the queued events after GTM has loaded.
+
+**`noConsent` containers:** `initGTM(true)` is called immediately at startup (before consent) and injects only containers configured with `noConsent: true`. These containers receive `aGTM_ready` without consent data — their GTM Custom Template can still access `hastyEvents` but should not assume consent is granted.
+
 ### Key callbacks (overridable by integrators)
 
 | Callback | Triggered by | Receives |

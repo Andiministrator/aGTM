@@ -131,6 +131,102 @@ Events fired before consent is available are stored in `aGTM.d.f` and replayed a
 
 `sendnaus()` detects when `dataLayer.push` has been replaced by a third party. Depending on `aGTM.c.dlOrgPush`, it can log the hook, use the original push function, or replace the hook with the original. This protects against tracking tools that intercept the dataLayer.
 
+### Injection & Consent Flow
+
+Understanding when and how GTM gets injected into the DOM is essential for extending aGTM or debugging consent-related issues.
+
+#### Overview
+
+aGTM sits between the page and Google Tag Manager. Its core job is: **do not inject GTM until the user's consent decision is available.** Events fired before consent are queued and replayed once GTM is loaded.
+
+The flow starts with `aGTM.f.init()`, which the integrator calls after providing the configuration and the CMP-specific `consent_check` function.
+
+#### Call graph
+
+```
+aGTM.f.init()
+  │
+  ├─ aGTM.f.optout()              — abort entirely if opt-out cookie/param is set
+  ├─ aGTM.f.config(aGTM.c)       — apply and lock the configuration
+  │
+  ├─ [iframe mode: iframeSupport == true && page is inside an iframe]
+  │    └─ consent forced true, listen for parent handshake → inject()
+  │
+  └─ [normal mode]
+       ├─ [cmp == 'none']         — skip consent entirely, inject immediately
+       ├─ [cmp == '<name>']       — load cmp/<name>.min.js, then start listener
+       └─ [no cmp set]            — start listener directly
+            │
+            └─ in all non-none cases: initGTM(true)
+                 — loads containers with noConsent:true immediately (no consent wait)
+
+aGTM.f.consent_listener()
+  ├─ [useListener == false]   setInterval(call_cc, 500ms)  — default polling
+  └─ [useListener == true]    no timer started; integrator calls call_cc() manually
+                               from their CMP event handler
+
+aGTM.f.call_cc()
+  ├─ run_cc('init')
+  │    ├─ consent_check('init')   — CMP-specific; reads CMP state, writes aGTM.d.consent
+  │    └─ evaluates gtmPurposes / gtmServices / gtmVendors
+  │         → sets aGTM.d.consent.gtmConsent = true/false
+  ├─ clears the consent interval timer
+  └─ inject()
+
+aGTM.f.inject()
+  ├─ copies pre-existing window[dataLayer] items into aGTM.d.f (queue)
+  ├─ [gtmConsent == true]
+  │    └─ initGTM(false) → gtm_load() per container
+  │         ├─ pushes aGTM_ready event (with aGTM.hastyEvents = aGTM.d.f)
+  │         ├─ pushes gtm.js event
+  │         └─ inserts <script id="aGTM_tm_<id>"> into the DOM
+  │              GTM loads asynchronously from here
+  └─ chkDPready() — fires aDOMready / aPAGEready if dlStateEvents is configured
+```
+
+#### The event queue (`aGTM.d.f`)
+
+`aGTM.d.f` is an array that serves as a holding area for events that cannot yet be sent to GTM:
+
+- **Before consent**: every `aGTM.f.fire()` call that fails the consent gate pushes the event to `aGTM.d.f` instead of the dataLayer.
+- **Pre-existing dataLayer items**: when `inject()` runs, it copies any items already in `window[dataLayer]` into `aGTM.d.f` too, so they are not lost.
+- **After GTM loads**: `aGTM.d.f` is passed as `aGTM.hastyEvents` inside the `aGTM_ready` dataLayer event. A GTM Custom Template (see `gtm/`) reads this array and re-fires each queued event through the dataLayer.
+
+Events whose `event` name starts with `aGTM` always bypass the consent gate and are never queued — they are internal lifecycle events.
+
+#### `noConsent` containers
+
+A GTM container can be configured with `noConsent: true`:
+
+```javascript
+aGTM.f.config({
+  cmp: 'cookiebot',
+  gtm: {
+    'GTM-XXXXXXXX': {},           // consent-gated
+    'GTM-YYYYYYYY': { noConsent: true }  // loaded immediately, no consent wait
+  }
+});
+```
+
+`initGTM(true)` is called at startup and injects only `noConsent` containers. The normal consent-gated containers are injected later by `inject()`.
+
+**Important:** `noConsent` containers receive the `aGTM_ready` event *before* any consent decision has been made. `aGTM.hastyEvents` is available, but `aGTMconsent.hasResponse` may be `false`. Do not use `noConsent` containers for anything that requires consent — they are intended for functional or legal tracking that must run unconditionally.
+
+#### `useListener` mode
+
+By default, aGTM polls for consent every 500ms. If your CMP fires a JavaScript event when consent is given, you can disable the timer and call `aGTM.f.call_cc()` directly:
+
+```javascript
+// In your CMP event listener:
+document.addEventListener('CmpConsentGiven', function() {
+  aGTM.f.call_cc();
+});
+```
+
+Set `useListener: true` in the config so the polling timer is not started. The CMP file for that provider typically implements this listener.
+
+For consent *updates* (user changes their decision after initial load), call `aGTM.f.run_cc('update')` instead — or configure `consent_events` in the config so aGTM picks up the update event automatically when it passes through `fire()`.
+
 ### `_noConsent` flag
 
 Set `_noConsent: true` on any event to bypass the consent gate in `aGTM.f.fire()`. The event is pushed to the dataLayer immediately without waiting for consent.
