@@ -493,6 +493,27 @@ If `true`, GTM is injected even when auto-denial is applied (returning visitor w
 - Example: `false`
 - Default: `true`
 
+### Accessing session state
+
+After `aGTM.f.init()` runs, the session result is available in two places:
+
+- **`aGTM.d.session`** — the full response object from the session endpoint (empty `{}` if unavailable)
+- **`aGTM.d.session_status`** — outcome string, readable from GTM Custom Variables or any JS on the page:
+
+| Value | Meaning |
+|---|---|
+| `""` | Session fetch not yet started |
+| `"ok"` | Valid response, session data available |
+| `"invalid"` | Response received but required `sid` field missing |
+| `"error"` | Network error or non-2xx HTTP response |
+| `"timeout"` | Endpoint did not respond within `session_timeout` ms |
+| `"inactive"` | Feature disabled (`user_id` or `session_url` not configured) |
+
+Example use in a GTM Custom Variable (JavaScript Variable type):
+```javascript
+function() { return window.aGTM && window.aGTM.d ? window.aGTM.d.session_status : ''; }
+```
+
 ### Auto-denial behavior (session feature)
 
 When session data indicates a returning visitor without a recorded consent decision (`ret: true, cst: false`), aGTM applies auto-denial — setting the consent state as follows:

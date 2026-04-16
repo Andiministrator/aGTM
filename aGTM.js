@@ -150,7 +150,7 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "cmp", cfg, ""); // Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See README.md for possible options.
   aGTM.c.min = typeof cfg.min == "boolean" ? cfg.min : true; // inject the files as minified versions
   aGTM.f.an(aGTM.c, "nonce", cfg, ""); // Nonce value for the file injections
-  aGTM.f.an(aGTM.c, "iframeSupport", cfg, false); // Nonce value for the file injections
+  aGTM.f.an(aGTM.c, "iframeSupport", cfg, false); // Enable aGTM inside an iframe: bypasses CMP consent check, listens for parent postMessage handshake
   aGTM.f.an(aGTM.c, "vPageviews", cfg, false); // Send (dataLayer) Events if the URL changes, but no page reload takes place (virtual Pageviews through History Change)
   aGTM.f.an(aGTM.c, "vPageviewsTimer", cfg, 0); // Timer to continuous checking the url for changes (set it to 0 for deactivating)
   aGTM.f.an(aGTM.c, "vPageviewsFallback", cfg, false); // If Proxy Object is not available (older browsers), activate vPageviewsTimer with 500(ms) automatically

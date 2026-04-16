@@ -18,6 +18,13 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 
 - **`ck` URL parameter for consent signaling**: Appends a `ck` parameter to the GTM request URL (`gtm.js`) based on the user's consent state (`ck=0`: inactive, `ck=1`: active but no consent, `ck=2`: active and consent granted). Intended to pass consent information to server-side GTM (sGTM) during the webGTM delivery request. Config options would be `ckServices`, `ckVendors`, `ckPurposes`. Feature is documented in `README.md` but not yet implemented in code. **To be reviewed:** check whether this is still needed given the POST transport layer added in v1.5, or whether it should be properly implemented or removed.
 
+## v1.6 — planned
+
+- Browser-based test & demo playground (`agtm.net`) — interactive scenario runner with simulated GTM, mock CMP and session endpoint
+- Additional CMP integrations (to be determined)
+- Review and potential implementation of `ck` URL parameter feature (see Backlog above)
+- Further standalone mode improvements (`aGTM.f.fire()` without webGTM container)
+
 ## v2.0 — planned (breaking changes)
 
 - Remove deprecated `vPageview` event (deprecated since v1.4, use `aPageview` instead)
