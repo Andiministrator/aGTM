@@ -186,6 +186,39 @@ aGTM.f.config = function (cfg) {
 /* deprecated */  aGTM.c.vPageview = typeof cfg.vPageview == "boolean" ? cfg.vPageview : false; // Fire vPageview Event
   aGTM.c.sendConsentEvent = typeof cfg.sendConsentEvent == "boolean" ? cfg.sendConsentEvent : false; // Should aGTM send a separate Event with Consent Info?
 
+  // Consent-event triggers: comma-separated event names that trigger run_cc('update') in fire()
+  // Bracket notation: 'cmpEvent[userChoiceType:useraction],cmpUpdate'
+  //   'cmpEvent[attr:val]' - triggers only when event.attr === 'val'
+  //   'cmpEvent[attr]'     - triggers when event.attr exists (any value)
+  //   'cmpUpdate'          - triggers on event name match alone
+  aGTM.f.an(aGTM.c, "consent_events", cfg, "");
+  aGTM.c.consent_event_attr = aGTM.c.consent_event_attr || {};
+  if (typeof aGTM.c.consent_events == "string" && aGTM.c.consent_events) {
+    var ce_parts = aGTM.c.consent_events.split(",");
+    var ce_clean = [];
+    for (var ce_i = 0; ce_i < ce_parts.length; ce_i++) {
+      var ce_part = ce_parts[ce_i].replace(/^\s+|\s+$/g, "");
+      if (!ce_part) continue;
+      var ce_bracket = ce_part.indexOf("[");
+      if (ce_bracket >= 0) {
+        var ce_name = ce_part.substring(0, ce_bracket);
+        var ce_inner = ce_part.substring(ce_bracket + 1, ce_part.indexOf("]"));
+        var ce_colon = ce_inner.indexOf(":");
+        var ce_attr = {};
+        if (ce_colon >= 0) {
+          ce_attr[ce_inner.substring(0, ce_colon)] = ce_inner.substring(ce_colon + 1);
+        } else {
+          ce_attr[ce_inner] = "";
+        }
+        aGTM.c.consent_event_attr[ce_name] = ce_attr;
+        ce_clean.push(ce_name);
+      } else {
+        ce_clean.push(ce_part);
+      }
+    }
+    aGTM.c.consent_events = ce_clean.join(",");
+  }
+
   // Transport/POST configuration
   aGTM.f.an(aGTM.c, "transport_url", cfg, ""); // Endpoint URL for direct POST transport (e.g. sGTM collect endpoint)
   aGTM.f.an(aGTM.c, "transport_enc", cfg, false); // Default: encrypt POST payload
@@ -1873,7 +1906,7 @@ aGTM.f.fire = function (o) {
   if (
     aGTM.c.consent_events &&
     typeof obj.event == "string" &&
-    aGTM.c.consent_events.indexOf("," + obj.event + ",") >= 0
+    ("," + aGTM.c.consent_events + ",").indexOf("," + obj.event + ",") >= 0
   ) {
     if (typeof aGTM.c.consent_event_attr[obj.event] == "object") {
       for (var k in aGTM.c.consent_event_attr[obj.event]) {
