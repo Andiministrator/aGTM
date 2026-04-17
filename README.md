@@ -810,12 +810,13 @@ A: Therefore we have started a [Developer Documentation](README-for-Developers.m
 
 If you want to contribute or build the derived files (`aGTM.min.js`, `cmp/*.min.js`, `aGTM.base64`) yourself:
 
-**Requirements:** Node.js and npm (Arch/CachyOS: `sudo pacman -S npm`)
+**Requirements:** [Bun](https://bun.sh) (Arch/CachyOS: `sudo pacman -S bun`)
 
 ```bash
-npm install --no-bin-links   # first time only — installs terser
 ./build.sh    # builds all minified and base64 files
 ```
+
+No `npm install` needed — `bunx terser` fetches terser automatically on first run.
 
 For details on the build process, ES5 requirements, and project conventions, see [Developer Documentation](README-for-Developers.md).
 

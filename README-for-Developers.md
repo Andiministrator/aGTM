@@ -770,11 +770,11 @@ Both are stripped automatically by the minifier. The build script also checks fo
 - **`main`** — stable releases only; updated by merging from `dev`
 - **Tags** — Git tags ARE the version numbers. Every release gets a tag matching the version (e.g. `v1.4.1`, `v1.5`). The tag is the authoritative reference for a release.
 
-**Tag naming:** `v` prefix + semantic version, matching the version in `aGTM.js` and the changelog in `README.md`.
+**Tag naming:** `v` prefix + semantic version, matching the version in `aGTM.js` and the changelog in `CHANGELOG.md`.
 
 **Release flow:**
 1. Update version in `aGTM.js` (`@version` in the header comment and `aGTM.d.version` in `aGTM.f.objinit()`)
-2. Add changelog entry in `README.md`
+2. Add changelog entry in `CHANGELOG.md`
 3. Run `./build.sh` to regenerate all derived files
 4. Merge `dev` → `main`
 5. Tag the release: `git tag v<version>`
