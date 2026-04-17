@@ -37,15 +37,73 @@ window.aGTM = window.aGTM || { f: {} };
 
 Use `aGTM.f.config()` to set up configurations for GTM containers, consent management, and other settings.
 
-#### Example Configuration
+#### Complete configuration example (v1.5)
+
+The snippet below shows all major options in context. Most are optional — only `gtm` (the container ID) is required for a standard setup.
 
 ```javascript
 aGTM.f.config({
-  gtm: { 'GTM-XYZ123': {} },
-  gtmPurposes: 'statistics',
-  sendConsentEvent: true
+
+  // --- GTM container(s) ---
+  gtm: {
+    'GTM-XYZ123': {
+      noConsent: false,           // load without consent? (default: false)
+      gtmURL: 'https://gtm.example.com'  // custom sGTM delivery URL (optional)
+    }
+  },
+  gtmServices: 'Google Tag Manager', // consent condition for GTM injection
+  gdl: 'dataLayer',                  // dataLayer name (default: 'dataLayer')
+
+  // --- CMP ---
+  cmp: 'cookiebot',            // CMP provider name (see cmp/ directory)
+                               // use 'none' to skip consent entirely
+
+  // --- POST transport (new in v1.5) ---
+  transport_url:  'https://collect.example.com/event', // sGTM collect endpoint
+  transport_enc:  true,  // encrypt payload with Base64 + Caesar shift (default: false)
+  transport_salt: 42,    // encryption salt, integer >= 1
+
+  // --- Session feature (new in v1.5) ---
+  user_id:             'user-abc-123',                    // user identifier for session endpoint
+  session_url:         'https://collect.example.com/session', // session POST endpoint
+  session_salt:        42,    // salt for session request; also fallback for transport_salt
+  session_wait:        true,  // delay GTM injection until session data arrives (default: false)
+  session_timeout:     3000,  // ms before session fetch is abandoned (default: 5000)
+  session_gtm_on_deny: true,  // inject GTM even when auto-denial is applied (default: true)
+
+  // --- Other options ---
+  dlSet:            { 'page_type': 'pageType' }, // append GTM DL variable to every fire() event
+  sendConsentEvent: true,   // push a separate consent-state event to the dataLayer
+  dlStateEvents:    true,   // push aDOMready / aPAGEready events
+  iframeSupport:    false   // enable aGTM inside an iframe (bypasses CMP)
+
 });
+
+aGTM.f.init();
 ```
+
+**Salt shorthand:** when `session_salt` and `transport_salt` are the same value, you only need to set `session_salt` — it is used automatically as the fallback for POST transport.
+
+#### Per-event properties
+
+These are not config options but are set directly on the event object passed to `aGTM.f.fire()`:
+
+```javascript
+// POST with global transport defaults:
+aGTM.f.fire({ event: 'purchase', revenue: 99.90, _post: true });
+
+// POST with per-event overrides (all keys optional):
+aGTM.f.fire({
+  event:   'purchase',
+  revenue: 99.90,
+  _post:   { url: 'https://collect.example.com/order', enc: true, salt: 42 }
+});
+
+// Bypass consent gate (functional/legal events that must fire regardless of consent):
+aGTM.f.fire({ event: 'cookie_consent_given', _noConsent: true });
+```
+
+See [Event property reference](#event-property-reference) for the complete list.
 
 ## Consent Management
 
