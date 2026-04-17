@@ -932,19 +932,19 @@ aGTM.f.iFrameFire = function (ev) {
  * Sends a handshake message to all iframes on the page if the current window is not an iframe and no origin is defined.
  */
 aGTM.f.ifHandshake = function () {
-  // Führe die Operation nur aus, wenn dies nicht ein iFrame ist und der Handshake noch nicht erfolgt ist.
+  // Only run if this is not an iframe and the handshake has not been sent yet.
   if (!aGTM.d.is_iframe && !aGTM.d.iframe.handshake) {
     var iframes = document.getElementsByTagName("iframe");
-    // Verwende eine frühzeitige Rückkehr, um eine zusätzliche Verschachtelung zu vermeiden
+    // Early return to avoid unnecessary nesting
     if (!iframes.length) return;
-    // Schleife durch alle iFrames und sende die Handshake-Nachricht
+    // Loop through all iframes and send the handshake message
     for (var i = 0; i < iframes.length; i++) {
       var iframe = iframes[i];
       if (!iframe || !iframe.contentWindow || !iframe.contentWindow.postMessage)
         continue;
       iframe.contentWindow.postMessage("aGTM_Top2iFrame Handshake", "*");
     }
-    // Markiere, dass der Handshake-Versuch unternommen wurde
+    // Mark that the handshake attempt was made
     aGTM.d.iframe.handshake = true;
   }
 };
@@ -1817,7 +1817,6 @@ aGTM.f.session_fetch = function() {
 aGTM.f.sendnaus = function (o) {
   // Preparations
   if (!o || typeof o !== 'object') return;
-  var dl = window[aGTM.c.gdl];
   var currentPush = window[aGTM.c.gdl].push;
   // Save original push function if not already saved and if it looks like sandboxed
   if (!aGTM.d.originalDLpush && /sandbox/i.test(currentPush.toString())) aGTM.d.originalDLpush = currentPush;
