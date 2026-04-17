@@ -1574,10 +1574,10 @@ aGTM.f.stoptimer = function (nm) {
   if (typeof aGTM.d.timer != "object") aGTM.d.timer = {};
   if (typeof aGTM.d.timer[nm] == "object") {
     var t = aGTM.d.timer[nm];
-    if (t.timer_rp) {
-      clearInterval(t.id);
-    } else {
+    if (t.timer_rp === 1) {
       clearTimeout(t.id);
+    } else {
+      clearInterval(t.id);
     }
     delete aGTM.d.timer[nm];
   }
