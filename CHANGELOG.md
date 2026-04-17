@@ -1,5 +1,20 @@
 # Changelog
 
+## Version 1.5 — *17.04.2026*
+- Bug fix: `consent_events` config option now wired up via `config()` (was never read from user config)
+- Bug fix: `consent_events` indexOf check wrapped with commas — first event name in list was never matched
+- Bug fix: `consent_event_attr` bracket-notation parser implemented in `config()` (`'event[attr:val]'` syntax now works); `consent_event_attr` initialised to `{}` to prevent TypeError
+- Bug fix: `dlOrgPush: 'restore'` now works — code checked for `'replace'` but docs said `'restore'`
+- Bug fix: `aGTM.f.proxySupport` called without `()` in `urlListener` — was always truthy, browser support check never ran
+- Bug fix: `new URL()` (ES6) replaced with ES5-compatible equivalents in `gtm_load()`
+- Bug fix: `stoptimer()` used wrong clear function — `rp===1` (setTimeout) now gets `clearTimeout`, all others get `clearInterval`
+- Code: unused `var dl` removed from `sendnaus()`
+- Docs: German inline comments in `ifHandshake()` translated to English
+- Docs: `README.md` build instructions updated from npm to Bun
+- Docs: `README-for-Developers.md` release flow now references `CHANGELOG.md` (not `README.md`)
+- Docs: `README.de.md` added — German quickstart for GTM developers
+- Tests: 10 new tests for `consent_events` config parsing and `fire()` trigger behaviour (89 tests total)
+
 ## Version 1.5 — *16.04.2026*
 - Session & User Data feature: `aGTM.f.xfetch()` for POST with response handling
 - New config options: `user_id`, `session_url`, `session_salt`, `session_wait`, `session_timeout`, `session_gtm_on_deny`
