@@ -1838,7 +1838,7 @@ aGTM.f.sendnaus = function (o) {
       });
       aGTM.d.dlHookLogged = true;
     }
-    if (aGTM.c.dlOrgPush === 'replace') {
+    if (aGTM.c.dlOrgPush === 'restore') {
       window[aGTM.c.gdl].push = aGTM.d.originalDLpush;
       useOrgPush = false;
     }
