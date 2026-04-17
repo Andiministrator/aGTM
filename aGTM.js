@@ -697,14 +697,13 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
   if (dc && parseInt(dc) > 0) gtm_debug = true;
   // Get Debug param
   if (!gtm_debug) {
-    var url = new URL(document.location.href);
-    //if (url.searchParams.get("gtm_debug")) gtm_debug = true;
-    if (aGTM.f.urlParam("gtm_debug",url)) gtm_debug = true;
+    if (aGTM.f.urlParam("gtm_debug", document.location.href)) gtm_debug = true;
   }
   // Get debug referrer
   if (!gtm_debug && document.referrer) {
-    var url = new URL(document.referrer);
-    if (url.hostname == aGTM.n.ta + ".com") gtm_debug = true;
+    var refA = d.createElement('a');
+    refA.href = document.referrer;
+    if (refA.hostname == aGTM.n.ta + ".com") gtm_debug = true;
   }
   // Set debug cookie
   if (!dc && gtm_debug) aGTM.f.sc("aGTMdebug", "1");
