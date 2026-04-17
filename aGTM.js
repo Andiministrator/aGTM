@@ -634,7 +634,7 @@ aGTM.f.urlListener = function (eventname, interval, fallback) {
   aGTM.f.evLstn('window', 'hashchange', checkUrlChange);
   // Try Proxy-based interception, fallback to timer if configured
   var proxyUsed = false;
-  if(aGTM.f.proxySupport) {
+  if(aGTM.f.proxySupport()) {
     var handler = {
       apply: function (target, thisArg, argumentsList) {
         var result = target.apply(thisArg, argumentsList);
