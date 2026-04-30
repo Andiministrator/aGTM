@@ -42,6 +42,15 @@ describe('aGTM.f.run_cc() — blocked flag on update', () => {
     aGTM.c.gtmServices = 'Google Tag Manager'; // requires specific consent
     aGTM.d.consent = { hasResponse: true, blocked: true, gtmConsent: true,
                         purposes: '', services: ',aGTMconsent,', vendors: '' };
+    // Override the stub so consent_check explicitly populates services with a
+    // non-matching value (realistic CMP behavior after a user decline).
+    aGTM.f.consent_check = function() {
+      aGTM.d.consent.hasResponse = true;
+      aGTM.d.consent.purposes = '';
+      aGTM.d.consent.services = ',some-other-service,';
+      aGTM.d.consent.vendors  = '';
+      return true;
+    };
     aGTM.f.run_cc('update');
     // blocked deleted → no service match → gtmConsent=false
     expect(aGTM.d.consent.blocked).toBeUndefined();

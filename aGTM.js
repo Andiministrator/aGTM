@@ -44,6 +44,7 @@ aGTM.f.objinit = function() {
     [aGTM.d, "dl", []],
     [aGTM.d, "session", {}],
     [aGTM.d, "session_status", ""],
+    [aGTM.d, "consent_hash", ""],
     [aGTM.d, "iframe", {
       counter: { events: 0 },
       origin: "",
@@ -130,6 +131,33 @@ aGTM.f.an = function (target, property, source, defaultValue) {
   target[property] = source.hasOwnProperty(property)
     ? source[property]
     : defaultValue;
+};
+
+/**
+ * Stable string serialization of a consent object, used to detect change.
+ * Blacklist strategy: hash everything EXCEPT client-derived fields
+ * (gtmConsent, blocked). Auto-includes any new CMP-specific field
+ * (consent_id, serviceIDs, ...).
+ * @property {function} aGTM.f.consent_serialize
+ * @param {object} c - consent object (typically aGTM.d.consent)
+ * @returns {string} - stable serialized form
+ */
+aGTM.f.consent_serialize = function (c) {
+  if (!c || typeof c !== "object") return "";
+  var skip = { gtmConsent: 1, blocked: 1 };
+  var keys = [];
+  for (var k in c) { if (c.hasOwnProperty(k) && !skip[k]) keys.push(k); }
+  keys.sort();
+  var out = [];
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i], v = c[key];
+    // Skip empty strings, null and undefined — these are semantically "absent"
+    // and would otherwise create phantom diffs whenever the B2 reset clears a
+    // field that the preset never contained.
+    if (v === "" || v == null) continue;
+    out.push(key + "=" + (typeof v === "object" ? JSON.stringify(v) : String(v)));
+  }
+  return out.join("|");
 };
 
 /**
@@ -226,12 +254,27 @@ aGTM.f.config = function (cfg) {
   // Session configuration
   aGTM.f.an(aGTM.c, "user_id", cfg, ""); // User identifier (logged-in CRM ID), exposed for integrators
   aGTM.f.an(aGTM.c, "session_salt", cfg, 0); // Salt for consent-store POST encryption; also fallback for POST transport salt
+  aGTM.f.an(aGTM.c, "consent_store_url", cfg, ""); // POST endpoint for consent diffs (sGTM Client persists into Session API)
+  aGTM.f.an(aGTM.c, "consent_store_enc", cfg, false); // Encrypt consent-store POST payload with session_salt
   // If session data is pre-populated by the sGTM Client, store it directly.
-  // Accept any object with sid OR consent (Phase 3 will consume the consent field).
+  // Accept any object with sid OR consent.
   if (cfg.session && typeof cfg.session === 'object' && (cfg.session.sid || cfg.session.consent)) {
     aGTM.d.session = JSON.parse(aGTM.f.sStrf(cfg.session));
-    aGTM.d.session_status = 'preset';
-    aGTM.f.log('m_session_preset', cfg.session);
+    // If the preset carries a valid consent block, seed aGTM.d.consent + hash
+    // so GTM can inject without waiting for the CMP. Validation: must be an
+    // object with hasResponse === true and string services field.
+    var presetConsent = cfg.session.consent;
+    if (presetConsent && typeof presetConsent === 'object'
+        && presetConsent.hasResponse === true
+        && typeof presetConsent.services === 'string') {
+      aGTM.d.consent = JSON.parse(aGTM.f.sStrf(presetConsent));
+      aGTM.d.consent_hash = aGTM.f.consent_serialize(aGTM.d.consent);
+      aGTM.d.session_status = 'preset_with_consent';
+      aGTM.f.log('m_session_preset_consent', presetConsent);
+    } else {
+      aGTM.d.session_status = 'preset';
+      aGTM.f.log('m_session_preset', cfg.session);
+    }
   }
 
   // Consent configuration
@@ -250,10 +293,17 @@ aGTM.f.config = function (cfg) {
 
   // Initialize after settings
   aGTM.d.consent = aGTM.d.consent || JSON.parse(aGTM.f.sStrf(aGTM.c.consent)); // Deep copy to avoid reference issues
-  aGTM.d.consent.gtmConsent = false; // Initialize GTM consent as false
+  // Only default gtmConsent to false when it was NOT supplied by a preset
+  // (otherwise we'd clobber the server-side auto-denial decision).
+  if (typeof aGTM.d.consent.gtmConsent !== 'boolean') aGTM.d.consent.gtmConsent = false;
   aGTM.d.config = true; // Set the configuration status to true
   aGTM.d.gtmLoaded = [];
   if (typeof aGTM.f.log == "function") aGTM.f.log("m1", aGTM.c); // Log the configuration
+  // Phase 3 B1: when preset consent is usable, trigger consent flow synchronously
+  // so GTM injects on this tick — without waiting for the 500 ms consent_listener.
+  if (aGTM.d.consent.hasResponse === true && typeof aGTM.f.call_cc === "function") {
+    aGTM.f.call_cc();
+  }
 };
 
 /***** Consent Functions *****/
@@ -386,15 +436,24 @@ aGTM.f.run_cc = function (action) {
     aGTM.f.log("e14", { action: action });
     return false;
   }
+  // On 'update' (explicit user CMP decision), reset all CMP-managed fields
+  // BEFORE consent_check so stale preset values cannot survive a real CMP
+  // decision (Phase 3 B2 fix). consent_check then repopulates whatever the
+  // CMP knows; missing fields stay cleared. blocked is dropped because it's
+  // a server/preset-only signal that any explicit user decision overrides.
+  if (action === 'update' && aGTM.d.consent) {
+    var c = aGTM.d.consent;
+    c.hasResponse = false;
+    c.services = ""; c.purposes = ""; c.vendors = "";
+    c.consent_id = ""; c.serviceIDs = ""; c.feedback = "";
+    delete c.blocked;
+  }
   // Perform the consent check
   var consentCheck = aGTM.f.consent_check(action);
   if (!consentCheck) {
     aGTM.f.log("m8", null);
     return false;
   }
-  // On 'update' (explicit user CMP decision), clear any preset blocked flag
-  // so the real user decision takes full effect (Phase 3 will broaden this reset).
-  if (action === 'update' && aGTM.d.consent) delete aGTM.d.consent.blocked;
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
   if (
     aGTM.f.chelp(aGTM.c.gtmPurposes, aGTM.d.consent.purposes) &&
@@ -420,6 +479,46 @@ aGTM.f.run_cc = function (action) {
   // Execute callback if defined
   if (typeof aGTM.f.consent_callback === "function")
     aGTM.f.consent_callback(action);
+  // Phase 3: consent diff/store. Compute current hash; if it differs from the
+  // last persisted hash, POST the consent payload to consent_store_url. Hash
+  // is updated ONLY on 2xx response so a network/server failure transparently
+  // retries on the next run_cc. session_status reflects the lifecycle state.
+  if (aGTM.c.consent_store_url) {
+    var newHash = aGTM.f.consent_serialize(aGTM.d.consent);
+    if (newHash !== aGTM.d.consent_hash) {
+      // Build payload: uid + sid (when available) + consent block (without
+      // client-derived fields, matching the hash's blacklist).
+      var consentPayload = {};
+      if (aGTM.d.session && aGTM.d.session.uid) consentPayload.uid = aGTM.d.session.uid;
+      if (aGTM.d.session && aGTM.d.session.sid) consentPayload.sid = aGTM.d.session.sid;
+      var consentBody = {};
+      var skip = { gtmConsent: 1, blocked: 1 };
+      for (var k in aGTM.d.consent) {
+        if (aGTM.d.consent.hasOwnProperty(k) && !skip[k]) consentBody[k] = aGTM.d.consent[k];
+      }
+      consentPayload.consent = consentBody;
+      var encrypt = aGTM.c.consent_store_enc === true;
+      var salt = (typeof aGTM.c.session_salt === 'number' && aGTM.c.session_salt >= 1) ? aGTM.c.session_salt : 0;
+      aGTM.f.log('m_consent_store_post', {url: aGTM.c.consent_store_url, hash: newHash});
+      var xhr = aGTM.f.xsend(aGTM.c.consent_store_url, consentPayload, encrypt, salt);
+      if (xhr) {
+        // onreadystatechange-gated hash update: leave hash unchanged on
+        // non-2xx so the next run_cc retries within the same page load.
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            aGTM.d.consent_hash = newHash;
+            aGTM.d.session_status = 'synced';
+            aGTM.f.log('m_consent_store_synced', {hash: newHash});
+          } else {
+            aGTM.f.log('e_consent_store', {status: xhr.status});
+          }
+        };
+      }
+    } else {
+      aGTM.d.session_status = 'confirmed';
+    }
+  }
   // Log the current consent status
   aGTM.f.log("m3", aGTM.d.consent);
   return true;

@@ -28,8 +28,13 @@ describe('aGTM.d.session_status', () => {
     expect(aGTM.d.session_status).toBe('preset');
   });
 
-  test('is "preset" when cfg.session carries a consent object (sid optional)', () => {
+  test('is "preset_with_consent" when cfg.session carries a valid consent object (sid optional)', () => {
     resetAGTM({ session: { consent: { hasResponse: true, services: ',svc1,' } } });
+    expect(aGTM.d.session_status).toBe('preset_with_consent');
+  });
+
+  test('is "preset" when cfg.session has sid but consent is malformed (missing hasResponse)', () => {
+    resetAGTM({ session: { sid: 's-1', consent: { services: ',svc1,' } } });
     expect(aGTM.d.session_status).toBe('preset');
   });
 

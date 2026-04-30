@@ -1062,13 +1062,17 @@ const afterBotCheck = function(isBot) {
           } else if (sd.ret) {
             // Returning visitor with no recorded consent -> server-side auto-denial.
             // Replaces the old client-side session_apply_denial() (Phase 2 removal).
+            // `blocked` mirrors `gtmConsent` so the aGTM run_cc() chelp fallback
+            // honors the server policy: when chelp checks fail (services don't
+            // match the requirement), gtmConsent falls back to `blocked`.
             sd.consent = {
               hasResponse: true,
               feedback: 'Consent denied by aGTM',
               services: ',aGTMconsent,',
               purposes: '',
               vendors: '',
-              gtmConsent: CFG.autoDenyLoadGtm
+              gtmConsent: CFG.autoDenyLoadGtm,
+              blocked: CFG.autoDenyLoadGtm
             };
             if (CFG.debug) logToConsole('debug', '✓ Server-side auto-denial applied', sd.consent);
           }
@@ -1177,8 +1181,6 @@ const buildAndSend = function(sessionData) {
   setResponseBody(jsCode);
   returnResponse();
 };
-
-
 ___SERVER_PERMISSIONS___
 
 [
