@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 17.04.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 28.04.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -43,7 +43,6 @@ aGTM.f.objinit = function() {
     [aGTM.d, "errors", []],
     [aGTM.d, "dl", []],
     [aGTM.d, "session", {}],
-    [aGTM.d, "session_ready", false],
     [aGTM.d, "session_status", ""],
     [aGTM.d, "iframe", {
       counter: { events: 0 },
@@ -225,12 +224,15 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "transport_salt", cfg, 0); // Default salt for POST payload encryption (integer >= 1)
 
   // Session configuration
-  aGTM.f.an(aGTM.c, "user_id", cfg, ""); // User identifier sent to the session endpoint
-  aGTM.f.an(aGTM.c, "session_url", cfg, ""); // POST endpoint URL for session data
-  aGTM.f.an(aGTM.c, "session_salt", cfg, 0); // Salt for session request encryption; also fallback for POST transport salt
-  aGTM.c.session_wait = typeof cfg.session_wait == "boolean" ? cfg.session_wait : false; // Wait for session data before GTM injection (default: false)
-  aGTM.f.an(aGTM.c, "session_timeout", cfg, 5000); // ms before session fetch is abandoned
-  aGTM.c.session_gtm_on_deny = typeof cfg.session_gtm_on_deny == "boolean" ? cfg.session_gtm_on_deny : true; // Inject GTM even on auto-denial
+  aGTM.f.an(aGTM.c, "user_id", cfg, ""); // User identifier (logged-in CRM ID), exposed for integrators
+  aGTM.f.an(aGTM.c, "session_salt", cfg, 0); // Salt for consent-store POST encryption; also fallback for POST transport salt
+  // If session data is pre-populated by the sGTM Client, store it directly.
+  // Accept any object with sid OR consent (Phase 3 will consume the consent field).
+  if (cfg.session && typeof cfg.session === 'object' && (cfg.session.sid || cfg.session.consent)) {
+    aGTM.d.session = JSON.parse(aGTM.f.sStrf(cfg.session));
+    aGTM.d.session_status = 'preset';
+    aGTM.f.log('m_session_preset', cfg.session);
+  }
 
   // Consent configuration
   cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
@@ -390,10 +392,9 @@ aGTM.f.run_cc = function (action) {
     aGTM.f.log("m8", null);
     return false;
   }
-  // Set GTM consent status
-  // On 'update' (explicit user CMP decision), clear auto-denial blocked flag
-  // so the real user decision takes full effect
-  if (action === 'update') delete aGTM.d.consent.blocked;
+  // On 'update' (explicit user CMP decision), clear any preset blocked flag
+  // so the real user decision takes full effect (Phase 3 will broaden this reset).
+  if (action === 'update' && aGTM.d.consent) delete aGTM.d.consent.blocked;
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
   if (
     aGTM.f.chelp(aGTM.c.gtmPurposes, aGTM.d.consent.purposes) &&
@@ -402,7 +403,6 @@ aGTM.f.run_cc = function (action) {
   ) {
     aGTM.d.consent.gtmConsent = true;
   } else {
-    // blocked=true means "allow GTM despite denial" (used by auto-denial on init only)
     aGTM.d.consent.gtmConsent =
       typeof aGTM.d.consent.blocked == "boolean"
         ? aGTM.d.consent.blocked
@@ -851,10 +851,6 @@ aGTM.f.inject = function () {
   // Ensure configuration is loaded before proceeding
   if (!aGTM.d.config) {
     aGTM.f.log("e8", null);
-    return false;
-  }
-  // Wait for session data if session_wait is enabled
-  if (aGTM.c.session_wait && !aGTM.d.session_ready) {
     return false;
   }
   // Check if consent object exists and has a valid response
@@ -1595,8 +1591,6 @@ aGTM.f.init = function () {
   if (!aGTM.c.debug && aGTM.f.optout()) return;
   // Read and set the config
   aGTM.f.config(aGTM.c);
-  // Start session fetch early — runs in parallel with consent check
-  aGTM.f.session_fetch();
   // Inject the aGTM for iFrame
   if (aGTM.c.iframeSupport && aGTM.d.is_iframe) {
     aGTM.d.consent.gtmConsent = true;
@@ -1688,127 +1682,6 @@ aGTM.f.xsend = function(url, data, encrypt, salt) {
 };
 
 /**
- * Sends data as an HTTP POST and invokes a callback with the parsed JSON response.
- * Shares the same body format and encryption logic as aGTM.f.xsend().
- * @property {function} aGTM.f.xfetch
- * @param {string} url - The endpoint URL.
- * @param {object} data - The data object to send.
- * @param {boolean} encrypt - Whether to encrypt the payload.
- * @param {number} salt - Salt for encryption (integer >= 1).
- * @param {function} callback - Called with parsed JSON on success, null on error or non-2xx response.
- */
-aGTM.f.xfetch = function(url, data, encrypt, salt, callback) {
-  if (!url || typeof url !== 'string') {
-    if (typeof callback === 'function') callback(null);
-    return null;
-  }
-  try {
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    var body;
-    if (encrypt && typeof salt === 'number' && salt >= 1) {
-      body = '{"q":"' + aGTM.f.enc(aGTM.f.sStrf(data), salt) + '"}';
-    } else {
-      body = '{"e":' + aGTM.f.sStrf(data) + '}';
-    }
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState === 4) {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            var resp = JSON.parse(xhr.responseText);
-            if (typeof callback === 'function') callback(resp);
-          } catch(e) {
-            aGTM.f.log('e_xfetch', { msg: 'JSON parse error', url: url });
-            if (typeof callback === 'function') callback(null);
-          }
-        } else {
-          aGTM.f.log('e_xfetch', { msg: 'HTTP ' + xhr.status, url: url });
-          if (typeof callback === 'function') callback(null);
-        }
-      }
-    };
-    xhr.send(body);
-    return xhr;
-  } catch(e) {
-    aGTM.f.log('e_xfetch', { msg: e.message, url: url });
-    if (typeof callback === 'function') callback(null);
-    return null;
-  }
-};
-
-/**
- * Fetches session and user data from the configured session endpoint.
- * Activated only when both aGTM.c.user_id and aGTM.c.session_url are set.
- * Stores result in aGTM.d.session, sets aGTM.d.session_ready = true.
- * Applies auto-denial if session indicates returning visitor without consent decision.
- * @property {function} aGTM.f.session_fetch
- */
-aGTM.f.session_fetch = function() {
-  // Feature disabled if either required config is missing
-  if (!aGTM.c.user_id || !aGTM.c.session_url) {
-    aGTM.d.session_ready = true;
-    aGTM.d.session_status = 'inactive';
-    return;
-  }
-  var timeout = (typeof aGTM.c.session_timeout === 'number' && aGTM.c.session_timeout > 0) ? aGTM.c.session_timeout : 5000;
-  var done = false;
-  var xhr_inst = null;
-  var timer = null;
-  // Build request payload
-  var payload = {
-    user_id: aGTM.c.user_id,
-    url: aGTM.f.getVal('l', 'href') || '',
-    ref: document.referrer || ''
-  };
-  var salt = (typeof aGTM.c.session_salt === 'number' && aGTM.c.session_salt >= 1) ? aGTM.c.session_salt : 0;
-  // Start request; capture xhr instance for potential abort on timeout
-  xhr_inst = aGTM.f.xfetch(aGTM.c.session_url, payload, salt >= 1, salt, function(resp) {
-    if (done) return; // timeout already fired
-    done = true;
-    clearTimeout(timer);
-    // sid is required — disable feature if missing
-    if (!resp || typeof resp !== 'object' || typeof resp.sid !== 'string' || !resp.sid) {
-      aGTM.f.log('m_session_invalid', resp);
-      aGTM.d.session_ready = true;
-      aGTM.d.session_status = resp === null ? 'error' : 'invalid';
-      if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
-      return;
-    }
-    // Store all session data
-    aGTM.d.session = resp;
-    aGTM.d.session_ready = true;
-    aGTM.d.session_status = 'ok';
-    aGTM.f.log('m_session_ok', resp);
-    // Auto-denial: returning visitor with no recorded consent decision
-    // Only applies if no consent decision has been set yet
-    if (resp.ret === true && resp.cst === false) {
-      aGTM.d.consent = aGTM.d.consent || {};
-      if (!aGTM.d.consent.hasResponse) {
-        aGTM.d.consent.hasResponse = true;
-        aGTM.d.consent.feedback = 'Consent denied by aGTM';
-        aGTM.d.consent.services = ',aGTMconsent,';
-        // blocked=true means gtmConsent=true in run_cc() fallback — allows GTM despite denial
-        aGTM.d.consent.blocked = (aGTM.c.session_gtm_on_deny === true);
-        aGTM.d.consent.gtmConsent = aGTM.d.consent.blocked;
-      }
-    }
-    // Trigger injection if waiting for session
-    if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
-  });
-  // Timeout fallback: abort request and unblock inject() if endpoint is too slow
-  timer = setTimeout(function() {
-    if (done) return;
-    done = true;
-    if (xhr_inst) { try { xhr_inst.abort(); } catch(e) {} }
-    aGTM.f.log('m_session_timeout', null);
-    aGTM.d.session_ready = true;
-    aGTM.d.session_status = 'timeout';
-    if (aGTM.c.session_wait && !aGTM.d.init) aGTM.f.inject();
-  }, timeout);
-};
-
-/**
  * Pushes an event object to the GTM dataLayer with checking dataLayer.
  * @property {function} aGTM.f.sendnaus
  * @param {object} o - The event object to be pushed to the dataLayer.
@@ -1822,23 +1695,29 @@ aGTM.f.sendnaus = function (o) {
   if (!aGTM.d.originalDLpush && /sandbox/i.test(currentPush.toString())) aGTM.d.originalDLpush = currentPush;
   // Check if push was overwritten - log it and replace it if configured
   var useOrgPush = false;
-  if (aGTM.c.dlOrgPush && aGTM.d.originalDLpush && aGTM.d.originalDLpush.toString() !== currentPush.toString()) {
-    useOrgPush = true;
-    if (!aGTM.d.dlHookLogged) {
-      aGTM.d.originalDLpush({
-        event: 'exception',
-        errtype: 'DL Error',
-        errmsg: 'Function dataLayer.push hooked - no longer from GTM',
-        fct_hook: currentPush.toString(),
-        fct_orig: aGTM.d.originalDLpush.toString(),
-        timestamp: new Date().getTime(),
-        eventModel: null
-      });
-      aGTM.d.dlHookLogged = true;
-    }
-    if (aGTM.c.dlOrgPush === 'restore') {
-      window[aGTM.c.gdl].push = aGTM.d.originalDLpush;
-      useOrgPush = false;
+  if (aGTM.c.dlOrgPush && aGTM.d.originalDLpush && aGTM.d.originalDLpush !== currentPush) {
+    var pushStr = currentPush.toString();
+    if (/sandbox/i.test(pushStr)) {
+      // GTM re-wrapped its own push (e.g. gtag.js or second container loaded) — update baseline silently
+      aGTM.d.originalDLpush = currentPush;
+    } else {
+      useOrgPush = true;
+      if (!aGTM.d.dlHookLogged) {
+        aGTM.d.originalDLpush({
+          event: 'exception',
+          errtype: 'DL Error',
+          errmsg: 'Function dataLayer.push hooked - no longer from GTM',
+          fct_hook: pushStr,
+          fct_orig: aGTM.d.originalDLpush.toString(),
+          timestamp: new Date().getTime(),
+          eventModel: null
+        });
+        aGTM.d.dlHookLogged = true;
+      }
+      if (aGTM.c.dlOrgPush === 'restore') {
+        window[aGTM.c.gdl].push = aGTM.d.originalDLpush;
+        useOrgPush = false;
+      }
     }
   }
   // Decide which push Function to use and fire
@@ -1977,14 +1856,18 @@ aGTM.f.fire = function (o) {
       obj.aGTMparams = JSON.parse(aGTM.f.sStrf(obj));
     }
     aGTM.d.dl.push(obj);
-    if (
-      aGTM.c.iframeSupport &&
-      aGTM.d.is_iframe &&
-      typeof obj.event == "string"
-    ) {
-      aGTM.f.iFrameFire(obj);
-    } else {
-      aGTM.f.sendnaus(obj);
+    if (!obj._noDLPush) {
+      if (
+        aGTM.c.iframeSupport &&
+        aGTM.d.is_iframe &&
+        typeof obj.event == "string"
+      ) {
+        aGTM.f.iFrameFire(obj);
+      } else {
+        aGTM.f.sendnaus(obj);
+      }
+    } else if (typeof aGTM.f.sendnaus_callback == "function") {
+      aGTM.f.sendnaus_callback(obj);
     }
   }
   // Execute the callback function if defined and initialized

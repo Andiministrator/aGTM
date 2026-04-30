@@ -63,13 +63,14 @@ aGTM.f.config({
   transport_enc:  true,  // encrypt payload with Base64 + Caesar shift (default: false)
   transport_salt: 42,    // encryption salt, integer >= 1
 
-  // --- Session feature (new in v1.5) ---
-  user_id:             'user-abc-123',                    // user identifier for session endpoint
-  session_url:         'https://collect.example.com/session', // session POST endpoint
-  session_salt:        42,    // salt for session request; also fallback for transport_salt
-  session_wait:        true,  // delay GTM injection until session data arrives (default: false)
-  session_timeout:     3000,  // ms before session fetch is abandoned (default: 5000)
-  session_gtm_on_deny: true,  // inject GTM even when auto-denial is applied (default: true)
+  // --- Session feature (v1.5 redesign — see SESSION-REDESIGN.md) ---
+  // Phase 2: only the preset path remains. Session and consent data
+  // arrive from the sGTM Client via cfg.session. Phase 3 will add
+  // consent_store_url / consent_store_enc here for diff-driven consent
+  // POSTs back to the sGTM Client.
+  session_salt: 42,                // salt for consent-store POST (Phase 3); also fallback for transport_salt
+  user_id:      'user-abc-123',    // optional: logged-in user CRM ID, exposed for integrators
+  session: { sid: 's-abc', uid: 'u-123' }, // pre-populated by the sGTM Client (object with sid OR consent)
 
   // --- Other options ---
   dlSet:            { 'page_type': 'pageType' }, // append GTM DL variable to every fire() event
@@ -169,11 +170,14 @@ aGTM.f.fire(o)
   └─ [consent present OR _noConsent]
        ├─ [_post && !_post_sent]  → aGTM.f.xsend()  (_post_sent = true after send)
        │
-       ├─ aGTM.d.dl.push()           internal event log
-       ├─ [iframe mode] → aGTM.f.iFrameFire()
+       ├─ aGTM.d.dl.push()           internal event log (always)
+       ├─ [_noDLPush == true]  →  skip sendnaus/iFrameFire
+       │     (event in aGTM.d.dl + aGTM.l, NOT in GTM dataLayer)
+       │     └─ sendnaus_callback()   still called here
+       ├─ [iframe mode && !_noDLPush] → aGTM.f.iFrameFire()
        │     ├─ internal events  → aGTM.f.sendnaus()
        │     └─ user events      → window.top.postMessage() (or queue)
-       └─ [normal mode] → aGTM.f.sendnaus()
+       └─ [normal mode && !_noDLPush] → aGTM.f.sendnaus()
              ├─ dataLayer hook detection/protection
              ├─ window[gdl].push()   actual GTM dataLayer push
              └─ sendnaus_callback()
@@ -200,6 +204,7 @@ This is the complete reference for all properties on the event object that `fire
 | `event` | string | If the value starts with `aGTM`, the consent gate is bypassed — the event is always dispatched immediately. |
 | `_noConsent` | boolean | `true` bypasses the consent gate entirely. The event is pushed to the dataLayer and POST is sent without waiting for consent. The property is preserved in the dataLayer event. See [`_noConsent` flag](#_noconsent-flag). |
 | `_post` | boolean \| object | Triggers an HTTP POST via `aGTM.f.xsend()`. `true` uses global transport defaults. An object `{ url, enc, salt, consent }` overrides individual settings. POST respects the consent gate unless `_noConsent: true` is also set. See [POST Transport](#post-transport). |
+| `_noDLPush` | boolean | `true` skips the GTM dataLayer push (`sendnaus()`/`iFrameFire()` not called). The event is still recorded in `aGTM.d.dl` and `aGTM.l`, POST transport fires, and `sendnaus_callback` is still called. Use with `_noConsent` for Google-independent pre-consent events. See [`_noDLPush` flag](#_nodlpush-flag). |
 | `_post_sent` | boolean | If `true` when `fire()` is called, the POST step is skipped. Prevents double-sending when the event is replayed from the queue. Set by aGTM after sending; can also be set externally. |
 | `aGTMts` | number | If already set to a number when `fire()` is called, the event is **skipped entirely** — it is considered already processed. Do not set this manually. |
 | `eventModel` | object \| null | If set to a non-null value when `fire()` is called, the event is **skipped** (it is a GTM-internal ping event). `fire()` sets this to `null` on all events it processes. Do not set this manually. |
@@ -339,19 +344,6 @@ Set `useListener: true` in the config so the polling timer is not started. The C
 
 For consent *updates* (user changes their decision after initial load), call `aGTM.f.run_cc('update')` instead — or configure `consent_events` in the config so aGTM picks up the update event automatically when it passes through `fire()`.
 
-#### Combining `useListener: true` with `session_wait: true`
-
-When both options are active, the two async processes run in parallel:
-
-- `session_fetch()` starts immediately in `init()` and will call `inject()` once session data arrives
-- The consent decision is signalled manually by the integrator via `aGTM.f.call_cc()`
-
-`inject()` requires **both** to be ready before it proceeds:
-1. `session_ready === true` (session data received or timed out)
-2. `aGTM.d.consent.hasResponse === true` (consent decision or auto-denial)
-
-Whichever arrives last triggers `inject()`, which then checks both conditions and proceeds if both are met. **No deadlock is possible**: the session timeout guarantees `session_ready` becomes `true` after at most `session_timeout` ms even if the endpoint is unavailable.
-
 ### `_noConsent` flag
 
 Set `_noConsent: true` on any event to bypass the consent gate in `aGTM.f.fire()`. The event is pushed to the dataLayer immediately without waiting for consent.
@@ -362,7 +354,43 @@ aGTM.f.fire({ event: 'form_submit', form_id: 'contact', _noConsent: true });
 
 `_noConsent` is preserved in the dataLayer event so GTM tags can react to it. It also controls POST: a `_post` event without `_noConsent` will only send the POST once consent is available.
 
+### `_noDLPush` flag
+
+Set `_noDLPush: true` to prevent `fire()` from pushing the event to the GTM dataLayer (`sendnaus()` / `iFrameFire()` are skipped). The event is still recorded in `aGTM.d.dl` and `aGTM.l`, and POST transport still fires normally.
+
+Use together with `_noConsent` for pre-consent events that should reach the server but must not trigger GTM tags (e.g. to avoid double-firing tags that listen to the same event name):
+
+```javascript
+aGTM.f.fire({
+  event:       'page_view',
+  _noConsent:  true,
+  _noDLPush:   true,
+  _post:       { url: 'https://collect.example.com/ae' }
+});
+```
+
 Use this for events that must be tracked regardless of consent (e.g. functional events, error tracking, legal notifications).
+
+Note: `sendnaus_callback` is still called even when `_noDLPush` is true, so any monitoring code hooked into the callback receives all events.
+
+#### Google-independent tracking pattern
+
+Combining all three flags sends an event **exclusively to your own server** — nothing touches the Google dataLayer:
+
+```javascript
+aGTM.f.fire({
+  event:      'purchase',
+  revenue:    99.90,
+  _noConsent: true,  // don't wait for consent
+  _noDLPush:  true,  // skip GTM dataLayer push
+  _post:      { url: 'https://your-server.example.com/ae' }
+});
+// → Event logged in aGTM.d.dl and aGTM.l
+// → POST sent to your server immediately
+// → Nothing pushed to Google Tag Manager
+```
+
+GTM can still run in parallel — this pattern adds a Google-independent channel alongside it, rather than replacing GTM.
 
 ### POST Transport
 
@@ -429,158 +457,79 @@ aGTM.f.fire({ event: 'pageview', _post: { enc: true } });
 
 ## Session & User Data
 
-aGTM can fetch session and user data from a server-side endpoint early in the page lifecycle, before GTM is injected. The data is stored in `aGTM.d.session` and is accessible from webGTM variables, GTM Custom Templates, and any JavaScript on the page.
+> **v1.5 redesign in progress — see [SESSION-REDESIGN.md](SESSION-REDESIGN.md).** Phase 2 (current state) has removed the legacy client-side session fetch entirely. The library no longer issues an HTTP call for session data; it consumes a pre-populated `cfg.session` object that the sGTM Client injects into the library response. Phase 3 will add the consent diff/store flow (`consent_store_url`, `consent_hash`, `consent_serialize`, synchronous `call_cc()` after preset) so that returning visitors with stored consent get GTM injected immediately, without a CMP wait.
 
-### Activation
+### Activation (Phase 2)
 
-The feature is active when **both** `user_id` and `session_url` are set in the config. If either is missing, the feature is silently disabled.
+The feature is active whenever the sGTM Client (or any integrator) injects `aGTM.f.config({ session: { ... } })` with a `sid` or a `consent` field. There is no client-side fetch endpoint anymore.
 
 ```javascript
+// Typically emitted by the sGTM Client Template into the page response:
 aGTM.f.config({
-  user_id:      'u-12345',
-  session_url:  'https://session.example.com/api/session',
-  session_salt: 42
+  session: {
+    sid: 's-abc',
+    uid: 'u-123',
+    ga4sid: '17163412742',
+    muidga4: 'ga4.e739429c6b5210.6c68813e'
+    // Phase 3: an optional `consent` field will be honored here
+    // and seed aGTM.d.consent + aGTM.d.consent_hash.
+  },
+  session_salt: 42,
+  user_id:      'u-12345'  // optional, exposed for integrators
 });
 ```
 
-### Configuration options
+### Configuration options (Phase 2)
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `user_id` | string | `""` | User identifier sent to the session endpoint |
-| `session_url` | string | `""` | POST endpoint URL |
-| `session_salt` | number | `0` | Encryption salt for the request payload; also used as fallback salt for POST transport (`_post`) when neither the event nor `transport_salt` provides one |
-| `session_wait` | boolean | `false` | Delay GTM injection until session data is available (or timeout reached) |
-| `session_timeout` | number | `5000` | Milliseconds before the session fetch is abandoned; GTM injection proceeds regardless |
-| `session_gtm_on_deny` | boolean | `true` | Inject GTM even when auto-denial is applied (see below) |
+| `user_id` | string | `""` | Optional logged-in user CRM ID, exposed for integrators that want to forward it through their own channels |
+| `session_salt` | number | `0` | Encryption salt for the consent-store POST (Phase 3); also fallback salt for POST transport (`_post`) when neither the event nor `transport_salt` provides one |
+| `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid` or `consent` |
 
-### How it works
+**Removed in Phase 2 (no migration code, v1.5 was unreleased):** `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, `session_consent_url`, `session_deny_service`. Functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.f.xfetch`. Data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`. Auto-denial moves entirely server-side (decided by the sGTM Client based on the visit counter and stored consent record).
 
-During `aGTM.f.init()`, the session fetch starts immediately — in parallel with the CMP consent check. The request is sent via `aGTM.f.xfetch()` as an encrypted POST.
+### Preset gate (current behaviour)
 
-**Request payload:**
-```json
-{ "user_id": "u-12345", "url": "<current page URL>", "ref": "<referrer>" }
-```
-The payload is encrypted using `aGTM.f.enc()` with `session_salt`.
+In `aGTM.f.config()`, if `cfg.session` is an object with a `sid` or `consent` field, it is deep-copied into `aGTM.d.session` and `aGTM.d.session_status` is set to `"preset"`. Otherwise it is ignored.
 
-**On response:**
-1. Response JSON is parsed.
-2. If `sid` (session ID) is missing or empty → feature disabled at this point, `aGTM.d.session` remains empty.
-3. Otherwise: all response fields are stored in `aGTM.d.session`, and `aGTM.d.session_ready` is set to `true`.
-4. Auto-denial logic is evaluated (see below).
-5. If `session_wait: true` and GTM was waiting → injection proceeds now.
+### Session payload (passed through the sGTM Client from api4sgtm)
 
-**On timeout or error:** `aGTM.d.session_ready` is set to `true` (so `session_wait` doesn't block indefinitely), `aGTM.d.session` stays empty.
-
-### `aGTM.f.xfetch(url, data, encrypt, salt, callback)`
-
-New function for POST requests that need to read the response. Same body format and encryption logic as `aGTM.f.xsend()`.
-
-**Returns:** the `XMLHttpRequest` instance (or `null` on a synchronous setup error). Useful for aborting the request externally if needed.
-
-**Callback behaviour:**
-- `callback(parsedJSON)` — on HTTP 2xx with valid JSON response body
-- `callback(null)` — on HTTP non-2xx, JSON parse error, network error, or synchronous setup failure
-
-```javascript
-var xhr = aGTM.f.xfetch(
-  'https://session.example.com/api/session',
-  { user_id: 'u-12345', url: location.href, ref: document.referrer },
-  true,   // encrypt
-  42,     // salt
-  function(response) {
-    if (response && response.sid) {
-      console.log('Session:', response);
-    } else {
-      console.warn('Session fetch failed or invalid response');
-    }
-  }
-);
-// xhr can be used to abort the request if needed: xhr.abort();
-```
-
-### Session response format
-
-The endpoint must return JSON. `sid` is the only required field — everything else is optional. All fields are stored as-is in `aGTM.d.session`.
+The sGTM Client receives session data from the api4sgtm service and forwards it as `cfg.session`. All fields are stored as-is in `aGTM.d.session`.
 
 | Field | Type | Description |
 |---|---|---|
-| `sid` | string | **Required.** Session ID. Missing or empty → feature disabled. |
-| `uid` | string | User ID (server-side) |
-| `sst` | boolean | Session status: `true` = real/validated user, `false` = bot or uncertain |
-| `ret` | boolean | `true` = returning visitor |
-| `cst` | boolean | `true` = consent decision already on record for this user |
-| `ref` | string | Referrer as seen server-side |
-| `vct` | number | Visit count (number of sessions for this user) |
-| *(any)* | * | Additional fields (click IDs, attribution, etc.) are passed through and stored |
+| `sessionId` / `sid` | string | Session ID |
+| `uid` | string | User ID (typically the sGTM Client cookie value or fingerprint) |
+| `counter` | number | Visit counter (used **server-side** by the sGTM Client for the auto-denial decision; not branched on client-side) |
+| `ga4sid` | string | GA4-compatible session ID — usable as-is for the GA4 `sid` parameter |
+| `muidga4` | string | GA4-compatible mapped user ID — usable as-is for the GA4 `cid` parameter |
+| `consent` | object | Phase 3: pre-known consent for this session; if present, will seed `aGTM.d.consent` + `aGTM.d.consent_hash` |
+| *(any)* | * | Additional fields are stored as-is in `aGTM.d.session` |
 
 ### Accessing session data
 
 ```javascript
 // In any JavaScript on the page:
-aGTM.d.session.sid        // session ID
-aGTM.d.session.sst        // real user?
-aGTM.d.session.ret        // returning visitor?
-aGTM.d.session_ready      // true once fetch completed (or timed out)
-aGTM.d.session_status     // outcome — see table below
+aGTM.d.session.sid           // session ID
+aGTM.d.session.uid           // user ID
+aGTM.d.session.ga4sid        // GA4 sid
+aGTM.d.session.muidga4       // GA4 cid
+aGTM.d.session_status        // "" or "preset" (Phase 3 adds more values)
 ```
 
-**`aGTM.d.session_status` values:**
+**`aGTM.d.session_status` values (v1.5, Phase 2):**
 
 | Value | Meaning |
 |---|---|
-| `""` | Session fetch not yet started (initial state) |
-| `"ok"` | Valid response received, `sid` present, data stored |
-| `"invalid"` | Response received but `sid` missing or not a string |
-| `"error"` | Network error or non-2xx HTTP status |
-| `"timeout"` | Endpoint did not respond within `session_timeout` ms |
-| `"inactive"` | Feature disabled — `user_id` or `session_url` not configured |
+| `""` | No `cfg.session` supplied (initial state) |
+| `"preset"` | `cfg.session` accepted; data deep-copied into `aGTM.d.session` |
 
-GTM Custom Templates can read `aGTM.d.session_status` to branch logic (e.g. skip personalisation on `"timeout"` or `"error"`).
+Phase 3 will add `"preset_with_consent"`, `"synced"` and `"confirmed"` to this lifecycle.
 
-In a GTM Custom Template or variable, the same paths are accessible via the `aGTM` object in the dataLayer.
+### `blocked` fallback (reserved for Phase 3 server-side auto-denial)
 
-### Auto-denial
-
-When the session data indicates a **returning visitor without a recorded consent decision** (`ret === true && cst === false`), this means the consent banner was likely blocked (e.g. by an ad blocker or browser setting) or was never shown. In this case, aGTM applies auto-denial:
-
-| Property | Value set |
-|---|---|
-| `aGTM.d.consent.hasResponse` | `true` |
-| `aGTM.d.consent.feedback` | `"Consent denied by aGTM"` |
-| `aGTM.d.consent.services` | `",aGTMconsent,"` |
-| `aGTM.d.consent.gtmConsent` | `true` if `session_gtm_on_deny: true`, otherwise `false` |
-
-**Effect:** The consent gate in `aGTM.f.fire()` opens (events are no longer queued). GTM is injected (if `session_gtm_on_deny: true`). Tags configured to require `aGTMconsent` will fire; tags requiring any other consent signal (e.g. `Google Analytics`) will not.
-
-Auto-denial only has its full effect on GTM delivery when `session_wait: true`, because then the session data is guaranteed to arrive before `inject()` runs. With `session_wait: false`, GTM may already be loaded by the time auto-denial fires.
-
-**Interaction with later CMP decisions (`blocked` flag):**
-
-Auto-denial sets `aGTM.d.consent.blocked = true` (when `session_gtm_on_deny: true`). This flag is used by `run_cc()` as a fallback: when no consent purposes/services match, `gtmConsent` is set to `blocked` instead of `false`. This ensures GTM stays loaded through subsequent `run_cc("init")` calls (e.g. from the consent polling timer).
-
-However, if the user later makes an **explicit decision in the CMP** (which triggers `run_cc("update")`), `blocked` is deleted before re-evaluation. This means a real user decline always overrides auto-denial — `gtmConsent` becomes `false` correctly. A real user acceptance sets `gtmConsent = true` normally.
-
-In short: `blocked` survives `init` re-checks but is cleared by any explicit user CMP decision.
-
-### `session_wait` and timing
-
-```
-init()
-  ├─ start xfetch(session_url)         — async, runs in parallel
-  ├─ load CMP script (if configured)
-  ├─ start consent polling timer
-  │
-  ├─ [session_wait: false]
-  │    └─ inject() runs as soon as consent is available
-  │         session data stored whenever xfetch completes
-  │
-  └─ [session_wait: true]
-       └─ inject() waits until BOTH are true:
-            - consent available (or auto-denial applied)
-            - session_ready == true (data received or timeout)
-```
+`aGTM.d.consent.blocked` is still recognised by `run_cc()`: when no purposes/services match in the consent gate evaluation, `gtmConsent` falls back to the value of `blocked` (if boolean), otherwise `false`. There is no client-side writer for this field in Phase 2 — it is reserved for Phase 3 when the sGTM Client may inject a server-constructed auto-denial consent object via `cfg.session.consent`. An explicit `run_cc('update')` (real user CMP decision) deletes `blocked` before re-evaluating, so a real decision always overrides any preset auto-denial. Phase 3 will broaden this reset to clear all CMP-managed fields per the redesign plan §4 B2.
 
 ## Callbacks
 
@@ -732,9 +681,8 @@ bun test
 |---|---|
 | `test/setup.js` | Browser globals + loads aGTM.js (auto-loaded via `bunfig.toml`) |
 | `test/helpers.js` | `MockXHR` class, `resetAGTM()` helper |
-| `test/xfetch.test.js` | `aGTM.f.xfetch()` — response handling, encryption, return value |
-| `test/session_fetch.test.js` | `aGTM.f.session_fetch()` — activation, storage, auto-denial, timeout |
-| `test/inject.test.js` | `aGTM.f.inject()` — `session_wait` gate |
+| `test/session_preset.test.js` | `cfg.session` preset gate (accepts object with `sid` or `consent`, deep-copies into `aGTM.d.session`) |
+| `test/session_status.test.js` | `aGTM.d.session_status` lifecycle (Phase 2: `""` and `"preset"`) |
 | `test/run_cc.test.js` | `aGTM.f.run_cc()` — `blocked` flag deletion on `update` |
 | `test/fire_salt.test.js` | `aGTM.f.fire()` — POST salt fallback chain |
 

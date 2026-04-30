@@ -11,8 +11,6 @@ describe('aGTM.f.call_cc()', () => {
     aGTM.c.gtmPurposes = '';
     aGTM.c.gtmServices = '';
     aGTM.c.gtmVendors  = '';
-    aGTM.c.session_wait = false;
-    aGTM.d.session_ready = true;
     globalThis.dataLayer = [];
   });
 
