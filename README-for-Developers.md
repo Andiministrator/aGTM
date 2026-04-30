@@ -67,11 +67,13 @@ aGTM.f.config({
   // Session and consent data arrive from the sGTM Client via cfg.session.
   // No client-side HTTP fetch. consent_store_url is where aGTM POSTs consent
   // diffs back; the sGTM Client persists them into the Session API record.
-  session_salt:       42,                                    // salt for consent-store POST; also fallback for transport_salt
-  consent_store_url:  'https://collect.example.com/consent', // POST endpoint for consent diffs (sGTM Client route)
-  consent_store_enc:  true,                                  // encrypt consent-store POST payload with session_salt
-  user_id:            'user-abc-123',                        // optional: logged-in user CRM ID, exposed for integrators
-  session: { sid: 's-abc', uid: 'u-123' },                   // pre-populated by the sGTM Client (object with sid OR consent)
+  // When served via sGTM Client, consent_store_url is auto-filled as
+  // https://<sgtm-host>/aGTMconsent — only standalone integrators set it.
+  session_salt:       42,                                  // salt for consent-store POST; also fallback for transport_salt
+  consent_store_url:  'https://sgtm.example.com/aGTMconsent', // auto-filled by sGTM Client; standalone uses fixed path
+  consent_store_enc:  true,                                // encrypt consent-store POST payload with session_salt
+  user_id:            'user-abc-123',                      // optional: logged-in user CRM ID, exposed for integrators
+  session: { sid: 's-abc', uid: 'u-123' },                 // pre-populated by the sGTM Client (object with sid OR consent)
 
   // --- Other options ---
   dlSet:            { 'page_type': 'pageType' }, // append GTM DL variable to every fire() event
@@ -494,7 +496,7 @@ aGTM.f.config({
 |---|---|---|---|
 | `user_id` | string | `""` | Optional logged-in user CRM ID, exposed for integrators |
 | `session_salt` | number | `0` | Encryption salt for the consent-store POST; also fallback salt for POST transport (`_post`) when neither the event nor `transport_salt` provides one |
-| `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. Empty string disables the diff/store mechanism. |
+| `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When served via the sGTM Client, this is auto-filled as `https://<sgtm-host>/aGTMconsent` (fixed path); standalone integrators set this manually. Empty string disables the diff/store mechanism. |
 | `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is encrypted with `session_salt` |
 | `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid` or `consent` |
 
@@ -504,19 +506,21 @@ aGTM.f.config({
 
 In `aGTM.f.config()`, if `cfg.session` is an object with a `sid` or `consent` field, it is deep-copied into `aGTM.d.session`. Then:
 
-- If `cfg.session.consent` is a **valid** object (`hasResponse === true`, `typeof services === 'string'`), it is deep-copied into `aGTM.d.consent`, `aGTM.d.consent_hash` is seeded via `aGTM.f.consent_serialize`, and `aGTM.d.session_status = 'preset_with_consent'`. **At end of `config()`, `aGTM.f.call_cc()` is called synchronously** so GTM injects on this tick — no 500 ms `consent_listener` wait. (Requires `consent_check` to already be defined at config time; otherwise the sync call is a graceful no-op and the normal CMP-load flow continues.)
+- If `cfg.session.consent` is a **valid** object (`hasResponse === true`, `typeof services === 'string'`), it is deep-copied into `aGTM.d.consent`, `aGTM.d.consent_hash` is seeded via `aGTM.f.consent_serialize`, and `aGTM.d.session_status = 'preset_with_consent'`. **At end of `config()`, `aGTM.f.call_cc()` is called synchronously** so GTM injects on this tick — no 500 ms `consent_listener` wait. (Requires `consent_check` to already be defined at config time; otherwise the sync call is a graceful no-op and a second sync attempt runs from `consent_listener()` once the CMP file finishes loading — still ahead of the polling interval.)
 - Otherwise `aGTM.d.session_status = 'preset'` and the CMP path proceeds normally.
 
 ### Consent diff/store (in `run_cc()`)
 
-At the end of every successful `run_cc()` call:
+At the end of every successful `run_cc()` call — **both `init` and `update` actions**:
 
 1. `new_hash = aGTM.f.consent_serialize(aGTM.d.consent)` — stable, sorted, blacklist serialization that excludes `gtmConsent`, `blocked`, and empty/null values (so adding/removing an empty field doesn't create phantom diffs).
 2. If `consent_store_url` is set AND `new_hash !== aGTM.d.consent_hash`:
-   - POST `{uid, sid, consent: <copy without gtmConsent/blocked>}` to `consent_store_url` via `aGTM.f.xsend()`.
+   - POST `{uid, sid, consent: <copy without gtmConsent/blocked/empty>}` to `consent_store_url` via `aGTM.f.xsend()`. Payload uses the **same** blacklist as the hash so the server's full-replace persistence matches what the diff represents.
    - On `xhr.onreadystatechange` with status 2xx → `aGTM.d.consent_hash = new_hash`, `aGTM.d.session_status = 'synced'`.
    - On non-2xx → leave the hash unchanged so the next `run_cc()` retries within the same page load.
 3. If `consent_store_url` is set AND hash matches: `aGTM.d.session_status = 'confirmed'` (server already had this state, no POST sent).
+
+The init path runs the same diff/POST so first-visit CMP decisions (no preset, hash starts as `""`) and returning-visit reconciliations (preset hash matches CMP) flow through one code path.
 
 ### Update-path field reset (`run_cc('update')`)
 

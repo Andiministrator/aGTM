@@ -491,10 +491,17 @@ aGTM.f.run_cc = function (action) {
       var consentPayload = {};
       if (aGTM.d.session && aGTM.d.session.uid) consentPayload.uid = aGTM.d.session.uid;
       if (aGTM.d.session && aGTM.d.session.sid) consentPayload.sid = aGTM.d.session.sid;
+      // Build payload with the same blacklist as consent_serialize (gtmConsent
+      // and blocked are client-derived; empty/null values are semantically
+      // absent — keep payload symmetric with the hash so the server's
+      // full-replace persistence matches what the diff hash represents.
       var consentBody = {};
       var skip = { gtmConsent: 1, blocked: 1 };
       for (var k in aGTM.d.consent) {
-        if (aGTM.d.consent.hasOwnProperty(k) && !skip[k]) consentBody[k] = aGTM.d.consent[k];
+        if (!aGTM.d.consent.hasOwnProperty(k) || skip[k]) continue;
+        var cv = aGTM.d.consent[k];
+        if (cv === "" || cv == null) continue;
+        consentBody[k] = cv;
       }
       consentPayload.consent = consentBody;
       var encrypt = aGTM.c.consent_store_enc === true;
@@ -551,6 +558,12 @@ aGTM.f.call_cc = function () {
  */
 if (typeof aGTM.f.consent_listener != "function") aGTM.f.consent_listener = function () {
   if (!aGTM.c.useListener) {
+    // Phase 3 B1: try once synchronously before starting the 500 ms poll. For
+    // preset_with_consent flows (cfg.session.consent valid, hasResponse=true),
+    // consent_check's load-bearing short-circuit returns true on the first
+    // call, so run_cc → inject runs immediately. If the call fails (no preset
+    // or CMP not yet ready), fall through to the polling loop as before.
+    if (typeof aGTM.f.call_cc == "function" && aGTM.f.call_cc()) return;
     aGTM.d.timer.consent = setInterval(aGTM.f.call_cc, 500);
   }
 };

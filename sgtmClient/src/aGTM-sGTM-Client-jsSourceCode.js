@@ -2,6 +2,13 @@
 // aGTM Doku: https://github.com/Andiministrator/aGTM
 const aGTMversion = "1.5";
 
+// Fixed path the browser POSTs consent diffs to. The path is hard-coded so
+// integrators don't have to assemble a URL — the sGTM Client builds the full
+// URL from its own host. Keep in sync with the docs: a path collision with
+// another claimed route on the same sGTM host would require patching this
+// constant.
+const CONSENT_STORE_PATH = '/aGTMconsent';
+
 // Load Libraries
 const claimRequest = require('claimRequest');
 const setResponseStatus = require('setResponseStatus');
@@ -35,7 +42,10 @@ const CFG = {
   debug: data.debug === true,
   tenantID: data.tenant_id || '',
   sessionApiUrl: data.session_api_url || '',
-  consentStoreUrl: data.consent_store_url || '',
+  // Consent-store route is enabled by default; integrator can disable via the
+  // template UI. The route path is fixed (CONSENT_STORE_PATH); the browser-
+  // facing URL is assembled from the request host.
+  consentStoreEnabled: data.consent_store_enabled !== false,
   cookieMode: data.cookie_mode || 'always',
   consentService: data.consent_service || '',
   consentPurpose: data.consent_purpose || '',
@@ -67,13 +77,12 @@ const hasRequiredConsent = function(services, purposes, vendors) {
 const rpath = getRequestPath();
 const rmethod = getRequestMethod();
 
-// ── POST <consent_store_url> handler ────────────────────────────────────────
+// ── POST CONSENT_STORE_PATH handler ─────────────────────────────────────────
 // Browser POSTs the latest consent state here. Two responsibilities:
 //  1. Manage the user-ID cookie based on consent (cookieMode === 'consent').
 //  2. Persist the consent block into the Session API record so that the next
 //     library load returns it via cfg.session.consent (Phase 1 redesign).
-const consentPathSuffix = CFG.consentStoreUrl ? '/' + CFG.consentStoreUrl.split('/').pop() : '';
-if (consentPathSuffix && rmethod === 'POST' && rpath.slice(-consentPathSuffix.length) === consentPathSuffix) {
+if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_PATH.length) === CONSENT_STORE_PATH) {
   claimRequest();
   const body = getRequestBody();
   if (CFG.debug) logToConsole('debug', '✓ Consent POST received', body);
@@ -383,22 +392,32 @@ const buildAndSend = function(sessionData) {
   if (data.iframeOrigins) c.iframeOrigins = data.iframeOrigins;
   if (data.nonce) c.nonce = data.nonce;
   if (data.debug) c.debug = true;
-  // Session (pre-populated by sGTM Client; aGTM consumes via cfg.session)
-  // sessionData may include a `consent` field — Phase 3 of the redesign will
-  // seed aGTM.d.consent and aGTM.d.consent_hash from it. The aGTM Phase 2
-  // preset gate accepts any object with sid OR consent.
-  if (sessionData && (sessionData.sid || sessionData.consent || sessionData.uid)) {
+  // Session (pre-populated by sGTM Client; aGTM consumes via cfg.session).
+  // aGTM's preset gate requires sid OR a valid consent block — uid alone is
+  // ignored, so we don't bother emitting in that case.
+  if (sessionData && (sessionData.sid || sessionData.consent)) {
     c.session = sessionData;
   } else if (CFG.debug) {
     logToConsole('debug', '✗ session: nothing to pass through', sessionData);
   }
-  // Consent-store endpoint (Phase 3 of the redesign POSTs consent diffs here)
-  if (CFG.consentStoreUrl) {
-    c.consent_store_url = CFG.consentStoreUrl;
-    if (CFG.debug) logToConsole('debug', '✓ consent_store_url set', CFG.consentStoreUrl);
+  // Consent-store endpoint (Phase 3 of the redesign POSTs consent diffs here).
+  // URL is assembled from the request host + fixed CONSENT_STORE_PATH so the
+  // integrator only flips a checkbox; no URL plumbing.
+  if (CFG.consentStoreEnabled) {
+    const host = CFG.sgtmHost || getRequestHeader('host') || '';
+    if (host) {
+      c.consent_store_url = 'https://' + host + CONSENT_STORE_PATH;
+      if (CFG.debug) logToConsole('debug', '✓ consent_store_url set', c.consent_store_url);
+    } else if (CFG.debug) {
+      logToConsole('debug', '✗ consent_store_url NOT set — host header missing and sgtm_host empty');
+    }
   } else if (CFG.debug) {
-    logToConsole('debug', '✗ consent_store_url NOT set — data.consent_store_url empty');
+    logToConsole('debug', '✗ consent_store_url NOT set — disabled by template config');
   }
+  if (data.consent_store_enc) c.consent_store_enc = true;
+  // session_salt is reused by aGTM for the consent-store POST encryption
+  // (consent_store_enc) AND as a fallback for transport_salt.
+  if (data.session_salt) { const ss = makeInteger(data.session_salt); if (ss > 0) c.session_salt = ss; }
   // POST Transport
   if (data.transport_url) c.transport_url = data.transport_url;
   if (data.transport_enc) c.transport_enc = true;

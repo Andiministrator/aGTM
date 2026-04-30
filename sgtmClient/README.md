@@ -188,11 +188,11 @@ The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session managemen
 4. **Consent passthrough**: if the response carries a valid `consent` object (`hasResponse: true`), it is forwarded into `cfg.session.consent` for aGTM to consume.
 5. **Server-side auto-denial**: if no consent is on file but the user is returning (`counter > 0`), the Client constructs a denial-consent block (`hasResponse: true`, `services: ',aGTMconsent,'`, `gtmConsent: <auto_deny_load_gtm>`) and embeds it in `cfg.session.consent`. This replaces the old client-side `session_apply_denial()`.
 6. Sets the user-ID cookie via `Set-Cookie` if the resulting consent state grants the required services (or if `cookie_mode: always`).
-7. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript.
+7. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript. The `consent_store_url` is auto-built from the request host + the fixed path `/aGTMconsent` — the integrator only flips a checkbox to enable/disable the route.
 
-aGTM receives the pre-populated `session` object (Phase 2 preset gate accepts any object with `sid` or `consent`); Phase 3 will additionally seed `aGTM.d.consent` and `aGTM.d.consent_hash` from `cfg.session.consent`. No client-side session fetch is performed.
+aGTM receives the pre-populated `session` object (Phase 2 preset gate accepts any object with `sid` or `consent`); Phase 3 additionally seeds `aGTM.d.consent` and `aGTM.d.consent_hash` from `cfg.session.consent`. No client-side session fetch is performed.
 
-When the browser POSTs consent updates to `consent_store_url`, the handler:
+When the browser POSTs consent updates to `https://<sgtm-host>/aGTMconsent`, the handler:
 1. Manages the user-ID cookie (`cookie_mode: consent` only) based on whether the new consent grants the required services.
 2. **Persists the consent** into the Session API record (`POST /tp/session/{tenant}/{uid}/consent`) so the next library load returns it via `cfg.session.consent`.
 
@@ -206,9 +206,9 @@ The tenant identifier used in API paths (`/tp/session/{tenant}/{uid}`). Required
 
 Base URL for the Session API (`GET /tp/session/{tenant}/{uid}` for read, `POST /tp/session/{tenant}/{uid}/consent` for write). Without tenant or user suffix, e.g. `https://api.example.com/tp/session`.
 
-#### Consent Store URL
+#### Enable Consent Store route (`consent_store_enabled`)
 
-Full URL that aGTM (Phase 3) POSTs consent diffs to. The last path segment becomes the sGTM listener path. The handler manages the user-ID cookie AND persists the consent into the Session API record. Leave empty to disable.
+Checkbox, default ON. When checked, aGTM (Phase 3) POSTs consent diffs to the fixed path `/aGTMconsent` on this sGTM host. The handler manages the user-ID cookie AND persists the consent into the Session API record. Uncheck to disable the route entirely (no POSTs, no server-side persistence). The browser-facing URL is assembled automatically from the request host (or `sgtm_host` if set) — no manual URL plumbing.
 
 #### Load GTM even under server-side auto-denial (`auto_deny_load_gtm`)
 
@@ -313,7 +313,7 @@ Please contact me if you found problems or have improvements:
   - ITP-resistant cookie setting via `Set-Cookie` header in the `/aGTM.js` response
   - `cookie_mode` parameter: `always` / `never` / `consent`
   - Removed parameters: `presession_api_url` (no more presession), `session_gtm_on_deny` (replaced by `auto_deny_load_gtm`, semantics moved server-side), `session_deny_service` (auto-denial service is now hard-coded as `aGTMconsent`)
-  - Renamed parameter: `consent_url` → `consent_store_url` (clearer intent: the endpoint persists consent into the session record)
+  - Replaced parameter: `consent_url` → `consent_store_enabled` (boolean, default true). The route path is fixed (`/aGTMconsent`); the browser-facing URL is built from the request host. Removes one URL-plumbing step from setup.
   - New parameter: `auto_deny_load_gtm` (boolean, default true) — server-side replacement for `session_gtm_on_deny`
   - Required Session API endpoints (api4sgtm-compatible):
     - `GET /tp/session/{tenant}/{user}` → `{sessionId, counter, ga4sid, muidga4, consent?}`

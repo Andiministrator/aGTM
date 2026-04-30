@@ -108,7 +108,7 @@ Same shape as today's session response, with **one new optional key**:
 
 ### Consent-store request (browser → sGTM Client)
 
-POST to `aGTM.c.consent_store_url`, body = current `aGTM.d.consent` minus client-derived fields:
+POST to `aGTM.c.consent_store_url`. When the library is served by the sGTM Client, this URL is auto-built as `https://<sgtm-host>/aGTMconsent` (fixed path). Body = current `aGTM.d.consent` minus client-derived fields:
 
 ```json
 {
@@ -136,7 +136,7 @@ Excluded from payload: `gtmConsent`, `blocked` (both client-derived). Encryption
 
 ```javascript
 aGTM.f.consent_serialize = function(c) {
-  if (!c) return "";
+  if (!c || typeof c !== "object") return "";
   // Sort keys alphabetically; exclude client-derived fields.
   var skip = { gtmConsent: 1, blocked: 1 };
   var keys = [];
@@ -145,8 +145,13 @@ aGTM.f.consent_serialize = function(c) {
   var out = [];
   for (var i = 0; i < keys.length; i++) {
     var key = keys[i], v = c[key];
-    // Stringify scalars; for objects/arrays, JSON.stringify (acceptable: aGTM.d.consent has no nested objects in practice)
-    out.push(key + "=" + (v == null ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v))));
+    // Skip empty strings, null and undefined — semantically "absent". Required
+    // because the B2 update-path reset clears CMP-managed fields to "" before
+    // consent_check runs; without this skip, a preset that never carried a
+    // given field would appear to differ from the post-reset state and create
+    // a phantom diff.
+    if (v === "" || v == null) continue;
+    out.push(key + "=" + (typeof v === "object" ? JSON.stringify(v) : String(v)));
   }
   return out.join("|");
 };
@@ -154,6 +159,7 @@ aGTM.f.consent_serialize = function(c) {
 
 - ES5-safe (no `let`/arrow), no JSON.stringify on top-level (sorted keys explicit).
 - For `services` / `purposes` / `vendors`: aGTM stores these as sorted comma-wrapped strings (e.g. `,a,b,c,`); equality compare suffices.
+- **Empty/null skip is load-bearing for B2.** The hash and the consent-store POST payload share the same blacklist (gtmConsent, blocked, empty/null) so the server's full-replace persistence matches what the diff hash represents. Revoked-everything cases (services cleared) still produce a real diff because the *previous* hash carried the populated value while the new hash drops it.
 - **CMP non-determinism warning:** if a CMP ever writes a per-page-load timestamp or random nonce into `aGTM.d.consent`, every `run_cc` would diff. None of the 25 current CMP files do this. Code review for new CMP integrations must check this.
 
 **Diff trigger:** end of `aGTM.f.run_cc()`, after `aGTM.d.consent` is fully populated and `gtmConsent` computed. Pseudo-flow:
@@ -290,9 +296,9 @@ The client's `afterSession()` then decides:
 
 **Modify — `buildAndSend()` (lines ~334–352):** `c.session = sessionData` now includes the optional `consent` field. Drop the special-cased uid-only branch — preset path no longer requires `sid`, and the simplified aGTM `config()` accepts any session object.
 
-**Add — `consent_store_url` config:** rename / extend `data.consent_url` (currently the existing consent-update endpoint) to `data.consent_store_url` semantically. Output as `c.consent_store_url` in the aGTM config so the library knows where to POST diffs.
+**Add — `consent_store_enabled` checkbox + fixed path:** instead of asking the integrator for a URL, expose a boolean `data.consent_store_enabled` (default true). The path is hard-coded as a `CONSENT_STORE_PATH = '/aGTMconsent'` constant in jsSourceCode.js. The full browser-facing URL is built in `buildAndSend()` as `'https://' + (CFG.sgtmHost || getRequestHeader('host')) + CONSENT_STORE_PATH` and emitted as `c.consent_store_url` so the aGTM library code stays unchanged. Standalone integrators (without sGTM Client) continue to set `aGTM.c.consent_store_url` manually.
 
-**Modify — `POST <consent_store_url>` handler (lines ~67–103):** still receives the consent payload from the browser, but now must **persist into the session** via the Session API (server-side `PUT` or equivalent — exact endpoint shape TBD with the Session API team). Today the handler only manages the user-ID cookie based on consent. Both responsibilities remain:
+**Modify — `POST CONSENT_STORE_PATH` handler (lines ~70+):** still receives the consent payload from the browser, but now must **persist into the session** via the Session API (server-side `PUT` or equivalent — exact endpoint shape TBD with the Session API team). Today the handler only manages the user-ID cookie based on consent. Both responsibilities remain:
 - Cookie write/delete based on `cookieMode === 'consent'` and `hasRequiredConsent(...)` — unchanged.
 - **NEW:** call the Session API to store `{uid, sid, consent}` in the session record so the next library load returns it.
 

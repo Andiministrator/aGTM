@@ -146,4 +146,31 @@ describe('config() — synchronous call_cc trigger when preset consent is usable
     if (aGTM.f && origInject) aGTM.f.inject = origInject;
     expect(injected).toBe(false);
   });
+
+  test('preset consent with gtmConsent:false (server-side denial) → GTM does NOT load, CMP can still update later', () => {
+    // Server-side auto-denial: gtmServices is configured (required), preset
+    // services do NOT match → chelp falls through to blocked=false → gtmConsent
+    // stays false → inject() runs but does NOT load GTM (aGTM.d.init stays
+    // false). A later CMP update can still flip it via run_cc('update').
+    globalThis.aGTM = globalThis.aGTM || { f: {} };
+    aGTM.f = aGTM.f || {};
+    aGTM.f.consent_check = function () { return true; };
+    resetAGTM({
+      gtmServices: 'Google Tag Manager',
+      session: {
+        sid: 's-1',
+        consent: {
+          hasResponse: true,
+          services: ',aGTMconsent,',
+          gtmConsent: false,
+          blocked: false
+        }
+      }
+    });
+    // chelp fails (gtmServices='Google Tag Manager' not in services), fallback
+    // to blocked=false → gtmConsent=false → inject() does not run initGTM →
+    // aGTM.d.init stays false.
+    expect(aGTM.d.consent.gtmConsent).toBe(false);
+    expect(aGTM.d.init).toBe(false);
+  });
 });
