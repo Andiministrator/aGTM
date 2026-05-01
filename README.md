@@ -493,6 +493,32 @@ If `true`, GTM is injected even when auto-denial is applied (returning visitor w
 - Example: `false`
 - Default: `true`
 
+### transport_url
+
+Endpoint URL for direct HTTP POST transport to a server-side backend (e.g., a sGTM collect endpoint or custom collection server). When set, events can be sent via `_post: true` in `aGTM.f.fire()`.
+
+- Type: string
+- Example: `'https://collect.example.com/ae'`
+- Default: `''`
+
+### transport_enc
+
+Enable obfuscation of POST payloads using Base64 + Caesar shift encoding.
+
+- Type: boolean
+- Example: `true`
+- Default: `false`
+
+### transport_salt
+
+Numeric salt for POST payload obfuscation. Must be an integer ≥ 1. If not set, `session_salt` is used as fallback.
+
+- Type: number
+- Example: `42`
+- Default: `0` (no encryption)
+
+---
+
 ### Accessing session state
 
 After `aGTM.f.init()` runs, the session result is available in two places:
@@ -744,6 +770,46 @@ Don't use the configuration option "gtmJS".
 In case you have the output of your Google Tag Manager container stored in a database or somewhere else, you can use this option.
 The Javascript code must be assigned to the "gtm"/"gtmJS" configuration option (as string and base64-encoded).
 The configuration option "gtmURL" will be ignored in this case.
+
+---
+
+## POST Transport
+
+aGTM can send events directly to a server-side endpoint via HTTP POST, independently of Google Tag Manager. This is useful for server-side event collection, pre-consent tracking, and use with a sGTM collect endpoint.
+
+### Configuration
+
+```javascript
+aGTM.f.config({
+  transport_url:  'https://collect.example.com/ae',
+  transport_enc:  true,   // obfuscate payload (default: false)
+  transport_salt: 42      // obfuscation salt (default: 0 = no obfuscation)
+});
+```
+
+### Per-event control
+
+Control POST per event using the `_post` property in `aGTM.f.fire()`:
+
+```javascript
+// Use global transport defaults
+aGTM.f.fire({ event: 'purchase', revenue: 99.9, _post: true });
+
+// Per-event overrides
+aGTM.f.fire({ event: 'purchase', _post: { url: 'https://...', enc: true, salt: 42 } });
+```
+
+POST respects the consent gate by default. Add `_noConsent: true` to send immediately without waiting for consent.
+
+### Event properties
+
+When calling `aGTM.f.fire()`, these special properties control routing and dispatch:
+
+| Property | Type | Description |
+|---|---|---|
+| `_post` | boolean \| object | Send event via HTTP POST. `true` uses global defaults; object `{ url, enc, salt }` overrides per event. |
+| `_noConsent` | boolean | Bypass the consent gate — event is dispatched and POST is sent immediately regardless of consent state. |
+| `_noDLPush` | boolean | Skip the GTM dataLayer push (`sendnaus()` is not called). The event is still logged internally in `aGTM.d.dl` and `aGTM.l`, and POST transport still fires. Use with `_noConsent` for pre-consent events that must not trigger GTM tags. |
 
 ---
 

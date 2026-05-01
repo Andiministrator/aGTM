@@ -24,9 +24,11 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 - Additional CMP integrations (to be determined)
 - Review and potential implementation of `ck` URL parameter feature (see Backlog above)
 - Further standalone mode improvements (`aGTM.f.fire()` without webGTM container)
+- **Knowledge Base** — structured documentation hub covering the full aGTM ecosystem: webGTM, sGTM, aGTM, GTAG, GA4 Analytics Events, aEvents Client/Tag, measurement protocols, consent flows. Target audience: developers integrating aGTM. Format: Markdown as single source of truth, allowing export to HTML, static site generators (e.g. Docusaurus, MkDocs) or a Markdown-based CMS.
 
 ## v2.0 — planned (breaking changes)
 
 - Remove deprecated `vPageview` event (deprecated since v1.4, use `aPageview` instead)
 - Standalone mode: aGTM fully functional without a webGTM container — `aGTM.f.fire()` as a complete event dispatcher sending directly to sGTM via POST
 - Consolidation of breaking changes accumulated since v1.0
+- **Own sGTM preview / event monitoring**: a lightweight real-time event viewer for the aEvents pipeline, independent of Google's sGTM Preview. The aEvents Client already captures all incoming events — a visualisation layer (e.g. WebSocket push to a debug UI) is the missing piece. Replaces dependency on sGTM Preview for aEvents debugging.
