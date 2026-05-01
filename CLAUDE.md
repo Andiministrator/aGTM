@@ -360,6 +360,18 @@ aGTM.f.inject()
 - **`_noConsent`** event property — bypasses the consent gate for both DL push and POST; the property remains visible in the dataLayer event; use for functional/legal events that must be tracked regardless of consent
 - **`_noDLPush`** event property — skips `sendnaus()`/`iFrameFire()` so the event is **not** pushed to the GTM dataLayer; the event is still recorded in `aGTM.d.dl` and `aGTM.l`, and POST transport still fires; use with `_noConsent` for pre-consent events that should not trigger GTM tags
 
+### Sources API integration (sGTM Client only)
+
+Server-side fire-and-forget POST to a Sources API (`api4sources`) on every aGTM.js request. **The aGTM library itself is not involved** — this is purely a sGTM Client feature.
+
+- After the Session API step completes (so the session is committed in the shared Redis), the Client POSTs `{user_id, page_location, referrer, timestamp}` to `{sources_api_url}/{tenant}`.
+- `page_location` and `referrer` come from the integration code's `?c=` base64 payload; `user_id` is the resolved session uid; tenant is reused from the existing `tenant_id` config.
+- Race-free with api4sources' Redis lookup (`customer_sessions:{tenant}:{user_id}`) — the Session API write happened first within the same Client request.
+- Fire-and-forget: the POST runs in parallel with `buildAndSend` so aGTM.js delivery is not delayed. The chained `.then()` keeps the request alive in the sandbox.
+- Template options (sGTM Client): `sources_enabled` (boolean, default false), `sources_api_url` (text). Tenant reused from `tenant_id`.
+- Spec for the API service: `tmp/api4sources.md`. Smoketest: combined into `tmp/session-api-smoketest.tpl` (steps 5-8, auto-mode only).
+- Tradeoff: SPA virtual pageviews mid-session are not captured. Acceptable because attribution cares about session source, not in-session navigation; and api4sources dedups on source fingerprint anyway. SPA-source capture is a v1.6+ topic (would need a `/aGTMsources` browser proxy path).
+
 ---
 
 ## CMP Files

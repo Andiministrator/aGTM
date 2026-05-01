@@ -716,6 +716,37 @@ ___TEMPLATE_PARAMETERS___
   },
   {
     "type": "GROUP",
+    "name": "aGTMsources",
+    "displayName": "Sources API",
+    "groupStyle": "ZIPPY_CLOSED",
+    "subParams": [
+      {
+        "type": "CHECKBOX",
+        "name": "sources_enabled",
+        "checkboxText": "Enable Sources API call",
+        "simpleValueType": true,
+        "defaultValue": false,
+        "help": "If checked, this Client fires a fire-and-forget POST to the Sources API after the Session step on every aGTM.js request, carrying user_id + page_location + referrer + timestamp. The Sources API stores the data for later attribution analysis. The Tenant ID configured above is used. Page URL and referrer come from the integration code's ?c= base64 payload."
+      },
+      {
+        "type": "TEXT",
+        "name": "sources_api_url",
+        "displayName": "Sources API URL",
+        "simpleValueType": true,
+        "defaultValue": "",
+        "enablingConditions": [
+          {
+            "paramName": "sources_enabled",
+            "paramValue": true,
+            "type": "EQUALS"
+          }
+        ],
+        "help": "Base URL of the Sources API up to and including the path prefix WITHOUT the tenant. The tenant is appended at runtime. Example: <code>https://tg-api-sources.internal.wedapi.eu/tp/sources/</code> (POSTs go to .../tp/sources/{tenant})."
+      }
+    ]
+  },
+  {
+    "type": "GROUP",
     "name": "aGTMpost",
     "displayName": "POST Transport",
     "groupStyle": "ZIPPY_CLOSED",
@@ -836,7 +867,13 @@ const CFG = {
   // Server-side auto-denial: when a returning visitor has no recorded consent,
   // the Client constructs a denial-consent block. autoDenyLoadGtm controls
   // whether GTM is allowed to load under that denial. Default true.
-  autoDenyLoadGtm: data.auto_deny_load_gtm !== false
+  autoDenyLoadGtm: data.auto_deny_load_gtm !== false,
+  // Sources API: optional fire-and-forget POST after the session step on every
+  // aGTM.js request. Tenant is reused from tenantID. Disabled by default.
+  // Race-free: the session is already committed in Redis when this fires, so
+  // api4sources' user_id -> session_id lookup hits.
+  sourcesEnabled: data.sources_enabled === true,
+  sourcesApiUrl: data.sources_api_url || ''
 };
 
 // ── Helper: check comma-delimited consent string ───────────────────────────
@@ -1013,6 +1050,37 @@ const writeCookie = function(val, maxAgeSec) {
   setCookie(CFG.cookieName, val, opts, true);
 };
 
+// ── Helper: fire Sources API POST (fire-and-forget) ──────────────────────────
+// Called from afterSession() once the session is committed in Redis. The POST
+// is not awaited — buildAndSend() runs in parallel so aGTM.js delivery is not
+// delayed. The chained .then() keeps the request alive in the sandbox until
+// it completes (or times out). page_location/referrer come from the ?c=
+// payload sent by the integration code; tenant from CFG; user_id from the
+// session's resolved uid. api4sources looks up the active session_id from
+// Redis (key customer_sessions:{tenant}:{user_id}) — race-free because the
+// Session API write completed before this runs.
+const fireSources = function(uid) {
+  if (!CFG.sourcesEnabled) return;
+  if (!CFG.sourcesApiUrl || !CFG.tenantID || !uid || !pageUrl) {
+    if (CFG.debug) logToConsole('debug', '✗ Sources skipped', {enabled: CFG.sourcesEnabled, url: !!CFG.sourcesApiUrl, tenant: !!CFG.tenantID, uid: !!uid, pageUrl: !!pageUrl});
+    return;
+  }
+  const sep = CFG.sourcesApiUrl.charAt(CFG.sourcesApiUrl.length - 1) === '/' ? '' : '/';
+  const url = CFG.sourcesApiUrl + sep + CFG.tenantID;
+  const body = JSON.stringify({
+    user_id: uid,
+    page_location: pageUrl,
+    referrer: pageRef,
+    timestamp: getTimestampMillis()
+  });
+  if (CFG.debug) logToConsole('debug', '→ Sources POST', {url: url, body: body});
+  sendHttpRequest(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 1500}, body).then(function(res) {
+    if (CFG.debug) logToConsole('debug', '✓ Sources response', {status: res.statusCode, body: res.body});
+  }, function(e) {
+    logToConsole('error', '✗ Sources error', e);
+  });
+};
+
 // ── 1. Bot Check (first — no session/cookie for bots) ────────────────────────
 const botCheckEnabled = data.botCheckEnabled === true;
 const botCheckUrl = data.botCheck || '';
@@ -1065,6 +1133,10 @@ const afterBotCheck = function(isBot) {
     }
 
     if (CFG.debug) logToConsole('debug', '✓ Session', sessionData);
+    // Fire-and-forget Sources API POST. Runs in parallel with buildAndSend so
+    // aGTM.js delivery is not blocked. Session is already committed in Redis
+    // at this point — no race against api4sources' session lookup.
+    fireSources(sessionData.uid);
     buildAndSend(sessionData);
   };
 
