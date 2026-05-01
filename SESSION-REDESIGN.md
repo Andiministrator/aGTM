@@ -481,6 +481,71 @@ Inline doc updates land in Phases 2–3 for files tied to specific code (`CLAUDE
 
 ---
 
+## 7a. Sources API integration (added late in v1.5)
+
+A separate API service (`api4sources`) stores per-`page_view` source data
+(landing URL, referrer) keyed by `(tenant, session_id)` for later attribution
+analysis in ClickHouse. Spec: `tmp/api4sources.md`.
+
+**Decision: server-side, fired from the sGTM Client. No browser changes.**
+
+The sGTM Client's `/aGTM.js` handler already has, on every request:
+- `pageUrl` and `pageRef` (decoded from the integration code's `?c=` base64)
+- `sessionUid` (resolved cookie/fingerprint, used as `user_id` in api4sources)
+- `CFG.tenantID` (from template config)
+- `getTimestampMillis()`
+
+After the Session API step completes (so the session record exists in the
+shared Redis), the Client fires a fire-and-forget POST to api4sources:
+
+```
+POST {sources_api_url}/{tenant}
+{
+  "user_id":       <sessionUid>,
+  "page_location": <pageUrl>,
+  "referrer":      <pageRef>,
+  "timestamp":     <ms>
+}
+```
+
+api4sources looks up the active session via Redis key
+`customer_sessions:{tenant}:{user_id}` — race-free because the Session API
+write happened first within the same Client request.
+
+**Why not browser-side:**
+- Race-free at no cost (no retry logic, no polling).
+- No consent gate needed (server-internal traffic).
+- No browser code change, no new GTM tag, no Events Client extension.
+- Encryption not needed (internal HTTP between two services).
+- Tradeoff: SPA virtual pageviews mid-session are not captured. Acceptable
+  because (a) attribution cares about the session source, not in-session
+  navigation, and (b) api4sources dedups on source fingerprint anyway. If
+  SPA-source capture is needed in v1.6+, add a `/aGTMsources` proxy path on
+  the sGTM Client and a browser-side `aGTM.f.fire()` hook (mirror of the
+  consent-store pattern).
+
+**Template options (sGTM Client):**
+
+| Option | Default | Description |
+|---|---|---|
+| `sources_enabled` | `false` | Master switch. Off by default — opt in. |
+| `sources_api_url` | `""` | Base URL up to and including `/tp/sources/`. Tenant is appended at runtime. |
+
+`tenant_id` is reused from the existing Session group.
+
+**Smoketest:** combined into the existing `tmp/session-api-smoketest.tpl`
+(steps 5-8: insert, dedup, referrer-change insert, no-active-session skip).
+Sources steps reuse the session created in step 1 (same Redis), so the
+session steps are the natural precondition. Auto-mode only — the manual
+single-step wizard still runs the 4 session steps for paced eventual-
+consistency probing.
+
+**Out of scope (v1.5):** read-back endpoint on api4sources (no GET defined
+yet), source-keys query helpers in the sGTM Client. If/when needed, those
+are server-side concerns and would not affect aGTM.
+
+---
+
 ## 8. Rollback
 
 This redesign is a hard cut. Rollback = `git revert` of the commits from phases 2–5 before tagging. Once `v1.5` is tagged on `main`, rollback would require a `v1.5.1` patch release. There is no runtime feature flag.

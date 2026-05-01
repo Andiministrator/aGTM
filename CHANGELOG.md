@@ -54,6 +54,16 @@ See [SESSION-REDESIGN.md](SESSION-REDESIGN.md) for the full design.
 - New template options: `consent_store_enabled` (boolean, default true), `consent_store_enc` (boolean), `session_salt` (number), `auto_deny_load_gtm` (boolean, default true).
 - `aGTMversion` bumped 1.6 → 1.5 to match the redesign target.
 
+### Sources API integration (sGTM Client → api4sources)
+
+- New: optional fire-and-forget POST to a Sources API on every aGTM.js request. The sGTM Client builds the payload (`user_id`, `page_location`, `referrer`, `timestamp`) from the integration code's `?c=` base64 (page URL + referrer) and the resolved session uid. Tenant is reused from `tenant_id`. POST runs in parallel with the aGTM.js response — no added latency on the library delivery.
+- Race-free: the POST fires after the Session API step completes, so api4sources' `customer_sessions:{tenant}:{user_id}` Redis lookup hits the just-written session.
+- New template options (sGTM Client): `sources_enabled` (boolean, default false), `sources_api_url` (text). Tenant is reused from the existing `tenant_id` field.
+- The aGTM library itself is untouched — sources is purely server-side.
+- Test client: `tmp/session-api-smoketest.tpl` extended with sources steps 5-8 (insert, dedup, referrer-change insert, no-active-session skip). Sources steps reuse the session created in step 1 (same Redis), so the original 4 session steps are the precondition; sources steps run only in auto-mode (`?auto=1` / `?format=json`), not in the manual single-step wizard.
+- Smoketest: step 6 (sources-dedup) gained a configurable retry loop (`step6_max_attempts`, default 3) with no-op session GETs between attempts to mask api4sources eventual-consistency lag.
+- Smoketest: step 3 (consent re-read) gained a `step3_warn_only` toggle (default on). Missing consent on the immediate re-read now produces a yellow `WARN` instead of a red `FAIL`, and the overall verdict can now be `PASS_WITH_WARN`. Rationale: production consent flow doesn't depend on this read — the CMP delivers consent later asynchronously. Hard Phase-0 semantics still available by unchecking the toggle.
+
 ### Other v1.5 fixes and additions
 
 - Bug fix: `consent_events` config option now wired up via `config()` (was never read from user config)
