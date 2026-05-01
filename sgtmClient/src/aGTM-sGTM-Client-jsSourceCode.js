@@ -401,12 +401,17 @@ const buildAndSend = function(sessionData) {
     logToConsole('debug', '✗ session: nothing to pass through', sessionData);
   }
   // Consent-store endpoint (Phase 3 of the redesign POSTs consent diffs here).
-  // URL is assembled from the request host + fixed CONSENT_STORE_PATH so the
-  // integrator only flips a checkbox; no URL plumbing.
+  // URL is assembled from the request host + the same path prefix the library
+  // route was served under + fixed CONSENT_STORE_PATH. The path prefix is
+  // load-bearing for reverse-proxy setups (e.g. site serves aGTM.js under
+  // /rp/tp/aGTM.js → consent must hit /rp/tp/aGTMconsent, not /aGTMconsent).
+  // Integrator only flips a checkbox; no URL plumbing.
   if (CFG.consentStoreEnabled) {
     const host = CFG.sgtmHost || getRequestHeader('host') || '';
     if (host) {
-      c.consent_store_url = 'https://' + host + CONSENT_STORE_PATH;
+      const libSuffix = '/aGTM.js';
+      const libPathPrefix = rpath.length >= libSuffix.length ? rpath.slice(0, rpath.length - libSuffix.length) : '';
+      c.consent_store_url = 'https://' + host + libPathPrefix + CONSENT_STORE_PATH;
       if (CFG.debug) logToConsole('debug', '✓ consent_store_url set', c.consent_store_url);
     } else if (CFG.debug) {
       logToConsole('debug', '✗ consent_store_url NOT set — host header missing and sgtm_host empty');
