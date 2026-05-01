@@ -85,50 +85,53 @@ Setup: configure `transport_url` to a real or mock endpoint (e.g. requestbin.com
 
 ---
 
-## 7 — Session Feature
+## 7 — Session preset (sGTM Client `cfg.session`)
 
-Setup: configure `user_id:'u-test'`, `session_url` pointing to playground mock or requestbin.
+Setup: load aGTM via the sGTM Client OR call `aGTM.f.config({ session: {...} })` directly with the shapes below. v1.5 redesign — see [SESSION-REDESIGN.md](../SESSION-REDESIGN.md).
 
 | # | Test | Expected |
 |---|------|----------|
-| 7.1 | `aGTM.d.session_status` immediately after init (before response) | `""` |
-| 7.2 | Feature inactive when `user_id` missing | `aGTM.d.session_status === 'inactive'`, `aGTM.d.session_ready === true` |
-| 7.3 | Feature inactive when `session_url` missing | Same |
-| 7.4 | Valid response: `aGTM.d.session` populated | `aGTM.d.session.sid` present |
-| 7.5 | Valid response: `session_status === 'ok'` | Check in console |
-| 7.6 | Response without `sid`: `session_status === 'invalid'` | |
-| 7.7 | Network error / non-2xx: `session_status === 'error'` | |
-| 7.8 | Timeout (set `session_timeout:500`, slow mock): `session_status === 'timeout'` | |
-| 7.9 | Payload sent to session endpoint contains `user_id`, `url`, `ref` | Check Network tab |
-| 7.10 | `session_salt >= 1`: payload is encrypted `{"q":"..."}` | Check Network tab |
+| 7.1 | No `cfg.session` supplied | `aGTM.d.session_status === ''`, `aGTM.d.session === {}` |
+| 7.2 | `cfg.session = { sid: 's-1' }` (sid only) | `aGTM.d.session.sid === 's-1'`, `session_status === 'preset'`, CMP path proceeds normally |
+| 7.3 | `cfg.session = { uid: 'u-1' }` (uid alone) | Ignored — `session_status === ''`, no preset |
+| 7.4 | `cfg.session = 'invalid'` (not an object) | Ignored — `session_status === ''` |
+| 7.5 | `cfg.session.consent = { hasResponse: true, services: ',svc,' }` | Seeded into `aGTM.d.consent`, `consent_hash` non-empty, `session_status === 'preset_with_consent'`, GTM injects on first tick (no 500 ms wait) |
+| 7.6 | `cfg.session.consent = null` / `{}` / missing `hasResponse` | Ignored — falls back to `'preset'` (or `''` if no `sid`) |
+| 7.7 | `cfg.session.consent.gtmConsent: false` (server-side denial denying GTM) | `aGTM.d.consent.gtmConsent === false`, `aGTM.d.init` stays `false`, GTM does not load — CMP can still update later |
+| 7.8 | Deep-copy: mutate `src` after `config(src)` | `aGTM.d.session` unchanged |
 
 ---
 
-## 8 — Auto-Denial
+## 8 — Server-side auto-denial (sGTM Client)
 
-Setup: session endpoint returns `{sid:'s1', ret:true, cst:false}`.
+Setup: clear cookies, reload page so the Session API returns `counter > 0` with no stored consent.
 
 | # | Test | Expected |
 |---|------|----------|
-| 8.1 | `aGTM.d.consent.hasResponse` after session | `true` |
+| 8.1 | `aGTM.d.consent.hasResponse` after page load | `true` (preset by sGTM Client) |
 | 8.2 | `aGTM.d.consent.feedback` | `"Consent denied by aGTM"` |
 | 8.3 | `aGTM.d.consent.services` | `",aGTMconsent,"` |
-| 8.4 | GTM still loads (default `session_gtm_on_deny:true`) | Script tag present |
-| 8.5 | `session_gtm_on_deny:false`: GTM not loaded | Script tag absent |
-| 8.6 | CMP fires real decline after auto-denial | `gtmConsent` becomes `false`, GTM tags react |
-| 8.7 | CMP fires real accept after auto-denial | `gtmConsent` becomes `true` |
+| 8.4 | `aGTM.d.consent.blocked` | `true` (mirrors `gtmConsent`) |
+| 8.5 | GTM still loads (default `auto_deny_load_gtm: true`) | Script tag present, `aGTM.d.init === true` |
+| 8.6 | `auto_deny_load_gtm: false` in template UI | GTM script tag absent |
+| 8.7 | User accepts in CMP banner → poll catches it (≤ `consent_poll_ms`) | `aGTM.d.consent.services` updated, `session_status === 'synced'` |
+| 8.8 | User declines in CMP banner | Same as 8.7 — `gtmConsent` becomes `false`, GTM tags react via Consent Mode |
 
 ---
 
-## 9 — `session_wait: true`
+## 9 — Consent diff/store (`consent_store_url`)
+
+Setup: `consent_store_url` set (auto via sGTM Client checkbox, or manual config). DevTools Network tab open.
 
 | # | Test | Expected |
 |---|------|----------|
-| 9.1 | GTM not loaded until session AND consent both ready | Monitor init during load |
-| 9.2 | Session arrives before consent: GTM waits for consent | `aGTM.d.init` still `false` |
-| 9.3 | Consent before session: GTM waits for session | `aGTM.d.init` still `false` |
-| 9.4 | Both ready: GTM loads | `aGTM.d.init === true` |
-| 9.5 | Timeout fires: GTM proceeds after `session_timeout` ms | Even without valid session response |
+| 9.1 | First visit, no preset, user accepts CMP | One POST to `<sgtm-host>/<prefix>/aGTMconsent` with `{uid, sid, consent:{...}}`, status 200 → `session_status === 'synced'`, `consent_hash` non-empty |
+| 9.2 | Second visit, preset matches CMP | No POST — `session_status === 'confirmed'` |
+| 9.3 | Second visit, user changes consent in CMP | Poll catches change ≤ `consent_poll_ms`, one POST with new consent, `session_status === 'synced'` |
+| 9.4 | Server returns 404/500 | `consent_hash` unchanged, retry on next poll tick (every `consent_poll_ms`) |
+| 9.5 | `consent_store_enc: true` + `session_salt: 42` | POST body shape `{"q":"..."}` (obfuscated), not `{"e":{...}}` |
+| 9.6 | `consent_poll_ms: 0` | No poll timer (`aGTM.d.timer.consent_poll === undefined`); `aGTM.f.run_cc('update')` from CMP callback still triggers POST |
+| 9.7 | URL via reverse-proxy (`/rp/tp/aGTM.js`) | `aGTM.c.consent_store_url === 'https://<host>/rp/tp/aGTMconsent'` (built browser-side from `currentScript.src`) |
 
 ---
 

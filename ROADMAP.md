@@ -2,17 +2,22 @@
 
 This roadmap outlines planned features and milestones for aGTM. It reflects current intentions and may change.
 
-## v1.5 — released *16.04.2026*
+## v1.5 — released *01.05.2026*
 
+- **Session feature redesigned (server-side, single source of truth)** — see [SESSION-REDESIGN.md](SESSION-REDESIGN.md). aGTM no longer issues a client-side session HTTP call; session + consent state arrive via a pre-populated `cfg.session` from the sGTM Client. CMP-derived consent is diffed against the preset and POSTed to a dedicated `consent_store_url`. Returning visitors with stored consent get GTM injected on the first tick (no CMP wait).
+- Adaptive CMP poll (`consent_poll_ms`, default 2000ms) catches CMPs that emit consent updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, Klaro in GTM-mode, …) without going through `aGTM.f.fire()`.
+- Server-side auto-denial in the sGTM Client: returning visitors without recorded consent get a denial-consent block embedded in the library response — no client-side fetch+wait dance.
 - POST transport layer: `aGTM.f.xsend()` for direct HTTP POST to a configurable endpoint
 - `aGTM.f.enc()` for payload obfuscation (Base64 + Caesar shift, compatible with aEvents GTM tag)
-- New config options: `transport_url`, `transport_enc`, `transport_salt`
+- New config options: `transport_url`, `transport_enc`, `transport_salt`, `consent_store_url`, `consent_store_enc`, `consent_poll_ms`, `session_salt`, `session`, `user_id`
 - `_post` event property in `aGTM.f.fire()` for per-event POST configuration and encryption
 - `_noConsent` event property: bypasses consent gate for both DL push and POST
+- `_noDLPush` event property: skips the GTM dataLayer push but still records internally + still POSTs — for Google-independent event transport
 - Foundation for standalone aGTM usage without a webGTM container
 - New CMPs: JTL Consent, JTL EU Cookie
 - New GTM Variable Templates: Consent Check, Consent Info
 - Build script (`build.sh`) for automated minification and Base64 generation
+- Test suite grown to 134 tests across 13 files (`bun test`)
 
 ## Backlog / To Be Reviewed
 
@@ -20,7 +25,7 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 
 ## v1.6 — planned
 
-- Browser-based test & demo playground (`agtm.net`) — interactive scenario runner with simulated GTM, mock CMP and session endpoint
+- Browser-based test & demo playground (`agtm.net`) — interactive scenario runner with simulated GTM, mock CMP, and mock consent-store endpoint
 - Additional CMP integrations (to be determined)
 - Review and potential implementation of `ck` URL parameter feature (see Backlog above)
 - Further standalone mode improvements (`aGTM.f.fire()` without webGTM container)

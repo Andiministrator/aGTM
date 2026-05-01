@@ -119,6 +119,16 @@
     <div class="panel-title">Configuration &amp; Scenarios</div>
     <div class="panel-body">
 
+      <div class="section" style="background:#fff3cd;border:1px solid #ffeeba;padding:8px;border-radius:4px;margin-bottom:8px;font-size:12px;">
+        <strong>v1.5 redesign — playground refresh pending.</strong>
+        Session-related scenarios and config fields below still demonstrate the
+        old client-side <code>session_fetch</code> flow (deprecated, removed
+        from the library). The actual v1.5 model uses sGTM-Client-injected
+        <code>cfg.session</code> + browser-side <code>consent_store_url</code>.
+        See <a href="../SESSION-REDESIGN.md">SESSION-REDESIGN.md</a>; full
+        playground rewrite tracked under v1.6 in <a href="../ROADMAP.md">ROADMAP.md</a>.
+      </div>
+
       <div class="section">
         <div class="section-title">Quick Scenarios</div>
         <button class="scenario-btn" onclick="loadScenario('new_visitor')">
@@ -417,17 +427,16 @@ function updateState() {
   ].join('');
   document.getElementById('stateConsent').innerHTML = consentHtml;
 
-  // Session
+  // Session — v1.5 redesign: session_status lifecycle ('', 'preset',
+  // 'preset_with_consent', 'synced', 'confirmed'); session_ready removed.
   var s = d.session || {};
   var sessionHtml = [
-    stateRow('session_ready',  String(!!d.session_ready)),
-    stateRow('session_status', d.session_status || '""'),
-    stateRow('sid',  s.sid  || '—'),
-    stateRow('uid',  s.uid  || '—'),
-    stateRow('ret',  s.ret  !== undefined ? String(s.ret) : '—'),
-    stateRow('cst',  s.cst  !== undefined ? String(s.cst) : '—'),
-    stateRow('sst',  s.sst  !== undefined ? String(s.sst) : '—'),
-    stateRow('vct',  s.vct  !== undefined ? String(s.vct) : '—'),
+    stateRow('session_status',  d.session_status || '""'),
+    stateRow('consent_hash',    d.consent_hash ? d.consent_hash.substring(0, 40) + '…' : '—'),
+    stateRow('sid',             s.sid  || '—'),
+    stateRow('uid',             s.uid  || '—'),
+    stateRow('ret',             s.ret  !== undefined ? String(s.ret) : '—'),
+    stateRow('vct',             s.vct  !== undefined ? String(s.vct) : '—'),
   ].join('');
   document.getElementById('stateSession').innerHTML = sessionHtml;
 

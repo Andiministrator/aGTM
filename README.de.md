@@ -131,9 +131,12 @@ aGTM.f.init();
 | `transport_url` | string | `""` | Endpunkt für direkten HTTP-POST (z.B. sGTM Collect) |
 | `transport_enc` | boolean | `false` | POST-Payload verschlüsseln |
 | `transport_salt` | number | `0` | Verschlüsselungs-Salt (ganzzahlig, >= 1) |
-| `user_id` | string | `""` | User-ID für Session-Endpunkt (aktiviert Session-Feature) |
-| `session_url` | string | `""` | Session-Endpunkt-URL (aktiviert Session-Feature) |
-| `session_wait` | boolean | `false` | GTM-Injection warten bis Session-Daten verfügbar sind |
+| `user_id` | string | `""` | Optionale eingeloggte User-CRM-ID (wird in `aGTM.d.session.uid` gespeichert) |
+| `session_salt` | number | `0` | Salt für consent-store POST-Verschlüsselung; auch Fallback für `transport_salt` |
+| `consent_store_url` | string | `""` | POST-Endpunkt für Consent-Diffs (sGTM Client persistiert in Session API). Wird vom sGTM Client browserseitig aus `document.currentScript.src` + `/aGTMconsent` gebaut — funktioniert mit Reverse Proxy transparent |
+| `consent_store_enc` | boolean | `false` | Consent-Store POST-Payload mit `session_salt` verschlüsseln |
+| `consent_poll_ms` | number | `2000` | Intervall (ms) für CMP-State-Change-Polling nach erfolgreichem Init. `0` = aus. Nur aktiv wenn `consent_store_url` gesetzt. Fängt CMPs ab, die ihre Updates direkt per `dataLayer.push()` feuern (CCM19, Cookiebot, Usercentrics, …) und damit `aGTM.f.fire()` umgehen |
+| `session` | object | `null` | Vom sGTM Client vorbelegtes Session-Objekt (`{sid, uid, consent?, ...}`) — wenn `consent` gültig, GTM injiziert ohne CMP-Wait |
 
 ---
 

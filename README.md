@@ -447,51 +447,51 @@ For more Information, read the chapter [Updating Consent Information](#updating-
 
 ### user_id
 
-User identifier sent to the session endpoint. Required to activate the session feature (together with `session_url`).
+Optional logged-in user CRM ID. Stored on `aGTM.d.session.uid` so integrators / GTM tags can read it. Not used internally by aGTM since v1.5 — session/uid resolution moved server-side into the sGTM Client.
 
 - Type: string
 - Example: `'u-12345'`
 - Default: `''`
 
-### session_url
-
-POST endpoint URL for fetching session and user data. Required to activate the session feature (together with `user_id`).
-
-- Type: string
-- Example: `'https://session.example.com/api/session'`
-- Default: `''`
-
 ### session_salt
 
-Encryption salt for the session request payload. Uses the same obfuscation algorithm as the POST transport (`aGTM.f.enc()`). Also serves as fallback salt for the POST transport feature when no per-event salt and no `transport_salt` is configured.
+Numeric salt used to obfuscate the consent-store POST payload (when `consent_store_enc: true`). Also serves as a fallback salt for the POST transport feature when no per-event salt and no `transport_salt` is configured. Same algorithm as `aGTM.f.enc()` (Base64 + Caesar shift).
 
 - Type: number (integer ≥ 1)
 - Example: `42`
 - Default: `0` (no encryption)
 
-### session_wait
+### consent_store_url
 
-If `true`, GTM injection is delayed until session data has been received (or the timeout has elapsed). Enables the auto-denial logic to take effect before GTM loads.
+POST endpoint that aGTM sends consent diffs to (Phase 3 of the v1.5 redesign). The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record so the next library load returns it via `cfg.session.consent`. When the library is served by the sGTM Client, this URL is built **browser-side** at config time from `document.currentScript.src` + the fixed path `/aGTMconsent` — works under any reverse-proxy prefix transparently. Standalone integrators set this manually. Empty string disables the diff/store mechanism.
+
+- Type: string
+- Example: `'https://sgtm.example.com/aGTMconsent'`
+- Default: `''`
+
+### consent_store_enc
+
+If `true`, the consent-store POST payload is obfuscated using `session_salt`.
 
 - Type: boolean
 - Example: `true`
 - Default: `false`
 
-### session_timeout
+### consent_poll_ms
 
-Time in milliseconds to wait for the session endpoint response before proceeding without session data.
+Interval (ms) for the periodic CMP state-change poll started after the first successful init. Set to `0` to disable polling. Only takes effect when `consent_store_url` is set. Catches CMPs that emit consent-update events via direct `window.dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) — bypassing `aGTM.f.fire()` and the `consent_events` matcher — so the diff/POST mechanism still triggers. Default `2000` is a reasonable balance between latency and CPU.
 
-- Type: number
-- Example: `3000`
-- Default: `5000`
+- Type: number (≥ 0)
+- Example: `1000`
+- Default: `2000`
 
-### session_gtm_on_deny
+### session
 
-If `true`, GTM is injected even when auto-denial is applied (returning visitor with no recorded consent decision). If `false`, GTM is not injected in that case.
+Pre-populated session object from the sGTM Client. Accepted when it is an object containing a `sid` OR a `consent` field. When the optional `consent` block is valid (`hasResponse: true`, `services` is a string), aGTM seeds `aGTM.d.consent` + `aGTM.d.consent_hash` from it and triggers a synchronous `call_cc()` at the end of `config()` so GTM injects on the first tick — no CMP wait. Standalone integrators usually leave this unset.
 
-- Type: boolean
-- Example: `false`
-- Default: `true`
+- Type: object
+- Example: `{ sid: 's-123', uid: 'u-42', consent: { hasResponse: true, services: ',svc1,' } }`
+- Default: `null`
 
 ### transport_url
 
@@ -521,39 +521,43 @@ Numeric salt for POST payload obfuscation. Must be an integer ≥ 1. If not set,
 
 ### Accessing session state
 
-After `aGTM.f.init()` runs, the session result is available in two places:
+After `aGTM.f.config()` runs (typically right at page-load when the library is served by the sGTM Client), the session result is available in two places:
 
-- **`aGTM.d.session`** — the full response object from the session endpoint (empty `{}` if unavailable)
-- **`aGTM.d.session_status`** — outcome string, readable from GTM Custom Variables or any JS on the page:
+- **`aGTM.d.session`** — the full session object passed in via `cfg.session` (empty `{}` if no session was supplied)
+- **`aGTM.d.session_status`** — consent-sync lifecycle string, readable from GTM Custom Variables or any JS on the page:
 
 | Value | Meaning |
 |---|---|
-| `""` | Session fetch not yet started |
-| `"ok"` | Valid response, session data available |
-| `"invalid"` | Response received but required `sid` field missing |
-| `"error"` | Network error or non-2xx HTTP response |
-| `"timeout"` | Endpoint did not respond within `session_timeout` ms |
-| `"inactive"` | Feature disabled (`user_id` or `session_url` not configured) |
+| `""` | No `cfg.session` supplied (feature inactive) |
+| `"preset"` | `cfg.session` accepted, but no usable consent block — CMP path proceeds normally |
+| `"preset_with_consent"` | `cfg.session.consent` was valid → seeded into `aGTM.d.consent`, GTM injects on the first tick (no CMP wait) |
+| `"synced"` | After `run_cc`: a CMP-driven consent change was diffed and successfully POSTed to `consent_store_url` |
+| `"confirmed"` | After `run_cc`: the CMP-derived state matched the preset — server already had this consent, no POST sent |
 
 Example use in a GTM Custom Variable (JavaScript Variable type):
 ```javascript
 function() { return window.aGTM && window.aGTM.d ? window.aGTM.d.session_status : ''; }
 ```
 
-### Auto-denial behavior (session feature)
+The `"synced"` and `"preset_with_consent"` values are good metrics to watch in production — they tell you how often the sGTM Client's stored consent saved a CMP roundtrip.
 
-When session data indicates a returning visitor without a recorded consent decision (`ret: true, cst: false`), aGTM applies auto-denial — setting the consent state as follows:
+### Server-side auto-denial (sGTM Client)
+
+When the sGTM Client serves the library and the Session API has no recorded consent for a returning visitor (`counter > 0`), the Client constructs a denial-consent block server-side and embeds it in `cfg.session.consent`:
 
 | Field | Value |
 |---|---|
-| `aGTM.d.consent.hasResponse` | `true` |
-| `aGTM.d.consent.feedback` | `"Consent denied by aGTM"` |
-| `aGTM.d.consent.services` | `",aGTMconsent,"` |
-| `aGTM.d.consent.gtmConsent` | `true` if `session_gtm_on_deny: true`, otherwise `false` |
+| `hasResponse` | `true` |
+| `feedback` | `"Consent denied by aGTM"` |
+| `services` | `",aGTMconsent,"` |
+| `gtmConsent` | `true` if the `auto_deny_load_gtm` template option is on (default), otherwise `false` |
+| `blocked` | mirrors `gtmConsent` (recognised by the `run_cc` chelp fallback) |
 
 GTM tags configured to require the `aGTMconsent` service will fire; tags requiring any other consent signal will not.
 
-If the user subsequently makes an explicit decision in the consent banner, that decision always takes precedence — auto-denial is overridden automatically.
+If the user later makes an explicit decision in the CMP banner, the periodic CMP poll (`consent_poll_ms`) catches it within a couple of seconds, the diff is detected and POSTed to `consent_store_url`, and `aGTM.d.session_status` advances to `"synced"`. The auto-denial values are wiped by the B2-reset in `run_cc('update')` so the user choice always wins.
+
+This logic lives entirely in the sGTM Client (template + `jsSourceCode.js`) — no client-side auto-denial code in aGTM since v1.5.
 
 ### Consent-based GTM URL Parameter Handling
 
