@@ -462,6 +462,16 @@ aGTM.f.fire({ event: 'pageview', _post: { enc: true } });
 
 > **v1.5 redesign — see [SESSION-REDESIGN.md](SESSION-REDESIGN.md).** The library no longer issues a client-side HTTP call for session data; it consumes a pre-populated `cfg.session` object that the sGTM Client injects into the library response. When the response carries a stored consent block, GTM injects on the same tick — no CMP wait. Subsequent CMP decisions are diffed against the preset and POSTed back to a dedicated `consent_store_url` endpoint.
 
+### Integration prerequisite — Consent Mode v2 / consent signals
+
+> **Read this before enabling `cfg.session.consent` (preset_with_consent).** The v1.5 redesign trades a stricter integration requirement for a faster page load.
+
+When `cfg.session.consent` is preset, GTM injects with that state **immediately** — before the live CMP has had a chance to respond. If the user's actual *current* CMP state is more restrictive than the cached server state — e.g. the user revoked services on another device, the user cleared cookies and the CMP banner is about to re-appear with stricter defaults, or the CMP version was upgraded with tighter category defaults — GTM tags may briefly fire under a permissive consent before the CMP responds and the adaptive poll's `aGTM_consent_update` event propagates the correction.
+
+**Mitigation:** all GTM tags must be gated through Google Consent Mode v2 / consent signals (`gtag('consent', 'update', { analytics_storage: 'granted', … })`) so that a later `aGTM_consent_update` actually changes downstream tag behavior — drop the hit, redact PII, switch to ping-mode, etc. **Tags that use a hard-coded "fire if consent service X is granted" trigger condition (without Consent Mode) will mis-fire during the preset window.**
+
+This is a stricter integration requirement than the pre-v1.5 "wait-for-CMP-then-load" model. To opt out: don't ship preset_with_consent. Either configure the sGTM Client to never embed `consent` (set `auto_deny_load_gtm: false` AND have the Session API never return stored consent), or set `consent_poll_ms` very low so the preset window stays short — the preset still injects synchronously, but the correction lands within the chosen poll interval.
+
 ### Activation
 
 Active whenever the sGTM Client (or any integrator) injects `aGTM.f.config({ session: { ... } })` with a `sid` or a valid `consent` field.
