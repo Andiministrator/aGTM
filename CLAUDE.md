@@ -302,7 +302,7 @@ aGTM.f.inject()
 | `aGTM.c.consent_events` | Comma-separated event names that trigger `run_cc('update')` when seen in `fire()` |
 | `aGTM.c.consent_event_attr` | Parsed attribute conditions for `consent_events` (keyed by event name) |
 | `aGTM.c.dlSet` | Map of `{ targetProp: dlVariableName }` — auto-appended to every event in `fire()` |
-| `aGTM.c.consent_store_url` | Phase 3: POST endpoint for consent diffs (sGTM Client persists into Session API record). Auto-filled by the sGTM Client as `https://<sgtm-host>/aGTMconsent` when the consent-store route is enabled; standalone integrators set this manually. |
+| `aGTM.c.consent_store_url` | Phase 3: POST endpoint for consent diffs (sGTM Client persists into Session API record). When the library is served by the sGTM Client, the URL is built **browser-side** at config time from `document.currentScript.src` + the fixed path `/aGTMconsent` — so reverse-proxy setups (e.g. `/rp/tp/aGTM.js` upstream stripped to `/aGTM.js`) work transparently. Standalone integrators set this manually. |
 | `aGTM.c.consent_store_enc` | Phase 3: encrypt consent-store POST payload with `session_salt` |
 | `aGTM.d` | Runtime data (consent state, queues, counters, …) |
 | `aGTM.d.f` | Queue for events delayed until consent is available; also carries pre-existing DL items for `hastyEvents` replay |
@@ -325,7 +325,7 @@ aGTM.f.inject()
 |---|---|---|---|
 | `user_id` | string | `""` | Optional logged-in user CRM ID, exposed for integrators |
 | `session_salt` | number | `0` | Encryption salt for the consent-store POST (also fallback for POST transport) |
-| `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When the library is served by the sGTM Client, this is auto-filled as `https://<sgtm-host>/aGTMconsent` (fixed path); standalone integrators set this manually. Empty string disables the feature. |
+| `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When the library is served by the sGTM Client, the URL is built **browser-side** at config time from `document.currentScript.src` (the URL the browser actually fetched aGTM.js from) + fixed path `/aGTMconsent` — works under any reverse-proxy prefix without server-side knowledge. Standalone integrators set this manually. Empty string disables the feature. |
 | `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is encrypted with `session_salt` |
 | `consent_poll_ms` | number | `2000` | Interval (ms) for the periodic CMP state-change poll started after a successful init. Set to `0` to disable. Only takes effect when `consent_store_url` is set (without it, polling has nothing to push). Catches CMPs that emit updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) — i.e. without going through `aGTM.f.fire()` — so the diff/POST mechanism still triggers. |
 | `session` | object | `null` | Pre-populated session object from sGTM Client; accepted when it is an object containing a `sid` **or** a `consent` field |

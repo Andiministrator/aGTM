@@ -400,24 +400,17 @@ const buildAndSend = function(sessionData) {
   } else if (CFG.debug) {
     logToConsole('debug', '✗ session: nothing to pass through', sessionData);
   }
-  // Consent-store endpoint (Phase 3 of the redesign POSTs consent diffs here).
-  // URL is assembled from the request host + the same path prefix the library
-  // route was served under + fixed CONSENT_STORE_PATH. The path prefix is
-  // load-bearing for reverse-proxy setups (e.g. site serves aGTM.js under
-  // /rp/tp/aGTM.js → consent must hit /rp/tp/aGTMconsent, not /aGTMconsent).
-  // Integrator only flips a checkbox; no URL plumbing.
-  if (CFG.consentStoreEnabled) {
-    const host = CFG.sgtmHost || getRequestHeader('host') || '';
-    if (host) {
-      const libSuffix = '/aGTM.js';
-      const libPathPrefix = rpath.length >= libSuffix.length ? rpath.slice(0, rpath.length - libSuffix.length) : '';
-      c.consent_store_url = 'https://' + host + libPathPrefix + CONSENT_STORE_PATH;
-      if (CFG.debug) logToConsole('debug', '✓ consent_store_url set', c.consent_store_url);
-    } else if (CFG.debug) {
-      logToConsole('debug', '✗ consent_store_url NOT set — host header missing and sgtm_host empty');
-    }
-  } else if (CFG.debug) {
-    logToConsole('debug', '✗ consent_store_url NOT set — disabled by template config');
+  // Consent-store endpoint: NOT set server-side. The browser builds the URL
+  // at runtime from document.currentScript.src (the URL it actually fetched
+  // aGTM.js from) — see the IIFE injected into `config` below. Reason:
+  // reverse-proxy setups (e.g. site /rp/tp/aGTM.js → upstream /aGTM.js)
+  // strip the path prefix before the request reaches us, so rpath is wrong
+  // here. Only the browser knows the real prefix. Standalone integrators
+  // (without sGTM Client) set aGTM.c.consent_store_url manually.
+  if (CFG.debug) {
+    logToConsole('debug', CFG.consentStoreEnabled
+      ? '✓ consent_store_url will be built browser-side from document.currentScript.src'
+      : '✗ consent_store_url disabled by template config');
   }
   if (data.consent_store_enc) c.consent_store_enc = true;
   // session_salt is reused by aGTM for the consent-store POST encryption
@@ -428,7 +421,16 @@ const buildAndSend = function(sessionData) {
   if (data.transport_enc) c.transport_enc = true;
   if (data.transport_salt) { const ts = makeInteger(data.transport_salt); if (ts > 0) c.transport_salt = ts; }
 
-  const config = 'aGTM.f.config(' + JSON.stringify(c) + ');';
+  // Wrap config(c) in an IIFE that builds consent_store_url at runtime from
+  // document.currentScript.src (the URL the browser actually fetched aGTM.js
+  // from). This handles reverse-proxy setups: server sees /aGTM.js but the
+  // browser came from /rp/tp/aGTM.js — only the browser knows the real
+  // prefix. Builder runs before aGTM.f.config() so the URL is already on
+  // aGTM.c.consent_store_url when run_cc fires from the B1 sync trigger.
+  const storeUrlBuilder = CFG.consentStoreEnabled
+    ? '(function(c){var s=document.currentScript;if(s&&s.src){var i=s.src.lastIndexOf("/aGTM.js");if(i>=0)c.consent_store_url=s.src.substring(0,i)+"' + CONSENT_STORE_PATH + '";}return c;})'
+    : '(function(c){return c;})';
+  const config = 'aGTM.f.config(' + storeUrlBuilder + '(' + JSON.stringify(c) + '));';
   logToConsole('info', '\u2713 aGTM Config built', {uid: sessionData && sessionData.uid, sid: sessionData && sessionData.sid, ret: sessionData && sessionData.ret});
 
   // aGTM base64 payload (updated by build.sh)
