@@ -215,16 +215,32 @@ aGTM.f.consent_listener()
   │    │                                 flows where CMP file is loaded async, this
   │    │                                 fires on the first tick after script load
   │    │                                 (no 500 ms wait). Returns true on success.
+  │    │    └─ [success] aGTM.f.start_consent_poll()
   │    └─ [call_cc returned false] setInterval(aGTM.f.call_cc, 500ms)
+  │         └─ [tick succeeds] aGTM.f.start_consent_poll()
   └─ [useListener == true]   — no timer; integrator calls aGTM.f.call_cc() manually
                                 from their own CMP event listener
 
+aGTM.f.start_consent_poll()        — adaptive CMP-state poll; gated:
+  ├─ [no consent_store_url] return  — nothing to push, no value in polling
+  ├─ [consent_poll_ms <= 0] return  — explicitly disabled
+  ├─ [already polling] return       — idempotent
+  └─ setInterval(run_cc('update'), consent_poll_ms)   — default 2000 ms
+                                       Catches CMP state changes from CMPs
+                                       that emit updates via dataLayer.push
+                                       (CCM19, Cookiebot, Usercentrics, …)
+                                       without going through aGTM.f.fire().
+                                       run_cc('update') is snapshot/restore-
+                                       guarded so this poll is safe even when
+                                       the CMP is briefly unavailable.
+
 aGTM.f.call_cc()             — called by timer, manually, or sync from config()
   ├─ aGTM.f.run_cc('init' | 'update')
-  │    ├─ [action === 'update'] B2 field-reset:
+  │    ├─ [action === 'update'] snapshot aGTM.d.consent, then B2 field-reset:
   │    │    aGTM.d.consent.hasResponse = false; services/purposes/vendors = "";
   │    │    consent_id/serviceIDs/feedback = ""; delete blocked.
   │    │    Stale preset values cannot survive a real CMP decision.
+  │    │    On consent_check returning false → restore snapshot (poll-safe).
   │    │
   │    ├─ aGTM.f.consent_check(action)    — CMP-specific function (from cmp/ file)
   │    │    └─ on 'init' with hasResponse=true → short-circuit returns true
@@ -234,9 +250,14 @@ aGTM.f.call_cc()             — called by timer, manually, or sync from config(
   │    │   (fallback: aGTM.d.consent.blocked === true → gtmConsent=true.
   │    │    Set by sGTM Client server-side auto-denial in cfg.session.consent.)
   │    │
-  │    └─ [end of run_cc()] consent diff/store:
-  │         new_hash = consent_serialize(aGTM.d.consent)   — blacklist gtmConsent/blocked
-  │         if (consent_store_url && new_hash !== aGTM.d.consent_hash):
+  │    └─ [end of run_cc()] hash compute (once, reused):
+  │         new_hash = consent_serialize(aGTM.d.consent)   — blacklist gtmConsent/blocked/empty
+  │         hashChanged = new_hash !== aGTM.d.last_consent_hash   — gates sendnaus/callback
+  │         aGTM.d.last_consent_hash = new_hash               — always advance
+  │         [action === 'update' && hashChanged] sendnaus(aGTM_consent_update) + callback
+  │           ├─ Polling-safe: ticks without state change emit nothing
+  │         consent diff/store (gated on consent_store_url):
+  │         if (new_hash !== aGTM.d.consent_hash):
   │            xhr = xsend(consent_store_url, {uid, sid, consent: <without gtm/blocked>})
   │            xhr.onreadystatechange: on 2xx → consent_hash = new_hash;
   │                                              session_status = 'synced'
@@ -287,7 +308,8 @@ aGTM.f.inject()
 | `aGTM.d.f` | Queue for events delayed until consent is available; also carries pre-existing DL items for `hastyEvents` replay |
 | `aGTM.d.dl` | Internal copy of all events passed through `fire()` |
 | `aGTM.d.consent` | Current consent state written by `consent_check`; `.gtmConsent` controls GTM injection |
-| `aGTM.d.consent_hash` | Phase 3: stable serialization of `aGTM.d.consent` (blacklist of `gtmConsent`/`blocked`) at the last successful consent-store POST. Used by `run_cc()` to detect change. |
+| `aGTM.d.consent_hash` | Phase 3: stable serialization of `aGTM.d.consent` (blacklist of `gtmConsent`/`blocked`) at the **last successful consent-store POST**. Used to gate the diff/POST in `run_cc()` and to support retry on 5xx (advances only on 2xx). |
+| `aGTM.d.last_consent_hash` | State-change hash, advanced on **every** `run_cc()` regardless of POST success. Used to gate `sendnaus(aGTM_consent_update)` + `consent_callback` so the periodic CMP poll does not flood when the consent state is stable. |
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
 | `aGTM.d.session` | Session & user data pre-populated from `cfg.session` (sGTM Client injection — see Session Feature below) |
 | `aGTM.d.session_status` | Consent-sync lifecycle: `""` (no preset), `"preset"` (cfg.session accepted, no usable consent), `"preset_with_consent"` (preset consent seeded into `aGTM.d.consent`), `"synced"` (CMP decision diffed and POSTed to `consent_store_url`), `"confirmed"` (CMP decision matches the preset, no POST needed). |
@@ -305,6 +327,7 @@ aGTM.f.inject()
 | `session_salt` | number | `0` | Encryption salt for the consent-store POST (also fallback for POST transport) |
 | `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When the library is served by the sGTM Client, this is auto-filled as `https://<sgtm-host>/aGTMconsent` (fixed path); standalone integrators set this manually. Empty string disables the feature. |
 | `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is encrypted with `session_salt` |
+| `consent_poll_ms` | number | `2000` | Interval (ms) for the periodic CMP state-change poll started after a successful init. Set to `0` to disable. Only takes effect when `consent_store_url` is set (without it, polling has nothing to push). Catches CMPs that emit updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) — i.e. without going through `aGTM.f.fire()` — so the diff/POST mechanism still triggers. |
 | `session` | object | `null` | Pre-populated session object from sGTM Client; accepted when it is an object containing a `sid` **or** a `consent` field |
 
 **Removed (gone, no migration code, v1.5 unreleased):** Config: `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, `session_consent_url`, `session_deny_service`. Functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.f.xfetch`. Data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
@@ -319,7 +342,11 @@ aGTM.f.inject()
 - If hash matches: `session_status = 'confirmed'` (server already had this state, no POST).
 - The init path runs the same diff/POST so first-visit CMP decisions (no preset, hash starts as `""`) and returning-visit reconciliations (preset hash matches CMP) both flow through one code path. Payload skips empty/null values to stay symmetric with the hash; the server is expected to use full-replace semantics on the consent record.
 
-**Update-path field reset** (in `aGTM.f.run_cc('update')`, before `consent_check`): `hasResponse=false`, `services/purposes/vendors/consent_id/serviceIDs/feedback=""`, `delete blocked`. Ensures stale preset values from server-side auto-denial don't survive a real CMP decision.
+**Update-path field reset** (in `aGTM.f.run_cc('update')`, before `consent_check`): snapshot of `aGTM.d.consent` taken first, then `hasResponse=false`, `services/purposes/vendors/consent_id/serviceIDs/feedback=""`, `delete blocked`. Ensures stale preset values from server-side auto-denial don't survive a real CMP decision. **Snapshot is restored if `consent_check` returns `false`** — this makes the periodic CMP poll (`start_consent_poll`) safe to run repeatedly even when the CMP is briefly unavailable or the user dismisses the banner.
+
+**Adaptive CMP poll** (`aGTM.f.start_consent_poll`): triggered after the first successful `run_cc('init')`. Only active when `consent_store_url != ''` and `consent_poll_ms > 0`. Calls `run_cc('update')` on a `setInterval` (default every 2000ms) so CMPs that emit consent updates via direct `dataLayer.push` — bypassing `aGTM.f.fire()` and therefore the `consent_events` matcher — are still caught and pushed to the consent-store endpoint. Idempotent (second call no-op). To disable: set `consent_poll_ms = 0` and trigger updates manually via `aGTM.f.run_cc('update')` from a CMP callback.
+
+**`sendnaus`/`callback` hash gating** (in `run_cc('update')`): the `aGTM_consent_update` event and `consent_callback` only fire when the new consent hash differs from `last_consent_hash`. Without this gating the polling loop would emit one event every 2000ms regardless of state.
 
 **`aGTM.f.consent_serialize(c)`**: stable, sorted, blacklist-based serialization of a consent object. Used by both the preset hash seed and the diff check. Excludes `gtmConsent`, `blocked`, and empty/null values (so adding/removing an empty field doesn't create phantom diffs).
 

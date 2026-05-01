@@ -45,6 +45,7 @@ aGTM.f.objinit = function() {
     [aGTM.d, "session", {}],
     [aGTM.d, "session_status", ""],
     [aGTM.d, "consent_hash", ""],
+    [aGTM.d, "last_consent_hash", ""],
     [aGTM.d, "iframe", {
       counter: { events: 0 },
       origin: "",
@@ -256,6 +257,7 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "session_salt", cfg, 0); // Salt for consent-store POST encryption; also fallback for POST transport salt
   aGTM.f.an(aGTM.c, "consent_store_url", cfg, ""); // POST endpoint for consent diffs (sGTM Client persists into Session API)
   aGTM.f.an(aGTM.c, "consent_store_enc", cfg, false); // Encrypt consent-store POST payload with session_salt
+  aGTM.f.an(aGTM.c, "consent_poll_ms", cfg, 2000); // CMP state-change poll interval (ms) after init success; 0 disables polling. Only active when consent_store_url is set (otherwise nothing to push)
   // If session data is pre-populated by the sGTM Client, store it directly.
   // Accept any object with sid OR consent.
   if (cfg.session && typeof cfg.session === 'object' && (cfg.session.sid || cfg.session.consent)) {
@@ -269,6 +271,7 @@ aGTM.f.config = function (cfg) {
         && typeof presetConsent.services === 'string') {
       aGTM.d.consent = JSON.parse(aGTM.f.sStrf(presetConsent));
       aGTM.d.consent_hash = aGTM.f.consent_serialize(aGTM.d.consent);
+      aGTM.d.last_consent_hash = aGTM.d.consent_hash;
       aGTM.d.session_status = 'preset_with_consent';
       aGTM.f.log('m_session_preset_consent', presetConsent);
     } else {
@@ -436,12 +439,18 @@ aGTM.f.run_cc = function (action) {
     aGTM.f.log("e14", { action: action });
     return false;
   }
-  // On 'update' (explicit user CMP decision), reset all CMP-managed fields
-  // BEFORE consent_check so stale preset values cannot survive a real CMP
-  // decision (Phase 3 B2 fix). consent_check then repopulates whatever the
-  // CMP knows; missing fields stay cleared. blocked is dropped because it's
-  // a server/preset-only signal that any explicit user decision overrides.
+  // On 'update' (explicit user CMP decision OR periodic CMP poll), reset all
+  // CMP-managed fields BEFORE consent_check so stale preset values cannot
+  // survive a real CMP decision (Phase 3 B2 fix). consent_check then
+  // repopulates whatever the CMP knows; missing fields stay cleared. blocked
+  // is dropped because it's a server/preset-only signal that any explicit
+  // user decision overrides.
+  // Snapshot before B2 reset so we can restore if consent_check returns false
+  // — keeps the periodic update poll (start_consent_poll) safe to run even
+  // when the CMP is briefly not ready or the user dismisses the banner.
+  var consentSnapshot = null;
   if (action === 'update' && aGTM.d.consent) {
+    consentSnapshot = JSON.parse(aGTM.f.sStrf(aGTM.d.consent));
     var c = aGTM.d.consent;
     c.hasResponse = false;
     c.services = ""; c.purposes = ""; c.vendors = "";
@@ -451,6 +460,7 @@ aGTM.f.run_cc = function (action) {
   // Perform the consent check
   var consentCheck = aGTM.f.consent_check(action);
   if (!consentCheck) {
+    if (consentSnapshot) aGTM.d.consent = consentSnapshot; // restore preset
     aGTM.f.log("m8", null);
     return false;
   }
@@ -467,8 +477,17 @@ aGTM.f.run_cc = function (action) {
         ? aGTM.d.consent.blocked
         : false;
   }
-  // Update consent status if action is 'update'
-  if (action == "update") {
+  // Compute the new hash once. Polling calls run_cc('update') on a timer, so
+  // we must avoid event-floods: only emit aGTM_consent_update + run the
+  // consent callback when the consent state actually changed since the last
+  // run_cc — gated on last_consent_hash (always updated, separate from
+  // consent_hash which only advances on a successful POST 2xx so the
+  // diff/POST block below can retry independently).
+  var newHash = aGTM.f.consent_serialize(aGTM.d.consent);
+  var hashChanged = newHash !== aGTM.d.last_consent_hash;
+  aGTM.d.last_consent_hash = newHash;
+  // Update consent status if action is 'update' AND something actually changed
+  if (action == "update" && hashChanged) {
     if (!aGTM.d.init) aGTM.f.inject();
     aGTM.f.sendnaus({
       event: "aGTM_consent_update",
@@ -476,15 +495,22 @@ aGTM.f.run_cc = function (action) {
       aGTMconsent: aGTM.d.consent ? JSON.parse(aGTM.f.sStrf(aGTM.d.consent)) : {}
     });
   }
-  // Execute callback if defined
-  if (typeof aGTM.f.consent_callback === "function")
+  // Execute callback if defined. For 'update' we gate on hashChanged so a
+  // periodic poll without state change does not flood the integrator's
+  // callback. 'init' always fires the callback (one-shot path).
+  if ((action !== "update" || hashChanged) &&
+      typeof aGTM.f.consent_callback === "function") {
     aGTM.f.consent_callback(action);
-  // Phase 3: consent diff/store. Compute current hash; if it differs from the
-  // last persisted hash, POST the consent payload to consent_store_url. Hash
-  // is updated ONLY on 2xx response so a network/server failure transparently
-  // retries on the next run_cc. session_status reflects the lifecycle state.
+  }
+  // Phase 3: consent diff/store. Compare the new hash against consent_hash —
+  // the hash of the last successfully POSTed state. consent_hash advances
+  // ONLY on a 2xx response so a network/server failure transparently retries
+  // on the next run_cc. session_status reflects the lifecycle state.
+  // Note: this is independent of hashChanged above (which gates sendnaus +
+  // callback) because that compares against last_consent_hash. After a 5xx
+  // POST, hashChanged becomes false on the retry tick (state stable since
+  // last run_cc) but the diff vs consent_hash still triggers the retry POST.
   if (aGTM.c.consent_store_url) {
-    var newHash = aGTM.f.consent_serialize(aGTM.d.consent);
     if (newHash !== aGTM.d.consent_hash) {
       // Build payload: uid + sid (when available) + consent block (without
       // client-derived fields, matching the hash's blacklist).
@@ -557,15 +583,45 @@ aGTM.f.call_cc = function () {
  * Usage: aGTM.f.consent_listener();
  */
 if (typeof aGTM.f.consent_listener != "function") aGTM.f.consent_listener = function () {
-  if (!aGTM.c.useListener) {
-    // Phase 3 B1: try once synchronously before starting the 500 ms poll. For
-    // preset_with_consent flows (cfg.session.consent valid, hasResponse=true),
-    // consent_check's load-bearing short-circuit returns true on the first
-    // call, so run_cc → inject runs immediately. If the call fails (no preset
-    // or CMP not yet ready), fall through to the polling loop as before.
-    if (typeof aGTM.f.call_cc == "function" && aGTM.f.call_cc()) return;
-    aGTM.d.timer.consent = setInterval(aGTM.f.call_cc, 500);
+  if (aGTM.c.useListener) return;
+  // Phase 3 B1: try once synchronously before starting the 500 ms poll. For
+  // preset_with_consent flows (cfg.session.consent valid, hasResponse=true),
+  // consent_check's load-bearing short-circuit returns true on the first
+  // call, so run_cc → inject runs immediately. If the call fails (no preset
+  // or CMP not yet ready), fall through to the polling loop as before.
+  if (typeof aGTM.f.call_cc == "function" && aGTM.f.call_cc()) {
+    if (typeof aGTM.f.start_consent_poll == "function") aGTM.f.start_consent_poll();
+    return;
   }
+  // Init poll: keep trying call_cc every 500 ms until consent_check is ready.
+  // call_cc clears timer.consent itself on success; we then start the slower
+  // CMP-state-change poll for run_cc('update').
+  aGTM.d.timer.consent = setInterval(function () {
+    if (aGTM.f.call_cc()) {
+      if (typeof aGTM.f.start_consent_poll == "function") aGTM.f.start_consent_poll();
+    }
+  }, 500);
+};
+
+/**
+ * Starts the periodic CMP state-change poll. Triggered after the first
+ * successful run_cc('init'). Only active when both consent_store_url and
+ * consent_poll_ms are set (otherwise there is nothing to push and no value
+ * in detecting changes). Idempotent — second call is a no-op.
+ * The poll calls run_cc('update'), which is now snapshot/restore-guarded:
+ * if consent_check returns false (CMP not ready, user dismissed banner,
+ * etc.), aGTM.d.consent is restored to its pre-poll state, so the poll
+ * is safe to run repeatedly without destroying preset state.
+ * @property {function} aGTM.f.start_consent_poll
+ */
+aGTM.f.start_consent_poll = function () {
+  if (!aGTM.c.consent_store_url) return;
+  if (typeof aGTM.c.consent_poll_ms !== "number" || aGTM.c.consent_poll_ms <= 0) return;
+  if (aGTM.d.timer && aGTM.d.timer.consent_poll) return;
+  aGTM.d.timer = aGTM.d.timer || {};
+  aGTM.d.timer.consent_poll = setInterval(function () {
+    if (typeof aGTM.f.run_cc === "function") aGTM.f.run_cc("update");
+  }, aGTM.c.consent_poll_ms);
 };
 
 

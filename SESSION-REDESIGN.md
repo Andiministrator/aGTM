@@ -188,13 +188,26 @@ if (consent_store_url && new_hash !== aGTM.d.consent_hash) {
 **Update-path field reset (BLOCKER fix B2):** at the start of `run_cc('update')`, before calling `consent_check`, reset CMP-managed fields on `aGTM.d.consent` to ensure stale preset values don't survive a real CMP decision:
 ```js
 // In run_cc, action === 'update':
+var snapshot = JSON.parse(JSON.stringify(aGTM.d.consent)); // poll-safety
 var c = aGTM.d.consent;
 c.hasResponse = false;
 c.services = ""; c.purposes = ""; c.vendors = "";
 c.consent_id = ""; c.serviceIDs = ""; c.feedback = "";
 delete c.blocked;
+// then consent_check; if it returns false → restore snapshot so the periodic
+// CMP poll (start_consent_poll) is safe to run when the CMP is briefly
+// unavailable. Without snapshot/restore, every failed poll tick would zero
+// out the preset.
 ```
 Then `consent_check('update')` repopulates whatever the CMP knows. Without this reset, a preset `purposes=",p1,"` survives even if the user revoked all purposes via the CMP — the diff would be wrong.
+
+**Adaptive CMP poll (post-Phase 3 follow-up):** because most CMPs (CCM19, Cookiebot, Usercentrics, …) emit their consent-update events via direct `window.dataLayer.push()` instead of going through `aGTM.f.fire()`, the `consent_events` matcher in `fire()` never sees them and `run_cc('update')` is never triggered → no diff/POST. To fix this without wrapping `dataLayer.push` (fragile when other tools like `gtag` later overwrite it), aGTM now runs a periodic poll:
+
+- After the first successful `run_cc('init')`, `aGTM.f.start_consent_poll()` is called.
+- Gated on `consent_store_url != ''` AND `consent_poll_ms > 0` (default `2000`).
+- The poll calls `run_cc('update')` on a `setInterval`. The B2 reset's snapshot/restore guard makes this safe even when the CMP transiently returns `false`.
+- `aGTM_consent_update` event + `consent_callback` are gated on a separate `last_consent_hash` (always advances) so a stable poll tick does not flood the dataLayer or callbacks. The diff/POST gate uses `consent_hash` (advances only on 2xx) so 5xx retries are independent of the sendnaus gate.
+- Integrators that prefer zero polling overhead can set `consent_poll_ms = 0` and trigger updates manually via `aGTM.f.run_cc('update')` from a CMP callback.
 
 ---
 

@@ -498,6 +498,7 @@ aGTM.f.config({
 | `session_salt` | number | `0` | Encryption salt for the consent-store POST; also fallback salt for POST transport (`_post`) when neither the event nor `transport_salt` provides one |
 | `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When served via the sGTM Client, this is auto-filled as `https://<sgtm-host>/aGTMconsent` (fixed path); standalone integrators set this manually. Empty string disables the diff/store mechanism. |
 | `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is encrypted with `session_salt` |
+| `consent_poll_ms` | number | `2000` | Interval (ms) for the periodic CMP state-change poll started after the first successful init. Set to `0` to disable. Only takes effect when `consent_store_url` is set. Catches CMPs that emit updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) which would otherwise bypass the `consent_events` matcher in `aGTM.f.fire()`. |
 | `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid` or `consent` |
 
 **Removed in Phase 2 (no migration code, v1.5 was unreleased):** `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, `session_consent_url`, `session_deny_service`. Functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.f.xfetch`. Data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`. Auto-denial moves entirely server-side (decided by the sGTM Client based on the visit counter and stored consent record).
@@ -524,7 +525,15 @@ The init path runs the same diff/POST so first-visit CMP decisions (no preset, h
 
 ### Update-path field reset (`run_cc('update')`)
 
-Before `consent_check` runs on `'update'`, all CMP-managed fields on `aGTM.d.consent` are cleared: `hasResponse=false`, `services/purposes/vendors/consent_id/serviceIDs/feedback=""`, `delete blocked`. This guarantees a real CMP decision cannot inherit stale preset values from a server-side auto-denial.
+Before `consent_check` runs on `'update'`, a snapshot of `aGTM.d.consent` is taken, then all CMP-managed fields are cleared: `hasResponse=false`, `services/purposes/vendors/consent_id/serviceIDs/feedback=""`, `delete blocked`. This guarantees a real CMP decision cannot inherit stale preset values from a server-side auto-denial. **If `consent_check` then returns `false`** (CMP not ready, user dismissed banner, etc.), the snapshot is restored so the periodic CMP poll (see below) can run repeatedly without destroying preset state.
+
+### Adaptive CMP poll (`start_consent_poll`)
+
+After the first successful `run_cc('init')`, aGTM starts a `setInterval` that calls `run_cc('update')` every `consent_poll_ms` (default 2000ms). This is necessary because most CMPs (CCM19, Cookiebot, Usercentrics, …) emit their consent-update events via direct `window.dataLayer.push()` — bypassing `aGTM.f.fire()` and therefore the `consent_events` matcher. The poll catches these state changes and routes them through the diff/POST path so the consent-store endpoint always sees the latest state.
+
+**Gating:** the poll is only started when both `consent_store_url != ''` AND `consent_poll_ms > 0`. Without `consent_store_url` there is nothing to push, so polling has no value. Set `consent_poll_ms = 0` to disable; integrators can then manually trigger updates via `aGTM.f.run_cc('update')` from inside their CMP callback for zero polling overhead.
+
+**Hash gating for `aGTM_consent_update` and `consent_callback`:** the polling loop would otherwise flood the dataLayer with `aGTM_consent_update` events and call `consent_callback` every poll tick. Both are now gated on `last_consent_hash` (the consent hash from the previous `run_cc()` call), so they only fire on actual state changes.
 
 ### Session payload (passed through the sGTM Client from api4sgtm)
 
