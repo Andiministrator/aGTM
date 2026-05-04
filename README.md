@@ -624,6 +624,8 @@ In this way, consent logic can flow seamlessly across both environments, ensurin
 
 ## Consent Handling
 
+> **Loading the CMP itself before aGTM checks consent?** See the [CMP Loader Pattern](sgtmClient/README.md#cmp-loader-pattern) in the sGTM Client docs — a dedicated `noConsent` container is the recommended way; an inline script field in the sGTM Client template is available as a fallback.
+
 ### Use Event Listeners instead of the default timer
 
 By default, a timer is used to check whether the initial consent information is available. It will check every 500ms, whether the user has given his consent (or declined it).

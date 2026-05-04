@@ -260,9 +260,83 @@ If checked, the POST payload is obfuscated using the Transport Salt before sendi
 
 A numeric salt for encrypting POST payloads. Only active when payload encryption is checked. If not set here, the Session Encryption Salt is used as fallback.
 
+### Pre-aGTM Init Script
+
+A multi-line JavaScript field whose content is prepended verbatim to the `/aGTM.js` response, before the aGTM library is parsed. Intended for code that must define `window` globals before aGTM initializes — typically a CMP loader.
+
+The Client wraps the user code in an IIFE inside a `try/catch` so a runtime error is logged to the browser console as `[aGTM preInit]` and does not break aGTM. **Syntax errors are NOT caught** — a typo (unterminated string, unbalanced bracket, …) aborts parsing of the entire `/aGTM.js` response and breaks the consent flow for all visitors. Validate the code in a syntax checker before pasting.
+
+ES5 syntax is recommended for maximum browser compatibility but not enforced.
+
+> **Prefer the [CMP Loader Pattern](#cmp-loader-pattern) when possible.** A dedicated noConsent-container has no shared blast radius with aGTM. This script field is the fallback for cases where a separate container is not viable.
+
+#### Enable Pre-aGTM Init Script
+
+Toggle that activates the prepend. Disabled by default. Uncheck to disable without deleting the JavaScript code below.
+
+#### JavaScript Code
+
+The script body. Inserted at the very top of `/aGTM.js`. Loaded once per `/aGTM.js` request.
+
 ---
 
 You can find more information about configuration options in the Installation section of the [aGTM README](https://github.com/Andiministrator/aGTM/blob/main/README.md).
+
+---
+
+## CMP Loader Pattern
+
+**Recommended pattern for loading a Consent Management Platform (CMP) before aGTM checks consent.**
+
+aGTM gates GTM injection on a successful consent check. The CMP itself must therefore be available *before* aGTM starts polling — but loading it via the consent-gated GTM container is a chicken-and-egg situation. There are two clean ways out:
+
+### A. noConsent container (preferred)
+
+Create a separate Web GTM container dedicated to the CMP loader, then in the sGTM Client template's **GTM Container Setup** add it with **Consent Check: No**. aGTM injects noConsent containers immediately on init, *before* the consent listener starts (`aGTM.f.initGTM(true)` in [aGTM.js](https://github.com/Andiministrator/aGTM/blob/main/aGTM.js)). Inside this container, place the CMP loader as a Custom HTML tag fired on All Pages / Page View.
+
+Properties:
+
+- The CMP loader's blast radius is its own container only — a broken loader does not crash aGTM or the main GTM container.
+- No ES5 constraint — Custom HTML tags are not concatenated into the aGTM library.
+- Standard Web GTM workflow: version control, preview mode, change history.
+- Requires a separate Web GTM container ID, which is one extra setup step.
+
+### B. Pre-aGTM Init Script field (fallback)
+
+Use the [Pre-aGTM Init Script](#pre-agtm-init-script) field in this template when a separate noConsent container is not viable (for example: the integrator has no permission to create a new Web GTM container, or the CMP loader logic must be deployed/rotated centrally with the sGTM Client config).
+
+Properties:
+
+- One less Web GTM container to manage.
+- The CMP loader is inlined into `/aGTM.js`, so a syntax error breaks aGTM for all visitors. Runtime errors are caught by the wrapper IIFE.
+- Test thoroughly before publishing.
+
+### Common loader template
+
+Both patterns use the same loader shape. The IIFE creates a `<script>` tag for the CMP, attaches `onload`/`onerror` handlers, and on failure assigns a sentinel object so the corresponding `cmp/cc_<name>.js` consent-check file can resolve the polling loop instead of waiting forever. See [`cmp/cc_ccm19.js`](https://github.com/Andiministrator/aGTM/blob/main/cmp/cc_ccm19.js) for an example consumer.
+
+ES5 reference template (works in both patterns):
+
+```javascript
+(function () {
+  var url = 'https://YOUR-CMP-CDN/loader.js';
+  var s = document.createElement('script');
+  s.src = url;
+  s.async = true;
+  s.referrerPolicy = 'origin';
+  s.onload = function () {
+    if (!window.YOURCMP) {
+      window.YOURCMP = { error: 'quota', unavailable: true };
+    }
+  };
+  s.onerror = function () {
+    window.YOURCMP = { error: 'blocked', unavailable: true };
+  };
+  document.head.appendChild(s);
+})();
+```
+
+Replace `YOURCMP` with the global the CMP defines (e.g. `CCM` for CCM19, `Cookiebot` for Cookiebot). The matching `cmp/cc_<name>.js` file in aGTM reads the `unavailable` / `error` fields and resolves the consent check accordingly.
 
 ---
 
@@ -318,6 +392,10 @@ Please contact me if you found problems or have improvements:
   - Required Session API endpoints (api4sgtm-compatible):
     - `GET /tp/session/{tenant}/{user}` → `{sessionId, counter, ga4sid, muidga4, consent?}`
     - `POST /tp/session/{tenant}/{user}/consent` (body = `ConsentState` JSON, full replace) → `{ok: true, sessionId}`
+
+- Version 1.3, *04.05.2026*
+  - New config group: **Pre-aGTM Init Script** — `pre_init_enabled`, `pre_init_code`
+  - New documentation section: **CMP Loader Pattern** — recommends the noConsent-container approach over the inline script field
 
 - Version 1.2, *27.04.2026*
   - aGTM Client Template updated to v1.5
