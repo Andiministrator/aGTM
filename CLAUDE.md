@@ -268,6 +268,11 @@ aGTM.f.call_cc()             — called by timer, manually, or sync from config(
   │            xhr = xsend(consent_store_url, {uid, sid, consent: <without gtm/blocked>})
   │            xhr.onreadystatechange: on 2xx → consent_hash = new_hash;
   │                                              session_status = 'synced'
+  │                                              parse responseText: if response.uid
+  │                                              is non-empty string and differs from
+  │                                              aGTM.d.session.uid, adopt it (server
+  │                                              just ran F→C promote — see SESSION-
+  │                                              REDESIGN.md §7b)
   │                                  on non-2xx → leave hash; next run_cc retries
   │         elif (consent_store_url):
   │            session_status = 'confirmed'   — server already had this state
