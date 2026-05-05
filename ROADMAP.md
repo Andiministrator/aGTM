@@ -2,7 +2,7 @@
 
 This roadmap outlines planned features and milestones for aGTM. It reflects current intentions and may change.
 
-## v1.5 — released *01.05.2026*
+## v1.5 — in development
 
 - **Session feature redesigned (server-side, single source of truth)** — see [SESSION-REDESIGN.md](SESSION-REDESIGN.md). aGTM no longer issues a client-side session HTTP call; session + consent state arrive via a pre-populated `cfg.session` from the sGTM Client. CMP-derived consent is diffed against the preset and POSTed to a dedicated `consent_store_url`. Returning visitors with stored consent get GTM injected on the first tick (no CMP wait).
 - Adaptive CMP poll (`consent_poll_ms`, default 2000ms) catches CMPs that emit consent updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, Klaro in GTM-mode, …) without going through `aGTM.f.fire()`.

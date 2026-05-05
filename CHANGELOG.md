@@ -1,6 +1,6 @@
 # Changelog
 
-## Version 1.5 — *01.05.2026*
+## Version 1.5 — *in development*
 
 ### Session feature redesigned (server-side, single source of truth)
 
