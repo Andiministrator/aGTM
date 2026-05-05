@@ -742,6 +742,44 @@ ___TEMPLATE_PARAMETERS___
           }
         ],
         "help": "Base URL of the Sources API up to and including the path prefix WITHOUT the tenant. The tenant is appended at runtime. Example: <code>https://your-sources-host.example.com/tp/sources/</code> (POSTs go to .../tp/sources/{tenant})."
+      },
+      {
+        "type": "CHECKBOX",
+        "name": "attribution_enabled",
+        "checkboxText": "Enable Attribution API call",
+        "simpleValueType": true,
+        "defaultValue": false,
+        "help": "If checked, this Client fires a GET to the Attribution endpoint after the Session step on every aGTM.js request. The response is packaged into <code>cfg.session.attribution</code>; the aGTM library merges it per-method with the current page URL (HYBRID strategy — URL wins for browser-derivable fields, API for cross-session memory like <code>afs</code>/<code>lcs</code>/<code>fss</code>). GTM tags read e.g. <code>aGTM.d.attribution.last_touch.sou</code>. Tenant is reused from the Tenant ID configured above. <b>Sequential before the aGTM.js response</b> — adds the attribution round-trip to library delivery latency. On timeout/error/non-2xx the library falls back to URL-only data."
+      },
+      {
+        "type": "TEXT",
+        "name": "attribution_methods",
+        "displayName": "Attribution methods (comma-separated)",
+        "simpleValueType": true,
+        "defaultValue": "last_touch",
+        "enablingConditions": [
+          {
+            "paramName": "attribution_enabled",
+            "paramValue": true,
+            "type": "EQUALS"
+          }
+        ],
+        "help": "Comma-separated list of attribution methods to fetch in one round-trip (multi-method endpoint). Valid values: <code>last_touch</code>, <code>first_touch</code>, <code>last_click</code>, <code>first_click</code>, <code>last_non_direct_click</code>. Example: <code>last_touch,last_non_direct_click</code> for analytics + GA4-style marketing-attribution. No spaces. Single method is a special case — the browser-side <code>aGTM.d.attribution</code> shape stays keyed-by-method either way. Recommend <code>last_non_direct_click</code> (or as an additional method) for any deployment that drives marketing-conversion reporting — matches GA4's default."
+      },
+      {
+        "type": "TEXT",
+        "name": "attribution_api_url",
+        "displayName": "Attribution API URL",
+        "simpleValueType": true,
+        "defaultValue": "",
+        "enablingConditions": [
+          {
+            "paramName": "attribution_enabled",
+            "paramValue": true,
+            "type": "EQUALS"
+          }
+        ],
+        "help": "Base URL of the Attribution endpoint up to and including the path prefix WITHOUT the tenant or user. Tenant + user_id + <code>?methods=</code> are appended at runtime. Example: <code>https://your-sources-host.example.com/tp/attribution/</code> (GETs go to .../tp/attribution/{tenant}/{user_id}?methods=&lt;configured&gt;)."
       }
     ]
   },
@@ -906,6 +944,19 @@ const CFG = {
   // api4sources' user_id -> session_id lookup hits.
   sourcesEnabled: data.sources_enabled === true,
   sourcesApiUrl: data.sources_api_url || '',
+  // Attribution API: optional GET after the session step on every aGTM.js
+  // request. Reads previously-stored attribution for this user from
+  // api4sources, packages the response into cfg.session.attribution which
+  // the library merges per-method with the current URL (HYBRID strategy —
+  // see internal/api/integration-guide.md §7). Multi-method endpoint is
+  // always used; single method is a special case with one entry. Disabled
+  // by default. Sequential before buildAndSend — adds the attribution
+  // round-trip to /aGTM.js latency. On timeout/error/non-2xx the field is
+  // left unset and the library falls back to URL-only data (HYBRID is
+  // robust to empty API data).
+  attributionEnabled: data.attribution_enabled === true,
+  attributionApiUrl: data.attribution_api_url || '',
+  attributionMethods: data.attribution_methods || 'last_touch',
   // Pre-aGTM Init Code: arbitrary JS prepended verbatim to the /aGTM.js
   // response. Use case: CMP loaders that must define globals before aGTM
   // starts. Must be ES5; no try/catch wrap (silent errors hide bugs).
@@ -1118,6 +1169,46 @@ const fireSources = function(uid) {
   });
 };
 
+// ── Helper: fire Attribution GET (sequential before buildAndSend) ────────────
+// Called from afterSession() once the session is committed in Redis. Unlike
+// fireSources (fire-and-forget), this MUST complete before buildAndSend
+// because its response is embedded into cfg.session.attribution. The library
+// reads the keyed-by-method object via aGTM.f.resolveAttribution(method).
+// Multi-method endpoint is always used (?methods=a,b,c) — single method is
+// just a special case with one entry, so the browser-side keyed shape stays
+// consistent for all integrators. On timeout/error/non-2xx the field is left
+// unset; the library's HYBRID merge is robust to empty API data.
+const fireAttribution = function(sessionData, then) {
+  if (!CFG.attributionEnabled) { then(); return; }
+  const aUid = sessionData && sessionData.uid;
+  if (!CFG.attributionApiUrl || !CFG.tenantID || !aUid) {
+    if (CFG.debug) logToConsole('debug', '✗ Attribution skipped', {enabled: CFG.attributionEnabled, url: !!CFG.attributionApiUrl, tenant: !!CFG.tenantID, uid: !!aUid});
+    then();
+    return;
+  }
+  const aSep = CFG.attributionApiUrl.charAt(CFG.attributionApiUrl.length - 1) === '/' ? '' : '/';
+  const aMethods = CFG.attributionMethods || 'last_touch';
+  const aUrl = CFG.attributionApiUrl + aSep + CFG.tenantID + '/' + aUid + '?methods=' + aMethods;
+  if (CFG.debug) logToConsole('debug', '→ Attribution GET', aUrl);
+  sendHttpGet(aUrl, {timeout: 1500}).then(function(res) {
+    if (res.statusCode >= 200 && res.statusCode < 300 && res.body) {
+      const parsed = JSON.parse(res.body);
+      if (parsed && typeof parsed.attribution === 'object' && parsed.attribution !== null) {
+        sessionData.attribution = parsed.attribution;
+        if (CFG.debug) logToConsole('debug', '✓ Attribution received', parsed.attribution);
+      } else if (CFG.debug) {
+        logToConsole('debug', '✗ Attribution response missing attribution field', res.body);
+      }
+    } else if (CFG.debug) {
+      logToConsole('debug', '✗ Attribution non-2xx', {status: res.statusCode, body: res.body});
+    }
+    then();
+  }, function(e) {
+    logToConsole('error', '✗ Attribution error', e);
+    then();
+  });
+};
+
 // ── 1. Bot Check (first — no session/cookie for bots) ────────────────────────
 const botCheckEnabled = data.botCheckEnabled === true;
 const botCheckUrl = data.botCheck || '';
@@ -1170,11 +1261,14 @@ const afterBotCheck = function(isBot) {
     }
 
     if (CFG.debug) logToConsole('debug', '✓ Session', sessionData);
-    // Fire-and-forget Sources API POST. Runs in parallel with buildAndSend so
+    // Fire-and-forget Sources API POST. Runs in parallel with the rest so
     // aGTM.js delivery is not blocked. Session is already committed in Redis
     // at this point — no race against api4sources' session lookup.
     fireSources(sessionData.uid);
-    buildAndSend(sessionData);
+    // Sequential Attribution GET. Result is embedded into cfg.session.attribution
+    // so it must complete before buildAndSend. No-op when attribution_enabled
+    // is false, in which case buildAndSend runs on this tick.
+    fireAttribution(sessionData, function() { buildAndSend(sessionData); });
   };
 
   if (CFG.sessionApiUrl && CFG.tenantID && sessionUid) {
@@ -1278,9 +1372,9 @@ const buildAndSend = function(sessionData) {
   if (data.nonce) c.nonce = data.nonce;
   if (data.debug) c.debug = true;
   // Session (pre-populated by sGTM Client; aGTM consumes via cfg.session).
-  // aGTM's preset gate requires sid OR a valid consent block — uid alone is
-  // ignored, so we don't bother emitting in that case.
-  if (sessionData && (sessionData.sid || sessionData.consent)) {
+  // aGTM's preset gate requires sid OR a valid consent block OR an attribution
+  // object — uid alone is ignored, so we don't bother emitting in that case.
+  if (sessionData && (sessionData.sid || sessionData.consent || sessionData.attribution)) {
     c.session = sessionData;
   } else if (CFG.debug) {
     logToConsole('debug', '✗ session: nothing to pass through', sessionData);
