@@ -72,3 +72,7 @@ node_modules/
 *.bak
 logs/
 tmp/
+
+# ── Internal docs (API specs, integration notes, smoketests) ────────────────
+# Reference material for maintainers; not part of the public release.
+internal/
