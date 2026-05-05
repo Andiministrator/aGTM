@@ -1,22 +1,10 @@
 # Session Feature Redesign (v1.5)
 
-> **Status:** Plan — implementation pending. v1.5 has not been deployed; this is a hard cut, no migration code.
+> **Status:** Implemented in v1.5 (release pending — no v1.5 git tag yet). This document is the architectural reference for the v1.5 session/consent design.
 > **Owner:** Andi Petzoldt
 > **Created:** 2026-04-29
 
-This document specifies the redesign of the aGTM session feature for v1.5. It supersedes the in-progress note in [CLAUDE.md](CLAUDE.md) and the prior design in [README-for-Developers.md](README-for-Developers.md).
-
-### Starting state for the implementation chat
-
-When starting work, expect the `dev` branch to have **substantial uncommitted changes** (`aGTM.js` +152 lines, `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js` +456, `sgtmClient/template.tpl` +844, plus doc updates and two new test files `fire_nodlpush.test.js` / `session_preset.test.js`). These represent the **current v1.5-in-progress work** — the state that this redesign will partially undo. They are NOT to be discarded; treat them as the starting baseline. Phase 2 (`aGTM.js` cleanup) and Phase 1 (sGTM Client refactor) operate on this current uncommitted state, with all line references in this plan calibrated to it.
-
-Do not commit the uncommitted changes as a baseline first — let the redesign-phase commits subsume them naturally. Each phase commit replaces the in-progress work in its area with the new design.
-
-### Recommended phase ordering
-
-Phase 0 (Session API contract) is a hard gate. **However**, Phase 2 (`aGTM.js` cleanup) is purely subtractive and API-independent — it can start in parallel with Phase 0 / Phase 1, accelerating the critical path. Tests will go red on functions that depend on the deleted code (which Phase 2 also rewrites), so keep `bun test` green by working through Phase 2 in one continuous session. Phase 3 (diff/store) consumes Phase 0's contract and Phase 1's endpoint, so it must wait.
-
-Suggested order: Phase 0 (blocking, ~2h external) ∥ Phase 2 (start in parallel) → Phase 1 → Phase 3 → Phase 4 → Phase 5.
+This document specifies the architectural design of the aGTM session feature for v1.5. It supersedes the prior design in [README-for-Developers.md](README-for-Developers.md). Implementation choreography (phase ordering, rollback procedures, "starting state" for the implementation chat) was removed once the redesign landed in code — `git log --oneline aGTM.js sgtmClient/` and the v1.5 [CHANGELOG](CHANGELOG.md) section have the as-built history. What remains here are the architectural decisions: goal, architecture, data contract, hash/diff strategy, decisions log, and the late-add Sources API integration.
 
 ---
 
@@ -211,250 +199,6 @@ Then `consent_check('update')` repopulates whatever the CMP knows. Without this 
 
 ---
 
-## 5. Changes by file
-
-### `aGTM.js`
-
-**Remove (delete entirely):**
-- `aGTM.f.session_fetch` (lines ~1802–1853)
-- `aGTM.f.session_apply_denial` (lines ~1781–1793)
-- Call to `session_fetch()` in `init()` (line ~1633–1634)
-- Call to `session_apply_denial()` in `run_cc()` init path (lines ~401–406)
-- `session_wait` wait branch in `inject()` (lines ~890–893)
-- `session_consent_url` POST block in `run_cc()` (lines ~442–456)
-- Config keys: `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, `session_consent_url` (lines ~230–236)
-- Data store key: `consent_sent`
-- `aGTM.f.xfetch` (jsdoc + function at lines ~1726–1774) — only internal caller was `session_fetch`; sGTM Client uses GTM-Server APIs (`sendHttpRequest`/`sendHttpGet`), not xfetch; tmp/aEvents-tag mentions it only in a hypothetical README comment. No callers remain.
-- `test/xfetch.test.js` — gone with the function
-- Old `session_status` enum values `"ok"/"invalid"/"error"/"timeout"/"inactive"/"preset_uid"` (replaced by new lifecycle, see below)
-
-**Add:**
-- Config key `consent_store_url` (string, default `""`) and `consent_store_enc` (boolean, default `false` — independent flag, not derived from `session_salt`).
-- Data store: `aGTM.d.consent_hash = ""`.
-- Function `aGTM.f.consent_serialize(c)` (see §4).
-- In `aGTM.f.config()`: if `cfg.session.consent` is **a valid object** (`typeof === 'object' && consent !== null && consent.hasResponse === true && typeof consent.services === 'string'`), deep-copy into `aGTM.d.consent` and seed `aGTM.d.consent_hash`. Otherwise ignore preset consent and fall back to CMP path. Set `aGTM.d.session_status` accordingly (`"preset_with_consent"` if accepted, `"preset"` if `cfg.session` present without valid consent, `""` otherwise).
-- In `aGTM.f.run_cc()`, at the end of the success path: diff/POST per §4 (with onload-gated hash update) and set `session_status = "synced"` / `"confirmed"`.
-- **At end of `aGTM.f.config()` (BLOCKER fix B1):** if `aGTM.d.consent && aGTM.d.consent.hasResponse === true` (preset path delivered usable consent), call `aGTM.f.call_cc()` synchronously. This triggers `run_cc('init') → inject()` immediately, without waiting for the 500 ms `consent_listener` poll. The consent_listener still starts (via the normal init flow) to catch later CMP updates, but `call_cc` clears the timer after first successful run, so it amounts to a no-op unless the integrator's CMP later fires `update`.
-
-**Redefine `aGTM.d.session_status`** as a consent-sync lifecycle indicator. Old fetch-outcome enum is replaced. New values:
-
-| Wert | Wann gesetzt |
-|---|---|
-| `""` | Initial / Session-Feature inaktiv / keine Session-Daten |
-| `"preset"` | `cfg.session` vorbelegt, aber **ohne** `consent`-Objekt → Consent kommt von der CMP wie gehabt |
-| `"preset_with_consent"` | `cfg.session` vorbelegt **mit** `consent`-Objekt → GTM kann ohne CMP-Wait injecten |
-| `"synced"` | CMP hat geantwortet, Diff erkannt, Consent zum `consent_store_url` gepusht |
-| `"confirmed"` | CMP hat geantwortet, kein Diff (Server-Stand stimmte mit CMP überein) |
-
-State-Übergänge:
-- Set in `aGTM.f.config()` based on whether `cfg.session.consent` is present
-- Set at end of `aGTM.f.run_cc()` to `"synced"` (after diff-POST) or `"confirmed"` (no diff)
-- **Value:** GTM Custom Templates can branch on it (e.g. only personalize if `preset_with_consent` or `confirmed`); integrators can emit it as event property to measure how often the cache hit avoided a CMP wait — the metric that justifies the redesign.
-
-**Modify:**
-- `cfg.session` preset gate (line ~239): drop the `cfg.session.uid` requirement. Accept any object with `sid` *or* `consent`. Document that without `sid`, the session is treated as "consent-only preset".
-- `inject()`: no functional change. Pre-clearance via `cfg.session.consent.gtmConsent === true` is achieved through the synchronous `call_cc()` trigger added in `config()` (see B1 fix above); `inject()` itself stays idempotent via `aGTM.d.init`.
-
-**Remove (additional, from critic findings):**
-- `aGTM.d.session_ready` — dead code in the new model. With `session_fetch` gone, `session_ready` would be either `true` (after `config()` if session present) or unset, never `false`. The new `session_status` lifecycle is the single source of truth for "is session/consent state established". Drop the data store key and its three test assertions in `session_preset.test.js`.
-
-**Keep as-is:**
-- `aGTM.d.session` (still useful, populated from `cfg.session`).
-- `session_salt` (reused for encrypting the consent-store POST).
-- `xsend()` (still used for general POST transport; consent-store POST is its own dedicated channel — **NOT** routed through the `_post` event mechanism).
-- **CMP `consent_check` short-circuit:** every file in `cmp/*.js` begins with `if (action=='init' && aGTM.d.consent.hasResponse) return true;`. This pattern is now **load-bearing** for the preset path: when `cfg.session.consent` pre-populates `aGTM.d.consent.hasResponse = true`, the first `consent_check('init')` call returns true immediately without touching the CMP, allowing GTM injection without CMP-wait. **Adding or modifying any CMP file must preserve this short-circuit.** Add a CI grep check or unit test to enforce it.
-
-### `sgtmClient/template.tpl` and `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js`
-
-The sGTM Client is substantial today (~373 lines): bot check → user-id resolution (cookie / fingerprint) → presession API → session API → build aGTM config. Two HTTP routes already exist: `POST <consent_url>` (consent updates) and `GET …/aGTM.js` (library + config). The redesign collapses two API calls into one and reshapes the consent flow.
-
-**Remove:**
-- `CFG.presessionApiUrl` (line 38) and `data.presession_api_url` from the template UI (`template.tpl`).
-- The entire `afterPresession` flow (lines ~207–276) — the presession HTTP call, `presessionData`, `presessionCst` — gone. `cookieAllowed` gating now derives from session API consent state (see below) or from existing cookie.
-- `CFG.consentService/Purpose/Vendor` are still needed (server applies the same gate logic locally now); `inConsentStr` / `hasRequiredConsent` helpers stay.
-- Output config: `c.session_gtm_on_deny` (line 337) and `c.session_consent_url` (lines 344–349) — both are gone client-side. `data.session_gtm_on_deny`, `data.session_deny_service` removed from `template.tpl` UI.
-- `tmp/api4pre_session_README.md` and `tmp/sgtm-session-api-README.md` (or move to a v1.5 archive folder).
-
-**Modify — Session API call (lines ~239–264):** the **only** remaining server-side API call. Returns session data **plus** consent state. Expected new response shape from the Session API:
-```json
-{
-  "sessionId": "<sid>",
-  "counter": 3,
-  "ga4sid": "...",
-  "muidga4": "...",
-  "consent": {              // NEW — present only if session has stored consent
-    "hasResponse": true,
-    "services": ",svc1,",
-    "purposes": ",p1,",
-    "vendors": ",v1,",
-    "feedback": "..."
-  }
-}
-```
-The client's `afterSession()` then decides:
-1. **Stored consent present** (`r.consent` is an object with `hasResponse: true`) → pass through to `cfg.session.consent`.
-2. **No consent + returning visitor** (`r.consent` absent, `r.counter > 0`) → server constructs auto-denial:
-   ```js
-   sessionData.consent = {
-     hasResponse: true,
-     feedback: "Consent denied by aGTM",
-     services: ",aGTMconsent,",
-     purposes: "",
-     vendors: "",
-     gtmConsent: true   // load GTM with denial; flip to false if server policy says no
-   };
-   ```
-   The `gtmConsent` flag inside the embedded consent replaces the old `session_gtm_on_deny` config — it is now a **server policy decision**, configurable in `template.tpl` UI as e.g. `data.auto_deny_load_gtm` (boolean, default true).
-3. **No consent + first-time visitor** (`r.counter === 0` or session API miss) → `sessionData.consent` is **omitted** → aGTM waits for CMP as before, status starts as `"preset"` (or `""` if no session at all).
-
-**Modify — `buildAndSend()` (lines ~334–352):** `c.session = sessionData` now includes the optional `consent` field. Drop the special-cased uid-only branch — preset path no longer requires `sid`, and the simplified aGTM `config()` accepts any session object.
-
-**Add — `consent_store_enabled` checkbox + fixed path + browser-side URL build:** instead of asking the integrator for a URL, expose a boolean `data.consent_store_enabled` (default true). The path is hard-coded as a `CONSENT_STORE_PATH = '/aGTMconsent'` constant in jsSourceCode.js. The full browser-facing URL is built **browser-side** at config time: jsSourceCode.js wraps the `aGTM.f.config(c)` call in an IIFE that reads `document.currentScript.src`, strips the trailing `/aGTM.js`, and appends `/aGTMconsent`. This handles reverse-proxy setups transparently — server sees `/aGTM.js` (proxy stripped the prefix) but the browser knows the real prefix because it loaded the script from `https://<host>/<prefix>/aGTM.js`. Standalone integrators (without sGTM Client) continue to set `aGTM.c.consent_store_url` manually.
-
-**Modify — `POST CONSENT_STORE_PATH` handler (lines ~70+):** still receives the consent payload from the browser, but now must **persist into the session** via the Session API (server-side `PUT` or equivalent — exact endpoint shape TBD with the Session API team). Today the handler only manages the user-ID cookie based on consent. Both responsibilities remain:
-- Cookie write/delete based on `cookieMode === 'consent'` and `hasRequiredConsent(...)` — unchanged.
-- **NEW:** call the Session API to store `{uid, sid, consent}` in the session record so the next library load returns it.
-
-Response stays `{"ok":true}`.
-
-**Encryption / salt:** continue using `session_salt` (kept in aGTM lib config). Both library response and consent POST share the same salt — consistent with today's model.
-
-**Cookie modes:** `always` / `consent` / `never` continue to work, but **the cookie-on-known-consent path moves into `afterSession()`** (critic fix M5). Today `afterPresession` writes the user-ID cookie when the presession API confirms consent. With the redesign, on a returning visitor whose session already carries a granted-consent record, the library route must restore parity: in `afterSession()`, after parsing the Session API response, if `sessionData.consent` is present and `hasRequiredConsent(services, purposes, vendors)` returns true → call `writeCookie(uid)` before `buildAndSend()`. Without this the user-ID cookie expires on returning visits with stored consent until the user re-interacts with the CMP.
-
-**Documentation update in same commit (Mi2):** when these changes ship, update `sgtmClient/README.md` in the same commit. Don't defer to a global Phase-5 doc-sync.
-
-### Tests
-
-**Delete:**
-- `test/session_fetch.test.js` — fetch path is gone
-- `test/xfetch.test.js` — function is gone
-- `test/inject.test.js` — entire file (58 lines) tests the `session_wait` gate; both `session_wait` and `session_ready` are removed. The file becomes dead. (QA finding 1.)
-
-**Modify:**
-- `test/session_status.test.js` — rewrite for the new lifecycle: `""` → `"preset"` / `"preset_with_consent"` after `config()`, `"synced"` / `"confirmed"` after `run_cc()`. Old fetch-outcome tests deleted.
-- `test/call_cc.test.js` lines 14–15 — remove the `aGTM.c.session_wait = false; aGTM.d.session_ready = true;` setup lines (both keys gone). (QA finding 2.)
-- `test/session_preset.test.js` — **substantial wholesale rewrite, not just an extend**. Current file is 293 lines and contains three blocks tied to deleted code (QA finding 3):
-  - Section "4–7: aGTM.f.session_apply_denial()" (~lines 88–144) — **delete entirely** (function gone).
-  - Section "8–9: session_fetch() activation" (~lines 148–193) — **delete entirely** (function gone).
-  - Section "10–11: run_cc() auto-POSTs to session_consent_url" (~lines 196–end) — **delete entirely** (replaced by `consent_store.test.js`).
-  - Drop the `preset_uid` test (status value gone).
-  - Then add:
-    - Preset includes `consent` → `aGTM.d.consent` populated, `consent_hash` seeded, `session_status === "preset_with_consent"`, GTM injects without CMP
-    - Preset includes `consent` with `gtmConsent: false` → GTM does **not** inject, CMP can still update later
-    - No preset `consent` → CMP-only path, `session_status === "preset"`, behaves as today
-    - Malformed `cfg.session.consent` cases (Mi5, see below).
-  - Estimated final size: ~120 lines (60% smaller than today).
-
-**New test file: `test/consent_store.test.js`**
-- Diff detection: identical CMP response after preset → no POST, `session_status === "confirmed"`
-- Diff detection: CMP response differs from preset → exactly one POST with correct payload, `session_status === "synced"`
-- Multiple `run_cc('update')` calls with same data → only first triggers POST, hash prevents duplicates
-- Per-service revocation: services list change → POST fires
-- **`consent_id` change** with same services → POST fires (blacklist-hash regression check)
-- `consent_store_url` empty → no POST regardless of diff
-- `gtmConsent` change-only (e.g. due to aGTM config mismatch) → does **not** trigger POST (excluded from hash)
-- **POST failure (xsend onload status 500)** → `consent_hash` stays at old value; next `run_cc('update')` retries
-
-**Malformed-input tests in `session_preset.test.js`** (Mi5):
-- `cfg.session.consent = null` → ignored, falls back to CMP path, `session_status === "preset"`
-- `cfg.session.consent = {}` (no `hasResponse`) → ignored
-- `cfg.session.consent = "string"` → ignored
-- `cfg.session.consent = { hasResponse: true }` (no `services`) → ignored
-
-**Synchronous inject test** (B1 fix): `cfg.session.consent` valid + `gtmConsent: true` → `aGTM.d.init === true` *immediately* after `aGTM.f.init()` returns (no setTimeout / setInterval needed in test). Today's tests don't cover this — it was a 500ms-timer-gated flow.
-
-### Documentation (scope is bigger than initially scoped — QA findings 6–12)
-
-- **`CLAUDE.md`** — replace the "Session Feature" section. Remove the old auto-denial logic block. Add the new diff/store flow. Update both call graphs (event dispatch is unchanged; injection graph drops `session_fetch` and gains the consent-store POST in `run_cc`). Update the data-stores table (`consent_hash` in, `consent_sent`/`session_ready` out, `session_status` redefined).
-- **`README-for-Developers.md`** — the entire "Session Feature" section (~lines 67–72, 347–358, 477–515) is tied to deleted code — **wholesale rewrite**, not patch. New config keys (`consent_store_url`, `consent_store_enc`), removed config keys list, new lifecycle status documented, new "Optimistic Preset" prerequisite around Consent Mode v2.
-- **`README.md`** — multiple dedicated config sections (lines 450, 456, 472, 480, 488, 535–536, 552) describe `user_id`, `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, and the old `session_status` enum — all removed or redefined. **All these sections need rewrite/removal**, not just a changelog patch.
-- **`README.de.md`** — German quickstart added in commit 89555d0. Verify session content; update for parity with `README.md`. (QA finding 9.)
-- **`CHANGELOG.md`** — current v1.5 entry block (lines 4–21) documents exactly the features being deleted (`session_consent_url`, `session_apply_denial()`, `consent_sent` deduplication, presession API, `xfetch` etc.) as v1.5 *additions*. **The entire v1.5 block needs wholesale rewrite**, not a one-liner. v1.4 entries (lines 38–51) describing the original session feature stay (historical). New v1.5 block must explicitly note removed APIs (incl. `xfetch`, QA finding 12).
-- **`ROADMAP.md`** — mark session redesign as Done once shipped; remove TBD note. Line 23 references the playground's "mock CMP and session endpoint" — playground is being rewritten (see below), update accordingly.
-- **`sgtmClient/README.md`** — v1.5 changelog block (~lines 302–316) describes presession API, `session_consent_url`, `session_url`, `session_wait` etc. as v1.5 features. **Wholesale rewrite of that block.** Document the new single-API model.
-- **`memory/project-session-redesign.md`** — update on completion to "shipped, see git tag v1.5".
-
-### Playground & manual tests (QA findings 4, 5)
-
-- **`test/MANUAL_TEST.md`** — Sections 7 (rows 7.1–7.10), 8 (8.1–8.5), 9 (9.1–9.5) are entirely about `session_fetch` / auto-denial / `session_wait` and need full rewrite for the new lifecycle, not a note.
-- **`playground/index.html`** — references go beyond the line 424 `session_status` display:
-  - Line 424: `session_status` display stays (with new lifecycle values).
-  - Lines 578, 586, 596, 604: scenarios using `session_url` / `session_wait` / `session_timeout` — **rewrite or remove** scenarios.
-  - Lines 653, 655, 666: cfg-builder UI references `session_url` / `session_wait` — remove fields, add `consent_store_url`.
-
----
-
-## 6. Implementation phases
-
-Ordered to keep `bun test` green between phases where possible.
-
-### Phase 0 — Hard gate (must complete before Phase 2 merges)
-**Critic finding M4: do not start aGTM-side work until the Session API write contract is verified.**
-1. Session API team delivers: (a) updated read-endpoint that returns `consent` field, (b) write-endpoint that persists `{uid, sid, consent}` into the session record.
-2. Manual end-to-end smoke test against the real Session API: write consent via curl → confirm next read returns it → confirm new read for an unknown uid omits consent.
-3. Session API write contract documented in `sgtmClient/README.md`.
-4. Without this gate: aGTM library would POST to a consent-store endpoint whose handler can't persist → infinite re-POST loop on every page load (CMP responds → POST → server doesn't store → reload → no consent in session → CMP responds → POST → …).
-
-### Phase 1 — sGTM Client refactor
-1. **Spec the Session API contract** (server-side, mostly outside this repo): response includes optional `consent` field; new endpoint or verb to write consent into a session record.
-2. **`jsSourceCode.js`:** delete `presessionApiUrl`, `afterPresession`, presession HTTP call. Refactor `cookieAllowed` derivation to use session-API consent state instead.
-3. **`jsSourceCode.js`:** in `afterSession()`, parse `r.consent` if present and pass through; if absent and `r.counter > 0`, construct server-side auto-denial. Add `data.auto_deny_load_gtm` UI control.
-4. **`jsSourceCode.js` `buildAndSend()`:** drop the uid-only branch, drop `c.session_gtm_on_deny`, drop `c.session_consent_url`, add `c.consent_store_url` from `data.consent_store_url`. `c.session = sessionData` (now includes optional `consent`).
-5. **`jsSourceCode.js` consent POST handler:** add the call to the Session API to persist the consent into the session record (alongside the existing cookie management).
-6. **`template.tpl`:** remove UI fields for `presession_api_url`, `session_gtm_on_deny`, `session_deny_service`. Rename `consent_url` → `consent_store_url` (or keep field, change label). Add `auto_deny_load_gtm` boolean field. Update `aGTMversion` to `1.5`.
-7. **`sgtmClient/README.md`:** rewrite to reflect single-API model; document the new request/response shapes.
-8. Manual smoke test with curl/Postman: GET aGTM.js for new uid (no consent in response), simulate session with stored consent (consent in response), simulate returning visitor without consent (auto-denial in response). POST to consent_store_url, verify cookie + Session API write.
-9. Commit: `refactor(sgtm-client): single Session API, server-side auto-denial, consent-store route`
-
-### Phase 2 — aGTM.js cleanup
-1. Delete `session_fetch`, `session_apply_denial`, `aGTM.d.session_ready`, related config keys, data store keys, `inject()` wait branch, `run_cc()` POST block.
-2. Delete `aGTM.f.xfetch` and `test/session_fetch.test.js`, `test/xfetch.test.js`. Rewrite `test/session_status.test.js` for the new lifecycle.
-3. **Update `CLAUDE.md` and `README-for-Developers.md` call graphs in the SAME commit** (Mi2): the existing graphs reference `session_fetch`, `session_apply_denial`, `session_consent_url`, `consent_sent` — all gone. Stale docs after this commit would mislead future agents/integrators.
-4. Run `bun test` — should pass with reduced surface.
-5. Commit: `refactor: remove old session_fetch and auto-denial paths (v1.5 redesign)`
-
-### Phase 3 — aGTM.js diff/store implementation
-1. Add `consent_store_url` + `consent_store_enc` config keys, `aGTM.d.consent_hash` data key.
-2. Add `aGTM.f.consent_serialize()` (blacklist strategy, see §4).
-3. Extend `aGTM.f.config()` to validate and apply `cfg.session.consent` → `aGTM.d.consent` + hash seed + `session_status` set.
-4. Add the synchronous `call_cc()` trigger at end of `config()` for B1 — this is the actual performance win.
-5. Add field-reset block at start of `run_cc('update')` (B2 fix).
-6. Add diff/POST block at the end of `aGTM.f.run_cc()` with onload-gated hash update (M1 fix) and `session_status` lifecycle transitions.
-7. Extend `test/session_preset.test.js` with malformed-input cases, add `test/consent_store.test.js` (incl. POST-failure retry case, consent_id-change case, synchronous-inject case).
-8. **Update `CLAUDE.md` Session-Feature section + `README-for-Developers.md` in SAME commit** (Mi2).
-9. `bun test` green.
-10. Commit: `feat: consent diff + store for v1.5 session redesign`
-
-### Phase 4 — Build + integration test
-1. `./build.sh` (regenerates `aGTM.min.js`, `aGTM.base64`, `template.tpl` base64 injection).
-2. End-to-end browser test against a real sGTM Client deployment:
-   - First visit, no consent → CMP wait → CMP response → POST observed at consent-store
-   - Reload after consent → no CMP wait, GTM injects immediately, no POST (diff = 0)
-   - Service-level revocation via CMP UI → POST observed
-   - Returning visitor without consent (cleared cookie sim) → server sends auto-denial → GTM loads with `aGTMconsent` only, no CMP wait
-3. Commit: `build: regenerate after session redesign`
-
-### Phase 5 — Documentation, playground, manual tests
-Inline doc updates land in Phases 2–3 for files tied to specific code (`CLAUDE.md`, `README-for-Developers.md`, `sgtmClient/README.md`). Phase 5 covers everything else, plus the cross-check sweep:
-
-1. **`README.md`** — rewrite all session-related sections (lines ~450–552, see scope above).
-2. **`README.de.md`** — parity rewrite.
-3. **`CHANGELOG.md`** — wholesale rewrite of the v1.5 block (lines 4–21). Explicitly list removed APIs incl. `xfetch`, `session_ready`, `session_apply_denial`, `session_fetch`, `session_consent_url`, `consent_sent`, presession API, plus removed config keys. List added: `consent_store_url`, `consent_store_enc`, `consent_hash`, new `session_status` lifecycle.
-4. **`ROADMAP.md`** — mark redesign as done; update line 23 playground reference.
-5. **`test/MANUAL_TEST.md`** — rewrite sections 7, 8, 9 for the new lifecycle.
-6. **`playground/index.html`** — rewrite session-related scenarios and cfg-builder fields per the plan's playground sub-section above.
-7. **`tmp/aEvents-tag/README-aEvents-tag.md:194`** — remove dead xfetch reference.
-8. **Archive or delete** `tmp/api4pre_session_README.md` and `tmp/sgtm-session-api-README.md` (both describe deleted APIs).
-9. **Cross-check sweep:** `grep -r "session_fetch\|session_apply_denial\|session_consent_url\|session_wait\|session_timeout\|session_gtm_on_deny\|session_url\|consent_sent\|xfetch\|session_ready\|presession" .` — confirm no references remain outside `SESSION-REDESIGN.md` itself and (optionally) git history.
-10. Update memory file `project-session-redesign.md` to "shipped, see git tag v1.5".
-11. Commit: `docs: rewrite playground, manual tests, READMEs, CHANGELOG for v1.5 session redesign`
-
-### Phase 6 — Release
-1. Verify `VERSION` = `1.5`, all `@version` headers + `aGTM.d.version` consistent.
-2. Merge `dev` → `main`.
-3. `git tag v1.5`.
-
----
 
 ## 7. Decisions & open questions
 
@@ -535,18 +279,20 @@ write happened first within the same Client request.
 `tenant_id` is reused from the existing Session group.
 
 **Smoketest:** combined into `internal/api/smoketest.tpl`
-(steps 5-8: insert, dedup, referrer-change insert, no-active-session skip).
+— steps 5-8 cover the sources POST contract; steps 9-10 + 15 cover the
+attribution read contract; 16-18 are sources edge cases; 19-20 cover the
+api4sgtm session-promote flow; 21 covers the content-store hash roundtrip.
 Sources steps reuse the session created in step 1 (same Redis), so the
-session steps are the natural precondition. Auto-mode only — the manual
-single-step wizard still runs the 4 session steps for paced eventual-
-consistency probing.
+session steps are the natural precondition.
 
-**Out of scope (v1.5):** read-back endpoint on api4sources (no GET defined
-yet), source-keys query helpers in the sGTM Client. If/when needed, those
-are server-side concerns and would not affect aGTM.
+**Sources READ-back (in progress, 2026-05-05):** the api4sources GET
+attribution endpoint exists and the contract is verified end-to-end via
+the smoketest. Aggregation strategy is HYBRID (URL wins for browser-
+derivable fields, API for cross-session-memory fields like `afs/lcs/fss`)
+to mitigate ClickHouse Materialized View propagation lag. Implementation
+is split: aGTM library adds `aGTM.f.resolveAttribution(method)` consuming
+`aGTM.d.session.attribution`; sGTM Client adds the multi-method
+`?methods=…` GET wired into the existing handler. See
+`internal/api/integration-guide.md` §7 for the full design.
 
 ---
-
-## 8. Rollback
-
-This redesign is a hard cut. Rollback = `git revert` of the commits from phases 2–5 before tagging. Once `v1.5` is tagged on `main`, rollback would require a `v1.5.1` patch release. There is no runtime feature flag.
