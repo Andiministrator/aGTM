@@ -308,7 +308,7 @@ The fix uses the api4sgtm `/promote` endpoint (atomic Redis TxPipeline: session 
 
 ### UID format (api4sgtm contract)
 
-The new `C.*` user ID is always generated as **`C.1.{tenant}.{rand12}.{ms}` with literal dot separators**, regardless of the `fipLimiter` template setting (which only controls the `F.*` side). This is mandated by api4sgtm's `/promote` endpoint, which strictly validates `new_user_id` starts with `"C."` (literal dot — see `internal/api/api4sgtm/team-spec.md` §"Promote / Migrate session"). The F-side keeps the configurable `fipLimiter` because `/promote` and `/session` GET only validate the `C`-side `new_user_id`, not the existing F-side path parameter.
+The new `C.*` user ID is generated as **`C.1{lim}{tenant}{lim}{rand12}.{ms}`** where `{lim}` is the configured `CFG.fipLimiter` (default `$`). The literal `C.` prefix is mandated by api4sgtm's `/promote` endpoint, which strictly validates `new_user_id` starts with `"C."` (literal dot — see `internal/api/api4sgtm/team-spec.md` §"Promote / Migrate session"). After the version digit `1` the code switches to `fipLimiter` so the C-format mirrors the F-format (`F{lim}1{lim}…`) byte-for-byte after position 2 — visual consistency in cookies, logs, and analytics dumps. With the default `$` limiter the resulting cookie value is e.g. `C.1$cl_planai$987654321012.1714900000000`, alongside `F$1$cl_planai$<hash>.<date>`.
 
 ### Forward path — `/aGTMconsent` POST handler
 
@@ -361,7 +361,7 @@ Server-side decryption is not implemented (would require a symmetric counterpart
 ### Code locations
 
 - `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js`:
-  - `generateCookieUid()` — generates `C.1.{tenant}.{rand12}.{ms}` (literal dot, not `fipLimiter` — required by api4sgtm `/promote` validator)
+  - `generateCookieUid()` — generates `C.1{lim}{tenant}{lim}{rand12}.{ms}` (literal `C.` prefix required by api4sgtm `/promote` validator, then `fipLimiter` for visual consistency with the F-side)
   - `isFingerprintUid(uid)` — prefix detector for `F{lim}1{lim}`
   - `tryPromote(oldUid, newUid, consent, then)` — POSTs `/promote`, calls `then(newUid)` on 2xx, `then('')` on failure
   - Encrypted-mode guard: `/aGTMconsent` returns 501 when body shape is `{"q":"..."}`

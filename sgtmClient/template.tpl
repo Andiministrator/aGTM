@@ -981,20 +981,23 @@ const hasRequiredConsent = function(services, purposes, vendors) {
 // const-bound function expressions at parse time with "Illegal variable
 // reference before declaration".
 
-// Generate a stable cookie-based user ID. Format: `C.1.{tenant}.{rand12}.{ms}`
-// — used when promoting a F.* fingerprint user to a C.* cookie user (server-
-// side equivalent of the v1.3 user_id template's new-cookie path).
+// Generate a stable cookie-based user ID. Format:
+//   `C.1{lim}{tenant}{lim}{rand12}.{ms}`
+// where `{lim}` is `CFG.fipLimiter` (default `$`).
 //
-// Prefix is hardcoded to `C.` regardless of `fipLimiter` because the api4sgtm
-// /promote endpoint strictly validates `new_user_id` starts with "C." (literal
-// dot — see internal/api/api4sgtm/team-spec.md §"Promote / Migrate session").
-// The F-side keeps the configurable `fipLimiter` because /promote and
-// /session GET only validate the C-side `new_user_id`, not the existing
-// F-side path parameter.
+// The literal `C.` prefix is mandated by the api4sgtm /promote endpoint
+// (`new_user_id` must start with `"C."` — see
+// internal/api/api4sgtm/team-spec.md §"Promote / Migrate session"). After
+// the version digit `1` we switch to the configured `fipLimiter` so the
+// C-format mirrors the F-format (`F{lim}1{lim}…`) for visual consistency
+// in cookies, logs, and analytics dumps. With the default `$` limiter the
+// resulting cookie value is e.g. `C.1$cl_planai$987654321012.1714900000000`
+// — matches the F-side shape `F$1$cl_planai$<hash>.<date>` byte-for-byte
+// after the second character.
 const generateCookieUid = function() {
   const rand = generateRandom(123456789012, 999999999999);
   const tsm = getTimestampMillis();
-  return 'C.1.' + CFG.tenantID + '.' + makeString(rand) + '.' + makeString(tsm);
+  return 'C.1' + CFG.fipLimiter + CFG.tenantID + CFG.fipLimiter + makeString(rand) + '.' + makeString(tsm);
 };
 
 // Detect F.* fingerprint UID. Returns true when `uid` starts with the
