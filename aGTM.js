@@ -635,19 +635,29 @@ aGTM.f.run_cc = function (action) {
             // can return a new uid in the body when it just promoted a
             // fingerprint user to a stable cookie user (api4sgtm /promote
             // atomic Redis TxPipeline: session pointer migration + consent
-            // record write). When the echoed uid differs from the one we
-            // currently hold, adopt it so the next run_cc POST and any
-            // downstream consumers (aGTM.d.session.uid) see the new value.
-            // Parsing is wrapped in try/catch so a non-JSON or empty body
-            // does not break the consent flow.
-            try {
-              var resp = JSON.parse(xhr.responseText);
-              if (resp && typeof resp.uid === 'string' && resp.uid && aGTM.d.session && resp.uid !== aGTM.d.session.uid) {
-                aGTM.f.log('m_uid_promoted', {old: aGTM.d.session.uid, new: resp.uid});
-                aGTM.d.session.uid = resp.uid;
+            // record write). When the echoed uid is a C.* prefix and
+            // differs from the one we currently hold, adopt it so the
+            // next run_cc POST and any downstream consumers see the new
+            // value. We only adopt strict C.* values to avoid a race-
+            // condition where a second consent POST with a `finalUid=F.*`
+            // fallback (promote failed on the second attempt because the
+            // session was already migrated by the first) overwrites a
+            // previously-adopted C.* uid. The empty-body / non-JSON cases
+            // short-circuit before parse to avoid log noise on legacy
+            // server responses.
+            if (xhr.responseText) {
+              try {
+                var resp = JSON.parse(xhr.responseText);
+                if (resp && typeof resp.uid === 'string'
+                    && resp.uid.indexOf('C.') === 0
+                    && aGTM.d.session
+                    && resp.uid !== aGTM.d.session.uid) {
+                  aGTM.f.log('m_uid_promoted', {old: aGTM.d.session.uid, new: resp.uid});
+                  aGTM.d.session.uid = resp.uid;
+                }
+              } catch(e) {
+                aGTM.f.log('e_consent_store_parse', {msg: e.message});
               }
-            } catch(e) {
-              aGTM.f.log('e_consent_store_parse', {msg: e.message});
             }
           } else {
             aGTM.f.log('e_consent_store', {status: xhr.status});

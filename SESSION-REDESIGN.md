@@ -299,21 +299,27 @@ is split: aGTM library adds `aGTM.f.resolveAttribution(method)` consuming
 
 ## 7b. F→C user-ID promotion (added late in v1.5)
 
-The v1.3 user-id template generated a stable cookie-based ID (`C$1$tenant$<rand12>.<ts>`) the moment consent was granted. The initial v1.5 redesign collapsed that step into the server-side path but inadvertently dropped the random-generation: the fingerprint UID itself was being written to the cookie as-is, leaving every "consenting" visitor visible to api4sources / GA4 reports as an `F.*` user. Two real problems:
+The v1.3 user-id template generated a stable cookie-based ID (`C.1.tenant.<rand12>.<ts>`) the moment consent was granted. The initial v1.5 redesign collapsed that step into the server-side path but inadvertently dropped the random-generation: the fingerprint UID itself was being written to the cookie as-is, leaving every "consenting" visitor visible to api4sources / GA4 reports as an `F.*` user. Two real problems:
 
 1. **Format-convention violation** — downstream systems (api4sources, dashboards, audit reports) cannot distinguish a real cookie user from an unbound fingerprint visitor.
 2. **Stability across cookie-loss recovery** — the fingerprint contains a `YYYYMMDD` daily-rolling timestamp. While the cookie holds, the value stays stable. But if the cookie is lost (browser cleanup, incognito wipe, browser switch), the recovery fingerprint will carry a different date → different UID → no session stitching.
 
 The fix uses the api4sgtm `/promote` endpoint (atomic Redis TxPipeline: session pointer migration `customer_sessions:{tenant}:{F-uid}` → `customer_sessions:{tenant}:{C-uid}` + consent record write — smoketest steps 19-20 verify the contract). Two trigger paths share one promote helper:
 
+### UID format (api4sgtm contract)
+
+The new `C.*` user ID is always generated as **`C.1.{tenant}.{rand12}.{ms}` with literal dot separators**, regardless of the `fipLimiter` template setting (which only controls the `F.*` side). This is mandated by api4sgtm's `/promote` endpoint, which strictly validates `new_user_id` starts with `"C."` (literal dot — see `internal/api/api4sgtm/team-spec.md` §"Promote / Migrate session"). The F-side keeps the configurable `fipLimiter` because `/promote` and `/session` GET only validate the `C`-side `new_user_id`, not the existing F-side path parameter.
+
 ### Forward path — `/aGTMconsent` POST handler
 
 When the browser POSTs a consent diff to `/aGTMconsent` and:
 - the carried `uid` starts with `F{lim}1{lim}`, AND
-- the consent grants the configured services, AND
+- `granted = hasRequiredConsent(...)` returns true, AND
+- the payload carries an **explicit signal** (at least one of `services` / `purposes` / `vendors` is non-empty — guards against empty/corrupt POSTs that `hasRequiredConsent` would otherwise treat as granted when no `consent_service` is configured), AND
+- `services !== ',aGTMconsent,'` (the server-side auto-denial sentinel — a real CMP never emits this value), AND
 - `cookieMode !== 'never'` (otherwise `C.*` could not be persisted)
 
-…the Client generates `newUid = C{lim}1{lim}{tenant}{lim}{rand12}.{ms}`, calls `POST {sessionApiUrl}/{tenant}/{F-uid}/promote` with `{new_user_id: newUid, consent: cpConsent}`, and on 2xx:
+…the Client generates `newUid = C.1.{tenant}.{rand12}.{ms}`, calls `POST {sessionApiUrl}/{tenant}/{F-uid}/promote` with `{new_user_id: newUid, consent: cpConsent}`, and on 2xx:
 
 1. Writes `newUid` into the cookie (regardless of `cookieMode='consent'/'always'` — server-data has migrated, the browser must follow).
 2. Skips the legacy `POST {sessionApiUrl}/{tenant}/{uid}/consent` — `/promote` already wrote the consent atomically.
@@ -323,7 +329,8 @@ When the browser POSTs a consent diff to `/aGTMconsent` and:
 
 For visitors already stored under `F.*` from earlier v1.5 deploys: at the start of `afterSession`, when:
 - `existingCookie` starts with `F{lim}1{lim}`, AND
-- the Session API GET returned a real consent (`hasResponse: true`, `blocked !== true`, services granted), AND
+- the Session API GET returned a real consent — `hasResponse: true` AND `services !== ',aGTMconsent,'` (auto-denial sentinel) AND `'blocked' in sessionConsent` is **false** (auto-denial constructor sets `blocked` regardless of its value, so checking presence rather than value is required) AND at least one of `services`/`purposes`/`vendors` is non-empty (explicit signal) AND `hasRequiredConsent(...)` returns true, AND
+- `CFG.sessionApiUrl` and `CFG.tenantID` are set, AND
 - `cookieMode !== 'never'`
 
 …the Client runs the same promote helper, then continues the existing afterSession flow (cookie write, fireSources, fireAttribution, buildAndSend) with `sessionData.uid = newUid`. The downstream cookie write replaces the F.* in the browser, the JS payload carries the new `cfg.session.uid`, and on the next `/aGTM.js` request the cookie reads back as `C.*` so this branch is no-op (one-shot per visitor).
@@ -332,7 +339,15 @@ The lazy path bridges the deploy boundary: existing visitors are migrated on the
 
 ### Library handoff
 
-In `aGTM.f.run_cc()`, the consent-store XHR's `onreadystatechange` now parses the response body. If `response.uid` is a non-empty string and differs from `aGTM.d.session.uid`, the library adopts the new value. Implementation is defensive (try/catch around `JSON.parse`, type-guard against non-string `uid` field) so legacy server responses without the field are no-op.
+In `aGTM.f.run_cc()`, the consent-store XHR's `onreadystatechange` parses the response body and adopts `response.uid` into `aGTM.d.session.uid` when:
+- `xhr.responseText` is non-empty (skip parse on empty body — avoids log noise on legacy server responses), AND
+- `JSON.parse` succeeds (defensive try/catch), AND
+- `resp.uid` is a non-empty string starting with **literal `C.`** (race-safety: never downgrade an already-promoted `C.*` to a fallback `F.*`. Concrete scenario: two concurrent consent POSTs from the same browser. POST #1 succeeds and migrates F→C. POST #2's promote 404s because the session is already migrated, server falls back to echoing `finalUid=cpUid` which is the F.* from the cookie at the time POST #2 was sent. Without this gate, POST #2's response would overwrite POST #1's adoption — breaking subsequent persistence under the now-invalid F.*), AND
+- `resp.uid !== aGTM.d.session.uid` (no-op when echoed value matches current).
+
+### Encrypted-mode guard (`consent_store_enc=true`)
+
+Server-side decryption is not implemented (would require a symmetric counterpart to `aGTM.f.enc`). The `/aGTMconsent` handler detects encrypted bodies (`{"q":"..."}` shape — distinguished from the plain `{"e":...}` envelope) and **returns `501 Not Implemented`** with `{"ok":false,"err":"consent_store_enc not supported server-side"}`. Without this guard, the legacy parser would silently treat the encrypted blob as a flat object, build an empty consent block, and `/promote` would write that empty consent into the migrated session record (full-replace semantics) — corrupting the user's consent state. The 501 makes the misconfiguration visible. Disable `consent_store_enc` until full-stack encryption support ships.
 
 ### Failure handling
 
@@ -346,11 +361,12 @@ In `aGTM.f.run_cc()`, the consent-store XHR's `onreadystatechange` now parses th
 ### Code locations
 
 - `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js`:
-  - `generateCookieUid()` — generates `C{lim}1{lim}{tenant}{lim}{rand12}.{ms}`
+  - `generateCookieUid()` — generates `C.1.{tenant}.{rand12}.{ms}` (literal dot, not `fipLimiter` — required by api4sgtm `/promote` validator)
   - `isFingerprintUid(uid)` — prefix detector for `F{lim}1{lim}`
   - `tryPromote(oldUid, newUid, consent, then)` — POSTs `/promote`, calls `then(newUid)` on 2xx, `then('')` on failure
-  - Forward path: in the `/aGTMconsent` handler, branch on `shouldPromote`
-  - Lazy path: in `afterSession`, branch on `shouldLazyPromote`
-- `aGTM.js` — uid adoption inside the existing `xhr.onreadystatechange` callback in `aGTM.f.run_cc()`'s consent-store path
+  - Encrypted-mode guard: `/aGTMconsent` returns 501 when body shape is `{"q":"..."}`
+  - Forward path: in the `/aGTMconsent` handler, branch on `shouldPromote` (gates: granted + explicit signal + not auto-denial sentinel + isFingerprintUid + cookieMode≠never)
+  - Lazy path: in `afterSession`, branch on `shouldLazyPromote` (gates: hasResponse + not auto-denial via sentinel-or-blocked-presence + explicit signal + hasRequiredConsent + isFingerprintUid + cookieMode≠never)
+- `aGTM.js` — uid adoption inside the existing `xhr.onreadystatechange` callback in `aGTM.f.run_cc()`'s consent-store path; only adopts when `resp.uid` starts with `C.` (race-safety against fallback echoes)
 - `sgtmClient/template.tpl` — `___SANDBOXED_JS_FOR_SERVER___` block kept byte-identical to the source (build.sh syncs only base64 + version)
-- `test/consent_store_uid_promote.test.js` — 6 unit tests covering the library-side adoption rules
+- `test/consent_store_uid_promote.test.js` — 9 unit tests covering the library-side adoption rules (new uid / identical / missing / empty body / non-2xx / non-string guard / F.* race-safety / non-C-prefix defensive / generateCookieUid format contract)

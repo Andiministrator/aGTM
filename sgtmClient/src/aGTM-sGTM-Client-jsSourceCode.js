@@ -111,6 +111,24 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   const body = getRequestBody();
   if (CFG.debug) logToConsole('debug', '✓ Consent POST received', body);
   const cp = body ? JSON.parse(body) : null;
+
+  // Encrypted-mode guard: when the library sends `consent_store_enc=true`,
+  // the request body is `{"q":"<enc>"}`. Server-side decryption is not
+  // implemented (would need a symmetric counterpart to aGTM.f.enc). Without
+  // it, the legacy parser at the next line would silently treat the
+  // encrypted blob as a flat object, falling back to the cookie value for
+  // uid and an empty consent block — and the F→C promote would then write
+  // that empty consent into the migrated session record (full-replace
+  // semantics). Fail loudly instead so misconfiguration is visible.
+  if (cp && cp.q && !cp.e) {
+    logToConsole('warn', '✗ Encrypted consent_store payload not supported server-side — disable consent_store_enc until decrypt is implemented');
+    setResponseStatus(501);
+    setResponseHeader('Content-Type', 'application/json');
+    setResponseBody('{"ok":false,"err":"consent_store_enc not supported server-side"}');
+    returnResponse();
+    return;
+  }
+
   const cpData = (cp && cp.e) ? cp.e : (cp || {});
 
   // Resolve uid: explicit in payload first, then fall back to cookie.
@@ -135,15 +153,31 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   const cpPurposes = cpConsent.purposes || '';
   const cpVendors = cpConsent.vendors || '';
   const granted = hasRequiredConsent(cpServices, cpPurposes, cpVendors);
-  if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes, granted: granted});
+  // Reject the auto-denial sentinel even if it ever leaked into a CMP-driven
+  // POST: the server-side auto-denial constructs `services: ',aGTMconsent,'`
+  // — a real CMP never emits that exact value, so a match here is either
+  // misconfiguration or a replay of the auto-denial block. Combined with the
+  // explicit-signal check below, this protects against promoting a
+  // non-consenting visitor.
+  const isAutoDenialSentinel = cpServices === ',aGTMconsent,';
+  // Explicit consent signal: at least one of services/purposes/vendors must
+  // be non-empty. Without this, hasRequiredConsent() returns true on empty
+  // input when no consent_service is configured (line ~95, default-permissive
+  // for tenants that don't use the consent gate) — and a corrupt or empty
+  // POST payload would otherwise be considered "granted" and trigger promote.
+  const hasExplicitSignal = !!(cpServices || cpPurposes || cpVendors);
+  if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes, granted: granted, explicit: hasExplicitSignal});
 
   // F→C promote applicability: when the visitor still carries an F.*
-  // fingerprint UID and the CMP just granted consent, atomically transition
-  // to a stable C.* cookie UID via api4sgtm /promote (one Redis TxPipeline:
-  // session pointer migration + consent record write). cookieMode='never'
-  // skips because the new C.* could not be persisted browser-side and would
-  // be lost on the next visit.
+  // fingerprint UID and the CMP just granted consent (with an explicit
+  // services/purposes/vendors signal, not just an empty payload), atomically
+  // transition to a stable C.* cookie UID via api4sgtm /promote (one Redis
+  // TxPipeline: session pointer migration + consent record write).
+  // cookieMode='never' skips because the new C.* could not be persisted
+  // browser-side and would be lost on the next visit.
   const shouldPromote = granted
+    && hasExplicitSignal
+    && !isAutoDenialSentinel
     && isFingerprintUid(cpUid)
     && CFG.sessionApiUrl
     && CFG.tenantID
@@ -321,16 +355,24 @@ const writeCookie = function(val, maxAgeSec) {
 };
 
 // ── Helper: generate stable cookie-based user ID ─────────────────────────────
-// Format: C{lim}1{lim}{tenant}{lim}{rand12}.{ms}
+// Format: C.1.{tenant}.{rand12}.{ms}
 // Used when promoting a F.* fingerprint user to a C.* cookie user (after the
 // CMP grants consent — server-side equivalent of the v1.3 user_id template's
-// new-cookie path). The 12-digit random + millisecond timestamp give a
-// collision space large enough that the 409 path on /promote is essentially
-// unreachable in practice.
+// new-cookie path).
+//
+// **Prefix is hardcoded to `C.` regardless of `fipLimiter`** because the
+// api4sgtm /promote endpoint strictly validates `new_user_id` starts with
+// "C." (literal dot — see internal/api/api4sgtm/team-spec.md §"Promote /
+// Migrate session"). The F-side keeps the configurable `fipLimiter` because
+// /promote and /session GET only validate the C-side new_user_id, not the
+// existing F-side path parameter.
+//
+// The 12-digit random + millisecond timestamp give a collision space large
+// enough that the 409 path on /promote is essentially unreachable in practice.
 const generateCookieUid = function() {
   const rand = generateRandom(123456789012, 999999999999);
   const tsm = getTimestampMillis();
-  return 'C' + CFG.fipLimiter + '1' + CFG.fipLimiter + CFG.tenantID + CFG.fipLimiter + makeString(rand) + '.' + makeString(tsm);
+  return 'C.1.' + CFG.tenantID + '.' + makeString(rand) + '.' + makeString(tsm);
 };
 
 // ── Helper: detect F.* fingerprint UID ────────────────────────────────────────
@@ -487,12 +529,32 @@ const afterBotCheck = function(isBot) {
     // api4sources/Session API writes land under C.* without waiting for
     // the cookie to expire (default 365 days). One-shot per visitor — once
     // the C.* cookie is set, existingCookie starts with C.* on the next
-    // visit and this branch skips. Auto-denial is excluded via the
-    // `blocked` field to avoid promoting users who haven't actually agreed.
+    // visit and this branch skips.
+    //
+    // Auto-denial guards (must all be defensive):
+    //  - `services === ',aGTMconsent,'` — the server-side auto-denial
+    //    sentinel; a real CMP never emits this exact value.
+    //  - `'blocked' in sessionConsent` — the auto-denial constructor sets
+    //    `blocked` regardless of its value (CFG.autoDenyLoadGtm can be
+    //    `false`, in which case `blocked: false` and a `blocked !== true`
+    //    check would let the promote fire on a denied visitor).
+    //  - explicit signal: at least one of services/purposes/vendors must
+    //    be non-empty, so we don't promote on an empty/corrupt session
+    //    consent block when no consent_service is configured.
     const sessionConsent = sessionData.consent;
+    const sessionIsAutoDenial = !!sessionConsent && (
+         sessionConsent.services === ',aGTMconsent,'
+      || ('blocked' in sessionConsent)
+    );
+    const sessionHasExplicitSignal = !!sessionConsent && !!(
+         (sessionConsent.services || '')
+      || (sessionConsent.purposes || '')
+      || (sessionConsent.vendors  || '')
+    );
     const sessionConsentGranted = !!sessionConsent
       && sessionConsent.hasResponse === true
-      && sessionConsent.blocked !== true
+      && !sessionIsAutoDenial
+      && sessionHasExplicitSignal
       && hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
     const shouldLazyPromote = sessionConsentGranted
       && isFingerprintUid(existingCookie)
