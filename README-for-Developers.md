@@ -73,7 +73,7 @@ aGTM.f.config({
   consent_store_url:  'https://sgtm.example.com/aGTMconsent', // auto-filled by sGTM Client; standalone uses fixed path
   consent_store_enc:  true,                                // encrypt consent-store POST payload with session_salt
   user_id:            'user-abc-123',                      // optional: logged-in user CRM ID, exposed for integrators
-  session: { sid: 's-abc', uid: 'u-123' },                 // pre-populated by the sGTM Client (object with sid OR consent)
+  session: { sid: 's-abc', uid: 'u-123' },                 // pre-populated by the sGTM Client (accepted with sid, consent, OR attribution)
 
   // --- Other options ---
   dlSet:            { 'page_type': 'pageType' }, // append GTM DL variable to every fire() event
@@ -474,7 +474,7 @@ This is a stricter integration requirement than the pre-v1.5 "wait-for-CMP-then-
 
 ### Activation
 
-Active whenever the sGTM Client (or any integrator) injects `aGTM.f.config({ session: { ... } })` with a `sid` or a valid `consent` field.
+Active whenever the sGTM Client (or any integrator) injects `aGTM.f.config({ session: { ... } })` with a `sid`, valid `consent`, or `attribution` field.
 
 ```javascript
 // Typically emitted by the sGTM Client Template into the page response:
@@ -509,13 +509,13 @@ aGTM.f.config({
 | `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When served via the sGTM Client, the URL is built **browser-side** at config time from `document.currentScript.src` + fixed path `/aGTMconsent` — works under any reverse-proxy prefix transparently. Standalone integrators set this manually. Empty string disables the diff/store mechanism. |
 | `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is encrypted with `session_salt` |
 | `consent_poll_ms` | number | `2000` | Interval (ms) for the periodic CMP state-change poll started after the first successful init. Set to `0` to disable. Only takes effect when `consent_store_url` is set. Catches CMPs that emit updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) which would otherwise bypass the `consent_events` matcher in `aGTM.f.fire()`. |
-| `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid` or `consent` |
+| `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid`, `consent`, or `attribution` |
 
 **Removed in Phase 2 (no migration code, v1.5 was unreleased):** `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, `session_consent_url`, `session_deny_service`. Functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.f.xfetch`. Data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`. Auto-denial moves entirely server-side (decided by the sGTM Client based on the visit counter and stored consent record).
 
 ### Preset gate
 
-In `aGTM.f.config()`, if `cfg.session` is an object with a `sid` or `consent` field, it is deep-copied into `aGTM.d.session`. Then:
+In `aGTM.f.config()`, if `cfg.session` is an object with a `sid`, `consent`, or `attribution` field, it is deep-copied into `aGTM.d.session`. Then:
 
 - If `cfg.session.consent` is a **valid** object (`hasResponse === true`, `typeof services === 'string'`), it is deep-copied into `aGTM.d.consent`, `aGTM.d.consent_hash` is seeded via `aGTM.f.consent_serialize`, and `aGTM.d.session_status = 'preset_with_consent'`. **At end of `config()`, `aGTM.f.call_cc()` is called synchronously** so GTM injects on this tick — no 500 ms `consent_listener` wait. (Requires `consent_check` to already be defined at config time; otherwise the sync call is a graceful no-op and a second sync attempt runs from `consent_listener()` once the CMP file finishes loading — still ahead of the polling interval.)
 - Otherwise `aGTM.d.session_status = 'preset'` and the CMP path proceeds normally.
@@ -601,6 +601,51 @@ aGTM.f.consent_serialize({
 ### `blocked` field semantics
 
 `aGTM.d.consent.blocked` is recognized by the `run_cc()` chelp fallback: when consent gate checks fail (services/purposes/vendors don't match the requirement), `gtmConsent` falls back to `blocked` (if boolean), otherwise `false`. The sGTM Client server-side auto-denial sets BOTH `gtmConsent: <autoDenyLoadGtm>` AND `blocked: <autoDenyLoadGtm>` so the fallback honors the server policy. The B2 update-path reset deletes `blocked` so an explicit user CMP decision always wins over server policy.
+
+### Attribution (HYBRID merge)
+
+When the sGTM Client is configured to fetch attribution from api4sources, the multi-method GET response is delivered as `cfg.session.attribution` — a keyed-by-method object, e.g. `{ last_touch: { sou:'google', ... }, last_non_direct_click: { ... } }`. At the end of `aGTM.f.config()`, every method present in the preset is resolved through `aGTM.f.resolveAttribution(method)` and the result is stored on `aGTM.d.attribution[method]`.
+
+**Why a merge:** the API has at-best-stale data (ClickHouse Materialized View propagation lag — just-written rows are not readable for ~seconds). The current page's URL is always the freshest source. The HYBRID strategy uses URL data when present and API data for cross-session memory the URL cannot provide.
+
+**Per-field source priority:**
+
+| Field | Source | Notes |
+|---|---|---|
+| `sou` | URL `utm_source` → API → `""` | |
+| `cam` | URL `utm_campaign` → API → `""` | |
+| `med` | URL `utm_medium` → API → `""` | |
+| `camid` | URL `utm_id` → API → `""` | numeric ID, stored as string |
+| `cli` | first detected click-ID URL param value → API → `""` | iterates `gclid, fbclid, msclkid, ttclid, gbraid, wbraid` |
+| `clp` | name of the matched URL param → API → `""` | |
+| `cls` | derived from URL `clp` via lookup table → API → `""` | `gclid`/`gbraid`/`wbraid` → `Google Ads`, `fbclid` → `Meta`, `msclkid` → `Microsoft Ads`, `ttclid` → `TikTok Ads` |
+| `afs` | API only | Affiliate Source — Last-Cookie-Wins, user-scoped, persisted server-side |
+| `sre` | `document.referrer` → API → `""` | session-source referrer |
+| `lcs` | API only | last click source across sessions |
+| `fss` | API only | first session source ever for this user |
+
+**Reading attribution:**
+
+```javascript
+aGTM.d.attribution.last_touch.sou           // 'google'
+aGTM.d.attribution.last_non_direct_click.cam // marketing-attribution view
+```
+
+GTM Custom Variables reading these values must defensive-check, since `aGTM.d.attribution` is `{}` when no preset is supplied (standalone integrations without sGTM Client attribution wiring):
+
+```javascript
+function() {
+  var a = window.aGTM && window.aGTM.d && window.aGTM.d.attribution
+        && window.aGTM.d.attribution.last_touch;
+  return a ? a.sou : '';
+}
+```
+
+**Standalone callers** can build a single attribution view at any time by calling `aGTM.f.resolveAttribution('any-method-name')` directly — with no API data, the result is the URL-only view. This is useful as a one-line wrapper for tags that just want the current page's source/medium/campaign.
+
+**`aGTM.f.parseUrlParams(qs)`** is a minimal ES5 query-string parser (handles percent-encoding, `+`-as-space, malformed sequences) used internally by `resolveAttribution`. Exposed in case integrators need it for related work.
+
+**Backward compatibility:** when `cfg.session.attribution` is absent, the loop is a no-op and `aGTM.d.attribution` stays `{}`. Existing integrations without sGTM Client attribution wiring are unaffected. See [`internal/api/integration-guide.md` §7](internal/api/integration-guide.md) for the full design.
 
 ## Callbacks
 
@@ -752,7 +797,8 @@ bun test
 |---|---|
 | `test/setup.js` | Browser globals + loads aGTM.js (auto-loaded via `bunfig.toml`) |
 | `test/helpers.js` | `MockXHR` class, `resetAGTM()` helper |
-| `test/session_preset.test.js` | `cfg.session` preset gate (accepts object with `sid` or `consent`, deep-copies into `aGTM.d.session`); malformed-consent validation; synchronous `call_cc()` trigger when preset consent is usable |
+| `test/session_preset.test.js` | `cfg.session` preset gate (accepts object with `sid`, `consent`, or `attribution`, deep-copies into `aGTM.d.session`); malformed-consent validation; synchronous `call_cc()` trigger when preset consent is usable |
+| `test/attribution.test.js` | HYBRID attribution merge: `aGTM.f.parseUrlParams` (encoding edge-cases, malformed input), `aGTM.f.resolveAttribution` per-field rules (URL-wins for browser-derivable, API-only for `afs/lcs/fss`, click-ID detection + collision order), and the `aGTM.f.config()` end-of-config loop populating `aGTM.d.attribution[method]` for single/multi/empty/missing/null presets, including attribution-only sessions |
 | `test/session_status.test.js` | `aGTM.d.session_status` lifecycle (`""`, `"preset"`, `"preset_with_consent"`, `"synced"`, `"confirmed"`) |
 | `test/consent_store.test.js` | Consent diff/store mechanism in `run_cc()` — diff detection, dedup, retry on POST failure, `consent_id`-change regression check, `gtmConsent`-only mutation excluded from hash |
 | `test/run_cc.test.js` | `aGTM.f.run_cc()` — `blocked` flag deletion + B2 field-reset on `update` |
