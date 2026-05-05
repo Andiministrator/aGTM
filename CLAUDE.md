@@ -369,7 +369,7 @@ Server-side fire-and-forget POST to a Sources API (`api4sources`) on every aGTM.
 - Race-free with api4sources' Redis lookup (`customer_sessions:{tenant}:{user_id}`) — the Session API write happened first within the same Client request.
 - Fire-and-forget: the POST runs in parallel with `buildAndSend` so aGTM.js delivery is not delayed. The chained `.then()` keeps the request alive in the sandbox.
 - Template options (sGTM Client): `sources_enabled` (boolean, default false), `sources_api_url` (text). Tenant reused from `tenant_id`.
-- Spec for the API service: `tmp/api4sources.md`. Smoketest: combined into `tmp/session-api-smoketest.tpl` (steps 5-8, auto-mode only).
+- API spec + integration guide + smoketest live in `internal/api4sources/` (gitignored). Smoketest steps 5-8 cover sources POST contract; steps 9-14 cover the read/attribution contract (auto-mode only).
 - Tradeoff: SPA virtual pageviews mid-session are not captured. Acceptable because attribution cares about session source, not in-session navigation; and api4sources dedups on source fingerprint anyway. SPA-source capture is a v1.6+ topic (would need a `/aGTMsources` browser proxy path).
 
 ---
