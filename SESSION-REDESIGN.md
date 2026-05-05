@@ -319,7 +319,7 @@ When the browser POSTs a consent diff to `/aGTMconsent` and:
 - `services !== ',aGTMconsent,'` (the server-side auto-denial sentinel — a real CMP never emits this value), AND
 - `cookieMode !== 'never'` (otherwise `C.*` could not be persisted)
 
-…the Client generates `newUid = C.1.{tenant}.{rand12}.{ms}`, calls `POST {sessionApiUrl}/{tenant}/{F-uid}/promote` with `{new_user_id: newUid, consent: cpConsent}`, and on 2xx:
+…the Client generates `newUid = C.1{lim}{tenant}{lim}{rand12}.{ms}` (see "UID format" above for the rationale on the literal `C.` prefix vs the configurable `{lim}` rest), calls `POST {sessionApiUrl}/{tenant}/{F-uid}/promote` with `{new_user_id: newUid, consent: cpConsent}`, and on 2xx:
 
 1. Writes `newUid` into the cookie (regardless of `cookieMode='consent'/'always'` — server-data has migrated, the browser must follow).
 2. Skips the legacy `POST {sessionApiUrl}/{tenant}/{uid}/consent` — `/promote` already wrote the consent atomically.
