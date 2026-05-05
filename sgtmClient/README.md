@@ -11,6 +11,7 @@ This guide explains how to use the aGTM Client inside a Server-Side Google Tag M
 - [Usage](#usage)
 - [Configuration Options](#configuration-options)
   - [Server-Side Session](#server-side-session)
+  - [Sources API](#sources-api)
   - [POST Transport](#post-transport)
 - [Testing](#testing)
 - [Contact and more Information](#contact-and-more-information)
@@ -239,6 +240,38 @@ The consent condition required to consider consent "granted" in `cookie_mode: co
 #### Debug Suffix
 
 An optional suffix appended to the `/aGTM.js` path for debug/staging variants. Useful for testing different configurations without affecting production traffic.
+
+---
+
+### Sources API
+
+Optional server-side integration with a Sources API (`api4sources`) for cross-session source/attribution tracking. The Client writes the current page's source data on every aGTM.js request and (optionally) reads back the user's attribution view to feed the library's HYBRID merge.
+
+The Tenant ID configured in **Server-Side Session** is reused. Both endpoints are independent — you can enable just the WRITE (no library involvement), just the READ (only useful in combination with WRITE on a previous request), or both.
+
+The aGTM library exposes the merged result as `aGTM.d.attribution.<method>.<field>` (e.g. `aGTM.d.attribution.last_touch.sou`). Per-field source priority and the HYBRID merge rules are documented in the [Developer README → Attribution](../README-for-Developers.md#attribution-hybrid-merge).
+
+#### Enable Sources API call
+
+If checked, the Client fires a fire-and-forget `POST /tp/sources/{tenant}` with `{user_id, page_location, referrer, timestamp}` after the Session API step. Runs in parallel with the aGTM.js response so it does not add to library delivery latency. Race-free: the session is already committed in Redis at this point, so api4sources' user → session lookup hits.
+
+#### Sources API URL
+
+Base URL of the Sources POST endpoint up to and including `/tp/sources/`. The tenant is appended at runtime.
+
+#### Enable Attribution API call
+
+If checked, the Client fires a `GET {attribution_api_url}/{tenant}/{user_id}?methods=<configured>` after the Session step and embeds the keyed-by-method response into `cfg.session.attribution` of the JS payload. The library merges it with the current URL per the HYBRID strategy.
+
+**Sequential before the aGTM.js response** (unlike the fire-and-forget Sources POST), so the attribution round-trip adds to library delivery latency. Timeout 1500 ms; on timeout/error/non-2xx the field is left unset and the library falls back to URL-only attribution — the merge stays robust.
+
+#### Attribution methods
+
+Comma-separated list of attribution methods to fetch in one round-trip (multi-method endpoint). Valid values: `last_touch`, `first_touch`, `last_click`, `first_click`, `last_non_direct_click`. Multiple methods land on `aGTM.d.attribution` as separate keys, e.g. `aGTM.d.attribution.last_touch.sou` vs `aGTM.d.attribution.last_non_direct_click.sou`. Recommend including `last_non_direct_click` for any deployment that drives marketing-conversion reporting (matches GA4's default attribution model).
+
+#### Attribution API URL
+
+Base URL of the Attribution GET endpoint up to and including `/tp/attribution/`. The tenant + user_id + `?methods=` are appended at runtime.
 
 ---
 
