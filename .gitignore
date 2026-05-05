@@ -1,39 +1,4 @@
 
-# ── Generated data & models ─────────────────────────────────
-data/
-dataset/
-checkpoints/
-*.pt
-*.bin
-*.onnx
-*.gguf
-*.safetensors
-
-# ── Allow web/ assets for GitHub Pages ──────────────────────
-!docs/*.onnx
-!docs/*.json
-
-# ── Go build artifacts ───────────────────────────────────────
-orchestrator/orchestrator
-orchestrator/*.exe
-
-# ── Python ──────────────────────────────────────────────────
-venv/
-env/
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# ── Notebook checkpoints ───────────────────────────────────
-.ipynb_checkpoints/
-
 # ── OS ──────────────────────────────────────────────────────
 .DS_Store
 .DS_Store?
@@ -57,7 +22,6 @@ Desktop.ini
 .kateproject.*
 *.kate-swp
 .obsidian
-.idea
 
 # ── Secrets ──────────────────────────────────────────────────
 .env
