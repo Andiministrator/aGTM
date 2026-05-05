@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 01.05.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 05.05.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -46,6 +46,7 @@ aGTM.f.objinit = function() {
     [aGTM.d, "session_status", ""],
     [aGTM.d, "consent_hash", ""],
     [aGTM.d, "last_consent_hash", ""],
+    [aGTM.d, "attribution", {}],
     [aGTM.d, "iframe", {
       counter: { events: 0 },
       origin: "",
@@ -162,6 +163,83 @@ aGTM.f.consent_serialize = function (c) {
 };
 
 /**
+ * Parses a URL query string into a flat object. Empty input or input that
+ * does not start with '?' returns {}. Values are URL-decoded; '+' is decoded
+ * to space (form-encoding convention).
+ * @property {function} aGTM.f.parseUrlParams
+ * @param {string} qs - Query string including the leading '?', e.g. location.search
+ * @returns {object} - Map of param name → decoded value (string)
+ */
+aGTM.f.parseUrlParams = function (qs) {
+  var out = {};
+  if (!qs || qs.charAt(0) !== "?") return out;
+  var pairs = qs.substring(1).split("&");
+  for (var i = 0; i < pairs.length; i++) {
+    var p = pairs[i].split("=");
+    if (!p[0]) continue;
+    var key, val;
+    try { key = decodeURIComponent(p[0]); } catch (e) { key = p[0]; }
+    if (p[1]) {
+      var raw = p[1].replace(/\+/g, " ");
+      try { val = decodeURIComponent(raw); } catch (e) { val = raw; }
+    } else {
+      val = "";
+    }
+    out[key] = val;
+  }
+  return out;
+};
+
+/**
+ * Resolves attribution for a single method via HYBRID merge: the current page's
+ * URL/referrer wins for browser-derivable fields (sou/cam/med/camid/cli/clp/cls/sre);
+ * the API-delivered attribution from aGTM.d.session.attribution[method] fills in
+ * cross-session-memory fields (afs/lcs/fss) and serves as fallback when the URL
+ * is empty. See internal/api/integration-guide.md §7 for the rationale.
+ * @property {function} aGTM.f.resolveAttribution
+ * @param {string} method - Attribution method key (e.g. 'last_touch')
+ * @returns {object} - 11-field attribution object (all string values)
+ */
+aGTM.f.resolveAttribution = function (method) {
+  var urlParams = aGTM.f.parseUrlParams(window.location.search);
+  var apiKeyed  = (aGTM.d.session && aGTM.d.session.attribution) || {};
+  // Defensive: a method named after Object.prototype member ('constructor',
+  // '__proto__', 'hasOwnProperty', …) would otherwise return a non-data value.
+  var apiAttrib = apiKeyed[method];
+  if (!apiAttrib || typeof apiAttrib !== "object") apiAttrib = {};
+  // Ordered list (ES5 for..in order is implementation-defined for string keys);
+  // first match wins on collision (e.g. ?gclid=…&fbclid=… → gclid).
+  var clickIdParams = ["gclid", "fbclid", "msclkid", "ttclid", "gbraid", "wbraid"];
+  var clickIdLabels = {
+    gclid:   "Google Ads",
+    fbclid:  "Meta",
+    msclkid: "Microsoft Ads",
+    ttclid:  "TikTok Ads",
+    gbraid:  "Google Ads",
+    wbraid:  "Google Ads"
+  };
+  var detectedClp = "";
+  var detectedCli = "";
+  for (var i = 0; i < clickIdParams.length; i++) {
+    var n = clickIdParams[i];
+    if (urlParams[n]) { detectedClp = n; detectedCli = urlParams[n]; break; }
+  }
+  return {
+    sou:   urlParams.utm_source   || apiAttrib.sou   || "",
+    cam:   urlParams.utm_campaign || apiAttrib.cam   || "",
+    med:   urlParams.utm_medium   || apiAttrib.med   || "",
+    camid: urlParams.utm_id       || apiAttrib.camid || "",
+    cli:   detectedCli            || apiAttrib.cli   || "",
+    clp:   detectedClp            || apiAttrib.clp   || "",
+    cls:   (detectedClp && clickIdLabels[detectedClp]) || apiAttrib.cls || "",
+    afs:                             apiAttrib.afs   || "",
+    sre:   document.referrer      || apiAttrib.sre   || "",
+    lcs:                             apiAttrib.lcs   || "",
+    fss:                             apiAttrib.fss   || ""
+  };
+};
+
+/**
  * Configures the aGTM object with user-defined settings.
  * @param {object} cfg - Configuration settings provided by the user.
  */
@@ -259,8 +337,8 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "consent_store_enc", cfg, false); // Encrypt consent-store POST payload with session_salt
   aGTM.f.an(aGTM.c, "consent_poll_ms", cfg, 2000); // CMP state-change poll interval (ms) after init success; 0 disables polling. Only active when consent_store_url is set (otherwise nothing to push)
   // If session data is pre-populated by the sGTM Client, store it directly.
-  // Accept any object with sid OR consent.
-  if (cfg.session && typeof cfg.session === 'object' && (cfg.session.sid || cfg.session.consent)) {
+  // Accept any object with sid, consent, or attribution.
+  if (cfg.session && typeof cfg.session === 'object' && (cfg.session.sid || cfg.session.consent || cfg.session.attribution)) {
     aGTM.d.session = JSON.parse(aGTM.f.sStrf(cfg.session));
     // If the preset carries a valid consent block, seed aGTM.d.consent + hash
     // so GTM can inject without waiting for the CMP. Validation: must be an
@@ -301,6 +379,16 @@ aGTM.f.config = function (cfg) {
   if (typeof aGTM.d.consent.gtmConsent !== 'boolean') aGTM.d.consent.gtmConsent = false;
   aGTM.d.config = true; // Set the configuration status to true
   aGTM.d.gtmLoaded = [];
+
+  // HYBRID attribution merge — see resolveAttribution + integration-guide.md §7.
+  if (aGTM.d.session && aGTM.d.session.attribution && typeof aGTM.d.session.attribution === "object") {
+    for (var attM in aGTM.d.session.attribution) {
+      if (aGTM.d.session.attribution.hasOwnProperty(attM)) {
+        aGTM.d.attribution[attM] = aGTM.f.resolveAttribution(attM);
+      }
+    }
+  }
+
   if (typeof aGTM.f.log == "function") aGTM.f.log("m1", aGTM.c); // Log the configuration
   // Phase 3 B1: when preset consent is usable, trigger consent flow synchronously
   // so GTM injects on this tick — without waiting for the 500 ms consent_listener.

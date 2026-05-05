@@ -171,7 +171,7 @@ The path from `aGTM.f.init()` to the GTM `<script>` tag being inserted into the 
 ```
 aGTM.f.config(cfg)             — applied at integrator startup, BEFORE init()
   │
-  ├─ [cfg.session is an object with sid OR consent]
+  ├─ [cfg.session is an object with sid, consent, OR attribution]
   │    └─ aGTM.d.session = deep-copy of cfg.session
   │       ├─ [cfg.session.consent is a valid object: hasResponse===true,
   │       │   typeof services==='string']
@@ -180,6 +180,13 @@ aGTM.f.config(cfg)             — applied at integrator startup, BEFORE init()
   │       │      session_status = 'preset_with_consent'
   │       └─ [otherwise]
   │            → session_status = 'preset'
+  │
+  ├─ [end of config()] — attribution merge (v1.5):
+  │    if (aGTM.d.session.attribution is an object)
+  │      for each method in aGTM.d.session.attribution:
+  │        aGTM.d.attribution[method] = aGTM.f.resolveAttribution(method)
+  │      (HYBRID: URL wins for sou/cam/med/camid/cli/clp/cls/sre,
+  │       API for afs/lcs/fss; see internal/api/integration-guide.md §7)
   │
   └─ [end of config()] — Phase 3 B1 fix:
        if (aGTM.d.consent.hasResponse === true && typeof call_cc === 'function')
@@ -313,6 +320,7 @@ aGTM.f.inject()
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
 | `aGTM.d.session` | Session & user data pre-populated from `cfg.session` (sGTM Client injection — see Session Feature below) |
 | `aGTM.d.session_status` | Consent-sync lifecycle: `""` (no preset), `"preset"` (cfg.session accepted, no usable consent), `"preset_with_consent"` (preset consent seeded into `aGTM.d.consent`), `"synced"` (CMP decision diffed and POSTed to `consent_store_url`), `"confirmed"` (CMP decision matches the preset, no POST needed). |
+| `aGTM.d.attribution` | Keyed-by-method attribution object populated at end of `config()` from `aGTM.d.session.attribution` merged with current URL/referrer. Empty `{}` when no preset is supplied. Read e.g. `aGTM.d.attribution.last_touch.sou`. See `internal/api/integration-guide.md` §7. |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
 
 ### Session Feature
@@ -332,7 +340,7 @@ aGTM.f.inject()
 
 **Removed (gone, no migration code, v1.5 unreleased):** Config: `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, `session_consent_url`, `session_deny_service`. Functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.f.xfetch`. Data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 
-**Preset gate** (in `aGTM.f.config()`): if `cfg.session` is an object with `sid` or `consent`, it is deep-copied into `aGTM.d.session`. Then:
+**Preset gate** (in `aGTM.f.config()`): if `cfg.session` is an object with `sid`, `consent`, or `attribution`, it is deep-copied into `aGTM.d.session`. Then:
 - If `cfg.session.consent` is a valid object (`hasResponse === true`, `typeof services === 'string'`), it is deep-copied into `aGTM.d.consent`, `aGTM.d.consent_hash` is seeded via `consent_serialize`, `session_status = 'preset_with_consent'`. At end of `config()`, `aGTM.f.call_cc()` is called synchronously so GTM injects on this tick — without waiting for the 500 ms `consent_listener` poll.
 - Otherwise `session_status = 'preset'` and the CMP path proceeds normally.
 
