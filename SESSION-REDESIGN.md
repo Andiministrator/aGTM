@@ -485,8 +485,8 @@ Inline doc updates land in Phases 2–3 for files tied to specific code (`CLAUDE
 
 A separate API service (`api4sources`) stores per-`page_view` source data
 (landing URL, referrer) keyed by `(tenant, session_id)` for later attribution
-analysis in ClickHouse. Integration guide + spec + smoketest live under
-`internal/api4sources/` (gitignored maintainer reference).
+analysis in ClickHouse. Integration guide + specs + smoketest live under
+`internal/api/` (gitignored maintainer reference).
 
 **Decision: server-side, fired from the sGTM Client. No browser changes.**
 
@@ -534,7 +534,7 @@ write happened first within the same Client request.
 
 `tenant_id` is reused from the existing Session group.
 
-**Smoketest:** combined into `internal/api4sources/smoketest.tpl`
+**Smoketest:** combined into `internal/api/smoketest.tpl`
 (steps 5-8: insert, dedup, referrer-change insert, no-active-session skip).
 Sources steps reuse the session created in step 1 (same Redis), so the
 session steps are the natural precondition. Auto-mode only — the manual
