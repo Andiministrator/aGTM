@@ -66,7 +66,21 @@ The api4sgtm `/promote` endpoint (atomic Redis TxPipeline: session pointer migra
 
 **3. Library handoff** (`aGTM.js`): the consent-store XHR's `onreadystatechange` now parses the response body. If `response.uid` differs from `aGTM.d.session.uid`, the library adopts the new value so the next consent diff POST and any downstream consumers see the promoted uid. Defensive: try/catch around `JSON.parse`, type-guards against non-string `uid` field. No behaviour change for legacy server responses without a `uid` field.
 
-Failure handling: `/promote` failures (404 / 400 / 5xx / network) fall back to the legacy F.* path so the user is never left in a broken state. `cookieMode='never'` skips promotion entirely (the new C.* could not be persisted browser-side and would be lost). 6 new tests in `test/consent_store_uid_promote.test.js` cover the library-side adoption rules (new uid / identical uid / missing field / empty body / non-2xx / non-string type-guard).
+Failure handling: `/promote` failures (404 / 400 / 5xx / network) fall back to the legacy F.* path so the user is never left in a broken state. `cookieMode='never'` skips promotion entirely (the new C.* could not be persisted browser-side and would be lost). 9 tests in `test/consent_store_uid_promote.test.js` cover the library-side adoption rules.
+
+**Hardening pass after adversarial code review (BLOCKER + 3 HIGH findings):**
+
+1. **`new_user_id` format.** api4sgtm `/promote` strictly validates `new_user_id` starts with literal `"C."` (per `internal/api/api4sgtm/team-spec.md` §"Promote / Migrate session"). The initial implementation built the C-prefix using `CFG.fipLimiter` (default `$`), producing `C$1$tenant$...` → 400 on every call → silent fallback to legacy F.* on every consent. Fix: hardcode the C-prefix to `C.1.{tenant}.{rand}.{ms}` regardless of `fipLimiter`. The F-side keeps the configurable separator (api4sgtm doesn't validate that one).
+
+2. **Encrypted-mode silent corruption.** When `consent_store_enc=true`, the request body shape is `{"q":"<enc>"}`. Server-side decryption is not implemented; the legacy parser would treat the blob as a flat object, fall back to the cookie value for uid, and build an empty consent block — `/promote` would then write that empty consent into the migrated session via full-replace semantics. Fix: `/aGTMconsent` now returns `501` with `{"ok":false,"err":"consent_store_enc not supported server-side"}` when `cp.q` is set without `cp.e`. Disable `consent_store_enc` until full-stack encryption support ships.
+
+3. **Auto-denial gate too narrow.** The lazy-promote condition checked `consent.blocked !== true`, but the server-side auto-denial constructor sets `blocked: CFG.autoDenyLoadGtm` — when the admin's policy is "do not load GTM under auto-denial" (`auto_deny_load_gtm=false`), `blocked: false` would slip past the check and a non-consenting visitor would be promoted. Fix: detect auto-denial structurally (`services === ',aGTMconsent,'` sentinel OR `'blocked' in sessionConsent` regardless of value).
+
+4. **Empty-config promoting anything.** `hasRequiredConsent('','','')` returns `true` when no `consent_service`/`_purpose`/`_vendor` is configured (default-permissive for tenants without a consent gate). Combined with finding #2, an empty/corrupt POST payload would be considered "granted" and trigger promote. Fix: gate both the forward and lazy paths on an explicit signal — at least one of `services`/`purposes`/`vendors` must be non-empty before promote can fire.
+
+5. **Library-side race condition.** Two concurrent consent POSTs (e.g. CMP fires `update` twice in quick succession): POST #1's promote succeeds, library adopts `C.*`. POST #2's promote 404s (session already migrated) → server falls back to echoing `finalUid=cpUid` (still F.* from the cookie at request time) → library was overwriting the C.* with the F.* fallback. Fix: library only adopts `resp.uid` when it starts with literal `C.` — never downgrades an already-promoted C.* to a fallback F.*. Also short-circuit the response-body parse on empty body to remove log noise on legacy server responses.
+
+Three new tests cover the hardening (F.* race-safety, non-C-prefix defensive, `generateCookieUid` format contract). Smoketest gap: steps 19/20 hand-construct test users with `.` separators instead of round-tripping through `generateCookieUid()` — that's why finding #1 wasn't caught pre-launch. Worth a follow-up smoketest amendment.
 
 ### Sources API integration (sGTM Client → api4sources)
 
