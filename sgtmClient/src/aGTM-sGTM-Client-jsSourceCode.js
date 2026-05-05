@@ -134,48 +134,107 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   const cpServices = cpConsent.services || '';
   const cpPurposes = cpConsent.purposes || '';
   const cpVendors = cpConsent.vendors || '';
-  if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes});
+  const granted = hasRequiredConsent(cpServices, cpPurposes, cpVendors);
+  if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes, granted: granted});
 
-  // 1. Cookie management (unchanged behavior, only triggered in consent mode).
-  if (CFG.cookieMode === 'consent' && CFG.cookieName) {
-    const cookieOpts = {domain: CFG.cookieDomain, path: '/', sameSite: 'none', httpOnly: true, secure: true};
-    const granted = hasRequiredConsent(cpServices, cpPurposes, cpVendors);
-    if (granted && cpUid) {
-      const maxAge = CFG.cookieLifetimeDays > 0 ? Math.floor(CFG.cookieLifetimeDays * 86400) : 0;
-      if (maxAge > 0) cookieOpts['max-age'] = maxAge;
-      setCookie(CFG.cookieName, cpUid, cookieOpts, true);
-      if (CFG.debug) logToConsole('debug', '✓ User ID cookie set (consent granted)', cpUid);
-    } else if (!granted && data.cookie_delete) {
-      cookieOpts['max-age'] = 0;
-      setCookie(CFG.cookieName, '', cookieOpts, true);
-      if (CFG.debug) logToConsole('debug', '✓ User ID cookie deleted (consent withdrawn)');
+  // F→C promote applicability: when the visitor still carries an F.*
+  // fingerprint UID and the CMP just granted consent, atomically transition
+  // to a stable C.* cookie UID via api4sgtm /promote (one Redis TxPipeline:
+  // session pointer migration + consent record write). cookieMode='never'
+  // skips because the new C.* could not be persisted browser-side and would
+  // be lost on the next visit.
+  const shouldPromote = granted
+    && isFingerprintUid(cpUid)
+    && CFG.sessionApiUrl
+    && CFG.tenantID
+    && CFG.cookieMode !== 'never';
+
+  // Final stage: cookie write + consent persistence + response. `finalUid`
+  // is the post-promote C.* uid when promote succeeded, else the original
+  // cpUid. `consentAlreadyWritten` is true only when /promote returned 2xx
+  // (it bundles consent atomically — skip the legacy /consent POST in that
+  // case to avoid a redundant write).
+  const writeCookieAndPersist = function(finalUid, consentAlreadyWritten) {
+    const promoted = !!finalUid && finalUid !== cpUid;
+
+    // 1. Cookie management
+    if (CFG.cookieName) {
+      const cookieOpts = {domain: CFG.cookieDomain, path: '/', sameSite: 'none', httpOnly: true, secure: true};
+      if (promoted) {
+        // F→C migration: write the new C.* cookie regardless of cookieMode
+        // (always/consent — never is gated out earlier). Without this the
+        // browser would keep the old F.* and the migration would be one-way
+        // server-only on next /aGTM.js the cookie still says F.*.
+        const maxAge = CFG.cookieLifetimeDays > 0 ? Math.floor(CFG.cookieLifetimeDays * 86400) : 0;
+        if (maxAge > 0) cookieOpts['max-age'] = maxAge;
+        setCookie(CFG.cookieName, finalUid, cookieOpts, true);
+        if (CFG.debug) logToConsole('debug', '✓ User ID cookie set after promote', finalUid);
+      } else if (CFG.cookieMode === 'consent') {
+        // Legacy consent-mode cookie management. cookieMode='always' cookie
+        // is refreshed by /aGTM.js GET, not here.
+        if (granted && finalUid) {
+          const maxAge = CFG.cookieLifetimeDays > 0 ? Math.floor(CFG.cookieLifetimeDays * 86400) : 0;
+          if (maxAge > 0) cookieOpts['max-age'] = maxAge;
+          setCookie(CFG.cookieName, finalUid, cookieOpts, true);
+          if (CFG.debug) logToConsole('debug', '✓ User ID cookie set (consent granted)', finalUid);
+        } else if (!granted && data.cookie_delete) {
+          cookieOpts['max-age'] = 0;
+          setCookie(CFG.cookieName, '', cookieOpts, true);
+          if (CFG.debug) logToConsole('debug', '✓ User ID cookie deleted (consent withdrawn)');
+        }
+      }
     }
-  }
 
-  // 2. Persist consent into the Session API record so the next library load
-  //    sees it via cfg.session.consent.
-  const finishConsentPost = function() {
-    setResponseStatus(200);
-    setResponseHeader('Content-Type', 'application/json');
-    setResponseBody('{"ok":true}');
-    returnResponse();
+    const finishConsentPost = function() {
+      setResponseStatus(200);
+      setResponseHeader('Content-Type', 'application/json');
+      // Always echo finalUid so the browser can update aGTM.d.session.uid
+      // after a successful F→C promote. When no promote happened the value
+      // matches what the browser already holds — browser-side noop.
+      setResponseBody(JSON.stringify({ok: true, uid: finalUid || cpUid}));
+      returnResponse();
+    };
+
+    // 2. Persist consent into the Session API record so the next library
+    //    load returns it via cfg.session.consent. Skip when /promote
+    //    already wrote it atomically.
+    if (consentAlreadyWritten) {
+      if (CFG.debug) logToConsole('debug', '✓ Consent persistence skipped (already written by /promote)');
+      finishConsentPost();
+      return;
+    }
+
+    if (CFG.sessionApiUrl && CFG.tenantID && finalUid) {
+      const writeUrl = CFG.sessionApiUrl + '/' + CFG.tenantID + '/' + finalUid + '/consent';
+      const writeBody = JSON.stringify(cpConsent);
+      if (CFG.debug) logToConsole('debug', '→ Persisting consent to Session API', {url: writeUrl, body: writeBody});
+      sendHttpRequest(writeUrl, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 5000}, writeBody).then(function(res) {
+        if (CFG.debug) logToConsole('debug', '✓ Consent persisted', {uid: finalUid, status: res.statusCode});
+        finishConsentPost();
+      }, function(e) {
+        logToConsole('error', '✗ Consent persistence error', e);
+        // Still return 200 — cookie management already done; persistence is server-side concern
+        finishConsentPost();
+      });
+    } else {
+      if (CFG.debug) logToConsole('debug', '✗ Consent persistence skipped (no Session API or no uid)');
+      finishConsentPost();
+    }
   };
 
-  if (CFG.sessionApiUrl && CFG.tenantID && cpUid) {
-    const writeUrl = CFG.sessionApiUrl + '/' + CFG.tenantID + '/' + cpUid + '/consent';
-    const writeBody = JSON.stringify(cpConsent);
-    if (CFG.debug) logToConsole('debug', '→ Persisting consent to Session API', {url: writeUrl, body: writeBody});
-    sendHttpRequest(writeUrl, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 5000}, writeBody).then(function(res) {
-      if (CFG.debug) logToConsole('debug', '✓ Consent persisted', {uid: cpUid, status: res.statusCode});
-      finishConsentPost();
-    }, function(e) {
-      logToConsole('error', '✗ Consent persistence error', e);
-      // Still return 200 — cookie management already done; persistence is server-side concern
-      finishConsentPost();
+  if (shouldPromote) {
+    const newUid = generateCookieUid();
+    if (CFG.debug) logToConsole('debug', '→ F→C promote applicable', {old: cpUid, new: newUid});
+    tryPromote(cpUid, newUid, cpConsent, function(promotedUid) {
+      if (promotedUid) {
+        writeCookieAndPersist(promotedUid, true);
+      } else {
+        // Promote failed — fall back to legacy path under the original F.*
+        writeCookieAndPersist(cpUid, false);
+      }
     });
   } else {
-    if (CFG.debug) logToConsole('debug', '✗ Consent persistence skipped (no Session API or no uid)');
-    finishConsentPost();
+    writeCookieAndPersist(cpUid, false);
   }
   return;
 }
@@ -259,6 +318,65 @@ const writeCookie = function(val, maxAgeSec) {
   const maxAge = (typeof maxAgeSec === 'number') ? maxAgeSec : (CFG.cookieLifetimeDays > 0 ? Math.floor(CFG.cookieLifetimeDays * 86400) : 0);
   opts['max-age'] = maxAge;
   setCookie(CFG.cookieName, val, opts, true);
+};
+
+// ── Helper: generate stable cookie-based user ID ─────────────────────────────
+// Format: C{lim}1{lim}{tenant}{lim}{rand12}.{ms}
+// Used when promoting a F.* fingerprint user to a C.* cookie user (after the
+// CMP grants consent — server-side equivalent of the v1.3 user_id template's
+// new-cookie path). The 12-digit random + millisecond timestamp give a
+// collision space large enough that the 409 path on /promote is essentially
+// unreachable in practice.
+const generateCookieUid = function() {
+  const rand = generateRandom(123456789012, 999999999999);
+  const tsm = getTimestampMillis();
+  return 'C' + CFG.fipLimiter + '1' + CFG.fipLimiter + CFG.tenantID + CFG.fipLimiter + makeString(rand) + '.' + makeString(tsm);
+};
+
+// ── Helper: detect F.* fingerprint UID ────────────────────────────────────────
+// Returns true when the given uid starts with the fingerprint prefix
+// `F{lim}1{lim}` (e.g. `F$1$`). Used to gate F→C promote: only fingerprint
+// users get promoted; cookie-based UIDs are already in their final form.
+const fingerprintPrefix = 'F' + CFG.fipLimiter + '1' + CFG.fipLimiter;
+const isFingerprintUid = function(uid) {
+  return !!(uid && typeof uid === 'string' && uid.indexOf(fingerprintPrefix) === 0);
+};
+
+// ── Helper: F→C promote via api4sgtm /promote endpoint ───────────────────────
+// Atomic Redis TxPipeline server-side: migrates the active session pointer
+// from oldUid to newUid AND records the consent in one operation. Returns
+// the new UID on success, '' on failure (caller falls back to legacy F.*).
+//
+// Smoketest steps 19-20 verify the contract:
+//   POST {sessionApiUrl}/{tenant}/{oldUid}/promote
+//   { new_user_id: 'C.1.*', consent: { hasResponse:true, services:..., ... } }
+//   → 200 { ok:true, sessionId:..., newUserId:'C.1.*' }
+//   → 404 if no active session for oldUid
+//   → 400 if new_user_id format invalid
+//
+// Failure is best-effort by design: if promote fails, the visitor stays
+// under F.* until the next opportunity. Cookie + consent persistence still
+// happens via the legacy path, so the user is not left in a broken state.
+const tryPromote = function(oldUid, newUid, consent, then) {
+  if (!CFG.sessionApiUrl || !CFG.tenantID || !oldUid || !newUid) {
+    then('');
+    return;
+  }
+  const promoteUrl = CFG.sessionApiUrl + '/' + CFG.tenantID + '/' + oldUid + '/promote';
+  const promoteBody = JSON.stringify({new_user_id: newUid, consent: consent || {}});
+  if (CFG.debug) logToConsole('debug', '→ Promote F→C', {url: promoteUrl, body: promoteBody});
+  sendHttpRequest(promoteUrl, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 5000}, promoteBody).then(function(res) {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      if (CFG.debug) logToConsole('debug', '✓ Promote success', {old: oldUid, new: newUid, status: res.statusCode});
+      then(newUid);
+    } else {
+      logToConsole('warn', '✗ Promote non-2xx — falling back to legacy F.* path', {status: res.statusCode, body: res.body});
+      then('');
+    }
+  }, function(e) {
+    logToConsole('error', '✗ Promote error — falling back to legacy F.* path', e);
+    then('');
+  });
 };
 
 // ── Helper: fire Sources API POST (fire-and-forget) ──────────────────────────
@@ -363,35 +481,71 @@ const afterBotCheck = function(isBot) {
   // visitor with no recorded consent. Cookie management runs after this, based on
   // whether the resulting consent state grants the required services.
   const afterSession = function(sessionData) {
-    let cookieAllowed = (CFG.cookieMode === 'always') ||
-                       (CFG.cookieMode === 'consent' && !!existingCookie);
-    if (CFG.cookieMode === 'consent' && !cookieAllowed && sessionData.consent) {
-      const c = sessionData.consent;
-      if (hasRequiredConsent(c.services || '', c.purposes || '', c.vendors || '')) {
-        cookieAllowed = true;
+    // Lazy F→C promote: returning visitor whose cookie still carries an
+    // F.* fingerprint while the Session API already has a real (non-auto-
+    // denial) consent on file. Migrates them on this request so subsequent
+    // api4sources/Session API writes land under C.* without waiting for
+    // the cookie to expire (default 365 days). One-shot per visitor — once
+    // the C.* cookie is set, existingCookie starts with C.* on the next
+    // visit and this branch skips. Auto-denial is excluded via the
+    // `blocked` field to avoid promoting users who haven't actually agreed.
+    const sessionConsent = sessionData.consent;
+    const sessionConsentGranted = !!sessionConsent
+      && sessionConsent.hasResponse === true
+      && sessionConsent.blocked !== true
+      && hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
+    const shouldLazyPromote = sessionConsentGranted
+      && isFingerprintUid(existingCookie)
+      && CFG.sessionApiUrl
+      && CFG.tenantID
+      && CFG.cookieMode !== 'never';
+
+    const continueAfterSession = function() {
+      let cookieAllowed = (CFG.cookieMode === 'always') ||
+                         (CFG.cookieMode === 'consent' && !!existingCookie);
+      if (CFG.cookieMode === 'consent' && !cookieAllowed && sessionData.consent) {
+        const c = sessionData.consent;
+        if (hasRequiredConsent(c.services || '', c.purposes || '', c.vendors || '')) {
+          cookieAllowed = true;
+        }
       }
-    }
 
-    // Delete cookie if consent required but not granted
-    if (!cookieAllowed && data.cookie_delete && existingCookie && CFG.cookieMode === 'consent') {
-      writeCookie('', 0);
-    }
-    // Write/refresh cookie if allowed. For returning visitors with stored
-    // granted consent this restores parity (otherwise the cookie max-age expires
-    // until the user re-interacts with the CMP).
-    if (cookieAllowed && sessionData.uid) {
-      writeCookie(sessionData.uid);
-    }
+      // Delete cookie if consent required but not granted
+      if (!cookieAllowed && data.cookie_delete && existingCookie && CFG.cookieMode === 'consent') {
+        writeCookie('', 0);
+      }
+      // Write/refresh cookie if allowed. For returning visitors with stored
+      // granted consent this restores parity (otherwise the cookie max-age
+      // expires until the user re-interacts with the CMP). When a lazy
+      // promote happened above, sessionData.uid is now the new C.* — this
+      // is what gets written, replacing the F.* in the browser.
+      if (cookieAllowed && sessionData.uid) {
+        writeCookie(sessionData.uid);
+      }
 
-    if (CFG.debug) logToConsole('debug', '✓ Session', sessionData);
-    // Fire-and-forget Sources API POST. Runs in parallel with the rest so
-    // aGTM.js delivery is not blocked. Session is already committed in Redis
-    // at this point — no race against api4sources' session lookup.
-    fireSources(sessionData.uid);
-    // Sequential Attribution GET. Result is embedded into cfg.session.attribution
-    // so it must complete before buildAndSend. No-op when attribution_enabled
-    // is false, in which case buildAndSend runs on this tick.
-    fireAttribution(sessionData, function() { buildAndSend(sessionData); });
+      if (CFG.debug) logToConsole('debug', '✓ Session', sessionData);
+      // Fire-and-forget Sources API POST. Runs in parallel with the rest so
+      // aGTM.js delivery is not blocked. Session is already committed in Redis
+      // at this point — no race against api4sources' session lookup.
+      fireSources(sessionData.uid);
+      // Sequential Attribution GET. Result is embedded into cfg.session.attribution
+      // so it must complete before buildAndSend. No-op when attribution_enabled
+      // is false, in which case buildAndSend runs on this tick.
+      fireAttribution(sessionData, function() { buildAndSend(sessionData); });
+    };
+
+    if (shouldLazyPromote) {
+      const newUid = generateCookieUid();
+      if (CFG.debug) logToConsole('debug', '→ Lazy F→C promote (returning visitor with F.* cookie + stored consent)', {old: existingCookie, new: newUid});
+      tryPromote(existingCookie, newUid, sessionConsent, function(promotedUid) {
+        if (promotedUid) {
+          sessionData.uid = promotedUid;
+        }
+        continueAfterSession();
+      });
+    } else {
+      continueAfterSession();
+    }
   };
 
   if (CFG.sessionApiUrl && CFG.tenantID && sessionUid) {
