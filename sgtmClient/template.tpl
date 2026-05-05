@@ -1017,15 +1017,8 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
 
   // Phase 3 payload shape: { uid, sid, consent: {...} }.
   // Backwards-compat: flat { uid, services, purposes, vendors, feedback }.
-  const cpConsent = (cpData.consent && typeof cpData.consent === 'object')
-    ? cpData.consent
-    : {
-        hasResponse: true,
-        services: cpData.services || '',
-        purposes: cpData.purposes || '',
-        vendors: cpData.vendors || '',
-        feedback: cpData.feedback || ''
-      };
+  // Ternary kept on a single line for the GTM sandboxed-JS parser.
+  const cpConsent = (cpData.consent && typeof cpData.consent === 'object') ? cpData.consent : {hasResponse: true, services: cpData.services || '', purposes: cpData.purposes || '', vendors: cpData.vendors || '', feedback: cpData.feedback || ''};
   const cpServices = cpConsent.services || '';
   const cpPurposes = cpConsent.purposes || '';
   const cpVendors = cpConsent.vendors || '';
@@ -1051,14 +1044,10 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   // transition to a stable C.* cookie UID via api4sgtm /promote (one Redis
   // TxPipeline: session pointer migration + consent record write).
   // cookieMode='never' skips because the new C.* could not be persisted
-  // browser-side and would be lost on the next visit.
-  const shouldPromote = granted
-    && hasExplicitSignal
-    && !isAutoDenialSentinel
-    && isFingerprintUid(cpUid)
-    && CFG.sessionApiUrl
-    && CFG.tenantID
-    && CFG.cookieMode !== 'never';
+  // browser-side and would be lost on the next visit. Single-line form
+  // because GTM's sandboxed-JS parser is brittle around multi-line boolean
+  // chains in some template-import paths.
+  const shouldPromote = granted && hasExplicitSignal && !isAutoDenialSentinel && isFingerprintUid(cpUid) && CFG.sessionApiUrl && CFG.tenantID && CFG.cookieMode !== 'never';
 
   // Final stage: cookie write + consent persistence + response. `finalUid`
   // is the post-promote C.* uid when promote succeeded, else the original
@@ -1409,35 +1398,22 @@ const afterBotCheck = function(isBot) {
     // visit and this branch skips.
     //
     // Auto-denial guards (must all be defensive):
-    //  - `services === ',aGTMconsent,'` — the server-side auto-denial
-    //    sentinel; a real CMP never emits this exact value.
-    //  - `'blocked' in sessionConsent` — the auto-denial constructor sets
-    //    `blocked` regardless of its value (CFG.autoDenyLoadGtm can be
-    //    `false`, in which case `blocked: false` and a `blocked !== true`
-    //    check would let the promote fire on a denied visitor).
+    //  - services sentinel `',aGTMconsent,'` — a real CMP never emits this.
+    //  - `typeof blocked !== 'undefined'` — the auto-denial constructor
+    //    sets `blocked` regardless of its value (CFG.autoDenyLoadGtm can
+    //    be `false`, in which case `blocked: false` and a `blocked !== true`
+    //    check would let promote fire on a denied visitor). Also: GTM's
+    //    sandboxed-JS template parser does not accept the `in` membership
+    //    operator (`'k' in obj`) outside of `for (k in obj)` loops, so the
+    //    `typeof` form is required.
     //  - explicit signal: at least one of services/purposes/vendors must
     //    be non-empty, so we don't promote on an empty/corrupt session
     //    consent block when no consent_service is configured.
     const sessionConsent = sessionData.consent;
-    const sessionIsAutoDenial = !!sessionConsent && (
-         sessionConsent.services === ',aGTMconsent,'
-      || ('blocked' in sessionConsent)
-    );
-    const sessionHasExplicitSignal = !!sessionConsent && !!(
-         (sessionConsent.services || '')
-      || (sessionConsent.purposes || '')
-      || (sessionConsent.vendors  || '')
-    );
-    const sessionConsentGranted = !!sessionConsent
-      && sessionConsent.hasResponse === true
-      && !sessionIsAutoDenial
-      && sessionHasExplicitSignal
-      && hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
-    const shouldLazyPromote = sessionConsentGranted
-      && isFingerprintUid(existingCookie)
-      && CFG.sessionApiUrl
-      && CFG.tenantID
-      && CFG.cookieMode !== 'never';
+    const sessionIsAutoDenial = !!sessionConsent && (sessionConsent.services === ',aGTMconsent,' || typeof sessionConsent.blocked !== 'undefined');
+    const sessionHasExplicitSignal = !!sessionConsent && !!((sessionConsent.services || '') || (sessionConsent.purposes || '') || (sessionConsent.vendors || ''));
+    const sessionConsentGranted = !!sessionConsent && sessionConsent.hasResponse === true && !sessionIsAutoDenial && sessionHasExplicitSignal && hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
+    const shouldLazyPromote = sessionConsentGranted && isFingerprintUid(existingCookie) && CFG.sessionApiUrl && CFG.tenantID && CFG.cookieMode !== 'never';
 
     const continueAfterSession = function() {
       let cookieAllowed = (CFG.cookieMode === 'always') ||
@@ -1603,9 +1579,7 @@ const buildAndSend = function(sessionData) {
   // here. Only the browser knows the real prefix. Standalone integrators
   // (without sGTM Client) set aGTM.c.consent_store_url manually.
   if (CFG.debug) {
-    logToConsole('debug', CFG.consentStoreEnabled
-      ? '✓ consent_store_url will be built browser-side from document.currentScript.src'
-      : '✗ consent_store_url disabled by template config');
+    logToConsole('debug', CFG.consentStoreEnabled ? '✓ consent_store_url will be built browser-side from document.currentScript.src' : '✗ consent_store_url disabled by template config');
   }
   if (data.consent_store_enc) c.consent_store_enc = true;
   // session_salt is reused by aGTM for the consent-store POST encryption
@@ -1622,9 +1596,7 @@ const buildAndSend = function(sessionData) {
   // browser came from /rp/tp/aGTM.js — only the browser knows the real
   // prefix. Builder runs before aGTM.f.config() so the URL is already on
   // aGTM.c.consent_store_url when run_cc fires from the B1 sync trigger.
-  const storeUrlBuilder = CFG.consentStoreEnabled
-    ? '(function(c){var s=document.currentScript;if(s&&s.src){var i=s.src.lastIndexOf("/aGTM.js");if(i>=0)c.consent_store_url=s.src.substring(0,i)+"' + CONSENT_STORE_PATH + '";}return c;})'
-    : '(function(c){return c;})';
+  const storeUrlBuilder = CFG.consentStoreEnabled ? '(function(c){var s=document.currentScript;if(s&&s.src){var i=s.src.lastIndexOf("/aGTM.js");if(i>=0)c.consent_store_url=s.src.substring(0,i)+"' + CONSENT_STORE_PATH + '";}return c;})' : '(function(c){return c;})';
   const config = 'aGTM.f.config(' + storeUrlBuilder + '(' + JSON.stringify(c) + '));';
   logToConsole('info', '\u2713 aGTM Config built', {uid: sessionData && sessionData.uid, sid: sessionData && sessionData.sid, ret: sessionData && sessionData.ret});
 
@@ -1637,9 +1609,7 @@ const buildAndSend = function(sessionData) {
   // code still aborts parsing — try/catch only catches runtime throws.
   // Leading "\n" inside the IIFE protects against trailing line comments
   // in user code; trailing ";\n" closes any open expression cleanly.
-  const preInit = (CFG.preInitEnabled && CFG.preInitCode)
-    ? 'try{(function(){\n' + CFG.preInitCode + '\n;})();}catch(e){if(typeof console!=="undefined"&&console.error)console.error("[aGTM preInit]",e);}\n'
-    : '';
+  const preInit = (CFG.preInitEnabled && CFG.preInitCode) ? 'try{(function(){\n' + CFG.preInitCode + '\n;})();}catch(e){if(typeof console!=="undefined"&&console.error)console.error("[aGTM preInit]",e);}\n' : '';
   const jsCode = preInit + agtm + cmp + config + 'aGTM.f.init();';
 
   setResponseStatus(200);

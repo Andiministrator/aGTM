@@ -648,10 +648,7 @@ aGTM.f.run_cc = function (action) {
             if (xhr.responseText) {
               try {
                 var resp = JSON.parse(xhr.responseText);
-                if (resp && typeof resp.uid === 'string'
-                    && resp.uid.indexOf('C.') === 0
-                    && aGTM.d.session
-                    && resp.uid !== aGTM.d.session.uid) {
+                if (resp && typeof resp.uid === 'string' && resp.uid.indexOf('C.') === 0 && aGTM.d.session && resp.uid !== aGTM.d.session.uid) {
                   aGTM.f.log('m_uid_promoted', {old: aGTM.d.session.uid, new: resp.uid});
                   aGTM.d.session.uid = resp.uid;
                 }
