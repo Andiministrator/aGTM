@@ -98,6 +98,64 @@ const hasRequiredConsent = function(services, purposes, vendors) {
          inConsentStr(vendors, CFG.consentVendor);
 };
 
+// ── F→C user-ID promotion helpers ────────────────────────────────────────────
+// Declared up-front because the /aGTMconsent POST handler below references
+// them, and GTM's sandboxed-JS parser rejects forward references to
+// const-bound function expressions at parse time with "Illegal variable
+// reference before declaration".
+
+// Generate a stable cookie-based user ID. Format: `C.1.{tenant}.{rand12}.{ms}`
+// — used when promoting a F.* fingerprint user to a C.* cookie user (server-
+// side equivalent of the v1.3 user_id template's new-cookie path).
+//
+// Prefix is hardcoded to `C.` regardless of `fipLimiter` because the api4sgtm
+// /promote endpoint strictly validates `new_user_id` starts with "C." (literal
+// dot — see internal/api/api4sgtm/team-spec.md §"Promote / Migrate session").
+// The F-side keeps the configurable `fipLimiter` because /promote and
+// /session GET only validate the C-side `new_user_id`, not the existing
+// F-side path parameter.
+const generateCookieUid = function() {
+  const rand = generateRandom(123456789012, 999999999999);
+  const tsm = getTimestampMillis();
+  return 'C.1.' + CFG.tenantID + '.' + makeString(rand) + '.' + makeString(tsm);
+};
+
+// Detect F.* fingerprint UID. Returns true when `uid` starts with the
+// fingerprint prefix `F{lim}1{lim}` (e.g. `F$1$`). Gates F→C promote so
+// only fingerprint users get promoted; cookie-based UIDs are already in
+// their final form.
+const fingerprintPrefix = 'F' + CFG.fipLimiter + '1' + CFG.fipLimiter;
+const isFingerprintUid = function(uid) {
+  return !!(uid && typeof uid === 'string' && uid.indexOf(fingerprintPrefix) === 0);
+};
+
+// F→C promote via api4sgtm /promote endpoint. Atomic Redis TxPipeline
+// server-side: migrates the active session pointer from oldUid to newUid
+// AND records the consent in one operation. Returns the new UID on success
+// (via `then(newUid)`), `''` on failure (caller falls back to legacy F.*).
+// Smoketest steps 19-20 verify the contract.
+const tryPromote = function(oldUid, newUid, consent, then) {
+  if (!CFG.sessionApiUrl || !CFG.tenantID || !oldUid || !newUid) {
+    then('');
+    return;
+  }
+  const promoteUrl = CFG.sessionApiUrl + '/' + CFG.tenantID + '/' + oldUid + '/promote';
+  const promoteBody = JSON.stringify({new_user_id: newUid, consent: consent || {}});
+  if (CFG.debug) logToConsole('debug', '→ Promote F→C', {url: promoteUrl, body: promoteBody});
+  sendHttpRequest(promoteUrl, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 5000}, promoteBody).then(function(res) {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      if (CFG.debug) logToConsole('debug', '✓ Promote success', {old: oldUid, new: newUid, status: res.statusCode});
+      then(newUid);
+    } else {
+      logToConsole('warn', '✗ Promote non-2xx — falling back to legacy F.* path', {status: res.statusCode, body: res.body});
+      then('');
+    }
+  }, function(e) {
+    logToConsole('error', '✗ Promote error — falling back to legacy F.* path', e);
+    then('');
+  });
+};
+
 const rpath = getRequestPath();
 const rmethod = getRequestMethod();
 
@@ -343,72 +401,12 @@ const writeCookie = function(val, maxAgeSec) {
   setCookie(CFG.cookieName, val, opts, true);
 };
 
-// ── Helper: generate stable cookie-based user ID ─────────────────────────────
-// Format: C.1.{tenant}.{rand12}.{ms}
-// Used when promoting a F.* fingerprint user to a C.* cookie user (after the
-// CMP grants consent — server-side equivalent of the v1.3 user_id template's
-// new-cookie path).
-//
-// **Prefix is hardcoded to `C.` regardless of `fipLimiter`** because the
-// api4sgtm /promote endpoint strictly validates `new_user_id` starts with
-// "C." (literal dot — see internal/api/api4sgtm/team-spec.md §"Promote /
-// Migrate session"). The F-side keeps the configurable `fipLimiter` because
-// /promote and /session GET only validate the C-side new_user_id, not the
-// existing F-side path parameter.
-//
-// The 12-digit random + millisecond timestamp give a collision space large
-// enough that the 409 path on /promote is essentially unreachable in practice.
-const generateCookieUid = function() {
-  const rand = generateRandom(123456789012, 999999999999);
-  const tsm = getTimestampMillis();
-  return 'C.1.' + CFG.tenantID + '.' + makeString(rand) + '.' + makeString(tsm);
-};
-
-// ── Helper: detect F.* fingerprint UID ────────────────────────────────────────
-// Returns true when the given uid starts with the fingerprint prefix
-// `F{lim}1{lim}` (e.g. `F$1$`). Used to gate F→C promote: only fingerprint
-// users get promoted; cookie-based UIDs are already in their final form.
-const fingerprintPrefix = 'F' + CFG.fipLimiter + '1' + CFG.fipLimiter;
-const isFingerprintUid = function(uid) {
-  return !!(uid && typeof uid === 'string' && uid.indexOf(fingerprintPrefix) === 0);
-};
-
-// ── Helper: F→C promote via api4sgtm /promote endpoint ───────────────────────
-// Atomic Redis TxPipeline server-side: migrates the active session pointer
-// from oldUid to newUid AND records the consent in one operation. Returns
-// the new UID on success, '' on failure (caller falls back to legacy F.*).
-//
-// Smoketest steps 19-20 verify the contract:
-//   POST {sessionApiUrl}/{tenant}/{oldUid}/promote
-//   { new_user_id: 'C.1.*', consent: { hasResponse:true, services:..., ... } }
-//   → 200 { ok:true, sessionId:..., newUserId:'C.1.*' }
-//   → 404 if no active session for oldUid
-//   → 400 if new_user_id format invalid
-//
-// Failure is best-effort by design: if promote fails, the visitor stays
-// under F.* until the next opportunity. Cookie + consent persistence still
-// happens via the legacy path, so the user is not left in a broken state.
-const tryPromote = function(oldUid, newUid, consent, then) {
-  if (!CFG.sessionApiUrl || !CFG.tenantID || !oldUid || !newUid) {
-    then('');
-    return;
-  }
-  const promoteUrl = CFG.sessionApiUrl + '/' + CFG.tenantID + '/' + oldUid + '/promote';
-  const promoteBody = JSON.stringify({new_user_id: newUid, consent: consent || {}});
-  if (CFG.debug) logToConsole('debug', '→ Promote F→C', {url: promoteUrl, body: promoteBody});
-  sendHttpRequest(promoteUrl, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 5000}, promoteBody).then(function(res) {
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      if (CFG.debug) logToConsole('debug', '✓ Promote success', {old: oldUid, new: newUid, status: res.statusCode});
-      then(newUid);
-    } else {
-      logToConsole('warn', '✗ Promote non-2xx — falling back to legacy F.* path', {status: res.statusCode, body: res.body});
-      then('');
-    }
-  }, function(e) {
-    logToConsole('error', '✗ Promote error — falling back to legacy F.* path', e);
-    then('');
-  });
-};
+// (generateCookieUid, isFingerprintUid, fingerprintPrefix, tryPromote
+// are declared earlier — before the /aGTMconsent POST handler — because
+// that handler uses them. GTM's sandboxed-JS parser rejects forward
+// references to const-bound function expressions even at parse time
+// ("Illegal variable reference before declaration"), and at runtime
+// the const TDZ would throw before the function existed anyway.)
 
 // ── Helper: fire Sources API POST (fire-and-forget) ──────────────────────────
 // Called from afterSession() once the session is committed in Redis. The POST
