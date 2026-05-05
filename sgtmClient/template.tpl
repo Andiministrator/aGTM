@@ -741,7 +741,7 @@ ___TEMPLATE_PARAMETERS___
             "type": "EQUALS"
           }
         ],
-        "help": "Base URL of the Sources API up to and including the path prefix WITHOUT the tenant. The tenant is appended at runtime. Example: <code>https://tg-api-sources.internal.example.com/tp/sources/</code> (POSTs go to .../tp/sources/{tenant})."
+        "help": "Base URL of the Sources API up to and including the path prefix WITHOUT the tenant. The tenant is appended at runtime. Example: <code>https://your-sources-host.example.com/tp/sources/</code> (POSTs go to .../tp/sources/{tenant})."
       }
     ]
   },
