@@ -22,12 +22,19 @@ dokumentiert diesen Ist-Zustand und macht ihn als Doktrin verbindlich.
   Tag, der zur Version passt: `v`-Präfix + SemVer, z. B. `v1.5`, `v1.4.1`. Der
   Tag ist die autoritative Referenz für einen Release.
 - **Branches:**
-  - `dev` — aktive Entwicklung. Alle Änderungen gehen zuerst hierhin. `dev`
-    trägt die Pre-Release-Version (z. B. `1.6-pre` in `VERSION`).
+  - `dev` — aktive Entwicklung. Alle Änderungen gehen zuerst hierhin. **Soll-Konvention:**
+    `dev` trägt die Pre-Release-Version mit `-pre`-Suffix (z. B. `1.6-pre` in `VERSION`),
+    sobald die Arbeit an einer neuen Version beginnt.
   - `main` — stabiler Release-Branch. Wird nur aktualisiert, wenn eine Version
     fertig und getestet ist; bekommt dann den Release-Tag.
   - Keine Feature-/Hotfix-Branches per Konvention — das Projekt hat einen
     einzelnen Maintainer.
+
+> **Aktueller Ist-Stand (2026-06-19):** `VERSION = 1.5`, **ungetaggt** (letzter Tag
+> `v1.4.1`), ohne `-pre`-Suffix. `dev` hält damit eine **release-fertige, aber bewusst
+> noch nicht getaggte** `1.5` — Release/Tag/Merge nach `main` nur auf ausdrückliches
+> Zeichen des Maintainers (vgl. Memory `project-v15-handover`). Die `-pre`-Soll-Konvention
+> oben greift ab dem nächsten Versionszyklus; der aktuelle `dev`-Stand erfüllt sie noch nicht.
 
 **Release-Flow:**
 

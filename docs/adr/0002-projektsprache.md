@@ -33,6 +33,10 @@ Repos sieht):
 - ADRs (`docs/adr/`)
 - QA-Dokumente und -Findings (`docs/qa/`, siehe ADR-0004)
 - Glossar, Recherche-Notizen, Claude-Workflow-Notizen
+- `CLAUDE.local.md` — das interne Claude-Code-Arbeitsprotokoll (Board-/QA-/Session-
+  Workflow). Liegt **gitignored** im Projektwurzelverzeichnis und wird von Claude Code
+  automatisch zusätzlich zur öffentlichen `CLAUDE.md` gelesen. So bleibt `CLAUDE.md`
+  rein englisch (öffentlich), die interne Steuerung deutsch und unveröffentlicht.
 - die laufende Chat-Kommunikation mit dem Maintainer
 
 `README.de.md` ist eine bewusste deutschsprachige **Produkt**-Übersetzung für
