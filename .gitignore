@@ -27,6 +27,9 @@ Desktop.ini
 .env
 .runner
 
+# ── Internal working protocol (German, maintainer-local; ADR-0002) ──
+CLAUDE.local.md
+
 # ── Node.js ─────────────────────────────────────────────────
 node_modules/
 
