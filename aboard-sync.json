@@ -1,0 +1,57 @@
+{
+  "version": "2",
+  "board": {
+    "id": "4e7db0d5-0cb0-434d-b1da-35ced8374b16",
+    "title": "aGTM",
+    "columnDefs": [
+      {
+        "id": "col-backlog",
+        "title": "Backlog",
+        "color": null
+      },
+      {
+        "id": "col-recherche",
+        "title": "Recherche",
+        "color": "#60a5fa"
+      },
+      {
+        "id": "col-schreiben",
+        "title": "In Arbeit",
+        "color": "#E9C85D"
+      },
+      {
+        "id": "col-qa",
+        "title": "QA",
+        "color": "#ea580c"
+      },
+      {
+        "id": "col-erledigt",
+        "title": "Erledigt",
+        "color": "#63D2B0"
+      }
+    ],
+    "sprints": [
+      {
+        "id": "__backlog__",
+        "title": "Backlog",
+        "kind": "backlog",
+        "cards": []
+      }
+    ],
+    "nextDisplayId": 1,
+    "attachments": [],
+    "background": null,
+    "templates": [],
+    "awaitingUser": null,
+    "identities": [
+      {
+        "id": "user-default",
+        "kind": "user",
+        "label": "User",
+        "color": "#dc2626",
+        "icon": "U",
+        "imageAttachmentId": null
+      }
+    ]
+  }
+}
