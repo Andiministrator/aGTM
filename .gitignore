@@ -40,3 +40,13 @@ tmp/
 # ── Internal docs (API specs, integration notes, smoketests) ────────────────
 # Reference material for maintainers; not part of the public release.
 internal/
+
+# ── aBoard (ADR-0049 / ADR-0067) ────────────────────────────
+# aboard-sync.json IS versioned on purpose (public project roadmap).
+# Everything below is local runtime/build state and stays out of git.
+aboard.html
+aboard.template.html
+aboard-sync.base.json
+aboard-sync.base.*.json
+aboard-sync.inbox/
+aboard-sync.chat-tail.*
