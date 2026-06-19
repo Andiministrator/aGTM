@@ -50,3 +50,4 @@ aboard-sync.base.json
 aboard-sync.base.*.json
 aboard-sync.inbox/
 aboard-sync.chat-tail.*
+aboard.html.bak-*
