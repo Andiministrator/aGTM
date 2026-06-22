@@ -139,6 +139,7 @@ Three new tests cover the hardening (F.* race-safety, non-C-prefix defensive, `g
 - Docs: `README.md` build instructions updated from npm to Bun
 - Docs: `README-for-Developers.md` release flow now references `CHANGELOG.md` (not `README.md`)
 - Docs: `README.de.md` added — German quickstart for GTM developers
+- Docs: removed the legacy `ck` URL-parameter section (`ckServices`/`ckVendors`/`ckPurposes`, `ck=0|1|2`) from `README.md` — it documented a never-implemented feature superseded by the v1.5 POST transport + consent-store (`/aGTMconsent`); was end-to-end dead (library never appended it, sGTM Client read but never used it). See `docs/open-decisions.md` OE-2.
 - CMP `consent_check` short-circuit (`if (action == 'init' && hasResponse) return true;`) is now load-bearing for the preset-with-consent fast path; new test `cmp_short_circuit.test.js` enforces the pattern across all `cmp/cc_*.js` files
 - Foundation for standalone aGTM usage without webGTM
 - New CMPs: JTL Consent, JTL EU Cookie

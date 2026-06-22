@@ -22,16 +22,21 @@ Format je Eintrag: `OE-N` mit Kontext / Optionen / Status / Empfehlung.
 - **Status:** offen — als v1.6+-Thema markiert.
 - **Empfehlung:** zurückgestellt bis konkreter SPA-Bedarf besteht.
 
-## OE-2 — `ck`-URL-Parameter für Consent-Signaling
+## OE-2 — `ck`-URL-Parameter für Consent-Signaling — **ENTSCHIEDEN (2026-06-22): entfernt**
 
 - **Kontext:** In `README.md` dokumentiert (`ckServices`/`ckVendors`/`ckPurposes`,
   `ck=0|1|2` an der `gtm.js`-URL), aber **im Code nicht implementiert**
   (ROADMAP.md „Backlog / To Be Reviewed").
-- **Optionen:** (a) implementieren (Anhängen in `gtm_load()`); (b) ersatzlos
-  entfernen, weil der in v1.5 ergänzte POST-Transport-Layer denselben Zweck
-  abdecken könnte; (c) Doku als „geplant" belassen.
-- **Status:** offen — explizit „to be reviewed" (ROADMAP v1.6).
-- **Empfehlung:** vor v1.6 entscheiden: ist `ck` neben POST-Transport noch nötig?
+- **Entscheidung (Option b — ersatzlos entfernen):** `ck` ist **Altbestand**,
+  durch neuere Methoden ersetzt (v1.5-POST-Transport-Layer + Consent-Store
+  `/aGTMconsent` decken das Consent-Signaling an sGTM vollständig ab). Befund
+  2026-06-22: `ck` war **end-to-end tot** — die aGTM-Library produzierte den
+  Parameter nicht (kein Anhängen in `gtm_load()`), und der server-seitige
+  „GTM Client v1.4" liest `ck` zwar (`getRequestQueryParameter('ck')`), nutzt
+  den Wert aber nirgends (totes `requestedConsentState`).
+- **Umsetzung:** README-Abschnitt „Consent-based GTM URL Parameter Handling"
+  entfernt + CHANGELOG-Hinweis. ROADMAP-v1.6-Punkt „Review … `ck`" damit erledigt.
+- **Kein ADR:** reine Doku-Bereinigung eines nie implementierten Features.
 
 ## OE-3 — Session-API Consent-Write-Endpoint-Shape
 
