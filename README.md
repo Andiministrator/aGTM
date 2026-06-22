@@ -523,7 +523,7 @@ Numeric salt for POST payload obfuscation. Must be an integer ≥ 1. If not set,
 
 After `aGTM.f.config()` runs (typically right at page-load when the library is served by the sGTM Client), the session result is available in two places:
 
-- **`aGTM.d.session`** — the full session object passed in via `cfg.session` (empty `{}` if no session was supplied)
+- **`aGTM.d.session`** — the full session object passed in via `cfg.session` (empty `{}` if no session was supplied). When the sGTM Client's Sources API integration is enabled, it also carries the captured non-meta fields — notably **`aGTM.d.session.source`** (the affiliate source / `?source=` value by last-cookie-win), readable in webGTM via a plain "JavaScript Variable" pointing at `aGTM.d.session.source`.
 - **`aGTM.d.attribution`** — keyed-by-method attribution object populated from `cfg.session.attribution` (sGTM Client) merged with the current URL/referrer. Empty `{}` when no attribution preset is supplied. Read fields like `aGTM.d.attribution.last_touch.sou`. See [Developer Documentation → Attribution](README-for-Developers.md#attribution-hybrid-merge) for the per-field merge rules.
 - **`aGTM.d.session_status`** — consent-sync lifecycle string, readable from GTM Custom Variables or any JS on the page:
 

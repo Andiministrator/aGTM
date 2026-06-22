@@ -188,7 +188,7 @@ The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session managemen
 3. Calls the Session API (`GET /tp/session/{tenant}/{uid}`). The response includes `sessionId`, `counter`, `ga4sid`, `muidga4` and — once consent has ever been written for this user — a `consent` object.
 4. **Consent passthrough**: if the response carries a valid `consent` object (`hasResponse: true`), it is forwarded into `cfg.session.consent` for aGTM to consume.
 5. **Server-side auto-denial**: if no consent is on file but the user is returning (`counter > 0`), the Client constructs a denial-consent block (`hasResponse: true`, `services: ',aGTMconsent,'`, `gtmConsent: <auto_deny_load_gtm>`) and embeds it in `cfg.session.consent`. This replaces the old client-side `session_apply_denial()`.
-6. **Lazy F→C user-ID promotion**: if the existing cookie still carries an `F.*` fingerprint AND the Session API has a real (non-auto-denial) consent, the Client calls `POST /tp/session/{tenant}/{F-uid}/promote` with a freshly-generated `C.1{lim}{tenant}{lim}{rand12}.{ms}` (where `{lim}` is the configured `fip_limiter`, recommended `.`; the literal `C.` two-character prefix is mandated by api4sgtm) to atomically migrate the session pointer + consent record. `sessionData.uid` becomes the new `C.*` for downstream calls (cookie write, sources POST, attribution GET, JS payload). One-shot per visitor.
+6. **Lazy F→C user-ID promotion**: if the existing cookie still carries an `F.*` fingerprint AND the Session API has a real (non-auto-denial) consent, the Client calls `POST /tp/session/{tenant}/{F-uid}/promote` with a freshly-generated `C.1{lim}{tenant}{lim}{rand12}.{ms}` (where `{lim}` is the configured `fip_limiter`, recommended `.`; the literal `C.` two-character prefix is mandated by api4sgtm) to atomically migrate the session pointer + consent record. `sessionData.uid` becomes the new `C.*` for downstream calls (cookie write, sources POST, JS payload). One-shot per visitor.
 7. Sets the user-ID cookie via `Set-Cookie` if the resulting consent state grants the required services (or if `cookie_mode: always`).
 8. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript. The `consent_store_url` is auto-built from the request host + the fixed path `/aGTMconsent` — the integrator only flips a checkbox to enable/disable the route.
 
@@ -246,33 +246,34 @@ An optional suffix appended to the `/aGTM.js` path for debug/staging variants. U
 
 ### Sources API
 
-Optional server-side integration with a Sources API (`api4sources`) for cross-session source/attribution tracking. The Client writes the current page's source data on every aGTM.js request and (optionally) reads back the user's attribution view to feed the library's HYBRID merge.
+Optional server-side integration with a Sources API (`api4sources`) for cross-session source/attribution tracking. On every aGTM.js request the Client POSTs the current page's source data and captures the response back into the library's session — a single round-trip handles both write and read.
 
-The Tenant ID configured in **Server-Side Session** is reused. Both endpoints are independent — you can enable just the WRITE (no library involvement), just the READ (only useful in combination with WRITE on a previous request), or both.
+The Tenant ID configured in **Server-Side Session** is reused.
 
-The aGTM library exposes the merged result as `aGTM.d.attribution.<method>.<field>` (e.g. `aGTM.d.attribution.last_touch.sou`). Per-field source priority and the HYBRID merge rules are documented in the [Developer README → Attribution](../README-for-Developers.md#attribution-hybrid-merge).
+The captured response feeds two read paths in webGTM (plain GTM "JavaScript Variable", no custom template):
+
+- `aGTM.d.session.source` — the resolved `source` (the affiliate cookie value by last-cookie-win) and any other non-meta scalar the API returns.
+- `aGTM.d.attribution.<method>.<field>` (e.g. `aGTM.d.attribution.last_touch.sou`) — only when **Request attribution** is on. Per-field source priority and the HYBRID merge rules are documented in the [Developer README → Attribution](../README-for-Developers.md#attribution-hybrid-merge).
 
 #### Enable Sources API call
 
-If checked, the Client fires a fire-and-forget `POST /tp/sources/{tenant}` with `{user_id, page_location, referrer, timestamp}` after the Session API step. Runs in parallel with the aGTM.js response so it does not add to library delivery latency. Race-free: the session is already committed in Redis at this point, so api4sources' user → session lookup hits.
+If checked, the Client fires `POST /tp/sources/{tenant}` with `{user_id, page_location, referrer, timestamp}` after the Session API step. The POST is **sequential before the aGTM.js response** is built (it was awaited so its response payload can be captured) — it adds one internal round-trip to library delivery latency (1500 ms timeout). Race-free: the session is already committed in Redis at this point, so api4sources' user → session lookup hits. On 2xx, every non-meta top-level response field (e.g. `source`) is copied into `cfg.session.*` (and on into `aGTM.d.session.*`); meta fields (`ok`/`tenant`/`session_id`/`ts`/`skipped`/`reason`) and reserved session keys are ignored, and empty/null values are skipped. On timeout/error/non-2xx nothing is captured and delivery proceeds.
+
+> ⚠️ Operational note: because the POST now blocks delivery, an api4sources outage delays `/aGTM.js` (and thus GTM loading) by up to the 1500 ms timeout for every visitor while `sources_enabled` is on. Monitor api4sources latency.
 
 #### Sources API URL
 
-Base URL of the Sources POST endpoint up to and including `/tp/sources/`. The tenant is appended at runtime.
+Base URL of the Sources endpoint — the **bare base WITHOUT tenant and WITHOUT any query string** (e.g. `https://your-sources-host.example.com/tp/sources`). The tenant is appended at runtime (and the attribution query, if enabled), so the POST goes to `.../tp/sources/{tenant}`. Do **not** put the tenant or `?attribution=true` here — that produces a malformed URL like `.../tp/sources/fcm/?attribution=true/fcm` (double tenant → 404).
 
-#### Enable Attribution API call
+#### Request attribution in Sources response
 
-If checked, the Client fires a `GET {attribution_api_url}/{tenant}/{user_id}?methods=<configured>` after the Session step and embeds the keyed-by-method response into `cfg.session.attribution` of the JS payload. The library merges it with the current URL per the HYBRID strategy.
+If checked, the POST appends `?attribution=true&method=<selected>` so api4sources returns an `attribution` object **in the same response** (no separate request). The Client wraps it by method into `cfg.session.attribution`; the aGTM library merges it per-method with the current page URL (HYBRID strategy — URL wins for browser-derivable fields like utm/click-IDs, API for cross-session memory like `afs`/`lcs`/`fss`). webGTM reads e.g. `aGTM.d.attribution.last_touch.sou`.
 
-**Sequential before the aGTM.js response** (unlike the fire-and-forget Sources POST), so the attribution round-trip adds to library delivery latency. Timeout 1500 ms; on timeout/error/non-2xx the field is left unset and the library falls back to URL-only attribution — the merge stays robust.
+> Note on freshness: the inline attribution reflects the state **before** this request (ClickHouse Materialized-View lag). The HYBRID merge compensates this for the browser-derivable fields (utm/click-IDs/referrer) via the fresh URL — but the pure API fields `afs`/`lcs`/`fss` have no URL fallback, so on the first request of a new session's source they may lag behind.
 
-#### Attribution methods
+#### Attribution method
 
-Comma-separated list of attribution methods to fetch in one round-trip (multi-method endpoint). Valid values: `last_touch`, `first_touch`, `last_click`, `first_click`, `last_non_direct_click`. Multiple methods land on `aGTM.d.attribution` as separate keys, e.g. `aGTM.d.attribution.last_touch.sou` vs `aGTM.d.attribution.last_non_direct_click.sou`. Recommend including `last_non_direct_click` for any deployment that drives marketing-conversion reporting (matches GA4's default attribution model).
-
-#### Attribution API URL
-
-Base URL of the Attribution GET endpoint up to and including `/tp/attribution/`. The tenant + user_id + `?methods=` are appended at runtime.
+Single attribution method requested from api4sources (the POST is single-method). SELECT with values `last_touch`, `first_touch`, `last_click`, `first_click`, `last_non_direct_click` (default `last_touch`). The result lands under this key: `aGTM.d.attribution.<method>`. Recommend `last_non_direct_click` for any deployment that drives marketing-conversion reporting (matches GA4's default attribution model); `last_touch` for plain last-source analytics.
 
 ---
 

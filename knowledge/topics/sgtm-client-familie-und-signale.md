@@ -77,8 +77,12 @@ Session-Schritt. Der POST ist seit 2026-06-22 **sequentiell vor `buildAndSend`**
 über `cfg.session.source` in `aGTM.d.session.source` und ist im webGTM per
 schlichter JS-Variable (Pfad `aGTM.d.session.source`) abfragbar — kein
 Custom-Template nötig. Das Preset-Gate (Client + Library) akzeptiert eine
-Session, die nur `source` trägt, damit der Wert auch bei degradierter
-Session-API-Antwort (kein `sid`/`consent`) überlebt.
+Session, die nur ein **nicht-leeres** `source` trägt, damit der Wert auch bei
+degradierter Session-API-Antwort (kein `sid`/`consent`) überlebt. (Leere/Null-
+Werte werden beim Capture übersprungen — ein leeres `source` hält eine sonst
+leere Session also nicht künstlich am Leben.) Tradeoff der Sequentiell-
+Umstellung: ein api4sources-Ausfall blockiert `/aGTM.js` bis zum 1500-ms-Timeout
+für jeden Besucher mit `sources_enabled` — Latenz überwachen.
 
 **Alle nicht-Meta-Felder** der Response werden übernommen (nicht nur `source`):
 ein Blacklist-Loop (`SOURCES_META` = `ok/tenant/session_id/ts/skipped/reason`
@@ -94,7 +98,12 @@ liefert das `attribution`-Objekt in **derselben** Response (api4sources-Contract
 Der Client wrappt es methoden-keyed nach `cfg.session.attribution` → der
 **unveränderte** Library-Code (`resolveAttribution`, HYBRID-Merge,
 `aGTM.d.attribution`) wird damit wieder aktiv. Schaltbar per Checkbox
-`sources_attribution`, Methode per SELECT `sources_method`. **URL-Falle:**
+`sources_attribution`, Methode per SELECT `sources_method`. **MV-Lag:** das
+Inline-`attribution` spiegelt den Stand VOR diesem Request (ClickHouse-MV-
+Propagation); der HYBRID-Merge kompensiert das nur für browser-ableitbare Felder
+(frische URL gewinnt) — die reinen API-Felder `afs`/`lcs`/`fss` haben keinen
+URL-Fallback und können beim ersten Request einer neuen Quelle hinterherhinken.
+**URL-Falle:**
 `sources_api_url` ist die bare Base **ohne** Tenant/Query — Tenant + Query hängt
 der Client an; Tenant/`?attribution=true` ins Feld zu schreiben erzeugt
 `…/tp/sources/fcm/?attribution=true/fcm` (doppelter Tenant, 404).

@@ -1347,8 +1347,11 @@ const fireSources = function(sessionData, then) {
       if (parsed && typeof parsed === 'object') {
         // Pass through every non-meta top-level field verbatim. JSON.parse output
         // has only own enumerable keys, so no hasOwnProperty guard is needed.
+        // Empty/null values are skipped so a present-but-empty field (e.g.
+        // source='' when no affiliate cookie is set) creates no hollow session
+        // entry — keeps the library's truthy preset gate meaningful.
         for (const k in parsed) {
-          if (!SOURCES_META[k]) sessionData[k] = parsed[k];
+          if (!SOURCES_META[k] && parsed[k] !== '' && parsed[k] !== null) sessionData[k] = parsed[k];
         }
         // attribution: wrap the flat object under the requested method key so the
         // library expects aGTM.d.session.attribution keyed by method.

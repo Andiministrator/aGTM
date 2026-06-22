@@ -73,7 +73,7 @@ aGTM.f.config({
   consent_store_url:  'https://sgtm.example.com/aGTMconsent', // auto-filled by sGTM Client; standalone uses fixed path
   consent_store_enc:  true,                                // encrypt consent-store POST payload with session_salt
   user_id:            'user-abc-123',                      // optional: logged-in user CRM ID, exposed for integrators
-  session: { sid: 's-abc', uid: 'u-123' },                 // pre-populated by the sGTM Client (accepted with sid, consent, OR attribution)
+  session: { sid: 's-abc', uid: 'u-123' },                 // pre-populated by the sGTM Client (accepted with sid, consent, attribution, OR source)
 
   // --- Other options ---
   dlSet:            { 'page_type': 'pageType' }, // append GTM DL variable to every fire() event
@@ -474,7 +474,7 @@ This is a stricter integration requirement than the pre-v1.5 "wait-for-CMP-then-
 
 ### Activation
 
-Active whenever the sGTM Client (or any integrator) injects `aGTM.f.config({ session: { ... } })` with a `sid`, valid `consent`, or `attribution` field.
+Active whenever the sGTM Client (or any integrator) injects `aGTM.f.config({ session: { ... } })` with a `sid`, valid `consent`, `attribution`, or `source` field.
 
 ```javascript
 // Typically emitted by the sGTM Client Template into the page response:
@@ -509,7 +509,7 @@ aGTM.f.config({
 | `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When served via the sGTM Client, the URL is built **browser-side** at config time from `document.currentScript.src` + fixed path `/aGTMconsent` — works under any reverse-proxy prefix transparently. Standalone integrators set this manually. Empty string disables the diff/store mechanism. |
 | `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is encrypted with `session_salt` |
 | `consent_poll_ms` | number | `2000` | Interval (ms) for the periodic CMP state-change poll started after the first successful init. Set to `0` to disable. Only takes effect when `consent_store_url` is set. Catches CMPs that emit updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) which would otherwise bypass the `consent_events` matcher in `aGTM.f.fire()`. |
-| `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid`, `consent`, or `attribution` |
+| `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid`, `consent`, `attribution`, or `source`. Extra non-meta fields the sGTM Client captures from the Sources API (e.g. `source`, the affiliate cookie value) are deep-copied through to `aGTM.d.session.*` and readable in webGTM via a JS variable (e.g. `aGTM.d.session.source`). |
 
 **Removed in Phase 2 (no migration code, v1.5 was unreleased):** `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, `session_consent_url`, `session_deny_service`. Functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.f.xfetch`. Data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`. Auto-denial moves entirely server-side (decided by the sGTM Client based on the visit counter and stored consent record).
 
@@ -604,9 +604,9 @@ aGTM.f.consent_serialize({
 
 ### Attribution (HYBRID merge)
 
-When the sGTM Client is configured to fetch attribution from api4sources, the multi-method GET response is delivered as `cfg.session.attribution` — a keyed-by-method object, e.g. `{ last_touch: { sou:'google', ... }, last_non_direct_click: { ... } }`. At the end of `aGTM.f.config()`, every method present in the preset is resolved through `aGTM.f.resolveAttribution(method)` and the result is stored on `aGTM.d.attribution[method]`.
+When the sGTM Client is configured to request attribution (`sources_attribution`), the Sources **POST** carries `?attribution=true&method=<sources_method>` and api4sources returns the attribution object inline. The Client wraps it single-method into `cfg.session.attribution` — a keyed-by-method object, e.g. `{ last_touch: { sou:'google', ... } }`. (Earlier v1.5 builds used a separate multi-method GET; that was removed — it pointed at the wrong endpoint and 404'd. The library-side processing here is unchanged.) At the end of `aGTM.f.config()`, every method present in the preset is resolved through `aGTM.f.resolveAttribution(method)` and the result is stored on `aGTM.d.attribution[method]`.
 
-**Why a merge:** the API has at-best-stale data (ClickHouse Materialized View propagation lag — just-written rows are not readable for ~seconds). The current page's URL is always the freshest source. The HYBRID strategy uses URL data when present and API data for cross-session memory the URL cannot provide.
+**Why a merge:** the API has at-best-stale data (ClickHouse Materialized View propagation lag — just-written rows are not readable for ~seconds). The current page's URL is always the freshest source. The HYBRID strategy uses URL data when present and API data for cross-session memory the URL cannot provide. **Caveat:** the merge only compensates the lag for browser-derivable fields (those with a URL term in the table below). The pure API fields `afs`/`lcs`/`fss` have no URL fallback, so on the first request of a new session's source they reflect the pre-request state and can lag behind.
 
 **Per-field source priority:**
 
