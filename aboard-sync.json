@@ -55,17 +55,24 @@
             "description": "Doku/Code-Inkonsistenz: README.md dokumentiert `ckServices`/`ckVendors`/`ckPurposes` + `ck=0|1|2` an der gtm.js-URL, aber im Code NICHT implementiert (OE-2, ROADMAP „Backlog / To Be Reviewed\"). Entscheiden, ob der v1.5-POST-Transport-Layer denselben Zweck abdeckt. Optionen: (a) in gtm_load() implementieren, (b) ersatzlos aus README entfernen, (c) als „geplant\" markieren. Falls (a) gewählt → Implementierung wandert nach v1.6.",
             "status": "offen",
             "priority": "mittel",
-            "owner": "",
-            "qa": false,
+            "owner": "Claude Opus",
+            "qa": true,
             "critical": false,
             "blocked": false,
-            "complexity": "",
-            "effort": null,
+            "complexity": "niedrig",
+            "effort": 1,
             "agentContext": "docs/open-decisions.md OE-2 · README.md §ck · ROADMAP.md Backlog · aGTM.f.gtm_load() in aGTM.js",
             "links": [],
-            "comments": [],
+            "comments": [
+              {
+                "id": "4e446b37-17ed-449b-8a12-e6c7a9098adb",
+                "author": "Claude Opus",
+                "text": "Entschieden (Option b): ck ist Altbestand, ersetzt durch v1.5-POST-Transport + Consent-Store (/aGTMconsent). Befund: ck war end-to-end tot (Library produzierte ihn nicht, GTM Client v1.4 las ihn ungenutzt). Umgesetzt: README-Abschnitt entfernt, CHANGELOG-Hinweis, OE-2 auf entschieden. Kein ADR (reine Doku-Bereinigung).",
+                "created": "2026-06-22"
+              }
+            ],
             "displayId": 2,
-            "columnId": "col-backlog"
+            "columnId": "col-erledigt"
           }
         ]
       },
