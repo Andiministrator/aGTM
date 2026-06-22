@@ -73,18 +73,20 @@ Release/Tag/Main-Merge **nur auf Andis ausdrückliches Zeichen** (Memory
 | Code schreiben (ES5), CMP-Files, ADRs anlegen | ✓ | |
 | Board / `aboard-sync.json` mutieren (via Ops-Inbox, ADR-0067) | ✓ | |
 | Findings in `docs/findings.md` eintragen | ✓ | |
-| Commits auf `dev` | ✓ | |
-| `git push` auf `dev` (auf Anweisung) | ✓ | |
+| Commits auf `dev` (autonom) | ✓ | |
+| `git push` auf `dev` (autonom, ohne Rückfrage) | ✓ | |
 | `dev` → `main` mergen | | ✓ |
+| `git push` auf `main` | | ✓ |
 | `v*`-Release-Tag setzen | | ✓ |
 | Release-Versions- und Zeitpunkt-Entscheidung | | ✓ |
 | `git push --force` | | ✓ |
 | Dateien/Branches außerhalb des Projektverzeichnisses löschen | | ✓ |
 | Kundendaten / Beratungsarbeit in dieses Repo bringen | | ✗ (verboten, Memory `project-relocation-aboard`) |
 
-**Grundregel:** Was nicht reversibel ist oder nach außen wirkt (Push, Tag, Merge nach
-`main`) → vorher Andis ausdrückliche Freigabe. `dev`-Push ist technisch möglich
-(Credentials vorhanden, verifiziert 2026-06-22), erfolgt aber nur auf Anweisung.
+**Grundregel (Andi, 2026-06-22):** Auf **`dev`** darf Claude **selbstständig committen
+und pushen** — keine Rückfrage nötig. **Nur** beim **Taggen** (`v*`) oder beim
+**Merge/Push nach `main`** vorher fragen. Credentials sind vorhanden (verifiziert
+2026-06-22).
 
 **Kein Kundenverzeichnis hier:** aGTM ist und bleibt öffentliches Produkt-Repo.
 Kunden-/Beratungsarbeit kommt in ein separates, privates Projekt. Niemals Kundendaten hier.
