@@ -55,7 +55,7 @@ Release-Flow (ADR-0006, `CLAUDE.md` §Git Workflow):
 1. Entwickeln auf `dev` → testen.
 2. `VERSION` setzen (Konvention: `1.6-pre` auf `dev`, `1.6` vor Release) + `CHANGELOG.md`-Eintrag.
 3. `./build.sh` (ohne Warnung).
-4. **`/sprint-abschluss` inkl. Kritiker-Lauf** — **kein `v*`-Release-Tag ohne** (ADR-0062 sinngemäß, `CLAUDE.local.md` §QA).
+4. **`/sprint-abschluss` inkl. Kritiker-Lauf** — **kein `v*`-Release-Tag ohne** (s. `docs/qa/sprint-abschluss.md` §Release-Gate + `CLAUDE.local.md` §QA).
 5. `dev` → `main` mergen → `git tag v<version>`.
 
 Es gibt keine Feature-/Hotfix-Branches (Single-Author-Konvention).
@@ -71,7 +71,7 @@ Release/Tag/Main-Merge **nur auf Andis ausdrückliches Zeichen** (Memory
 | Aufgabe | Claude | Nur Andi |
 |---|---|---|
 | Code schreiben (ES5), CMP-Files, ADRs anlegen | ✓ | |
-| Board / `aboard-sync.json` mutieren (via Ops-Inbox, ADR-0067) | ✓ | |
+| Board / `aboard-sync.json` mutieren (via Ops-Inbox — aBoard-Konvention, s. `CLAUDE.local.md` §„Felder ändern") | ✓ | |
 | Findings in `docs/findings.md` eintragen | ✓ | |
 | Commits auf `dev` (autonom) | ✓ | |
 | `git push` auf `dev` (autonom, ohne Rückfrage) | ✓ | |
@@ -121,5 +121,6 @@ Kunden-/Beratungsarbeit kommt in ein separates, privates Projekt. Niemals Kunden
 | `docs/qa/schritt-qa.md` | Schritt-QA-Checkliste |
 | `docs/qa/sprint-abschluss.md` | Sprint-Abschluss + Kritiker-Gate |
 | `docs/adr/0002-*` | Projektsprache (public=EN/intern=DE) |
+| `docs/adr/0004-*` | QA-System (Schritt-QA + Sprint-Abschluss) |
 | `docs/adr/0005-*` | Commit-Konvention (English Conventional Commits) |
 | `docs/adr/0006-*` | Versionierung (SemVer + Git-Tags) |
