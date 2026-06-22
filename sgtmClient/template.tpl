@@ -746,7 +746,7 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "CHECKBOX",
         "name": "attribution_enabled",
-        "checkboxText": "Enable Attribution API call",
+        "checkboxText": "Enable Attribution API call (in Development)",
         "simpleValueType": true,
         "defaultValue": false,
         "help": "If checked, this Client fires a GET to the Attribution endpoint after the Session step on every aGTM.js request. The response is packaged into <code>cfg.session.attribution</code>; the aGTM library merges it per-method with the current page URL (HYBRID strategy — URL wins for browser-derivable fields, API for cross-session memory like <code>afs</code>/<code>lcs</code>/<code>fss</code>). GTM tags read e.g. <code>aGTM.d.attribution.last_touch.sou</code>. Tenant is reused from the Tenant ID configured above. <b>Sequential before the aGTM.js response</b> — adds the attribution round-trip to library delivery latency. On timeout/error/non-2xx the library falls back to URL-only data."
