@@ -61,7 +61,7 @@
             "blocked": false,
             "complexity": "niedrig",
             "effort": 1,
-            "agentContext": "docs/open-decisions.md OE-2 · README.md §ck · ROADMAP.md Backlog · aGTM.f.gtm_load() in aGTM.js",
+            "agentContext": "docs/open-decisions.md OE-2 (entschieden 2026-06-22) · CHANGELOG.md v1.5 · ck-Sektion aus README + ROADMAP entfernt",
             "links": [],
             "comments": [
               {
