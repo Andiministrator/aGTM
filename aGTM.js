@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 05.05.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 22.06.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -337,8 +337,8 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "consent_store_enc", cfg, false); // Encrypt consent-store POST payload with session_salt
   aGTM.f.an(aGTM.c, "consent_poll_ms", cfg, 2000); // CMP state-change poll interval (ms) after init success; 0 disables polling. Only active when consent_store_url is set (otherwise nothing to push)
   // If session data is pre-populated by the sGTM Client, store it directly.
-  // Accept any object with sid, consent, or attribution.
-  if (cfg.session && typeof cfg.session === 'object' && (cfg.session.sid || cfg.session.consent || cfg.session.attribution)) {
+  // Accept any object with sid, consent, attribution, or source.
+  if (cfg.session && typeof cfg.session === 'object' && (cfg.session.sid || cfg.session.consent || cfg.session.attribution || cfg.session.source)) {
     aGTM.d.session = JSON.parse(aGTM.f.sStrf(cfg.session));
     // If the preset carries a valid consent block, seed aGTM.d.consent + hash
     // so GTM can inject without waiting for the CMP. Validation: must be an
