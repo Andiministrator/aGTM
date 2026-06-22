@@ -17,7 +17,7 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 - New CMPs: JTL Consent, JTL EU Cookie
 - New GTM Variable Templates: Consent Check, Consent Info
 - Build script (`build.sh`) for automated minification and Base64 generation
-- Test suite grown to 134 tests across 13 files (`bun test`)
+- Test suite grown to 179 tests across 15 files (`bun test`)
 
 ## Backlog / To Be Reviewed
 
