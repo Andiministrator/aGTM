@@ -741,7 +741,60 @@ ___TEMPLATE_PARAMETERS___
             "type": "EQUALS"
           }
         ],
-        "help": "Base URL of the Sources API up to and including the path prefix WITHOUT the tenant. The tenant is appended at runtime. Example: <code>https://your-sources-host.example.com/tp/sources/</code> (POSTs go to .../tp/sources/{tenant})."
+        "help": "Base URL of the Sources API up to and including the path prefix WITHOUT the tenant and WITHOUT any query string. The tenant is appended at runtime (and the attribution query, if enabled). Example: <code>https://your-sources-host.example.com/tp/sources</code> &rarr; POST goes to <code>.../tp/sources/{tenant}</code>. Do NOT put the tenant or <code>?attribution=true</code> here — that produces a malformed URL (e.g. <code>.../tp/sources/fcm/?attribution=true/fcm</code>)."
+      },
+      {
+        "type": "CHECKBOX",
+        "name": "sources_attribution",
+        "checkboxText": "Request attribution in Sources response",
+        "simpleValueType": true,
+        "defaultValue": false,
+        "enablingConditions": [
+          {
+            "paramName": "sources_enabled",
+            "paramValue": true,
+            "type": "EQUALS"
+          }
+        ],
+        "help": "If checked, the Sources POST appends <code>?attribution=true&method=&lt;selected&gt;</code> so api4sources returns an <code>attribution</code> object in the same response (no extra round-trip). It is wrapped by method into <code>cfg.session.attribution</code>; the aGTM library merges it per-method with the current page URL (HYBRID strategy — URL wins for browser-derivable fields like utm/click-IDs, API for cross-session memory like <code>afs</code>/<code>lcs</code>/<code>fss</code>). webGTM reads e.g. <code>aGTM.d.attribution.last_touch.sou</code>. Note: the inline attribution reflects the state BEFORE this request (ClickHouse Materialized-View lag) — the HYBRID merge compensates with the fresh URL."
+      },
+      {
+        "type": "SELECT",
+        "name": "sources_method",
+        "displayName": "Attribution method",
+        "macrosInSelect": false,
+        "selectItems": [
+          {
+            "value": "last_touch",
+            "displayValue": "last_touch"
+          },
+          {
+            "value": "first_touch",
+            "displayValue": "first_touch"
+          },
+          {
+            "value": "last_click",
+            "displayValue": "last_click"
+          },
+          {
+            "value": "first_click",
+            "displayValue": "first_click"
+          },
+          {
+            "value": "last_non_direct_click",
+            "displayValue": "last_non_direct_click"
+          }
+        ],
+        "simpleValueType": true,
+        "defaultValue": "last_touch",
+        "enablingConditions": [
+          {
+            "paramName": "sources_attribution",
+            "paramValue": true,
+            "type": "EQUALS"
+          }
+        ],
+        "help": "Attribution method requested from api4sources (POST is single-method). The result lands under this key: <code>aGTM.d.attribution.&lt;method&gt;</code>. Use <code>last_non_direct_click</code> for GA4-style marketing-conversion reporting; <code>last_touch</code> for plain last-source analytics."
       }
     ]
   },
@@ -903,12 +956,18 @@ const CFG = {
   // Sources API: POST after the session step on every aGTM.js request. Tenant
   // is reused from tenantID. Disabled by default. Race-free: the session is
   // already committed in Redis when this fires, so api4sources' user_id ->
-  // session_id lookup hits. Sequential before buildAndSend — the response's
-  // `source` field is captured into sessionData.source so it flows through
-  // cfg.session.source into the library's aGTM.d.session.source (readable in
-  // webGTM via a JS variable). Adds one internal round-trip to /aGTM.js latency.
+  // session_id lookup hits. Sequential before buildAndSend — every non-meta
+  // field of the response is captured into sessionData (e.g. `source`, the
+  // affiliate cookie value by last-cookie-win) so it flows through cfg.session
+  // into aGTM.d.session.* (readable in webGTM via a JS variable). With
+  // sourcesAttribution on, the POST also requests ?attribution=true&method=...
+  // and the returned attribution object is wrapped by method into
+  // sessionData.attribution, feeding the library's resolveAttribution HYBRID
+  // merge (aGTM.d.attribution[method]). Adds one internal round-trip to /aGTM.js.
   sourcesEnabled: data.sources_enabled === true,
   sourcesApiUrl: data.sources_api_url || '',
+  sourcesAttribution: data.sources_attribution === true,
+  sourcesMethod: data.sources_method || 'last_touch',
   // Pre-aGTM Init Code: arbitrary JS prepended verbatim to the /aGTM.js
   // response. Use case: CMP loaders that must define globals before aGTM
   // starts. Must be ES5; no try/catch wrap (silent errors hide bugs).
@@ -1240,17 +1299,27 @@ const writeCookie = function(val, maxAgeSec) {
 // ("Illegal variable reference before declaration"), and at runtime
 // the const TDZ would throw before the function existed anyway.)
 
+// SOURCES_META: api4sources response fields that are POST/transport status,
+// NOT tracking payload. Every OTHER top-level field is passed through to
+// sessionData verbatim (e.g. `source`); `attribution` is handled separately
+// (wrapped by method). Reserved session keys (uid/sid/consent/...) are listed
+// too so a future API field can never clobber the session record.
+const SOURCES_META = {ok: 1, tenant: 1, session_id: 1, ts: 1, skipped: 1, reason: 1, attribution: 1, uid: 1, sid: 1, consent: 1, ret: 1, vct: 1, sst: 1, ga4sid: 1, muidga4: 1};
+
 // ── Helper: fire Sources API POST (sequential before buildAndSend) ───────────
 // Called from afterSession() once the session is committed in Redis. The POST
-// is awaited because its response carries the resolved `source` (e.g.
-// "it_webgains"), captured into sessionData.source so it flows through
-// cfg.session.source into the library's aGTM.d.session.source — readable in
-// webGTM via a JS variable. page_location/referrer come from the ?c= payload
-// sent by the integration code; tenant from CFG; user_id from the session's
-// resolved uid. api4sources looks up the active session_id from Redis (key
-// customer_sessions:{tenant}:{user_id}) — race-free because the Session API
-// write completed before this runs. On timeout/error/non-2xx the field is left
-// unset and the rest proceeds (then() always runs).
+// is awaited because its response carries tracking payload: `source` (the
+// affiliate cookie value, last-cookie-win) and, when sourcesAttribution is on
+// (?attribution=true&method=...), an `attribution` object. Every non-meta field
+// is captured into sessionData so it flows through cfg.session into
+// aGTM.d.session.* — readable in webGTM via a JS variable. attribution is
+// wrapped by method into sessionData.attribution so the library's
+// resolveAttribution() HYBRID merge lights up (aGTM.d.attribution[method]).
+// page_location/referrer come from the ?c= payload; tenant from CFG; user_id
+// from the resolved uid. api4sources looks up the active session_id from Redis
+// (key customer_sessions:{tenant}:{user_id}) — race-free because the Session
+// API write completed before this runs. On timeout/error/non-2xx nothing is
+// captured and the rest proceeds (then() always runs).
 const fireSources = function(sessionData, then) {
   const uid = sessionData && sessionData.uid;
   if (!CFG.sourcesEnabled) { then(); return; }
@@ -1260,7 +1329,11 @@ const fireSources = function(sessionData, then) {
     return;
   }
   const sep = CFG.sourcesApiUrl.charAt(CFG.sourcesApiUrl.length - 1) === '/' ? '' : '/';
-  const url = CFG.sourcesApiUrl + sep + CFG.tenantID;
+  // Tenant is appended at runtime (field holds the bare base URL, WITHOUT tenant
+  // or query). The attribution query, when enabled, goes AFTER the tenant so the
+  // path stays /tp/sources/{tenant}?attribution=true&method=... per api4sources.
+  let url = CFG.sourcesApiUrl + sep + CFG.tenantID;
+  if (CFG.sourcesAttribution) url = url + '?attribution=true&method=' + CFG.sourcesMethod;
   const body = JSON.stringify({
     user_id: uid,
     page_location: pageUrl,
@@ -1271,11 +1344,21 @@ const fireSources = function(sessionData, then) {
   sendHttpRequest(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 1500}, body).then(function(res) {
     if (res.statusCode >= 200 && res.statusCode < 300 && res.body) {
       const parsed = JSON.parse(res.body);
-      if (parsed && typeof parsed.source === 'string' && parsed.source) {
-        sessionData.source = parsed.source;
-        if (CFG.debug) logToConsole('debug', '✓ Sources response', {status: res.statusCode, source: parsed.source});
+      if (parsed && typeof parsed === 'object') {
+        // Pass through every non-meta top-level field verbatim. JSON.parse output
+        // has only own enumerable keys, so no hasOwnProperty guard is needed.
+        for (const k in parsed) {
+          if (!SOURCES_META[k]) sessionData[k] = parsed[k];
+        }
+        // attribution: wrap the flat object under the requested method key so the
+        // library expects aGTM.d.session.attribution keyed by method.
+        if (parsed.attribution && typeof parsed.attribution === 'object') {
+          sessionData.attribution = {};
+          sessionData.attribution[CFG.sourcesMethod || 'last_touch'] = parsed.attribution;
+        }
+        if (CFG.debug) logToConsole('debug', '✓ Sources response', {status: res.statusCode, source: parsed.source, attribution: !!parsed.attribution});
       } else if (CFG.debug) {
-        logToConsole('debug', '✗ Sources response missing source field', res.body);
+        logToConsole('debug', '✗ Sources response not an object', res.body);
       }
     } else if (CFG.debug) {
       logToConsole('debug', '✗ Sources non-2xx', {status: res.statusCode, body: res.body});

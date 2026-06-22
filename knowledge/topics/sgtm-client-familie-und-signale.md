@@ -80,13 +80,24 @@ Custom-Template nötig. Das Preset-Gate (Client + Library) akzeptiert eine
 Session, die nur `source` trägt, damit der Wert auch bei degradierter
 Session-API-Antwort (kein `sid`/`consent`) überlebt.
 
-**Attribution-GET client-seitig entfernt (2026-06-22).** Die extern eingebaute
-Attribution-API-Abfrage (`fireAttribution` + Template-Felder
-`attribution_enabled`/`attribution_api_url`/`attribution_methods`) war
-end-to-end tot (api4sources liefert `404` für den Read-Endpoint) und wurde
-ausgebaut. Der **Library-seitige** Code (`resolveAttribution`, HYBRID-Merge,
-`aGTM.d.attribution`) bleibt **dormant** stehen — harmlos ohne
-`cfg.session.attribution`, Reaktivierung = reiner Client-Re-Add.
+**Alle nicht-Meta-Felder** der Response werden übernommen (nicht nur `source`):
+ein Blacklist-Loop (`SOURCES_META` = `ok/tenant/session_id/ts/skipped/reason`
++ reservierte Session-Keys `uid/sid/consent/…`) kopiert jedes übrige Top-Level-
+Feld nach `sessionData`. `source` ist der **Affiliate-Cookie-Wert nach
+Last-Cookie-Win**.
+
+**Attribution: vom separaten GET auf den Sources-POST umgebaut (2026-06-22).**
+Der extern eingebaute Attribution-**GET** (`fireAttribution`) war end-to-end tot
+— er baute `…/tp/sources/…?methods=` statt den `…/tp/attribution/…`-Endpoint und
+lieferte 404. Ersatz: `POST /tp/sources/{tenant}?attribution=true&method=<…>`
+liefert das `attribution`-Objekt in **derselben** Response (api4sources-Contract).
+Der Client wrappt es methoden-keyed nach `cfg.session.attribution` → der
+**unveränderte** Library-Code (`resolveAttribution`, HYBRID-Merge,
+`aGTM.d.attribution`) wird damit wieder aktiv. Schaltbar per Checkbox
+`sources_attribution`, Methode per SELECT `sources_method`. **URL-Falle:**
+`sources_api_url` ist die bare Base **ohne** Tenant/Query — Tenant + Query hängt
+der Client an; Tenant/`?attribution=true` ins Feld zu schreiben erzeugt
+`…/tp/sources/fcm/?attribution=true/fcm` (doppelter Tenant, 404).
 
 GTM/GTAG/GA-Clients machen von Sources/Attribution nichts. SPA-Virtual-Pageviews
 mitten in der Session werden nicht erfasst (offen, OE-1).
