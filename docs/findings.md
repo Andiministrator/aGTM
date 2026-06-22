@@ -26,4 +26,5 @@ veraltet, externe API-Spec gedriftet) ·
 
 | ID | Typ | Prio | Beschreibung | Status | Bezug |
 |----|-----|------|--------------|--------|-------|
-| | | | | | |
+| F-01 | [S] | P2 | `sources_method` wird im Client-Code nicht gegen die 5-Methoden-Whitelist validiert. SELECT erzwingt es im UI; nur alte/überschriebene Config könnte einen Fremdwert tragen → Attribution läge unter falschem Key, Tag liest leeres Objekt. | akzeptiert (2026-06-22) | sgtmClient/src `fireSources`; Kritiker-Review |
+| F-02 | [S] | P2 | Leeres `attribution {}` aus der Sources-API erzeugt einen toten `aGTM.d.attribution[method]`-Eintrag (fail-soft, kein Defekt, nur Rauschen). Optionales Gating auf nicht-leeres Objekt. | akzeptiert (2026-06-22) | sgtmClient/src `fireSources`; Kritiker-Review |
