@@ -70,11 +70,26 @@ Schlüsseldetails:
 
 ## Sources / Attribution
 
-Server-seitig, **nur** im aGTM-Client: fire-and-forget-POST an die Sources-API
-nach dem Session-Schritt; Attribution-GET (HYBRID-Merge: URL gewinnt für
-browser-ableitbare Felder, API für Cross-Session-Memory). GTM/GTAG/GA-Clients
-machen davon nichts. SPA-Virtual-Pageviews mitten in der Session werden nicht
-erfasst (offen, OE-1).
+Server-seitig, **nur** im aGTM-Client: POST an die Sources-API nach dem
+Session-Schritt. Der POST ist seit 2026-06-22 **sequentiell vor `buildAndSend`**
+(vorher fire-and-forget), weil aus der Response das Feld `source` (z. B.
+`it_webgains`) gelesen und in `sessionData.source` übernommen wird. Es fließt
+über `cfg.session.source` in `aGTM.d.session.source` und ist im webGTM per
+schlichter JS-Variable (Pfad `aGTM.d.session.source`) abfragbar — kein
+Custom-Template nötig. Das Preset-Gate (Client + Library) akzeptiert eine
+Session, die nur `source` trägt, damit der Wert auch bei degradierter
+Session-API-Antwort (kein `sid`/`consent`) überlebt.
+
+**Attribution-GET client-seitig entfernt (2026-06-22).** Die extern eingebaute
+Attribution-API-Abfrage (`fireAttribution` + Template-Felder
+`attribution_enabled`/`attribution_api_url`/`attribution_methods`) war
+end-to-end tot (api4sources liefert `404` für den Read-Endpoint) und wurde
+ausgebaut. Der **Library-seitige** Code (`resolveAttribution`, HYBRID-Merge,
+`aGTM.d.attribution`) bleibt **dormant** stehen — harmlos ohne
+`cfg.session.attribution`, Reaktivierung = reiner Client-Re-Add.
+
+GTM/GTAG/GA-Clients machen von Sources/Attribution nichts. SPA-Virtual-Pageviews
+mitten in der Session werden nicht erfasst (offen, OE-1).
 
 ## Querverweise
 - Code/Architektur: `CLAUDE.md` (§Session Feature, §Sources API), `SESSION-REDESIGN.md`.

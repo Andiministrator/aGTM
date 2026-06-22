@@ -171,8 +171,8 @@ The path from `aGTM.f.init()` to the GTM `<script>` tag being inserted into the 
 ```
 aGTM.f.config(cfg)             — applied at integrator startup, BEFORE init()
   │
-  ├─ [cfg.session is an object with sid, consent, OR attribution]
-  │    └─ aGTM.d.session = deep-copy of cfg.session
+  ├─ [cfg.session is an object with sid, consent, attribution, OR source]
+  │    └─ aGTM.d.session = deep-copy of cfg.session (carries source through)
   │       ├─ [cfg.session.consent is a valid object: hasResponse===true,
   │       │   typeof services==='string']
   │       │    → aGTM.d.consent = deep-copy of cfg.session.consent
@@ -341,11 +341,11 @@ aGTM.f.inject()
 | `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When the library is served by the sGTM Client, the URL is built **browser-side** at config time from `document.currentScript.src` (the URL the browser actually fetched aGTM.js from) + fixed path `/aGTMconsent` — works under any reverse-proxy prefix without server-side knowledge. Standalone integrators set this manually. Empty string disables the feature. |
 | `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is encrypted with `session_salt` |
 | `consent_poll_ms` | number | `2000` | Interval (ms) for the periodic CMP state-change poll started after a successful init. Set to `0` to disable. Only takes effect when `consent_store_url` is set (without it, polling has nothing to push). Catches CMPs that emit updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) — i.e. without going through `aGTM.f.fire()` — so the diff/POST mechanism still triggers. |
-| `session` | object | `null` | Pre-populated session object from sGTM Client; accepted when it is an object containing a `sid` **or** a `consent` field |
+| `session` | object | `null` | Pre-populated session object from sGTM Client; accepted when it is an object containing a `sid`, `consent`, `attribution`, **or** `source` field |
 
 **Removed (gone, no migration code, v1.5 unreleased):** Config: `session_url`, `session_wait`, `session_timeout`, `session_gtm_on_deny`, `session_consent_url`, `session_deny_service`. Functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.f.xfetch`. Data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 
-**Preset gate** (in `aGTM.f.config()`): if `cfg.session` is an object with `sid`, `consent`, or `attribution`, it is deep-copied into `aGTM.d.session`. Then:
+**Preset gate** (in `aGTM.f.config()`): if `cfg.session` is an object with `sid`, `consent`, `attribution`, or `source`, it is deep-copied into `aGTM.d.session` (so any extra field such as `source` is carried through verbatim). Then:
 - If `cfg.session.consent` is a valid object (`hasResponse === true`, `typeof services === 'string'`), it is deep-copied into `aGTM.d.consent`, `aGTM.d.consent_hash` is seeded via `consent_serialize`, `session_status = 'preset_with_consent'`. At end of `config()`, `aGTM.f.call_cc()` is called synchronously so GTM injects on this tick — without waiting for the 500 ms `consent_listener` poll.
 - Otherwise `session_status = 'preset'` and the CMP path proceeds normally.
 
@@ -375,14 +375,16 @@ aGTM.f.inject()
 
 ### Sources API integration (sGTM Client only)
 
-Server-side fire-and-forget POST to a Sources API (`api4sources`) on every aGTM.js request. **The aGTM library itself is not involved** — this is purely a sGTM Client feature.
+Server-side POST to a Sources API (`api4sources`) on every aGTM.js request. The POST is the Client's; the **response** flows into the library: the resolved `source` is captured into `cfg.session.source`, which the library deep-copies into `aGTM.d.session.source` so webGTM can read it via a plain JS variable.
 
 - After the Session API step completes (so the session is committed in the shared Redis), the Client POSTs `{user_id, page_location, referrer, timestamp}` to `{sources_api_url}/{tenant}`.
 - `page_location` and `referrer` come from the integration code's `?c=` base64 payload; `user_id` is the resolved session uid; tenant is reused from the existing `tenant_id` config.
 - Race-free with api4sources' Redis lookup (`customer_sessions:{tenant}:{user_id}`) — the Session API write happened first within the same Client request.
-- Fire-and-forget: the POST runs in parallel with `buildAndSend` so aGTM.js delivery is not delayed. The chained `.then()` keeps the request alive in the sandbox.
+- **Sequential before `buildAndSend`** (changed from fire-and-forget): the POST is awaited because its response body carries the resolved `source` (e.g. `"it_webgains"`). On 2xx with a non-empty string `source`, the Client sets `sessionData.source`; it then flows through `cfg.session.source` into `aGTM.d.session.source`. On timeout/error/non-2xx the field is left unset and delivery proceeds. Adds one internal round-trip to /aGTM.js latency.
+- **webGTM read path:** a standard GTM "JavaScript Variable" with path `aGTM.d.session.source`. No custom template needed. The preset gate (Client + library) accepts a session object carrying only `source`, so the value survives even a degraded Session API response (no `sid`/`consent`).
 - Template options (sGTM Client): `sources_enabled` (boolean, default false), `sources_api_url` (text). Tenant reused from `tenant_id`.
 - API specs (api4sources + api4sgtm) + integration guide + combined smoketest live in `internal/api/` (gitignored). Smoketest steps 5-8 cover sources POST contract; 9-10 + 15 cover read/attribution; 16-18 cover sources edge cases; 19-20 cover api4sgtm session promote; 21 covers content-store hash roundtrip. All steps run in one HTTP request; output is a slim HTML overview by default and `?format=json` for the full report.
+- **Attribution GET removed (client-side, 2026-06-22):** the externally-added Attribution API call (`fireAttribution` + template fields `attribution_enabled`/`attribution_api_url`/`attribution_methods`) was end-to-end non-functional (404 from api4sources) and is removed from the Client. The **library-side** attribution machinery (`aGTM.f.resolveAttribution`, the HYBRID merge in `config()`, `aGTM.d.attribution`) is left **dormant** — harmless without a `cfg.session.attribution` payload, and re-enabling is a pure Client-side re-add. Not a v1.5 release blocker.
 - Tradeoff: SPA virtual pageviews mid-session are not captured. Acceptable because attribution cares about session source, not in-session navigation; and api4sources dedups on source fingerprint anyway. SPA-source capture is a v1.6+ topic (would need a `/aGTMsources` browser proxy path).
 
 ---

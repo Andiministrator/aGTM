@@ -61,25 +61,15 @@ const CFG = {
   // the Client constructs a denial-consent block. autoDenyLoadGtm controls
   // whether GTM is allowed to load under that denial. Default true.
   autoDenyLoadGtm: data.auto_deny_load_gtm !== false,
-  // Sources API: optional fire-and-forget POST after the session step on every
-  // aGTM.js request. Tenant is reused from tenantID. Disabled by default.
-  // Race-free: the session is already committed in Redis when this fires, so
-  // api4sources' user_id -> session_id lookup hits.
+  // Sources API: POST after the session step on every aGTM.js request. Tenant
+  // is reused from tenantID. Disabled by default. Race-free: the session is
+  // already committed in Redis when this fires, so api4sources' user_id ->
+  // session_id lookup hits. Sequential before buildAndSend — the response's
+  // `source` field is captured into sessionData.source so it flows through
+  // cfg.session.source into the library's aGTM.d.session.source (readable in
+  // webGTM via a JS variable). Adds one internal round-trip to /aGTM.js latency.
   sourcesEnabled: data.sources_enabled === true,
   sourcesApiUrl: data.sources_api_url || '',
-  // Attribution API: optional GET after the session step on every aGTM.js
-  // request. Reads previously-stored attribution for this user from
-  // api4sources, packages the response into cfg.session.attribution which
-  // the library merges per-method with the current URL (HYBRID strategy —
-  // see internal/api/integration-guide.md §7). Multi-method endpoint is
-  // always used; single method is a special case with one entry. Disabled
-  // by default. Sequential before buildAndSend — adds the attribution
-  // round-trip to /aGTM.js latency. On timeout/error/non-2xx the field is
-  // left unset and the library falls back to URL-only data (HYBRID is
-  // robust to empty API data).
-  attributionEnabled: data.attribution_enabled === true,
-  attributionApiUrl: data.attribution_api_url || '',
-  attributionMethods: data.attribution_methods || 'last_touch',
   // Pre-aGTM Init Code: arbitrary JS prepended verbatim to the /aGTM.js
   // response. Use case: CMP loaders that must define globals before aGTM
   // starts. Must be ES5; no try/catch wrap (silent errors hide bugs).
@@ -411,19 +401,23 @@ const writeCookie = function(val, maxAgeSec) {
 // ("Illegal variable reference before declaration"), and at runtime
 // the const TDZ would throw before the function existed anyway.)
 
-// ── Helper: fire Sources API POST (fire-and-forget) ──────────────────────────
+// ── Helper: fire Sources API POST (sequential before buildAndSend) ───────────
 // Called from afterSession() once the session is committed in Redis. The POST
-// is not awaited — buildAndSend() runs in parallel so aGTM.js delivery is not
-// delayed. The chained .then() keeps the request alive in the sandbox until
-// it completes (or times out). page_location/referrer come from the ?c=
-// payload sent by the integration code; tenant from CFG; user_id from the
-// session's resolved uid. api4sources looks up the active session_id from
-// Redis (key customer_sessions:{tenant}:{user_id}) — race-free because the
-// Session API write completed before this runs.
-const fireSources = function(uid) {
-  if (!CFG.sourcesEnabled) return;
+// is awaited because its response carries the resolved `source` (e.g.
+// "it_webgains"), captured into sessionData.source so it flows through
+// cfg.session.source into the library's aGTM.d.session.source — readable in
+// webGTM via a JS variable. page_location/referrer come from the ?c= payload
+// sent by the integration code; tenant from CFG; user_id from the session's
+// resolved uid. api4sources looks up the active session_id from Redis (key
+// customer_sessions:{tenant}:{user_id}) — race-free because the Session API
+// write completed before this runs. On timeout/error/non-2xx the field is left
+// unset and the rest proceeds (then() always runs).
+const fireSources = function(sessionData, then) {
+  const uid = sessionData && sessionData.uid;
+  if (!CFG.sourcesEnabled) { then(); return; }
   if (!CFG.sourcesApiUrl || !CFG.tenantID || !uid || !pageUrl) {
     if (CFG.debug) logToConsole('debug', '✗ Sources skipped', {enabled: CFG.sourcesEnabled, url: !!CFG.sourcesApiUrl, tenant: !!CFG.tenantID, uid: !!uid, pageUrl: !!pageUrl});
+    then();
     return;
   }
   const sep = CFG.sourcesApiUrl.charAt(CFG.sourcesApiUrl.length - 1) === '/' ? '' : '/';
@@ -436,48 +430,20 @@ const fireSources = function(uid) {
   });
   if (CFG.debug) logToConsole('debug', '→ Sources POST', {url: url, body: body});
   sendHttpRequest(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 1500}, body).then(function(res) {
-    if (CFG.debug) logToConsole('debug', '✓ Sources response', {status: res.statusCode, body: res.body});
-  }, function(e) {
-    logToConsole('error', '✗ Sources error', e);
-  });
-};
-
-// ── Helper: fire Attribution GET (sequential before buildAndSend) ────────────
-// Called from afterSession() once the session is committed in Redis. Unlike
-// fireSources (fire-and-forget), this MUST complete before buildAndSend
-// because its response is embedded into cfg.session.attribution. The library
-// reads the keyed-by-method object via aGTM.f.resolveAttribution(method).
-// Multi-method endpoint is always used (?methods=a,b,c) — single method is
-// just a special case with one entry, so the browser-side keyed shape stays
-// consistent for all integrators. On timeout/error/non-2xx the field is left
-// unset; the library's HYBRID merge is robust to empty API data.
-const fireAttribution = function(sessionData, then) {
-  if (!CFG.attributionEnabled) { then(); return; }
-  const aUid = sessionData && sessionData.uid;
-  if (!CFG.attributionApiUrl || !CFG.tenantID || !aUid) {
-    if (CFG.debug) logToConsole('debug', '✗ Attribution skipped', {enabled: CFG.attributionEnabled, url: !!CFG.attributionApiUrl, tenant: !!CFG.tenantID, uid: !!aUid});
-    then();
-    return;
-  }
-  const aSep = CFG.attributionApiUrl.charAt(CFG.attributionApiUrl.length - 1) === '/' ? '' : '/';
-  const aMethods = CFG.attributionMethods || 'last_touch';
-  const aUrl = CFG.attributionApiUrl + aSep + CFG.tenantID + '/' + aUid + '?methods=' + aMethods;
-  if (CFG.debug) logToConsole('debug', '→ Attribution GET', aUrl);
-  sendHttpGet(aUrl, {timeout: 1500}).then(function(res) {
     if (res.statusCode >= 200 && res.statusCode < 300 && res.body) {
       const parsed = JSON.parse(res.body);
-      if (parsed && typeof parsed.attribution === 'object' && parsed.attribution !== null) {
-        sessionData.attribution = parsed.attribution;
-        if (CFG.debug) logToConsole('debug', '✓ Attribution received', parsed.attribution);
+      if (parsed && typeof parsed.source === 'string' && parsed.source) {
+        sessionData.source = parsed.source;
+        if (CFG.debug) logToConsole('debug', '✓ Sources response', {status: res.statusCode, source: parsed.source});
       } else if (CFG.debug) {
-        logToConsole('debug', '✗ Attribution response missing attribution field', res.body);
+        logToConsole('debug', '✗ Sources response missing source field', res.body);
       }
     } else if (CFG.debug) {
-      logToConsole('debug', '✗ Attribution non-2xx', {status: res.statusCode, body: res.body});
+      logToConsole('debug', '✗ Sources non-2xx', {status: res.statusCode, body: res.body});
     }
     then();
   }, function(e) {
-    logToConsole('error', '✗ Attribution error', e);
+    logToConsole('error', '✗ Sources error', e);
     then();
   });
 };
@@ -563,14 +529,12 @@ const afterBotCheck = function(isBot) {
       }
 
       if (CFG.debug) logToConsole('debug', '✓ Session', sessionData);
-      // Fire-and-forget Sources API POST. Runs in parallel with the rest so
-      // aGTM.js delivery is not blocked. Session is already committed in Redis
-      // at this point — no race against api4sources' session lookup.
-      fireSources(sessionData.uid);
-      // Sequential Attribution GET. Result is embedded into cfg.session.attribution
-      // so it must complete before buildAndSend. No-op when attribution_enabled
-      // is false, in which case buildAndSend runs on this tick.
-      fireAttribution(sessionData, function() { buildAndSend(sessionData); });
+      // Sequential Sources API POST. Its response carries `source`, captured
+      // into sessionData.source before buildAndSend so it flows into
+      // cfg.session.source. No-op (then() runs on this tick) when sources_enabled
+      // is false. Session is already committed in Redis — no race against
+      // api4sources' session lookup.
+      fireSources(sessionData, function() { buildAndSend(sessionData); });
     };
 
     if (shouldLazyPromote) {
@@ -689,8 +653,9 @@ const buildAndSend = function(sessionData) {
   if (data.debug) c.debug = true;
   // Session (pre-populated by sGTM Client; aGTM consumes via cfg.session).
   // aGTM's preset gate requires sid OR a valid consent block OR an attribution
-  // object — uid alone is ignored, so we don't bother emitting in that case.
-  if (sessionData && (sessionData.sid || sessionData.consent || sessionData.attribution)) {
+  // object OR a source string — uid alone is ignored, so we don't bother
+  // emitting in that case.
+  if (sessionData && (sessionData.sid || sessionData.consent || sessionData.attribution || sessionData.source)) {
     c.session = sessionData;
   } else if (CFG.debug) {
     logToConsole('debug', '✗ session: nothing to pass through', sessionData);
