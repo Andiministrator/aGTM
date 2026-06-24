@@ -151,6 +151,13 @@ ___TEMPLATE_PARAMETERS___
     "groupStyle": "ZIPPY_OPEN_ON_PARAM",
     "subParams": [
       {
+        "type": "CHECKBOX",
+        "name": "debug",
+        "checkboxText": "Enable debug logging",
+        "simpleValueType": true,
+        "help": "Logs every decision to the browser console (prefix 'aGTM DL Repeat:') - the config, the source events with their flags, the gate result, a PASS/SKIP line with the reason per event, and a final summary. Turn off in production."
+      },
+      {
         "type": "TEXT",
         "name": "maxEvents",
         "displayName": "Maximum Number of Events to repeat",
@@ -234,6 +241,8 @@ o.c.gateEvents = typeof data.gateEvents=='string' ? data.gateEvents : '';
 o.c.fallbackTimeout = (typeof data.fallbackTimeout=='string' || typeof data.fallbackTimeout=='number') ? callInWindow('aGTM.f.rReplace', ''+data.fallbackTimeout, '[^0-9]', '') : '';
 o.c.fallbackTimeout = o.c.fallbackTimeout ? o.c.fallbackTimeout * 1 : 0;
 o.c.clearEcom = typeof data.clearEcom=='boolean' ? data.clearEcom : false;
+o.c.debug = typeof data.debug=='boolean' ? data.debug : false;
+if (o.c.debug) log('info', 'aGTM DL Repeat: START - config =', JSON.parse(JSON.stringify(o.c)));
 
 /**
  * Define function to fire events
@@ -285,26 +294,28 @@ o.f.evMatch = o.f.evMatch || function (list, evname) {
  * @returns {boolean} true if the event should be fired
  */
 o.f.passes = o.f.passes || function (ev) {
-  if (typeof ev!='object' || !ev) return false;
-  // Loop protection (fixes B5 / R5): never repeat an already-repeated event
-  if (ev.aGTMrepeated === true) return false;
-  // Send types. aGTMdl===true marks raw GTM dataLayer items captured at init;
+  // Determine a skip reason (so debug logging can explain every decision).
+  // Send types: aGTMdl===true marks raw GTM dataLayer items captured at init;
   // events fired through aGTM.f.fire carry no aGTMdl. Matched to the checkbox
   // labels (fixes F-10 inversion): gtmFired -> "Send Events of GTM dataLayer"
   // (aGTMdl===true), agtmFired -> "...via aGTM.f.fire" (no aGTMdl).
-  if (ev.aGTMdl === true) { if (!o.c.gtmFired) return false; }
-  else if (!o.c.agtmFired) return false;
-  // Skip aGTM control events (aGTM_ready, aGTM_consent_update, the fallback signal)
-  if (typeof ev.event=='string' && ev.event.indexOf('aGTM')===0) return false;
-  // Skip GTM "untagged page" report messages
-  if (typeof ev.event!='string' && typeof ev.type=='string' && typeof ev.flags=='object' && typeof ev.flags.enableUntaggedPageReporting=='boolean' && ev.flags.enableUntaggedPageReporting) return false;
-  // Skip internal gtm.* events unless explicitly enabled
-  if (!o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) return false;
-  // Whitelist / blacklist (fixes B3: global wildcard + trimmed entries)
-  if (o.c.whitelist && typeof ev.event=='string' && !o.f.evMatch(o.c.whitelist, ev.event)) return false;
-  if (o.c.blacklist && typeof ev.event=='string' && o.f.evMatch(o.c.blacklist, ev.event)) return false;
-  // DL message (event without a name)
-  if (!o.c.messages && typeof ev.event!='string') return false;
+  var reason = '';
+  if (typeof ev!='object' || !ev) reason = 'not an object';
+  else if (ev.aGTMrepeated === true) reason = 'already repeated (loop protection)';
+  else if (ev.aGTMdl === true && !o.c.gtmFired) reason = 'gtmFired is off (event has aGTMdl=true)';
+  else if (ev.aGTMdl !== true && !o.c.agtmFired) reason = 'agtmFired is off (event has no aGTMdl)';
+  else if (typeof ev.event=='string' && ev.event.indexOf('aGTM')===0) reason = 'aGTM control event';
+  else if (typeof ev.event!='string' && typeof ev.type=='string' && typeof ev.flags=='object' && typeof ev.flags.enableUntaggedPageReporting=='boolean' && ev.flags.enableUntaggedPageReporting) reason = 'GTM untagged-page report';
+  else if (!o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) reason = 'internal gtm.* event';
+  else if (o.c.whitelist && typeof ev.event=='string' && !o.f.evMatch(o.c.whitelist, ev.event)) reason = 'not in whitelist';
+  else if (o.c.blacklist && typeof ev.event=='string' && o.f.evMatch(o.c.blacklist, ev.event)) reason = 'in blacklist';
+  else if (!o.c.messages && typeof ev.event!='string') reason = 'dataLayer message (no event name)';
+  var name = (ev && typeof ev.event=='string') ? ev.event : '(no event)';
+  if (reason) {
+    if (o.c.debug) log('info', 'aGTM DL Repeat: SKIP "'+name+'" - '+reason);
+    return false;
+  }
+  if (o.c.debug) log('info', 'aGTM DL Repeat: PASS "'+name+'" - will repeat');
   return true;
 };
 
@@ -414,7 +425,14 @@ if (o.c.source == 'live') {
   srcLabel = 'aGTM.d.dl';
 }
 if (typeof srcArr!='object' || typeof srcArr.length!='number') srcArr = [];
-if (o.c.debug) log('info','LOG ('+srcLabel+')',JSON.parse(JSON.stringify(srcArr)));
+if (o.c.debug) {
+  var dbgNames = [];
+  for (var dn=0; dn<srcArr.length; dn++) {
+    var de = srcArr[dn];
+    dbgNames.push(dn + ':' + (de && typeof de.event=='string' ? de.event : '(no event)') + (de && de.aGTMdl===true ? '[aGTMdl]' : '') + (de && de.aGTMrepeated===true ? '[repeated]' : ''));
+  }
+  log('info', 'aGTM DL Repeat: source=' + srcLabel + ' count=' + srcArr.length + ' events=[' + dbgNames.join(', ') + ']');
+}
 
 // Config guard (P1-1): an empty gate counts as 'ready', so the replay runs on
 // the FIRST trigger. With a fallback timeout the tag is meant to be triggered
@@ -433,7 +451,9 @@ for (var fi=0; fi<srcArr.length; fi++) {
 
 // Gate check (R2): run only once the configured gate event(s) are present, or
 // once the fallback timeout has fired (then unenriched, R4).
-if (!fallbackFired && !o.f.gateReady(o.c.gateEvents, srcArr)) {
+var gateOk = o.f.gateReady(o.c.gateEvents, srcArr);
+if (o.c.debug) log('info', 'aGTM DL Repeat: gateEvents="' + o.c.gateEvents + '" gateReady=' + gateOk + ' fallbackFired=' + fallbackFired);
+if (!fallbackFired && !gateOk) {
   // Gate not ready. Schedule the fallback timer once (R4) so guests without
   // the gate event still get one (unenriched) replay. aGTM.f.timer with no
   // function fires the given event via aGTM.f.timerfkt after the timeout; the
@@ -473,6 +493,7 @@ for (var d=0; d<srcArr.length; d++) {
 // Persist the watermark so a later run (e.g. fallback after a gate run) does
 // not repeat the same source events again.
 if (maxIdx > fromIdx) setInWindow(wmKey, maxIdx, true);
+if (o.c.debug) log('info', 'aGTM DL Repeat: DONE - repeated ' + o.d.count + ' event(s); watermark ' + fromIdx + ' -> ' + maxIdx + ' (key ' + wmKey + ')');
 
 // Call data.gtmOnSuccess when the tag is finished.
 data.gtmOnSuccess();
@@ -1165,7 +1186,10 @@ Requires an aGTM integration of the GTM.
   dataLayer.push events (e.g. from a Shopware plugin that cannot call
   aGTM.f.fire) can be replayed too - aGTM.d.dl only ever contains events that
   went through aGTM.f.fire. Late-enrichment now works for shops that push the
-  enrichment/commerce events straight to the dataLayer.
+  enrichment/commerce events straight to the dataLayer. Also adds an "Enable
+  debug logging" checkbox (o.c.debug was never wired before, so all debug logs
+  were dead) that traces config, source events, gate result and a per-event
+  PASS/SKIP reason to the console.
 - 1.3 (24.06.2026): Late-Enrichment feature. New "Replay source" option to
   replay the post-load event log (aGTM.d.dl), not just the pre-load buffer
   (aGTM.d.f). Optional gate event(s), fallback timeout (re-trigger on
