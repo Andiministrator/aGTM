@@ -4,7 +4,7 @@
 
 The **aGTM DL Repeat Template** is designed to repeat events that were sent before Google Tag Manager (GTM) was fully loaded or before the `aGTMready` event was fired in the `dataLayer`. This template is especially useful for capturing events that occurred before the user's consent was given or before GTM was fully initialized.
 
-- **Version**: 1.3
+- **Version**: 1.4
 - **Last Updated**: 24.06.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
@@ -77,7 +77,7 @@ After importing the template, follow these steps to configure it:
 
 | Parameter            | Description                                                                                              | Example            |
 |----------------------|----------------------------------------------------------------------------------------------------------|--------------------|
-| **source**           | Replay source. `aGTM.d.f` (default) = pre-consent / pre-load buffer (original behaviour). `aGTM.d.dl` = post-load event log (late enrichment). | `aGTM.d.dl`        |
+| **source**           | Replay source. `aGTM.d.f` (default) = pre-consent / pre-load buffer (original behaviour). `aGTM.d.dl` = aGTM's post-load log (only events sent via `aGTM.f.fire`). **Live GTM dataLayer** = the real `dataLayer`, covers raw `dataLayer.push` events too — the right choice for most shops. | `Live GTM dataLayer` |
 | **gateEvents**       | *(dl only)* The replay runs only once all listed events are present in the log (comma-separated, AND-joined). **Required** when the tag triggers on more than the enrichment event (e.g. with a fallback). Blank only if triggering solely on the enrichment event. | `user_data`        |
 | **fallbackTimeout**  | *(dl only)* If the gate event has not arrived within this many ms, replay runs once anyway (unenriched). `0`/empty disables. Requires the trigger to also fire on `aGTM_repeat_fallback`. | `1500`             |
 | **clearEcom**        | *(dl only)* Push `ecommerce: null` before each repeated event that carries an `ecommerce` object, to avoid bleed (GA4 recommendation). | Unchecked          |
@@ -104,10 +104,26 @@ dataLayer.push({ event: "user_data", sha256_email: "…", sha256_phone: "…" })
 By then `view_item`, `view_cart`, `purchase` have already fired, so tags that
 need those hashes (Enhanced Conversions, Criteo, …) fired **without** them.
 
-With **source = `aGTM.d.dl`** this tag re-fires the earlier post-load events
-once, marked `aGTMrepeated = true`, so the consumer tags fire again — now with
-the late data available. It is storage-free (RAM only); the source is aGTM's
-in-memory post-load event log `aGTM.d.dl`.
+With a post-load **Replay source** this tag re-fires the earlier events once,
+marked `aGTMrepeated = true`, so the consumer tags fire again — now with the
+late data available. Storage-free (RAM only).
+
+### Pick the right source
+
+Critical: **`aGTM.d.dl` contains only events that went through `aGTM.f.fire`.**
+Raw `dataLayer.push({...})` events — which is all most shop plugins (e.g.
+Shopware) can do — never enter `aGTM.d.dl`. Check what is actually available in
+GTM Preview:
+
+```js
+aGTM.d.dl.map(function(e){return e.event})   // only aGTM.f.fire events
+dataLayer.map(function(e){return e.event})    // everything, incl. raw pushes
+```
+
+- If your `view_cart` / `purchase` / `user_data` show up in `aGTM.d.dl` → use
+  **`aGTM.d.dl`**.
+- If they only show up in the **live dataLayer** (the normal case for Shopware
+  & co. that just `dataLayer.push`) → use **Live GTM dataLayer**.
 
 ### Setup — recommended recipe (enrichment + guest fallback)
 
@@ -116,7 +132,8 @@ for logged-in users, unenriched (but on time) for guests — so consumer tags ca
 trigger purely on `aGTMrepeated = true`.
 
 1. **This tag**
-   - *Replay source* = `aGTM.d.dl`.
+   - *Replay source* = **Live GTM dataLayer** (use `aGTM.d.dl` only if your
+     events are dispatched through `aGTM.f.fire`).
    - *Gate event(s)* = the enrichment event, e.g. `user_data`. **This is
      required for this recipe** (see the warning below).
    - *Fallback timeout* = e.g. `1500`.

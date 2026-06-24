@@ -88,12 +88,16 @@ ___TEMPLATE_PARAMETERS___
           },
           {
             "value": "dl",
-            "displayValue": "Post-load event log (aGTM.d.dl) - late enrichment"
+            "displayValue": "Post-load event log (aGTM.d.dl) - aGTM.f.fire events only"
+          },
+          {
+            "value": "live",
+            "displayValue": "Live GTM dataLayer (window.dataLayer) - covers raw dataLayer.push"
           }
         ],
         "simpleValueType": true,
         "defaultValue": "f",
-        "help": "Which buffer to replay from.<br /><br />'aGTM.d.f' (default) replays events that were fired BEFORE GTM/consent was ready - the original behaviour.<br /><br />'aGTM.d.dl' replays events that were fired AFTER load (the post-load event log). Use this for late enrichment: when an event such as 'user_data' arrives after 'view_cart'/'purchase' have already fired, trigger this tag on that late event to repeat the earlier ones with full data. Repeated events are marked 'aGTMrepeated = true' - trigger consumer tags on that and exclude the original pass."
+        "help": "Which source to replay from.<br /><br /><b>aGTM.d.f</b> (default) replays events fired BEFORE GTM/consent was ready - the original behaviour.<br /><br /><b>aGTM.d.dl</b> replays aGTM's post-load event log - but only events dispatched through aGTM.f.fire are in there (NOT raw dataLayer.push).<br /><br /><b>Live GTM dataLayer</b> replays the real dataLayer, so raw dataLayer.push events are covered too (e.g. a Shopware plugin that can only push). <b>This is the right choice for most shops.</b><br /><br />For late enrichment: when 'user_data' arrives after 'view_cart'/'purchase', trigger this tag on that late event to repeat the earlier ones with full data. Repeated events are marked 'aGTMrepeated = true' - trigger consumer tags on that and exclude the original pass. Use the Whitelist to limit the replay to the commerce events."
       },
       {
         "type": "TEXT",
@@ -225,7 +229,7 @@ o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
 // Late-enrichment config (v1.3). source 'f' = legacy pre-load buffer
 // (aGTM.d.f), 'dl' = post-load event log (aGTM.d.dl). Default 'f' keeps the
 // existing behaviour for tags that do not set the field (R1).
-o.c.source = (data.source=='dl') ? 'dl' : 'f';
+o.c.source = (data.source=='dl' || data.source=='live') ? data.source : 'f';
 o.c.gateEvents = typeof data.gateEvents=='string' ? data.gateEvents : '';
 o.c.fallbackTimeout = (typeof data.fallbackTimeout=='string' || typeof data.fallbackTimeout=='number') ? callInWindow('aGTM.f.rReplace', ''+data.fallbackTimeout, '[^0-9]', '') : '';
 o.c.fallbackTimeout = o.c.fallbackTimeout ? o.c.fallbackTimeout * 1 : 0;
@@ -361,7 +365,7 @@ o.f.gateReady = o.f.gateReady || function (list, events) {
 
 // ===== Mode A: pre-consent / pre-load buffer (aGTM.d.f) - default, legacy =====
 // Repeats events that aGTM queued before GTM/consent was ready.
-if (o.c.source != 'dl') {
+if (o.c.source == 'f') {
   // Once-per-page guard (fixes B5): if a previous execution already ran the
   // replay on this page, do nothing. Without this, a trigger firing more than
   // once per page (multiple triggers, consent-update event, a frequent event)
@@ -389,31 +393,47 @@ if (o.c.source != 'dl') {
   return;
 }
 
-// ===== Mode B: post-load event log (aGTM.d.dl) - late enrichment (R1) =====
+// ===== Mode B: post-load replay - late enrichment (R1) =====
 // Repeats events that were fired AFTER GTM/consent loaded, so that tags which
 // need late-arriving data (e.g. hashed user data) fire again with full data.
-var dl = copyFromWindow('aGTM.d.dl');
-if (typeof dl!='object' || typeof dl.length!='number') dl = [];
-if (o.c.debug) log('info','LOG (aGTM.d.dl)',JSON.parse(JSON.stringify(dl)));
+// Source 'dl'   = aGTM's own fire() log (aGTM.d.dl) - only events dispatched
+//                 via aGTM.f.fire are in there.
+// Source 'live' = the real GTM dataLayer (window[dataLayer]) - covers raw
+//                 dataLayer.push events too (e.g. a Shopware plugin that can
+//                 only push, never call aGTM.f.fire).
+var srcArr, wmKey, srcLabel;
+if (o.c.source == 'live') {
+  var gdl = copyFromWindow('aGTM.c.gdl');
+  if (typeof gdl != 'string' || !gdl) gdl = 'dataLayer';
+  srcArr = copyFromWindow(gdl);
+  wmKey = 'aGTM.d.repeatMaxLive';
+  srcLabel = 'live dataLayer (' + gdl + ')';
+} else {
+  srcArr = copyFromWindow('aGTM.d.dl');
+  wmKey = 'aGTM.d.repeatMax';
+  srcLabel = 'aGTM.d.dl';
+}
+if (typeof srcArr!='object' || typeof srcArr.length!='number') srcArr = [];
+if (o.c.debug) log('info','LOG ('+srcLabel+')',JSON.parse(JSON.stringify(srcArr)));
 
 // Config guard (P1-1): an empty gate counts as 'ready', so the replay runs on
 // the FIRST trigger. With a fallback timeout the tag is meant to be triggered
 // on an early anchor too - then an empty gate would replay prematurely
 // (unenriched) and the per-page watermark would block the later enriched pass.
 if (o.c.debug && !o.c.gateEvents && o.c.fallbackTimeout > 0) {
-  log('warn', 'aGTM DL Repeat: source=dl with a fallback timeout but no gate event(s). Set Gate event(s) (e.g. user_data), otherwise the replay runs on the first trigger unenriched - see the README.');
+  log('warn', 'aGTM DL Repeat: post-load replay with a fallback timeout but no gate event(s). Set Gate event(s) (e.g. user_data), otherwise the replay runs on the first trigger unenriched - see the README.');
 }
 
 // Has the fallback already fired on this page? Its control event lands in the
-// log, so its presence is the signal (R4).
+// source, so its presence is the signal (R4).
 var fallbackFired = false;
-for (var fi=0; fi<dl.length; fi++) {
-  if (dl[fi] && dl[fi].event==='aGTM_repeat_fallback') { fallbackFired = true; break; }
+for (var fi=0; fi<srcArr.length; fi++) {
+  if (srcArr[fi] && srcArr[fi].event==='aGTM_repeat_fallback') { fallbackFired = true; break; }
 }
 
 // Gate check (R2): run only once the configured gate event(s) are present, or
 // once the fallback timeout has fired (then unenriched, R4).
-if (!fallbackFired && !o.f.gateReady(o.c.gateEvents, dl)) {
+if (!fallbackFired && !o.f.gateReady(o.c.gateEvents, srcArr)) {
   // Gate not ready. Schedule the fallback timer once (R4) so guests without
   // the gate event still get one (unenriched) replay. aGTM.f.timer with no
   // function fires the given event via aGTM.f.timerfkt after the timeout; the
@@ -431,16 +451,16 @@ if (!fallbackFired && !o.f.gateReady(o.c.gateEvents, dl)) {
   return;
 }
 
-// Replay (R6/R7): process the log in original order, but only entries not yet
-// handled on a previous run (per-page watermark). Together with the in-code
+// Replay (R6/R7): process the source in original order, but only entries not
+// yet handled on a previous run (per-page watermark). Together with the in-code
 // aGTMrepeated skip in o.f.passes this guarantees no source event is repeated
 // twice - critical for purchase (no double conversion).
-var fromIdx = copyFromWindow('aGTM.d.repeatMax');
+var fromIdx = copyFromWindow(wmKey);
 if (typeof fromIdx != 'number') fromIdx = -1;
 var maxIdx = fromIdx;
-for (var d=0; d<dl.length; d++) {
+for (var d=0; d<srcArr.length; d++) {
   if (d <= fromIdx) continue;          // already handled on an earlier run
-  var dev = dl[d];
+  var dev = srcArr[d];
   if (o.f.passes(dev)) {
     // Limit (fixes B1): only actually-repeated events count. Break BEFORE
     // advancing the watermark so the limit event is retried on a later run.
@@ -452,7 +472,7 @@ for (var d=0; d<dl.length; d++) {
 }
 // Persist the watermark so a later run (e.g. fallback after a gate run) does
 // not repeat the same source events again.
-if (maxIdx > fromIdx) setInWindow('aGTM.d.repeatMax', maxIdx, true);
+if (maxIdx > fromIdx) setInWindow(wmKey, maxIdx, true);
 
 // Call data.gtmOnSuccess when the tag is finished.
 data.gtmOnSuccess();
@@ -882,6 +902,123 @@ ___WEB_PERMISSIONS___
                     "boolean": true
                   }
                 ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "dataLayer"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.c.gdl"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.d.repeatMaxLive"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
               }
             ]
           }
@@ -983,13 +1120,37 @@ scenarios:
     assertThat(fired.length).isEqualTo(0);
     assertThat(timerScheduled).isEqualTo(true);
     assertThat(win['aGTM.d.repeatFallbackScheduled']).isEqualTo(true);
+- name: Mode B live dataLayer - replays raw pushes, gate ready, no double
+  code: |-
+    const fired = [];
+    const win = {};
+    const ldl = [ {event: 'gtm.js'}, {event: 'view_cart'}, {event: 'purchase'}, {event: 'user_data'} ];
+    mock('queryPermission', function() { return true; });
+    mock('setInWindow', function(key, val) { win[key] = val; });
+    mock('copyFromWindow', function(key) {
+      if (key === 'aGTM.c.gdl') return 'dataLayer';
+      if (key === 'dataLayer') return ldl;
+      return win[key];
+    });
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
+      if (fn === 'aGTM.f.rReplace') { return '' + arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return arguments[1].indexOf('gtm.') === 0; }
+      return undefined;
+    });
+    const cfg = { source: 'live', agtmFired: true, gateEvents: 'user_data' };
+    runCode(cfg);
+    const afterFirst = fired.length;
+    assertThat(afterFirst).isEqualTo(3);
+    runCode(cfg);
+    assertThat(fired.length).isEqualTo(afterFirst);
 
 
 ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.3
+- Version 1.4
 - Autor: Andi Petzoldt <andi@petzoldt.net>
 - Last Update: 24.06.2026
 
@@ -1000,6 +1161,11 @@ Requires an aGTM integration of the GTM.
 
 ## Changelog
 
+- 1.4 (24.06.2026): Added "Live GTM dataLayer" as a third replay source, so raw
+  dataLayer.push events (e.g. from a Shopware plugin that cannot call
+  aGTM.f.fire) can be replayed too - aGTM.d.dl only ever contains events that
+  went through aGTM.f.fire. Late-enrichment now works for shops that push the
+  enrichment/commerce events straight to the dataLayer.
 - 1.3 (24.06.2026): Late-Enrichment feature. New "Replay source" option to
   replay the post-load event log (aGTM.d.dl), not just the pre-load buffer
   (aGTM.d.f). Optional gate event(s), fallback timeout (re-trigger on
