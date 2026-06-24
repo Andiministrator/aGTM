@@ -29,7 +29,8 @@ knowledge/
 ├── sources/             # abgelegte Quell-Snapshots (Originaltext/PDF/HTML)
 └── topics/              # thematische Wissensdateien (eine Datei pro Thema)
     ├── projekt-konventionen.md              # Sub-Agent-Kontext-Referenz
-    └── sgtm-client-familie-und-signale.md   # sGTM-Client-Familie + Consent/Session/Source-Interop
+    ├── sgtm-client-familie-und-signale.md   # sGTM-Client-Familie + Consent/Session/Source-Interop
+    └── dl-repeat-late-enrichment.md         # DL-Repeat-Tag + aGTM.f.dlrepeat, GTM-Web-Sandbox-Fallen
 ```
 
 ## Wie ein Thema abgelegt wird
@@ -57,6 +58,7 @@ API-Feldnamen und Zitate bleiben original (englisch).
 
 - Projekt-Konventionen für Sub-Agents: [`topics/projekt-konventionen.md`](topics/projekt-konventionen.md)
 - sGTM-Client-Familie & Signal-Interop: [`topics/sgtm-client-familie-und-signale.md`](topics/sgtm-client-familie-und-signale.md)
+- DL-Repeat & Late-Enrichment (+ GTM-Web-Sandbox-Fallen): [`topics/dl-repeat-late-enrichment.md`](topics/dl-repeat-late-enrichment.md)
 - Recherche-Protokoll: [`spurensicherung.md`](spurensicherung.md)
 - Quellenindex: [`sources-visited.md`](sources-visited.md)
 - QA-Doktrin: [`../docs/qa/schritt-qa.md`](../docs/qa/schritt-qa.md), [`../docs/qa/sprint-abschluss.md`](../docs/qa/sprint-abschluss.md)
