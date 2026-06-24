@@ -79,68 +79,47 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "SELECT",
         "name": "source",
-        "displayName": "Replay source",
+        "displayName": "What should be repeated?",
         "macrosInSelect": false,
         "selectItems": [
           {
             "value": "f",
-            "displayValue": "Pre-consent / pre-load buffer (aGTM.d.f) - default"
-          },
-          {
-            "value": "dl",
-            "displayValue": "Post-load event log (aGTM.d.dl) - aGTM.f.fire events only"
+            "displayValue": "Events from before consent / before GTM loaded (classic)"
           },
           {
             "value": "live",
-            "displayValue": "Live GTM dataLayer (window.dataLayer) - covers raw dataLayer.push"
+            "displayValue": "Everything in the dataLayer (recommended for shops)"
+          },
+          {
+            "value": "dl",
+            "displayValue": "Only events sent via aGTM.f.fire (advanced)"
           }
         ],
         "simpleValueType": true,
         "defaultValue": "f",
-        "help": "Which source to replay from.<br /><br /><b>aGTM.d.f</b> (default) replays events fired BEFORE GTM/consent was ready - the original behaviour.<br /><br /><b>aGTM.d.dl</b> replays aGTM's post-load event log - but only events dispatched through aGTM.f.fire are in there (NOT raw dataLayer.push).<br /><br /><b>Live GTM dataLayer</b> replays the real dataLayer, so raw dataLayer.push events are covered too (e.g. a Shopware plugin that can only push). <b>This is the right choice for most shops.</b><br /><br />For late enrichment: when 'user_data' arrives after 'view_cart'/'purchase', trigger this tag on that late event to repeat the earlier ones with full data. Repeated events are marked 'aGTMrepeated = true' - trigger consumer tags on that and exclude the original pass. Use the Whitelist to limit the replay to the commerce events."
+        "help": "Which earlier events should be repeated?<br /><br />• <b>Before consent / before GTM loaded</b> (default): only events that happened before the cookie banner was answered or GTM finished loading. This is the original use.<br /><br />• <b>Everything in the dataLayer</b>: normal shop events (view_item, purchase, …) – including those your shop pushes directly with dataLayer.push. <b>Choose this for late enrichment in a shop.</b><br /><br />• <b>Only events sent via aGTM.f.fire</b>: advanced; ignores raw dataLayer.push events.<br /><br />Repeated events get the marker <b>aGTMrepeated = true</b>. Point your conversion tags (Enhanced Conversions, Criteo …) at that marker, and use the Whitelist to limit which events are repeated. The tag needs only a <b>single trigger</b> (e.g. All Pages)."
       },
       {
         "type": "TEXT",
         "name": "gateEvents",
-        "displayName": "Gate event(s)",
+        "displayName": "Wait for event(s) before repeating",
         "simpleValueType": true,
-        "enablingConditions": [
-          {
-            "paramName": "source",
-            "paramValue": "dl",
-            "type": "EQUALS"
-          }
-        ],
-        "help": "The replay runs only once ALL of these event names are present in the log (comma-separated, AND-joined, e.g. 'user_data').<br /><br /><b>Required</b> whenever the tag triggers on more than just the enrichment event - e.g. when you also trigger on an early anchor like 'aPageview' (needed for the fallback timeout). If left blank, an empty gate counts as 'ready' and the replay would run on the FIRST trigger (e.g. aPageview), unenriched, and the per-page dedup would then block the later enriched pass.<br /><br />Leave blank ONLY if the tag triggers solely on the enrichment event itself (then no guest fallback)."
+        "help": "Optional. The repeat runs only once <b>all</b> of these events have appeared in the dataLayer (comma-separated, e.g. <b>user_data</b>).<br /><br />Use this when the data you need arrives late: e.g. wait for <b>user_data</b> before repeating <b>view_item</b>/<b>purchase</b>, so they go out with the user data attached.<br /><br />Leave empty to repeat immediately. The tag watches and waits on its own – you do <b>not</b> need extra triggers."
       },
       {
         "type": "TEXT",
         "name": "fallbackTimeout",
-        "displayName": "Fallback timeout (ms)",
+        "displayName": "Give up waiting after (ms)",
         "simpleValueType": true,
         "defaultValue": "1500",
-        "enablingConditions": [
-          {
-            "paramName": "source",
-            "paramValue": "dl",
-            "type": "EQUALS"
-          }
-        ],
-        "help": "If the gate event has not arrived within this many milliseconds (measured from when this tag first runs), the replay runs once anyway - unenriched - so no tags fail for guests without the gate event. 0 or empty disables the fallback.<br /><br />Requires the tag trigger to also fire on the event 'aGTM_repeat_fallback'."
+        "help": "How long to wait for the events above before repeating anyway (e.g. 1500 = 1.5s). If the awaited event never comes – e.g. a guest without user_data – the repeat still runs once after this time, so no tags are missed.<br /><br />Set 0 for no time limit: then the repeat only runs once the awaited events actually arrive. Ignored when no wait-events are set."
       },
       {
         "type": "CHECKBOX",
         "name": "clearEcom",
-        "checkboxText": "Clear ecommerce between events",
+        "checkboxText": "Reset ecommerce between events (GA4)",
         "simpleValueType": true,
-        "enablingConditions": [
-          {
-            "paramName": "source",
-            "paramValue": "dl",
-            "type": "EQUALS"
-          }
-        ],
-        "help": "Push an 'ecommerce: null' reset before each repeated event that carries an 'ecommerce' object, to avoid ecommerce data bleeding between events (GA4 recommendation)."
+        "help": "For GA4 e-commerce: push an empty ecommerce value before each repeated event, so values from different products/events don't mix. Leave off unless you see ecommerce data bleeding between events."
       }
     ]
   },
@@ -201,302 +180,59 @@ ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Import needed libraries
 const log = require('logToConsole');
-const JSON = require('JSON');
 const callInWindow = require('callInWindow');
 const queryPermission = require('queryPermission');
 const copyFromWindow = require('copyFromWindow');
-const setInWindow = require('setInWindow');
-
 
 /**
- * Build ND aGTM shadow object
+ * aGTM - DL Repeat
+ * Thin wrapper: reads the tag configuration and hands it to aGTM.f.dlrepeat()
+ * in the aGTM library, which watches the dataLayer for the configured gate
+ * event(s) and repeats the matching earlier events (marked aGTMrepeated=true)
+ * so downstream tags fire again with the now-complete data. The engine lives in
+ * the library, so this tag needs only a SINGLE trigger and no extra control
+ * events. Requires the aGTM library v1.5+ (provides aGTM.f.dlrepeat).
  * @lastupdate 24.06.2026 by Andi Petzoldt <andi@petzoldt.net>
- * @author Andi Petzoldt <andi@petzoldt.net>
- * @property {object} o
- * @param {object} c - config
- *   @param {object} c.debug - debug messages in browser console
- * @param {object} d - data object
- *   @param {object} d.f - Events that have been fired before GTM has loaded
- *   @param {object} d.q - event queue
- * @param {object} f - function library
  */
-var o = o || { c: {debug:false}, d:{ f:[], q:[] }, f:{} };
 
-// Get tag configuration
-o.c.gtmFired = typeof data.gtmFired=='boolean' ? data.gtmFired : false;
-o.c.agtmFired = typeof data.agtmFired=='boolean' ? data.agtmFired : false;
-o.c.messages = typeof data.messages=='boolean' ? data.messages : false;
-o.c.whitelist = typeof data.whitelist=='string' ? data.whitelist : '';
-o.c.blacklist = typeof data.blacklist=='string' ? data.blacklist : '';
-o.c.maxEvents = (typeof data.maxEvents=='string' || typeof data.maxEvents=='number') ? callInWindow('aGTM.f.rReplace', ''+data.maxEvents, '[^0-9]', '') : '';
-if (!o.c.maxEvents) { o.c.maxEvents = 0; } else { o.c.maxEvents = o.c.maxEvents * 1; }
-o.d.count = 0;
-o.c.gtmEvents = typeof data.gtmEvents=='boolean' ? data.gtmEvents : false;
-o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
-// Late-enrichment config (v1.3). source 'f' = legacy pre-load buffer
-// (aGTM.d.f), 'dl' = post-load event log (aGTM.d.dl). Default 'f' keeps the
-// existing behaviour for tags that do not set the field (R1).
-o.c.source = (data.source=='dl' || data.source=='live') ? data.source : 'f';
-o.c.gateEvents = typeof data.gateEvents=='string' ? data.gateEvents : '';
-o.c.fallbackTimeout = (typeof data.fallbackTimeout=='string' || typeof data.fallbackTimeout=='number') ? callInWindow('aGTM.f.rReplace', ''+data.fallbackTimeout, '[^0-9]', '') : '';
-o.c.fallbackTimeout = o.c.fallbackTimeout ? o.c.fallbackTimeout * 1 : 0;
-o.c.clearEcom = typeof data.clearEcom=='boolean' ? data.clearEcom : false;
-o.c.debug = typeof data.debug=='boolean' ? data.debug : false;
-if (o.c.debug) log('info', 'aGTM DL Repeat: START - config =', JSON.parse(JSON.stringify(o.c)));
-
-/**
- * Define function to fire events
- * @param {object} obj - The Event object to send (in GTM dataLayer)
- * Usage: o.f.fire(obj);
- */
-o.f.fire = o.f.fire || function (obj) {
-  if (typeof obj!='object' || !obj) {
-    if (o.c.debug) log('warn', 'o.f.fire in GTM Sandbox called, but given object is not valid (type: '+typeof obj+')', JSON.parse(JSON.stringify(obj)));
-    return;
-  }
-  if (!queryPermission('access_globals', 'execute', 'aGTM.f.fire')) {
-    if (o.c.debug) log('warn', 'No Permissions in GTM Sandbox to run aGTM.f.fire. Tried to fire: ', JSON.parse(JSON.stringify(obj)));
-    return;
-  }
-  var e = JSON.parse(JSON.stringify(obj));
-  callInWindow('aGTM.f.fire', e);
-  o.d.q.push(e);
-  if (o.c.debug) log('info', 'GTM Sandbox Event fired using aGTM.f.fire. Event queue with sendet events: ', JSON.parse(JSON.stringify(o.d.q)));
+// Build the configuration object from the tag fields
+var cfg = {
+  source: (data.source == 'dl' || data.source == 'live') ? data.source : 'f',
+  gateEvents: typeof data.gateEvents == 'string' ? data.gateEvents : '',
+  whitelist: typeof data.whitelist == 'string' ? data.whitelist : '',
+  blacklist: typeof data.blacklist == 'string' ? data.blacklist : '',
+  gtmFired: typeof data.gtmFired == 'boolean' ? data.gtmFired : false,
+  agtmFired: typeof data.agtmFired == 'boolean' ? data.agtmFired : false,
+  messages: typeof data.messages == 'boolean' ? data.messages : false,
+  gtmEvents: typeof data.gtmEvents == 'boolean' ? data.gtmEvents : false,
+  clearEcom: typeof data.clearEcom == 'boolean' ? data.clearEcom : false,
+  debug: typeof data.debug == 'boolean' ? data.debug : false,
+  addparameter: typeof data.addparameter == 'object' ? data.addparameter : [],
+  maxEvents: 0,
+  timeoutMs: 0
 };
 
+// maxEvents and fallback timeout: accept string or number, keep digits only
+var me = (typeof data.maxEvents == 'string' || typeof data.maxEvents == 'number') ? callInWindow('aGTM.f.rReplace', '' + data.maxEvents, '[^0-9]', '') : '';
+cfg.maxEvents = me ? me * 1 : 0;
+var ft = (typeof data.fallbackTimeout == 'string' || typeof data.fallbackTimeout == 'number') ? callInWindow('aGTM.f.rReplace', '' + data.fallbackTimeout, '[^0-9]', '') : '';
+cfg.timeoutMs = ft ? ft * 1 : 0;
 
-/**
- * Match an event name against a comma-separated list of patterns.
- * Entries are trimmed and "*" is treated as a wildcard, replaced globally.
- * Fixes B3: native String.replace('*','.*') only swaps the FIRST "*" (so
- * "*view*" breaks) and the raw split entries were never trimmed (so "a, b"
- * produced "^ b$" and never matched). Uses aGTM.f.rReplace (global) instead.
- * @param {string} list - comma-separated patterns
- * @param {string} evname - event name to test
- * @returns {boolean} true if any pattern matches
- */
-o.f.evMatch = o.f.evMatch || function (list, evname) {
-  var arr = list.split(',');
-  for (var k=0; k<arr.length; k++) {
-    var entry = callInWindow('aGTM.f.rReplace', arr[k], '^\\s+|\\s+$', '');
-    if (!entry) continue;
-    var pattern = '^' + callInWindow('aGTM.f.rReplace', entry, '\\*', '.*') + '$';
-    if (callInWindow('aGTM.f.rTest', evname, pattern)) return true;
-  }
-  return false;
-};
+if (cfg.debug) log('info', 'aGTM DL Repeat: config =', cfg);
 
-/**
- * Decide whether one event from the replay source should be repeated.
- * Applies loop protection, the send-type, internal-event, whitelist/blacklist
- * and message filters. Shared by both replay modes.
- * @param {object} ev - candidate event
- * @returns {boolean} true if the event should be fired
- */
-o.f.passes = o.f.passes || function (ev) {
-  // Determine a skip reason (so debug logging can explain every decision).
-  // Send types: aGTMdl===true marks raw GTM dataLayer items captured at init;
-  // events fired through aGTM.f.fire carry no aGTMdl. Matched to the checkbox
-  // labels (fixes F-10 inversion): gtmFired -> "Send Events of GTM dataLayer"
-  // (aGTMdl===true), agtmFired -> "...via aGTM.f.fire" (no aGTMdl).
-  var reason = '';
-  if (typeof ev!='object' || !ev) reason = 'not an object';
-  else if (ev.aGTMrepeated === true) reason = 'already repeated (loop protection)';
-  else if (ev.aGTMdl === true && !o.c.gtmFired) reason = 'gtmFired is off (event has aGTMdl=true)';
-  else if (ev.aGTMdl !== true && !o.c.agtmFired) reason = 'agtmFired is off (event has no aGTMdl)';
-  else if (typeof ev.event=='string' && ev.event.indexOf('aGTM')===0) reason = 'aGTM control event';
-  else if (typeof ev.event!='string' && typeof ev.type=='string' && typeof ev.flags=='object' && typeof ev.flags.enableUntaggedPageReporting=='boolean' && ev.flags.enableUntaggedPageReporting) reason = 'GTM untagged-page report';
-  else if (!o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) reason = 'internal gtm.* event';
-  else if (o.c.whitelist && typeof ev.event=='string' && !o.f.evMatch(o.c.whitelist, ev.event)) reason = 'not in whitelist';
-  else if (o.c.blacklist && typeof ev.event=='string' && o.f.evMatch(o.c.blacklist, ev.event)) reason = 'in blacklist';
-  else if (!o.c.messages && typeof ev.event!='string') reason = 'dataLayer message (no event name)';
-  var name = (ev && typeof ev.event=='string') ? ev.event : '(no event)';
-  if (reason) {
-    if (o.c.debug) log('info', 'aGTM DL Repeat: SKIP "'+name+'" - '+reason);
-    return false;
-  }
-  if (o.c.debug) log('info', 'aGTM DL Repeat: PASS "'+name+'" - will repeat');
-  return true;
-};
-
-/**
- * Prepare and fire one repeated event: optional ecommerce reset before it,
- * strip internal fields, mark it as repeated, add configured parameters.
- * @param {object} ev - event to repeat
- */
-o.f.repeat = o.f.repeat || function (ev) {
-  // Optional ecommerce reset between events (R7) to avoid object bleed
-  if (o.c.clearEcom && typeof ev.ecommerce!='undefined') {
-    o.f.fire({ ecommerce: null, aGTMrepeated: true });
-  }
-  // Strip internal fields by setting them undefined - the GTM sandbox has no
-  // 'delete' operator, but o.f.fire JSON-clones the event and JSON.stringify
-  // drops undefined-valued keys, so the event sent to the library has them
-  // removed. aGTMts is load-bearing: aGTM.f.fire() discards any event that
-  // already carries a numeric aGTMts (its loop guard), so a 1:1 replay from
-  // aGTM.d.dl would otherwise be dropped (fixes F-09). aGTMparams is an
-  // internal snapshot blob; gtm.uniqueEventId must not be reused.
-  ev.aGTMts = undefined;
-  ev.aGTMparams = undefined;
-  ev['gtm.uniqueEventId'] = undefined;
-  // Repeat marker (R3 / R5)
-  ev.aGTMrepeated = true;
-  // Additional parameters
-  if (o.c.addparameter.length>0) {
-    for (var p=0; p<o.c.addparameter.length; p++) {
-      var row = o.c.addparameter[p];
-      ev[row.pkey] = row.pvalue;
-    }
-  }
-  o.f.fire(ev);
-};
-
-/**
- * Are all configured gate events present in the post-load event log?
- * AND-joined and trimmed; an empty list means "no internal gate" - then the
- * replay relies purely on the tag trigger (R2).
- * @param {string} list - comma-separated gate event names
- * @param {array} events - the event log to scan
- * @returns {boolean}
- */
-o.f.gateReady = o.f.gateReady || function (list, events) {
-  if (!list) return true;
-  var arr = list.split(',');
-  for (var g=0; g<arr.length; g++) {
-    var name = callInWindow('aGTM.f.rReplace', arr[g], '^\\s+|\\s+$', '');
-    if (!name) continue;
-    var found = false;
-    for (var e=0; e<events.length; e++) {
-      if (events[e] && events[e].event===name) { found = true; break; }
-    }
-    if (!found) return false;
-  }
-  return true;
-};
-
-// ===== Mode A: pre-consent / pre-load buffer (aGTM.d.f) - default, legacy =====
-// Repeats events that aGTM queued before GTM/consent was ready.
-if (o.c.source == 'f') {
-  // Once-per-page guard (fixes B5): if a previous execution already ran the
-  // replay on this page, do nothing. Without this, a trigger firing more than
-  // once per page (multiple triggers, consent-update event, a frequent event)
-  // would replay the WHOLE buffer again - every event multiple times.
-  if (copyFromWindow('aGTM.d.repeatDone') === true) {
-    if (o.c.debug) log('info', 'aGTM DL Repeat: replay already ran on this page, skipping.');
-    data.gtmOnSuccess();
-    return;
-  }
-  o.d.f = copyFromWindow('aGTM.d.f');
-  if (o.c.debug) log('info','QUEUE (aGTM.d.f)',JSON.parse(JSON.stringify(o.d.f)));
-  if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
-    for (var i=0; i<o.d.f.length; i++) {
-      var ev = o.d.f[i];
-      if (!o.f.passes(ev)) continue;
-      // Limit (fixes B1): only events that are actually repeated count.
-      if (o.c.maxEvents && o.d.count >= o.c.maxEvents) break;
-      o.f.repeat(ev);
-      o.d.count++;
-    }
-  }
-  // Mark this page as done so a second trigger does not replay again (fixes B5)
-  setInWindow('aGTM.d.repeatDone', true, true);
-  data.gtmOnSuccess();
-  return;
-}
-
-// ===== Mode B: post-load replay - late enrichment (R1) =====
-// Repeats events that were fired AFTER GTM/consent loaded, so that tags which
-// need late-arriving data (e.g. hashed user data) fire again with full data.
-// Source 'dl'   = aGTM's own fire() log (aGTM.d.dl) - only events dispatched
-//                 via aGTM.f.fire are in there.
-// Source 'live' = the real GTM dataLayer (window[dataLayer]) - covers raw
-//                 dataLayer.push events too (e.g. a Shopware plugin that can
-//                 only push, never call aGTM.f.fire).
-var srcArr, wmKey, srcLabel;
-if (o.c.source == 'live') {
-  var gdl = copyFromWindow('aGTM.c.gdl');
-  if (typeof gdl != 'string' || !gdl) gdl = 'dataLayer';
-  srcArr = copyFromWindow(gdl);
-  wmKey = 'aGTM.d.repeatMaxLive';
-  srcLabel = 'live dataLayer (' + gdl + ')';
+// The replay engine lives in the aGTM library (single trigger; the library can
+// poll the dataLayer, which the GTM sandbox cannot).
+if (!queryPermission('access_globals', 'execute', 'aGTM.f.dlrepeat')) {
+  if (cfg.debug) log('warn', 'aGTM DL Repeat: missing permission to execute aGTM.f.dlrepeat.');
+  data.gtmOnFailure();
+} else if (typeof copyFromWindow('aGTM.f.dlrepeat') == 'undefined') {
+  log('warn', 'aGTM DL Repeat: aGTM.f.dlrepeat not found - update the aGTM library to v1.5 or newer.');
+  data.gtmOnFailure();
 } else {
-  srcArr = copyFromWindow('aGTM.d.dl');
-  wmKey = 'aGTM.d.repeatMax';
-  srcLabel = 'aGTM.d.dl';
-}
-if (typeof srcArr!='object' || typeof srcArr.length!='number') srcArr = [];
-if (o.c.debug) {
-  var dbgNames = [];
-  for (var dn=0; dn<srcArr.length; dn++) {
-    var de = srcArr[dn];
-    dbgNames.push(dn + ':' + (de && typeof de.event=='string' ? de.event : '(no event)') + (de && de.aGTMdl===true ? '[aGTMdl]' : '') + (de && de.aGTMrepeated===true ? '[repeated]' : ''));
-  }
-  log('info', 'aGTM DL Repeat: source=' + srcLabel + ' count=' + srcArr.length + ' events=[' + dbgNames.join(', ') + ']');
-}
-
-// Config guard (P1-1): an empty gate counts as 'ready', so the replay runs on
-// the FIRST trigger. With a fallback timeout the tag is meant to be triggered
-// on an early anchor too - then an empty gate would replay prematurely
-// (unenriched) and the per-page watermark would block the later enriched pass.
-if (o.c.debug && !o.c.gateEvents && o.c.fallbackTimeout > 0) {
-  log('warn', 'aGTM DL Repeat: post-load replay with a fallback timeout but no gate event(s). Set Gate event(s) (e.g. user_data), otherwise the replay runs on the first trigger unenriched - see the README.');
-}
-
-// Has the fallback already fired on this page? Its control event lands in the
-// source, so its presence is the signal (R4).
-var fallbackFired = false;
-for (var fi=0; fi<srcArr.length; fi++) {
-  if (srcArr[fi] && srcArr[fi].event==='aGTM_repeat_fallback') { fallbackFired = true; break; }
-}
-
-// Gate check (R2): run only once the configured gate event(s) are present, or
-// once the fallback timeout has fired (then unenriched, R4).
-var gateOk = o.f.gateReady(o.c.gateEvents, srcArr);
-if (o.c.debug) log('info', 'aGTM DL Repeat: gateEvents="' + o.c.gateEvents + '" gateReady=' + gateOk + ' fallbackFired=' + fallbackFired);
-if (!fallbackFired && !gateOk) {
-  // Gate not ready. Schedule the fallback timer once (R4) so guests without
-  // the gate event still get one (unenriched) replay. aGTM.f.timer with no
-  // function fires the given event via aGTM.f.timerfkt after the timeout; the
-  // tag trigger must also include 'aGTM_repeat_fallback' (see README).
-  if (o.c.fallbackTimeout > 0 && copyFromWindow('aGTM.d.repeatFallbackScheduled') !== true) {
-    setInWindow('aGTM.d.repeatFallbackScheduled', true, true);
-    if (queryPermission('access_globals', 'execute', 'aGTM.f.timer')) {
-      callInWindow('aGTM.f.timer', 'aGTMrepeatFallback', null, { event: 'aGTM_repeat_fallback' }, o.c.fallbackTimeout, 1);
-    } else if (o.c.debug) {
-      log('warn', 'aGTM DL Repeat: no permission to run aGTM.f.timer - fallback disabled.');
-    }
-  }
-  if (o.c.debug) log('info', 'aGTM DL Repeat: gate not ready, waiting.');
+  callInWindow('aGTM.f.dlrepeat', cfg);
   data.gtmOnSuccess();
-  return;
 }
 
-// Replay (R6/R7): process the source in original order, but only entries not
-// yet handled on a previous run (per-page watermark). Together with the in-code
-// aGTMrepeated skip in o.f.passes this guarantees no source event is repeated
-// twice - critical for purchase (no double conversion).
-var fromIdx = copyFromWindow(wmKey);
-if (typeof fromIdx != 'number') fromIdx = -1;
-var maxIdx = fromIdx;
-for (var d=0; d<srcArr.length; d++) {
-  if (d <= fromIdx) continue;          // already handled on an earlier run
-  var dev = srcArr[d];
-  if (o.f.passes(dev)) {
-    // Limit (fixes B1): only actually-repeated events count. Break BEFORE
-    // advancing the watermark so the limit event is retried on a later run.
-    if (o.c.maxEvents && o.d.count >= o.c.maxEvents) break;
-    o.f.repeat(dev);
-    o.d.count++;
-  }
-  maxIdx = d;                          // entry d fully handled (fired or filtered)
-}
-// Persist the watermark so a later run (e.g. fallback after a gate run) does
-// not repeat the same source events again.
-if (maxIdx > fromIdx) setInWindow(wmKey, maxIdx, true);
-if (o.c.debug) log('info', 'aGTM DL Repeat: DONE - repeated ' + o.d.count + ' event(s); watermark ' + fromIdx + ' -> ' + maxIdx + ' (key ' + wmKey + ')');
-
-// Call data.gtmOnSuccess when the tag is finished.
-data.gtmOnSuccess();
 
 
 ___WEB_PERMISSIONS___
@@ -557,167 +293,11 @@ ___WEB_PERMISSIONS___
                 "mapValue": [
                   {
                     "type": 1,
-                    "string": "aGTM.f.fire"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
+                    "string": "aGTM.f.dlrepeat"
                   },
                   {
                     "type": 8,
                     "boolean": true
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.d.f"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.d.repeatDone"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.f.rTest"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
                   },
                   {
                     "type": 8,
@@ -767,279 +347,6 @@ ___WEB_PERMISSIONS___
                     "boolean": true
                   }
                 ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.d.dl"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.d.repeatMax"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.d.repeatFallbackScheduled"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.f.timer"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "dataLayer"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.c.gdl"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.d.repeatMaxLive"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
               }
             ]
           }
@@ -1057,131 +364,71 @@ ___WEB_PERMISSIONS___
 ___TESTS___
 
 scenarios:
-- name: Mode A repeats each pre-load event once and marks them
+- name: Builds config from fields and delegates to aGTM.f.dlrepeat
   code: |-
-    const fired = [];
-    const win = {};
+    let passed = null;
     mock('queryPermission', function() { return true; });
-    mock('setInWindow', function(key, val) { win[key] = val; });
-    mock('copyFromWindow', function(key) {
-      if (key === 'aGTM.d.f') return [ {event: 'view_item'}, {event: 'purchase'} ];
-      return win[key];
-    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTM.f.dlrepeat') return function(){}; return undefined; });
     mock('callInWindow', function(fn) {
-      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
+      if (fn === 'aGTM.f.dlrepeat') { passed = arguments[1]; return; }
       if (fn === 'aGTM.f.rReplace') { return '' + arguments[1]; }
-      if (fn === 'aGTM.f.rTest') { return false; }
       return undefined;
     });
-    runCode({ source: 'f', gtmFired: true, agtmFired: true });
-    assertThat(fired.length).isEqualTo(2);
-    assertThat(fired[0].event).isEqualTo('view_item');
-    assertThat(fired[0].aGTMrepeated).isEqualTo(true);
-    assertThat(win['aGTM.d.repeatDone']).isEqualTo(true);
-- name: Mode A once-per-page guard - a second run repeats nothing
+    runCode({ source: 'live', gateEvents: 'user_data', whitelist: 'view_item,purchase', gtmFired: true, maxEvents: '1000', fallbackTimeout: '1500' });
+    assertThat(passed).isDefined();
+    assertThat(passed.source).isEqualTo('live');
+    assertThat(passed.gateEvents).isEqualTo('user_data');
+    assertThat(passed.whitelist).isEqualTo('view_item,purchase');
+    assertThat(passed.maxEvents).isEqualTo(1000);
+    assertThat(passed.timeoutMs).isEqualTo(1500);
+- name: Unknown source falls back to f
   code: |-
-    const fired = [];
+    let passed = null;
     mock('queryPermission', function() { return true; });
-    mock('setInWindow', function() {});
-    mock('copyFromWindow', function(key) {
-      if (key === 'aGTM.d.repeatDone') return true;
-      if (key === 'aGTM.d.f') return [ {event: 'view_item'} ];
-      return undefined;
-    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTM.f.dlrepeat') return function(){}; return undefined; });
     mock('callInWindow', function(fn) {
-      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
-      return undefined;
-    });
-    runCode({ source: 'f', agtmFired: true });
-    assertThat(fired.length).isEqualTo(0);
-- name: Mode B late enrichment - gate ready, no double on a second run
-  code: |-
-    const fired = [];
-    const win = {};
-    const dl = [ {event: 'view_cart'}, {event: 'purchase'}, {event: 'user_data'} ];
-    mock('queryPermission', function() { return true; });
-    mock('setInWindow', function(key, val) { win[key] = val; });
-    mock('copyFromWindow', function(key) {
-      if (key === 'aGTM.d.dl') return dl;
-      return win[key];
-    });
-    mock('callInWindow', function(fn) {
-      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
+      if (fn === 'aGTM.f.dlrepeat') { passed = arguments[1]; return; }
       if (fn === 'aGTM.f.rReplace') { return '' + arguments[1]; }
-      if (fn === 'aGTM.f.rTest') { return false; }
       return undefined;
     });
-    const cfg = { source: 'dl', gtmFired: true, agtmFired: true, gateEvents: 'user_data' };
-    runCode(cfg);
-    const afterFirst = fired.length;
-    assertThat(afterFirst).isEqualTo(3);
-    assertThat(fired[1].event).isEqualTo('purchase');
-    assertThat(fired[1].aGTMrepeated).isEqualTo(true);
-    runCode(cfg);
-    assertThat(fired.length).isEqualTo(afterFirst);
-- name: Mode B gate not ready - waits and schedules the fallback timer
+    runCode({ gtmFired: true });
+    assertThat(passed.source).isEqualTo('f');
+- name: Does nothing when the library function is missing
   code: |-
-    const fired = [];
-    const win = {};
-    let timerScheduled = false;
+    let called = false;
     mock('queryPermission', function() { return true; });
-    mock('setInWindow', function(key, val) { win[key] = val; });
-    mock('copyFromWindow', function(key) {
-      if (key === 'aGTM.d.dl') return [ {event: 'view_cart'} ];
-      return win[key];
-    });
+    mock('copyFromWindow', function() { return undefined; });
     mock('callInWindow', function(fn) {
-      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
-      if (fn === 'aGTM.f.timer') { timerScheduled = true; return; }
+      if (fn === 'aGTM.f.dlrepeat') { called = true; }
       if (fn === 'aGTM.f.rReplace') { return '' + arguments[1]; }
-      if (fn === 'aGTM.f.rTest') { return false; }
       return undefined;
     });
-    runCode({ source: 'dl', agtmFired: true, gateEvents: 'user_data', fallbackTimeout: '1500' });
-    assertThat(fired.length).isEqualTo(0);
-    assertThat(timerScheduled).isEqualTo(true);
-    assertThat(win['aGTM.d.repeatFallbackScheduled']).isEqualTo(true);
-- name: Mode B live dataLayer - replays raw pushes, gate ready, no double
-  code: |-
-    const fired = [];
-    const win = {};
-    const ldl = [ {event: 'gtm.js'}, {event: 'view_cart'}, {event: 'purchase'}, {event: 'user_data'} ];
-    mock('queryPermission', function() { return true; });
-    mock('setInWindow', function(key, val) { win[key] = val; });
-    mock('copyFromWindow', function(key) {
-      if (key === 'aGTM.c.gdl') return 'dataLayer';
-      if (key === 'dataLayer') return ldl;
-      return win[key];
-    });
-    mock('callInWindow', function(fn) {
-      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
-      if (fn === 'aGTM.f.rReplace') { return '' + arguments[1]; }
-      if (fn === 'aGTM.f.rTest') { return arguments[1].indexOf('gtm.') === 0; }
-      return undefined;
-    });
-    const cfg = { source: 'live', agtmFired: true, gateEvents: 'user_data' };
-    runCode(cfg);
-    const afterFirst = fired.length;
-    assertThat(afterFirst).isEqualTo(3);
-    runCode(cfg);
-    assertThat(fired.length).isEqualTo(afterFirst);
+    runCode({ source: 'live' });
+    assertThat(called).isEqualTo(false);
 
 
 ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.4
+- Version 1.5
 - Autor: Andi Petzoldt <andi@petzoldt.net>
 - Last Update: 24.06.2026
 
 ## Description
 
 Fires Events later.
-Requires an aGTM integration of the GTM.
+Requires the aGTM library v1.5+ (uses aGTM.f.dlrepeat).
 
 ## Changelog
 
+- 1.5 (24.06.2026): The replay engine moved into the aGTM library
+  (aGTM.f.dlrepeat). The tag now only collects its settings and hands them to
+  the library, which watches the dataLayer for the configured wait-event(s) and
+  repeats the matching events itself. As a result the tag needs only a SINGLE
+  trigger (e.g. All Pages) - no more multi-event trigger and no aGTM_repeat_
+  fallback control event. Requires the aGTM library v1.5+. Help texts rewritten
+  in plain language.
 - 1.4 (24.06.2026): Added "Live GTM dataLayer" as a third replay source, so raw
   dataLayer.push events (e.g. from a Shopware plugin that cannot call
   aGTM.f.fire) can be replayed too - aGTM.d.dl only ever contains events that
