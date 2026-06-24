@@ -73,6 +73,66 @@
             ],
             "displayId": 2,
             "columnId": "col-erledigt"
+          },
+          {
+            "id": "agtm-v15-dlrepeat-bugs",
+            "title": "DL-Repeat: Bug-Review beheben (B1/B3/B5 P1 + B2/B4/Konfig-Falle P2)",
+            "description": "DL-Repeat-Tag Bug-Review vom GTM-Team (2026-06-24, Treiber fc-moto). P1: F-04 (B1 maxEvents zählt geprüfte statt gefeuerte Events — count++/Limit-Check erst vor o.f.fire), F-05 (B3 Wildcard nur 1× ersetzt + kein Trim → aGTM.f.rReplace global + Einträge trimmen), F-03 (B5 Idempotenz/Drain/Loop — In-Code-Skip aGTMrepeated===true + Once-per-Page-Guard). P2: F-06 (B2 maxEvents-Default-Typ number vs typeof==string), F-07 (B4 Permissions-Guard ohne return), F-08 (Konfig-Falle: beide Send-Type-Defaults false → Tag no-op). Plus README-Link-Fix (toter Verweis aGTM-tag-DL-Repeat.tpl). Reiner .tpl-Edit (webGTM-Sandbox, ES5). Tag-Version bumpen.",
+            "status": "offen",
+            "priority": "hoch",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/tags/dl-repeat/aGTM tag - DL Repeat.tpl (Sandbox-JS L116–231, Permissions L234–475) · docs/findings.md F-03..F-09 · ES5/webGTM-Sandbox: var, callInWindow/copyFromWindow/queryPermission, kein parseInt; rReplace/rTest sind aGTM-Library-Funktionen via callInWindow · README-Link-Bug README-gtm-tag-dl-repeat.md L13/49 (Datei heißt 'aGTM tag - DL Repeat.tpl' mit Leerzeichen) · .tpl wird NICHT von build.sh gebaut (Handpflege) · keine aGTM.js-Änderung nötig",
+            "links": [
+              {
+                "type": "required-for",
+                "targetId": "agtm-v15-dlrepeat-enrich"
+              }
+            ],
+            "comments": [
+              {
+                "id": "239ec6d8-64be-4e36-8ac9-aaf1bf42086d",
+                "author": "Claude Opus",
+                "text": "Erledigt in f7ad8c3. Alle 5 Bugs + Konfig-Falle behoben (B1 maxEvents-Zählung, B3 evMatch global+trim, B5 In-Code-Skip+repeatDone-Guard+setInWindow-Permission, B2 string|number, B4 return, F-08 agtmFired-Default+Hilfetexte). README-Link-Fix. Tag 1.1->1.2. QA: JSON-Sektionen valide, ES5/Sandbox-Review ok, bun test 179 pass, build.sh clean. Findings F-03..F-08 behoben.",
+                "created": "2026-06-24"
+              }
+            ],
+            "columnId": "col-erledigt",
+            "displayId": 13
+          },
+          {
+            "id": "agtm-v15-dlrepeat-enrich",
+            "title": "DL-Repeat: Late-Enrichment-Replay aus aGTM.d.dl (Teil A, R1–R7)",
+            "description": "Late-Enrichment-Feature vom GTM-Team (Teil A). Neue Replay-Quelle aGTM.d.dl (Post-Load-Log), opt-in getrennt von aGTM.d.f (R1). Gate-Event(s): Trigger-Default + optionales internes UND-Feld (R2). aGTMrepeated-Marker bleibt (R3). Timeout-Fallback Default 1500ms, Anker Tag-Init, via aGTM.f.timer/stoptimer (R4). Loop-Schutz R5 (In-Code-Skip aGTMrepeated===true). Einmaligkeit/Dedup R6 (kritisch: kein Doppel-purchase). Original-Reihenfolge + optional Clear-ecommerce R7. VORBEDINGUNG F-09: aGTMts vor fire() strippen (sonst verwirft Library-Loop-Guard aGTM.js:2049 das Event); neue Permissions nötig: Read aGTM.d.dl, Execute aGTM.f.timer/stoptimer, Write Once-per-Page-Guard. Akzeptanzkriterien 1–4 als ___TESTS___-Szenarien. Sequentiell NACH Bugfix-Karte (gleiche Datei).",
+            "status": "offen",
+            "priority": "hoch",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "hoch",
+            "effort": 5,
+            "agentContext": "gtm/tags/dl-repeat/aGTM tag - DL Repeat.tpl · aGTM.js: aGTM.d.dl-Push L2139, aGTMts-Guard L2049 / Set L2061, aGTM.d.f-Pfad löscht aGTMts L2104, aGTMdl-Marker L1155 · aGTM.f.timer/stoptimer L1809/1850 · docs/findings.md F-09 (harte Vorbedingung) · GTM-Team-Nachricht 2026-06-24 (R1–R7 + Akzeptanzkriterien) · ES5/webGTM-Sandbox · ___TESTS___ aktuell leer · sequentiell NACH agtm-v15-dlrepeat-bugs (Dateikonflikt, ADR-0043)",
+            "links": [
+              {
+                "type": "depends-on",
+                "targetId": "agtm-v15-dlrepeat-bugs"
+              }
+            ],
+            "comments": [
+              {
+                "id": "a69dcb26-dd24-442c-b0b6-e0f3f4896e00",
+                "author": "Claude Opus",
+                "text": "Erledigt in d224bea. Late-Enrichment-Replay aus aGTM.d.dl (R1-R7): source-SELECT, Gate-Events, Fallback-Timeout via aGTM.f.timer-Re-Trigger, Watermark-Dedup (kein Doppel-purchase), Loop-Schutz, clear-ecommerce, neue Permissions, 4 GTM-Test-Szenarien. F-09 (aGTMts-Strip) + F-10 (Send-Type-Inversion) mitkorrigiert. Kritiker-Sub-Agent gelaufen: Code korrekt (kein Doppel-Conversion, F-09/F-10/Permissions/ES5/JSON ok), zwei P1-KONFIG-Fallen gefunden (F-11 Gate bei Multi-Trigger Pflicht; F-12 nur eine dl-Replay-Engine/Seite) - beide via Doku/Hilfetext/Debug-Warnung gehaertet. QA: JSON valide, bun test 179 pass. Findings F-09/F-10/F-11/F-12 behoben. Tag 1.2->1.3. CAVEAT: GTM-Template-Tester lokal nicht verfuegbar - Szenarien in GTM verifizieren.",
+                "created": "2026-06-24"
+              }
+            ],
+            "columnId": "col-erledigt",
+            "displayId": 14
           }
         ]
       },
@@ -271,7 +331,7 @@
         ]
       }
     ],
-    "nextDisplayId": 13,
+    "nextDisplayId": 15,
     "attachments": [],
     "background": null,
     "templates": [],
