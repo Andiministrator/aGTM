@@ -72,6 +72,76 @@ ___TEMPLATE_PARAMETERS___
   },
   {
     "type": "GROUP",
+    "name": "lateEnrichment",
+    "displayName": "Late-Enrichment (post-load replay)",
+    "groupStyle": "ZIPPY_CLOSED",
+    "subParams": [
+      {
+        "type": "SELECT",
+        "name": "source",
+        "displayName": "Replay source",
+        "macrosInSelect": false,
+        "selectItems": [
+          {
+            "value": "f",
+            "displayValue": "Pre-consent / pre-load buffer (aGTM.d.f) - default"
+          },
+          {
+            "value": "dl",
+            "displayValue": "Post-load event log (aGTM.d.dl) - late enrichment"
+          }
+        ],
+        "simpleValueType": true,
+        "defaultValue": "f",
+        "help": "Which buffer to replay from.<br /><br />'aGTM.d.f' (default) replays events that were fired BEFORE GTM/consent was ready - the original behaviour.<br /><br />'aGTM.d.dl' replays events that were fired AFTER load (the post-load event log). Use this for late enrichment: when an event such as 'user_data' arrives after 'view_cart'/'purchase' have already fired, trigger this tag on that late event to repeat the earlier ones with full data. Repeated events are marked 'aGTMrepeated = true' - trigger consumer tags on that and exclude the original pass."
+      },
+      {
+        "type": "TEXT",
+        "name": "gateEvents",
+        "displayName": "Gate event(s)",
+        "simpleValueType": true,
+        "enablingConditions": [
+          {
+            "paramName": "source",
+            "paramValue": "dl",
+            "type": "EQUALS"
+          }
+        ],
+        "help": "The replay runs only once ALL of these event names are present in the log (comma-separated, AND-joined, e.g. 'user_data').<br /><br /><b>Required</b> whenever the tag triggers on more than just the enrichment event - e.g. when you also trigger on an early anchor like 'aPageview' (needed for the fallback timeout). If left blank, an empty gate counts as 'ready' and the replay would run on the FIRST trigger (e.g. aPageview), unenriched, and the per-page dedup would then block the later enriched pass.<br /><br />Leave blank ONLY if the tag triggers solely on the enrichment event itself (then no guest fallback)."
+      },
+      {
+        "type": "TEXT",
+        "name": "fallbackTimeout",
+        "displayName": "Fallback timeout (ms)",
+        "simpleValueType": true,
+        "defaultValue": "1500",
+        "enablingConditions": [
+          {
+            "paramName": "source",
+            "paramValue": "dl",
+            "type": "EQUALS"
+          }
+        ],
+        "help": "If the gate event has not arrived within this many milliseconds (measured from when this tag first runs), the replay runs once anyway - unenriched - so no tags fail for guests without the gate event. 0 or empty disables the fallback.<br /><br />Requires the tag trigger to also fire on the event 'aGTM_repeat_fallback'."
+      },
+      {
+        "type": "CHECKBOX",
+        "name": "clearEcom",
+        "checkboxText": "Clear ecommerce between events",
+        "simpleValueType": true,
+        "enablingConditions": [
+          {
+            "paramName": "source",
+            "paramValue": "dl",
+            "type": "EQUALS"
+          }
+        ],
+        "help": "Push an 'ecommerce: null' reset before each repeated event that carries an 'ecommerce' object, to avoid ecommerce data bleeding between events (GA4 recommendation)."
+      }
+    ]
+  },
+  {
+    "type": "GROUP",
     "name": "moreSettings",
     "displayName": "More Settings",
     "groupStyle": "ZIPPY_OPEN_ON_PARAM",
@@ -152,6 +222,14 @@ if (!o.c.maxEvents) { o.c.maxEvents = 0; } else { o.c.maxEvents = o.c.maxEvents 
 o.d.count = 0;
 o.c.gtmEvents = typeof data.gtmEvents=='boolean' ? data.gtmEvents : false;
 o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
+// Late-enrichment config (v1.3). source 'f' = legacy pre-load buffer
+// (aGTM.d.f), 'dl' = post-load event log (aGTM.d.dl). Default 'f' keeps the
+// existing behaviour for tags that do not set the field (R1).
+o.c.source = (data.source=='dl') ? 'dl' : 'f';
+o.c.gateEvents = typeof data.gateEvents=='string' ? data.gateEvents : '';
+o.c.fallbackTimeout = (typeof data.fallbackTimeout=='string' || typeof data.fallbackTimeout=='number') ? callInWindow('aGTM.f.rReplace', ''+data.fallbackTimeout, '[^0-9]', '') : '';
+o.c.fallbackTimeout = o.c.fallbackTimeout ? o.c.fallbackTimeout * 1 : 0;
+o.c.clearEcom = typeof data.clearEcom=='boolean' ? data.clearEcom : false;
 
 /**
  * Define function to fire events
@@ -195,71 +273,189 @@ o.f.evMatch = o.f.evMatch || function (list, evname) {
   return false;
 };
 
-// Once-per-page guard (fixes B5): if a previous execution of this tag already
-// ran the replay on this page, do nothing. Without this, a trigger that fires
-// more than once per page (multiple triggers, consent-update event, a frequent
-// event) would replay the WHOLE buffer again and again - every event multiple
-// times in the dataLayer.
-if (copyFromWindow('aGTM.d.repeatDone') === true) {
-  if (o.c.debug) log('info', 'aGTM DL Repeat: replay already ran on this page, skipping.');
+/**
+ * Decide whether one event from the replay source should be repeated.
+ * Applies loop protection, the send-type, internal-event, whitelist/blacklist
+ * and message filters. Shared by both replay modes.
+ * @param {object} ev - candidate event
+ * @returns {boolean} true if the event should be fired
+ */
+o.f.passes = o.f.passes || function (ev) {
+  if (typeof ev!='object' || !ev) return false;
+  // Loop protection (fixes B5 / R5): never repeat an already-repeated event
+  if (ev.aGTMrepeated === true) return false;
+  // Send types. aGTMdl===true marks raw GTM dataLayer items captured at init;
+  // events fired through aGTM.f.fire carry no aGTMdl. Matched to the checkbox
+  // labels (fixes F-10 inversion): gtmFired -> "Send Events of GTM dataLayer"
+  // (aGTMdl===true), agtmFired -> "...via aGTM.f.fire" (no aGTMdl).
+  if (ev.aGTMdl === true) { if (!o.c.gtmFired) return false; }
+  else if (!o.c.agtmFired) return false;
+  // Skip aGTM control events (aGTM_ready, aGTM_consent_update, the fallback signal)
+  if (typeof ev.event=='string' && ev.event.indexOf('aGTM')===0) return false;
+  // Skip GTM "untagged page" report messages
+  if (typeof ev.event!='string' && typeof ev.type=='string' && typeof ev.flags=='object' && typeof ev.flags.enableUntaggedPageReporting=='boolean' && ev.flags.enableUntaggedPageReporting) return false;
+  // Skip internal gtm.* events unless explicitly enabled
+  if (!o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) return false;
+  // Whitelist / blacklist (fixes B3: global wildcard + trimmed entries)
+  if (o.c.whitelist && typeof ev.event=='string' && !o.f.evMatch(o.c.whitelist, ev.event)) return false;
+  if (o.c.blacklist && typeof ev.event=='string' && o.f.evMatch(o.c.blacklist, ev.event)) return false;
+  // DL message (event without a name)
+  if (!o.c.messages && typeof ev.event!='string') return false;
+  return true;
+};
+
+/**
+ * Prepare and fire one repeated event: optional ecommerce reset before it,
+ * strip internal fields, mark it as repeated, add configured parameters.
+ * @param {object} ev - event to repeat
+ */
+o.f.repeat = o.f.repeat || function (ev) {
+  // Optional ecommerce reset between events (R7) to avoid object bleed
+  if (o.c.clearEcom && typeof ev.ecommerce!='undefined') {
+    o.f.fire({ ecommerce: null, aGTMrepeated: true });
+  }
+  // Strip internal fields. aGTMts is load-bearing: aGTM.f.fire() discards any
+  // event that already carries a numeric aGTMts (its loop guard), so a 1:1
+  // replay from aGTM.d.dl would be dropped (fixes F-09). aGTMparams is an
+  // internal snapshot blob; gtm.uniqueEventId must not be reused.
+  if (typeof ev.aGTMts!='undefined') delete ev.aGTMts;
+  if (typeof ev.aGTMparams!='undefined') delete ev.aGTMparams;
+  if (typeof ev['gtm.uniqueEventId']!='undefined') delete ev['gtm.uniqueEventId'];
+  // Repeat marker (R3 / R5)
+  ev.aGTMrepeated = true;
+  // Additional parameters
+  if (o.c.addparameter.length>0) {
+    for (var p=0; p<o.c.addparameter.length; p++) {
+      var row = o.c.addparameter[p];
+      ev[row.pkey] = row.pvalue;
+    }
+  }
+  o.f.fire(ev);
+};
+
+/**
+ * Are all configured gate events present in the post-load event log?
+ * AND-joined and trimmed; an empty list means "no internal gate" - then the
+ * replay relies purely on the tag trigger (R2).
+ * @param {string} list - comma-separated gate event names
+ * @param {array} events - the event log to scan
+ * @returns {boolean}
+ */
+o.f.gateReady = o.f.gateReady || function (list, events) {
+  if (!list) return true;
+  var arr = list.split(',');
+  for (var g=0; g<arr.length; g++) {
+    var name = callInWindow('aGTM.f.rReplace', arr[g], '^\\s+|\\s+$', '');
+    if (!name) continue;
+    var found = false;
+    for (var e=0; e<events.length; e++) {
+      if (events[e] && events[e].event===name) { found = true; break; }
+    }
+    if (!found) return false;
+  }
+  return true;
+};
+
+// ===== Mode A: pre-consent / pre-load buffer (aGTM.d.f) - default, legacy =====
+// Repeats events that aGTM queued before GTM/consent was ready.
+if (o.c.source != 'dl') {
+  // Once-per-page guard (fixes B5): if a previous execution already ran the
+  // replay on this page, do nothing. Without this, a trigger firing more than
+  // once per page (multiple triggers, consent-update event, a frequent event)
+  // would replay the WHOLE buffer again - every event multiple times.
+  if (copyFromWindow('aGTM.d.repeatDone') === true) {
+    if (o.c.debug) log('info', 'aGTM DL Repeat: replay already ran on this page, skipping.');
+    data.gtmOnSuccess();
+    return;
+  }
+  o.d.f = copyFromWindow('aGTM.d.f');
+  if (o.c.debug) log('info','QUEUE (aGTM.d.f)',JSON.parse(JSON.stringify(o.d.f)));
+  if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
+    for (var i=0; i<o.d.f.length; i++) {
+      var ev = o.d.f[i];
+      if (!o.f.passes(ev)) continue;
+      // Limit (fixes B1): only events that are actually repeated count.
+      if (o.c.maxEvents && o.d.count >= o.c.maxEvents) break;
+      o.f.repeat(ev);
+      o.d.count++;
+    }
+  }
+  // Mark this page as done so a second trigger does not replay again (fixes B5)
+  setInWindow('aGTM.d.repeatDone', true, true);
   data.gtmOnSuccess();
   return;
 }
 
-// Copy the queue
-o.d.f = copyFromWindow('aGTM.d.f');
-if (o.c.debug) log('info','QUEUE',JSON.parse(JSON.stringify(o.d.f)));
+// ===== Mode B: post-load event log (aGTM.d.dl) - late enrichment (R1) =====
+// Repeats events that were fired AFTER GTM/consent loaded, so that tags which
+// need late-arriving data (e.g. hashed user data) fire again with full data.
+var dl = copyFromWindow('aGTM.d.dl');
+if (typeof dl!='object' || typeof dl.length!='number') dl = [];
+if (o.c.debug) log('info','LOG (aGTM.d.dl)',JSON.parse(JSON.stringify(dl)));
 
-// Loop events
-if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
-  for (var i=0; i<o.d.f.length; i++) {
-    if (o.c.debug) log('info','CHECK Event '+i,JSON.parse(JSON.stringify(o.d.f[i])));
-    var ev = o.d.f[i];
-    if (typeof ev!='object' || !ev) continue;
-    // Loop protection (fixes B5 / R5): never repeat an already-repeated event
-    if (ev.aGTMrepeated === true) continue;
-    // Check Send Types
-    if (!o.c.gtmFired && (typeof ev.aGTMdl!='boolean' || !ev.aGTMdl)) continue;
-    if (!o.c.agtmFired && typeof ev.aGTMdl=='boolean') continue;
-    // Check GTM and aGTM Events
-    if (typeof ev.event=='string' && ev.event=='aGTM_ready') continue;
-    if (typeof ev.event!='string' && typeof ev.type=='string' && typeof ev.flags=='object' && typeof ev.flags.enableUntaggedPageReporting=='boolean' && ev.flags.enableUntaggedPageReporting) continue;
-    if (!o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) continue;
-    // Whitelist (fixes B3: global wildcard + trimmed entries via o.f.evMatch)
-    if (o.c.whitelist && typeof ev.event=='string' && !o.f.evMatch(o.c.whitelist, ev.event)) continue;
-    // Blacklist (fixes B3: global wildcard + trimmed entries via o.f.evMatch)
-    if (o.c.blacklist && typeof ev.event=='string' && o.f.evMatch(o.c.blacklist, ev.event)) continue;
-    // Event is DL message
-    if (!o.c.messages && typeof ev.event!='string') continue;
-    // Limit (fixes B1): count only events that are ACTUALLY repeated, checked
-    // here after all skip filters and right before firing - not at the top of
-    // the loop where skipped events (gtm.*, blacklist, non-whitelist, messages)
-    // would consume the budget and could starve the replay down to 0 events.
-    if (o.c.maxEvents && o.d.count >= o.c.maxEvents) break;
-    // Add Repeat Marker
-    ev.aGTMrepeated = true;
-    // Add Parameter
-    if (o.c.addparameter.length>0) {
-      for (var j=0; j<o.c.addparameter.length; j++) {
-        var row = o.c.addparameter[j];
-        ev[row.pkey] = row.pvalue;
-      }
-    }
-    // Send
-    o.f.fire(ev);
-    o.d.count++;
-  }
+// Config guard (P1-1): an empty gate counts as 'ready', so the replay runs on
+// the FIRST trigger. With a fallback timeout the tag is meant to be triggered
+// on an early anchor too - then an empty gate would replay prematurely
+// (unenriched) and the per-page watermark would block the later enriched pass.
+if (o.c.debug && !o.c.gateEvents && o.c.fallbackTimeout > 0) {
+  log('warn', 'aGTM DL Repeat: source=dl with a fallback timeout but no gate event(s). Set Gate event(s) (e.g. user_data), otherwise the replay runs on the first trigger unenriched - see the README.');
 }
 
-// Mark this page as done so a second trigger does not replay again (fixes B5)
-setInWindow('aGTM.d.repeatDone', true, true);
+// Has the fallback already fired on this page? Its control event lands in the
+// log, so its presence is the signal (R4).
+var fallbackFired = false;
+for (var fi=0; fi<dl.length; fi++) {
+  if (dl[fi] && dl[fi].event==='aGTM_repeat_fallback') { fallbackFired = true; break; }
+}
+
+// Gate check (R2): run only once the configured gate event(s) are present, or
+// once the fallback timeout has fired (then unenriched, R4).
+if (!fallbackFired && !o.f.gateReady(o.c.gateEvents, dl)) {
+  // Gate not ready. Schedule the fallback timer once (R4) so guests without
+  // the gate event still get one (unenriched) replay. aGTM.f.timer with no
+  // function fires the given event via aGTM.f.timerfkt after the timeout; the
+  // tag trigger must also include 'aGTM_repeat_fallback' (see README).
+  if (o.c.fallbackTimeout > 0 && copyFromWindow('aGTM.d.repeatFallbackScheduled') !== true) {
+    setInWindow('aGTM.d.repeatFallbackScheduled', true, true);
+    if (queryPermission('access_globals', 'execute', 'aGTM.f.timer')) {
+      callInWindow('aGTM.f.timer', 'aGTMrepeatFallback', null, { event: 'aGTM_repeat_fallback' }, o.c.fallbackTimeout, 1);
+    } else if (o.c.debug) {
+      log('warn', 'aGTM DL Repeat: no permission to run aGTM.f.timer - fallback disabled.');
+    }
+  }
+  if (o.c.debug) log('info', 'aGTM DL Repeat: gate not ready, waiting.');
+  data.gtmOnSuccess();
+  return;
+}
+
+// Replay (R6/R7): process the log in original order, but only entries not yet
+// handled on a previous run (per-page watermark). Together with the in-code
+// aGTMrepeated skip in o.f.passes this guarantees no source event is repeated
+// twice - critical for purchase (no double conversion).
+var fromIdx = copyFromWindow('aGTM.d.repeatMax');
+if (typeof fromIdx != 'number') fromIdx = -1;
+var maxIdx = fromIdx;
+for (var d=0; d<dl.length; d++) {
+  if (d <= fromIdx) continue;          // already handled on an earlier run
+  var dev = dl[d];
+  if (o.f.passes(dev)) {
+    // Limit (fixes B1): only actually-repeated events count. Break BEFORE
+    // advancing the watermark so the limit event is retried on a later run.
+    if (o.c.maxEvents && o.d.count >= o.c.maxEvents) break;
+    o.f.repeat(dev);
+    o.d.count++;
+  }
+  maxIdx = d;                          // entry d fully handled (fired or filtered)
+}
+// Persist the watermark so a later run (e.g. fallback after a gate run) does
+// not repeat the same source events again.
+if (maxIdx > fromIdx) setInWindow('aGTM.d.repeatMax', maxIdx, true);
 
 // Call data.gtmOnSuccess when the tag is finished.
 data.gtmOnSuccess();
 
 
 ___WEB_PERMISSIONS___
-
 [
   {
     "instance": {
@@ -527,6 +723,162 @@ ___WEB_PERMISSIONS___
                     "boolean": true
                   }
                 ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.d.dl"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.d.repeatMax"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.d.repeatFallbackScheduled"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.f.timer"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  }
+                ]
               }
             ]
           }
@@ -543,14 +895,98 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Mode A repeats each pre-load event once and marks them
+  code: |-
+    const fired = [];
+    const win = {};
+    mock('queryPermission', function() { return true; });
+    mock('setInWindow', function(key, val) { win[key] = val; });
+    mock('copyFromWindow', function(key) {
+      if (key === 'aGTM.d.f') return [ {event: 'view_item'}, {event: 'purchase'} ];
+      return win[key];
+    });
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
+      if (fn === 'aGTM.f.rReplace') { return '' + arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      return undefined;
+    });
+    runCode({ source: 'f', gtmFired: true, agtmFired: true });
+    assertThat(fired.length).isEqualTo(2);
+    assertThat(fired[0].event).isEqualTo('view_item');
+    assertThat(fired[0].aGTMrepeated).isEqualTo(true);
+    assertThat(win['aGTM.d.repeatDone']).isEqualTo(true);
+- name: Mode A once-per-page guard - a second run repeats nothing
+  code: |-
+    const fired = [];
+    mock('queryPermission', function() { return true; });
+    mock('setInWindow', function() {});
+    mock('copyFromWindow', function(key) {
+      if (key === 'aGTM.d.repeatDone') return true;
+      if (key === 'aGTM.d.f') return [ {event: 'view_item'} ];
+      return undefined;
+    });
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
+      return undefined;
+    });
+    runCode({ source: 'f', agtmFired: true });
+    assertThat(fired.length).isEqualTo(0);
+- name: Mode B late enrichment - gate ready, no double on a second run
+  code: |-
+    const fired = [];
+    const win = {};
+    const dl = [ {event: 'view_cart'}, {event: 'purchase'}, {event: 'user_data'} ];
+    mock('queryPermission', function() { return true; });
+    mock('setInWindow', function(key, val) { win[key] = val; });
+    mock('copyFromWindow', function(key) {
+      if (key === 'aGTM.d.dl') return dl;
+      return win[key];
+    });
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
+      if (fn === 'aGTM.f.rReplace') { return '' + arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      return undefined;
+    });
+    const cfg = { source: 'dl', gtmFired: true, agtmFired: true, gateEvents: 'user_data' };
+    runCode(cfg);
+    const afterFirst = fired.length;
+    assertThat(afterFirst).isEqualTo(3);
+    assertThat(fired[1].event).isEqualTo('purchase');
+    assertThat(fired[1].aGTMrepeated).isEqualTo(true);
+    runCode(cfg);
+    assertThat(fired.length).isEqualTo(afterFirst);
+- name: Mode B gate not ready - waits and schedules the fallback timer
+  code: |-
+    const fired = [];
+    const win = {};
+    let timerScheduled = false;
+    mock('queryPermission', function() { return true; });
+    mock('setInWindow', function(key, val) { win[key] = val; });
+    mock('copyFromWindow', function(key) {
+      if (key === 'aGTM.d.dl') return [ {event: 'view_cart'} ];
+      return win[key];
+    });
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.fire') { fired.push(arguments[1]); return; }
+      if (fn === 'aGTM.f.timer') { timerScheduled = true; return; }
+      if (fn === 'aGTM.f.rReplace') { return '' + arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      return undefined;
+    });
+    runCode({ source: 'dl', agtmFired: true, gateEvents: 'user_data', fallbackTimeout: '1500' });
+    assertThat(fired.length).isEqualTo(0);
+    assertThat(timerScheduled).isEqualTo(true);
+    assertThat(win['aGTM.d.repeatFallbackScheduled']).isEqualTo(true);
 
 
 ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.2
+- Version 1.3
 - Autor: Andi Petzoldt <andi@petzoldt.net>
 - Last Update: 24.06.2026
 
@@ -561,6 +997,13 @@ Requires an aGTM integration of the GTM.
 
 ## Changelog
 
+- 1.3 (24.06.2026): Late-Enrichment feature. New "Replay source" option to
+  replay the post-load event log (aGTM.d.dl), not just the pre-load buffer
+  (aGTM.d.f). Optional gate event(s), fallback timeout (re-trigger on
+  'aGTM_repeat_fallback') and "clear ecommerce between events". Per-event
+  dedup via a per-page watermark + the aGTMrepeated loop skip (no double
+  purchase). Also aligns the send-type checks with their labels (the
+  aGTMdl-based check was inverted).
 - 1.2 (24.06.2026): Bugfixes - maxEvents now counts only repeated events (not
   skipped ones); whitelist/blacklist support multiple "*" wildcards and trim
   entries; once-per-page guard + loop protection prevent duplicate replays;

@@ -115,6 +115,18 @@ Three new tests cover the hardening (F.* race-safety, non-C-prefix defensive, `g
 - New template option group **Pre-aGTM Init Script** (`pre_init_enabled`, `pre_init_code`): a multi-line JavaScript field whose content is prepended verbatim to the `/aGTM.js` response, before the aGTM library is parsed. Wrapped in an IIFE inside `try/catch` — runtime errors are logged to the browser console as `[aGTM preInit]` and do not break aGTM. Syntax errors still abort parsing of the whole response, so the help text recommends syntax-checking before publishing.
 - New documentation section **CMP Loader Pattern** (in `sgtmClient/README.md`): a separate Web GTM container with `noConsent: true` is the recommended way to load a CMP before aGTM checks consent (no shared blast radius, standard GTM workflow). The Pre-aGTM Init Script field is positioned as a fallback for cases where a separate container is not viable.
 
+### GTM template "DL Repeat" — late-enrichment replay (v1.3)
+
+Feature requested by the GTM team (2026-06-24, driver: fc-moto), built on top
+of the v1.2 bug fixes:
+
+- **New "Replay source" option.** In addition to the pre-load buffer (`aGTM.d.f`, default, unchanged), the tag can now replay the **post-load event log** `aGTM.d.dl` — events fired *after* GTM/consent loaded. Use case: an enrichment event (e.g. `user_data` with hashed identifiers) arrives after `view_cart`/`purchase`; triggering this tag on the late event repeats the earlier events (marked `aGTMrepeated = true`) so Enhanced Conversions / Criteo etc. fire again with full data. Storage-free (RAM only).
+- **Gate event(s)** (AND-joined): the replay runs only once the configured event(s) are present in the log. Required when the tag triggers on more than the enrichment event (e.g. an early anchor for the fallback); blank only when triggering solely on the enrichment event. Use the whitelist to scope the replay to the commerce events that need enrichment. Only one `source=dl` replay tag per page (consumer tags fire on `aGTMrepeated=true`).
+- **Fallback timeout** (default 1500 ms): if the gate event never arrives (e.g. guests without `user_data`), the replay runs once anyway (unenriched) so no consumer tags fail. Implemented via `aGTM.f.timer` firing an `aGTM_repeat_fallback` re-trigger event; the tag trigger must include that event and an early anchor (e.g. `aPageview`).
+- **Dedup / no double conversion:** each source event is repeated at most once per page (per-page watermark + in-code skip of `aGTMrepeated === true`), even on multiple trigger fires — critical for `purchase`. Replays preserve original order; optional "clear ecommerce between events" avoids object bleed.
+- Also aligns the send-type checks with their checkbox labels — the `aGTMdl`-based check was inverted (`aGTMdl === true` marks raw GTM dataLayer items; `aGTM.f.fire` events carry no `aGTMdl`), which is also why `agtmFired` is the correct default for the primary "replay aGTM.f.fire events" use case.
+- Requires new template permissions: read `aGTM.d.dl`, read/write `aGTM.d.repeatMax` and `aGTM.d.repeatFallbackScheduled`, execute `aGTM.f.timer`.
+
 ### GTM template "DL Repeat" — bug fixes (v1.2)
 
 Bug review reported by the GTM team (2026-06-24, driver: fc-moto). All five
