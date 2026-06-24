@@ -4,13 +4,13 @@
 
 The **aGTM DL Repeat Template** is designed to repeat events that were sent before Google Tag Manager (GTM) was fully loaded or before the `aGTMready` event was fired in the `dataLayer`. This template is especially useful for capturing events that occurred before the user's consent was given or before GTM was fully initialized.
 
-- **Version**: 1.1
-- **Last Updated**: 25.06.2024
+- **Version**: 1.2
+- **Last Updated**: 24.06.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
 
-**Template File**: [aGTM-tag-DL-Repeat.tpl](./aGTM-tag-DL-Repeat.tpl)
+**Template File**: [aGTM tag - DL Repeat.tpl](<./aGTM tag - DL Repeat.tpl>)
 
 ---
 
@@ -46,7 +46,7 @@ This template requires an existing **aGTM integration** within your GTM setup.
 
 1. Open your **Google Tag Manager** container.
 2. Navigate to **Templates** > **Tag Templates** > **New**.
-3. Import the **aGTM DL Repeat Template** (`aGTM-tag-DL-Repeat.tpl`).
+3. Import the **aGTM DL Repeat Template** (`aGTM tag - DL Repeat.tpl`).
 4. Save and publish the template.
 
 ### 2. Tag Configuration
@@ -64,8 +64,10 @@ After importing the template, follow these steps to configure it:
 
 | Parameter       | Description                                                                 | Example                          |
 |-----------------|-----------------------------------------------------------------------------|---------------------------------|
-| **gtmFired**    | Repeat events from the GTM `dataLayer`.                                     | Checked                          |
-| **agtmFired**   | Repeat events fired using `aGTM.f.fire`.                                    | Checked                          |
+| **gtmFired**    | Repeat events from the GTM `dataLayer`.                                     | Unchecked (default)              |
+| **agtmFired**   | Repeat events fired using `aGTM.f.fire`. **Enabled by default.**            | Checked (default)                |
+
+> **Note:** At least one of **gtmFired** / **agtmFired** must be enabled — otherwise the tag skips every event and does nothing. `agtmFired` is on by default so the tag works out of the box.
 | **messages**    | Repeat dataLayer messages (events without an event name).                   | Unchecked                        |
 | **whitelist**   | Event names to include (comma-separated). Use `*` as a wildcard.            | `eventA, eventB_*`               |
 | **blacklist**   | Event names to exclude (comma-separated). Use `*` as a wildcard.            | `eventC, eventD_*`               |
