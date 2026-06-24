@@ -129,6 +129,12 @@
                 "author": "Claude Opus",
                 "text": "Erledigt in d224bea. Late-Enrichment-Replay aus aGTM.d.dl (R1-R7): source-SELECT, Gate-Events, Fallback-Timeout via aGTM.f.timer-Re-Trigger, Watermark-Dedup (kein Doppel-purchase), Loop-Schutz, clear-ecommerce, neue Permissions, 4 GTM-Test-Szenarien. F-09 (aGTMts-Strip) + F-10 (Send-Type-Inversion) mitkorrigiert. Kritiker-Sub-Agent gelaufen: Code korrekt (kein Doppel-Conversion, F-09/F-10/Permissions/ES5/JSON ok), zwei P1-KONFIG-Fallen gefunden (F-11 Gate bei Multi-Trigger Pflicht; F-12 nur eine dl-Replay-Engine/Seite) - beide via Doku/Hilfetext/Debug-Warnung gehaertet. QA: JSON valide, bun test 179 pass. Findings F-09/F-10/F-11/F-12 behoben. Tag 1.2->1.3. CAVEAT: GTM-Template-Tester lokal nicht verfuegbar - Szenarien in GTM verifizieren.",
                 "created": "2026-06-24"
+              },
+              {
+                "id": "e7972d79-267e-4714-8591-60b7449bf750",
+                "author": "Claude Opus",
+                "text": "Stand nach Live-Debugging mit Andi (HEAD 505bdee): Feature stark weiterentwickelt. Tag 1.3->1.5: (1) v1.4 neue Quelle \"Live GTM dataLayer\" weil aGTM.d.dl nur fire()-Events enthaelt, Shopware pusht roh (F-13); (2) v1.5 Engine in Library aGTM.f.dlrepeat verschoben -> EIN Trigger, Tag pollt selbst (GTM-Sandbox kann kein setInterval). Kritiker-Lauf gemacht, F-15/16/17 gefixt. delete-Sandbox-Bug (F-?, gtm-web-sandbox) + Send-Type-Inversion (F-10) unterwegs gefixt. 190 bun-Tests gruen, build clean, Doku+Knowledge ergaenzt. OFFEN: Live-Verifikation im naechsten Chat (Andi). WICHTIG: aGTM-Library v1.5 muss mit ausgeliefert werden (Tag braucht aGTM.f.dlrepeat).",
+                "created": "2026-06-24"
               }
             ],
             "columnId": "col-erledigt",
