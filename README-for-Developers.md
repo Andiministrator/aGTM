@@ -647,6 +647,22 @@ function() {
 
 **Backward compatibility:** when `cfg.session.attribution` is absent, the loop is a no-op and `aGTM.d.attribution` stays `{}`. Existing integrations without sGTM Client attribution wiring are unaffected. See [`internal/api/integration-guide.md` §7](internal/api/integration-guide.md) for the full design.
 
+## DL-Repeat / Late-Enrichment (`aGTM.f.dlrepeat`)
+
+`aGTM.f.dlrepeat(cfg)` is the engine behind the **"aGTM - DL Repeat"** GTM tag (`gtm/tags/dl-repeat/`, tag template v1.5+). The tag itself is a thin wrapper: it collects its fields into `cfg` and calls `aGTM.f.dlrepeat(cfg)` **once**. The engine lives in the library because the GTM web sandbox cannot poll (`setInterval` is unavailable there) — so the tag needs only a **single trigger** (e.g. *All Pages*) and the library watches the dataLayer itself.
+
+**Use case (late enrichment):** a shop pushes an enrichment event (e.g. `user_data` with hashed identifiers) *after* `view_item`/`purchase` already fired, so conversion tags fired without it. `dlrepeat` waits for the enrichment event, then re-fires the earlier matching events marked `aGTMrepeated = true`, so consumer tags (Enhanced Conversions, Criteo, …) fire again — now complete. Trigger consumer tags on `aGTMrepeated == true` and exclude the original pass.
+
+**`cfg` fields** (all from the tag): `source` (`'f'` = pre-load buffer `aGTM.d.f` (default), `'dl'` = `aGTM.d.dl` (only `aGTM.f.fire` events), `'live'` = the real `dataLayer` `window[aGTM.c.gdl]` — covers raw `dataLayer.push`), `gateEvents` (csv; replay waits until all are present; empty = immediate), `whitelist`/`blacklist` (csv, `*` wildcard), `gtmFired`/`agtmFired`/`messages`/`gtmEvents`/`clearEcom`/`debug` (booleans), `maxEvents` (number), `timeoutMs` (fallback wait; `0` = no fallback), `pollMs` (default 300), `addparameter` (`[{pkey,pvalue}]`).
+
+**Why `aGTM.d.dl` ≠ the live dataLayer:** `aGTM.d.dl` only holds events that went through `aGTM.f.fire`. Raw `dataLayer.push({...})` (typical for shop plugins, e.g. Shopware) never enters it — those need `source: 'live'`.
+
+**Send types** match the tag's checkbox labels: `aGTMdl === true` (raw GTM dataLayer items captured at init) → gated by `gtmFired`; events without `aGTMdl` (fired via `aGTM.f.fire`) → gated by `agtmFired`.
+
+**Guarantees:** runs **at most once per page** (`aGTM.d.dlrepeatDone`, set at the start of the replay) + every re-fired event carries `aGTMrepeated = true` and is skipped by the filter → no double `purchase`, no loop. The replay iterates a **snapshot length** taken before firing, so re-fired events appended to the live dataLayer are not re-scanned. `aGTMts`/`aGTMparams`/`gtm.uniqueEventId` are stripped before re-firing (else `fire()`'s `aGTMts` loop-guard would drop the event). The poll is bounded (gate ready → timeout → 30 s hard cap) and never leaks an interval; `aGTM.d.dlrepeatPolling` guards against parallel polls and is released if the hard cap is hit without a fallback.
+
+**Requires** the library v1.5+. The tag guards with `copyFromWindow('aGTM.f.dlrepeat')` and logs a warning + does nothing on an older library.
+
 ## Callbacks
 
 ### Available Callback Functions

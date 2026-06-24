@@ -413,6 +413,12 @@ Each template subdirectory contains:
 - The `.tpl` file
 - A `README-gtm-tag-<name>.md` documentation file
 
+### DL-Repeat tag → `aGTM.f.dlrepeat` (v1.5+)
+
+The **"aGTM - DL Repeat"** tag (`gtm/tags/dl-repeat/`) is, from v1.5, a thin wrapper: it collects its fields into a `cfg` object and calls **`aGTM.f.dlrepeat(cfg)`** in the library once. The replay/late-enrichment engine (gate-wait, poll, source `f`/`dl`/`live`, `aGTMrepeated` marking, once-per-page dedup) lives in `aGTM.js` because the GTM web sandbox has no `setInterval` — so the tag needs only a **single trigger**. The tag therefore **requires the aGTM library v1.5+** (guarded: warns + no-op on older). See `README-for-Developers.md` §"DL-Repeat / Late-Enrichment" and `gtm/tags/dl-repeat/README-gtm-tag-dl-repeat.md`.
+
+> **GTM web template sandbox** (distinct from the sGTM server sandbox): no `delete` operator (set the property to `undefined` instead — `JSON.stringify` drops it), no `setInterval`, only the required APIs (`callInWindow`/`copyFromWindow`/`setInWindow`/`queryPermission`/`logToConsole`/`JSON`). Every global path used must be declared in `___WEB_PERMISSIONS___`.
+
 ---
 
 **Roadmap:** [ROADMAP.md](ROADMAP.md)

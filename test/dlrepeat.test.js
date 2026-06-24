@@ -110,4 +110,40 @@ describe('aGTM.f.dlrepeat', () => {
     globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true });
     expect(fired.length).toBe(1);
   });
+
+  test('does not start a second poll while already polling (re-entrancy guard)', () => {
+    globalThis.aGTM.d.dl = [{ event: 'view_item', aGTMdl: true }];
+    const fired = captureFires();
+    let intervals = 0;
+    const origSI = globalThis.setInterval;
+    globalThis.setInterval = function () { intervals++; return 0; };
+    try {
+      const cfg = { source: 'dl', gtmFired: true, gateEvents: 'user_data', timeoutMs: 1500 };
+      globalThis.aGTM.f.dlrepeat(cfg);
+      globalThis.aGTM.f.dlrepeat(cfg);   // second call while polling must be a no-op
+    } finally {
+      globalThis.setInterval = origSI;
+    }
+    expect(intervals).toBe(1);
+    expect(fired.length).toBe(0);
+  });
+
+  test('clearEcom resets ecommerce before the event when consent is present', () => {
+    globalThis.aGTM.d.consent = { gtmConsent: true };
+    globalThis.aGTM.d.dl = [{ event: 'purchase', aGTMdl: true, ecommerce: { value: 5 } }];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, clearEcom: true });
+    expect(fired.length).toBe(2);
+    expect(fired[0].ecommerce).toBe(null);     // reset fired first
+    expect(fired[1].event).toBe('purchase');
+  });
+
+  test('clearEcom does not reset when GTM consent is absent', () => {
+    globalThis.aGTM.d.consent = { gtmConsent: false };
+    globalThis.aGTM.d.dl = [{ event: 'purchase', aGTMdl: true, ecommerce: { value: 5 } }];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, clearEcom: true });
+    expect(fired.length).toBe(1);
+    expect(fired[0].event).toBe('purchase');
+  });
 });

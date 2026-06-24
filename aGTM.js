@@ -1929,15 +1929,20 @@ aGTM.f.dlrepeat = function (cfg) {
   };
   // Repeat all currently-qualifying events once, then mark done
   var doReplay = function (enriched) {
+    aGTM.d.dlrepeatDone = true; // set FIRST so a re-entrant call/fire() can never start a second replay
     var arr = getSrc();
     var n = (arr && typeof arr.length == "number") ? arr.length : 0; // snapshot length: appended replays are not re-scanned
+    var hasConsent = typeof aGTM.d.consent == "object" && aGTM.d.consent && aGTM.d.consent.gtmConsent;
     var count = 0, max = cfg.maxEvents || 0, fired = 0;
     for (var i = 0; i < n; i++) {
       if (!passes(arr[i])) continue;
       if (max && count >= max) break;
       count++;
       var clone = JSON.parse(aGTM.f.sStrf(arr[i]));
-      if (cfg.clearEcom && typeof clone.ecommerce != "undefined") aGTM.f.fire({ ecommerce: null, aGTMrepeated: true });
+      // Optional ecommerce reset before the event. Only when GTM consent is
+      // present, so the reset is not queued without its event (and to keep its
+      // order relative to the event it precedes).
+      if (cfg.clearEcom && hasConsent && typeof clone.ecommerce != "undefined") aGTM.f.fire({ ecommerce: null, aGTMrepeated: true });
       delete clone.aGTMts; // else fire()'s loop guard would drop the event
       delete clone.aGTMparams;
       delete clone["gtm.uniqueEventId"];
@@ -1950,14 +1955,16 @@ aGTM.f.dlrepeat = function (cfg) {
       aGTM.f.fire(clone);
       fired++;
     }
-    aGTM.d.dlrepeatDone = true;
     dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)"));
   };
   dbg("start", cfg);
+  // Re-entrancy guard: if a poll is already running, do not start a second
+  // replay or a second poll. A single trigger can still call the tag more than
+  // once (e.g. multiple triggers, a SPA navigation) - the running poll owns it.
+  if (aGTM.d.dlrepeatPolling) return;
   // Gate satisfied already? Replay now.
   if (gateReady(getSrc())) { doReplay(true); return; }
   // Otherwise poll until the gate is ready, the fallback timeout hits, or a hard cap.
-  if (aGTM.d.dlrepeatPolling) return;
   aGTM.d.dlrepeatPolling = true;
   var pollMs = (typeof cfg.pollMs == "number" && cfg.pollMs >= 50) ? cfg.pollMs : 300;
   var timeoutMs = (typeof cfg.timeoutMs == "number" && cfg.timeoutMs > 0) ? cfg.timeoutMs : 0;
@@ -1970,7 +1977,7 @@ aGTM.f.dlrepeat = function (cfg) {
     if (waited >= hardCap) {
       clearInterval(iv);
       if (timeoutMs > 0) { doReplay(false); } // fallback: replay unenriched so no tags fail
-      else { dbg("gate never satisfied and no fallback configured - nothing repeated"); }
+      else { aGTM.d.dlrepeatPolling = false; dbg("gate never satisfied within cap and no fallback - nothing repeated; polling released for a later call"); }
     }
   }, pollMs);
 };
