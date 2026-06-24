@@ -38,13 +38,16 @@ ___TEMPLATE_PARAMETERS___
     "type": "CHECKBOX",
     "name": "gtmFired",
     "checkboxText": "Send Events of GTM dataLayer",
-    "simpleValueType": true
+    "simpleValueType": true,
+    "help": "Repeat events that were pushed straight into the GTM dataLayer (not via aGTM.f.fire).<br /><br />At least one of 'Send Events of GTM dataLayer' or 'Send Events fired via aGTM.f.fire' must be enabled, otherwise the tag skips every event and does nothing."
   },
   {
     "type": "CHECKBOX",
     "name": "agtmFired",
     "checkboxText": "Send Events fired via aGTM.f.fire",
-    "simpleValueType": true
+    "simpleValueType": true,
+    "defaultValue": true,
+    "help": "Repeat events that were fired through aGTM.f.fire. Enabled by default - this is the primary use case. Disable only if you exclusively want to repeat raw GTM dataLayer events."
   },
   {
     "type": "CHECKBOX",
@@ -79,7 +82,7 @@ ___TEMPLATE_PARAMETERS___
         "displayName": "Maximum Number of Events to repeat",
         "simpleValueType": true,
         "help": "This is a setting to avoid endless loops. Enter the maximum number of events to repeat here.\u003cbr /\u003e\u003cbr /\u003e\n\nThe default is 100.\u003cbr /\u003e\nAn empty field or a 0 means no limit.",
-        "defaultValue": 100
+        "defaultValue": "100"
       },
       {
         "type": "CHECKBOX",
@@ -121,11 +124,12 @@ const JSON = require('JSON');
 const callInWindow = require('callInWindow');
 const queryPermission = require('queryPermission');
 const copyFromWindow = require('copyFromWindow');
+const setInWindow = require('setInWindow');
 
 
 /**
  * Build ND aGTM shadow object
- * @lastupdate 25.06.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 24.06.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {object} o
  * @param {object} c - config
@@ -143,7 +147,7 @@ o.c.agtmFired = typeof data.agtmFired=='boolean' ? data.agtmFired : false;
 o.c.messages = typeof data.messages=='boolean' ? data.messages : false;
 o.c.whitelist = typeof data.whitelist=='string' ? data.whitelist : '';
 o.c.blacklist = typeof data.blacklist=='string' ? data.blacklist : '';
-o.c.maxEvents = typeof data.maxEvents=='string' ? callInWindow('aGTM.f.rReplace', data.maxEvents, '[^0-9]', '') : '';
+o.c.maxEvents = (typeof data.maxEvents=='string' || typeof data.maxEvents=='number') ? callInWindow('aGTM.f.rReplace', ''+data.maxEvents, '[^0-9]', '') : '';
 if (!o.c.maxEvents) { o.c.maxEvents = 0; } else { o.c.maxEvents = o.c.maxEvents * 1; }
 o.d.count = 0;
 o.c.gtmEvents = typeof data.gtmEvents=='boolean' ? data.gtmEvents : false;
@@ -160,7 +164,8 @@ o.f.fire = o.f.fire || function (obj) {
     return;
   }
   if (!queryPermission('access_globals', 'execute', 'aGTM.f.fire')) {
-    if (o.c.debug) log('warn', 'No Permissions in GTM Sandbox ton run aGTM.f.fire. Tried to fire: ', JSON.parse(JSON.stringify(obj)));
+    if (o.c.debug) log('warn', 'No Permissions in GTM Sandbox to run aGTM.f.fire. Tried to fire: ', JSON.parse(JSON.stringify(obj)));
+    return;
   }
   var e = JSON.parse(JSON.stringify(obj));
   callInWindow('aGTM.f.fire', e);
@@ -169,6 +174,38 @@ o.f.fire = o.f.fire || function (obj) {
 };
 
 
+/**
+ * Match an event name against a comma-separated list of patterns.
+ * Entries are trimmed and "*" is treated as a wildcard, replaced globally.
+ * Fixes B3: native String.replace('*','.*') only swaps the FIRST "*" (so
+ * "*view*" breaks) and the raw split entries were never trimmed (so "a, b"
+ * produced "^ b$" and never matched). Uses aGTM.f.rReplace (global) instead.
+ * @param {string} list - comma-separated patterns
+ * @param {string} evname - event name to test
+ * @returns {boolean} true if any pattern matches
+ */
+o.f.evMatch = o.f.evMatch || function (list, evname) {
+  var arr = list.split(',');
+  for (var k=0; k<arr.length; k++) {
+    var entry = callInWindow('aGTM.f.rReplace', arr[k], '^\\s+|\\s+$', '');
+    if (!entry) continue;
+    var pattern = '^' + callInWindow('aGTM.f.rReplace', entry, '\\*', '.*') + '$';
+    if (callInWindow('aGTM.f.rTest', evname, pattern)) return true;
+  }
+  return false;
+};
+
+// Once-per-page guard (fixes B5): if a previous execution of this tag already
+// ran the replay on this page, do nothing. Without this, a trigger that fires
+// more than once per page (multiple triggers, consent-update event, a frequent
+// event) would replay the WHOLE buffer again and again - every event multiple
+// times in the dataLayer.
+if (copyFromWindow('aGTM.d.repeatDone') === true) {
+  if (o.c.debug) log('info', 'aGTM DL Repeat: replay already ran on this page, skipping.');
+  data.gtmOnSuccess();
+  return;
+}
+
 // Copy the queue
 o.d.f = copyFromWindow('aGTM.d.f');
 if (o.c.debug) log('info','QUEUE',JSON.parse(JSON.stringify(o.d.f)));
@@ -176,10 +213,11 @@ if (o.c.debug) log('info','QUEUE',JSON.parse(JSON.stringify(o.d.f)));
 // Loop events
 if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
   for (var i=0; i<o.d.f.length; i++) {
-    o.d.count++;
-    if (o.c.debug) log('info','REPEAT Event '+o.d.count,JSON.parse(JSON.stringify(o.d.f[i])));
-    if (o.c.maxEvents && o.d.count > o.c.maxEvents) break;
+    if (o.c.debug) log('info','CHECK Event '+i,JSON.parse(JSON.stringify(o.d.f[i])));
     var ev = o.d.f[i];
+    if (typeof ev!='object' || !ev) continue;
+    // Loop protection (fixes B5 / R5): never repeat an already-repeated event
+    if (ev.aGTMrepeated === true) continue;
     // Check Send Types
     if (!o.c.gtmFired && (typeof ev.aGTMdl!='boolean' || !ev.aGTMdl)) continue;
     if (!o.c.agtmFired && typeof ev.aGTMdl=='boolean') continue;
@@ -187,34 +225,19 @@ if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
     if (typeof ev.event=='string' && ev.event=='aGTM_ready') continue;
     if (typeof ev.event!='string' && typeof ev.type=='string' && typeof ev.flags=='object' && typeof ev.flags.enableUntaggedPageReporting=='boolean' && ev.flags.enableUntaggedPageReporting) continue;
     if (!o.c.gtmEvents && typeof ev.event=='string' && callInWindow('aGTM.f.rTest', ev.event, '^gtm.(start|init_consent|init|js|dom|load)$')) continue;
-    // Add Repeat Marker
-    ev.aGTMrepeated = true;
-    // Whitelist
-    if (o.c.whitelist && typeof ev.event=='string') {
-      var wl = o.c.whitelist.split(',');
-      var sendEv = false;
-      if (wl.length>0) {
-        for (var j=0; j<wl.length; j++) {
-          var pattern = '^' + wl[j].replace('*','.*') + '$';
-          if (callInWindow('aGTM.f.rTest', ev.event, pattern)) { sendEv = true; break; }
-        }
-      }
-      if (!sendEv) continue;
-    }
-    // Blacklist
-    if (o.c.blacklist && typeof ev.event=='string') {
-      var bl = o.c.blacklist.split(',');
-      var sendEv = true;
-      if (bl.length>0) {
-        for (var j=0; j<bl.length; j++) {
-          var pattern = '^' + bl[j].replace('*','.*') + '$';
-          if (callInWindow('aGTM.f.rTest', ev.event, pattern)) { sendEv = false; break; }
-        }
-      }
-      if (!sendEv) continue;
-    }
+    // Whitelist (fixes B3: global wildcard + trimmed entries via o.f.evMatch)
+    if (o.c.whitelist && typeof ev.event=='string' && !o.f.evMatch(o.c.whitelist, ev.event)) continue;
+    // Blacklist (fixes B3: global wildcard + trimmed entries via o.f.evMatch)
+    if (o.c.blacklist && typeof ev.event=='string' && o.f.evMatch(o.c.blacklist, ev.event)) continue;
     // Event is DL message
     if (!o.c.messages && typeof ev.event!='string') continue;
+    // Limit (fixes B1): count only events that are ACTUALLY repeated, checked
+    // here after all skip filters and right before firing - not at the top of
+    // the loop where skipped events (gtm.*, blacklist, non-whitelist, messages)
+    // would consume the budget and could starve the replay down to 0 events.
+    if (o.c.maxEvents && o.d.count >= o.c.maxEvents) break;
+    // Add Repeat Marker
+    ev.aGTMrepeated = true;
     // Add Parameter
     if (o.c.addparameter.length>0) {
       for (var j=0; j<o.c.addparameter.length; j++) {
@@ -224,8 +247,12 @@ if (typeof o.d.f=='object' && typeof o.d.f.length=='number' && o.d.f.length>0) {
     }
     // Send
     o.f.fire(ev);
+    o.d.count++;
   }
 }
+
+// Mark this page as done so a second trigger does not replay again (fixes B5)
+setInWindow('aGTM.d.repeatDone', true, true);
 
 // Call data.gtmOnSuccess when the tag is finished.
 data.gtmOnSuccess();
@@ -407,6 +434,45 @@ ___WEB_PERMISSIONS___
                 "mapValue": [
                   {
                     "type": 1,
+                    "string": "aGTM.d.repeatDone"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
                     "string": "aGTM.f.rTest"
                   },
                   {
@@ -484,13 +550,22 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.1
+- Version 1.2
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 25.06.2024
+- Last Update: 24.06.2026
 
 ## Description
 
 Fires Events later.
 Requires an aGTM integration of the GTM.
+
+## Changelog
+
+- 1.2 (24.06.2026): Bugfixes - maxEvents now counts only repeated events (not
+  skipped ones); whitelist/blacklist support multiple "*" wildcards and trim
+  entries; once-per-page guard + loop protection prevent duplicate replays;
+  maxEvents default 100 also applies when GTM passes it as a number; the
+  permission guard now aborts instead of firing anyway; "Send Events fired via
+  aGTM.f.fire" defaults to on so the tag works out of the box.
 
 

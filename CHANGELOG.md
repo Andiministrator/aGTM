@@ -115,6 +115,18 @@ Three new tests cover the hardening (F.* race-safety, non-C-prefix defensive, `g
 - New template option group **Pre-aGTM Init Script** (`pre_init_enabled`, `pre_init_code`): a multi-line JavaScript field whose content is prepended verbatim to the `/aGTM.js` response, before the aGTM library is parsed. Wrapped in an IIFE inside `try/catch` — runtime errors are logged to the browser console as `[aGTM preInit]` and do not break aGTM. Syntax errors still abort parsing of the whole response, so the help text recommends syntax-checking before publishing.
 - New documentation section **CMP Loader Pattern** (in `sgtmClient/README.md`): a separate Web GTM container with `noConsent: true` is the recommended way to load a CMP before aGTM checks consent (no shared blast radius, standard GTM workflow). The Pre-aGTM Init Script field is positioned as a fallback for cases where a separate container is not viable.
 
+### GTM template "DL Repeat" — bug fixes (v1.2)
+
+Bug review reported by the GTM team (2026-06-24, driver: fc-moto). All five
+confirmed against the source and fixed in `gtm/tags/dl-repeat/aGTM tag - DL Repeat.tpl`:
+
+- **maxEvents counted checked instead of repeated events** — `count++` ran at the top of the loop before all skip filters, so internal `gtm.*`, blacklisted, non-whitelisted and message events consumed the budget; in the worst case 0 events were repeated. Now counted only right before the event is actually fired.
+- **Whitelist/blacklist wildcards** — native `String.replace('*','.*')` only replaced the first `*` (patterns like `*view*` broke) and comma-separated entries were never trimmed (`a, b` produced `^ b$` and never matched). Now uses `aGTM.f.rReplace` (global) and trims each entry.
+- **No idempotency / loop protection** — the whole buffer was re-fired on every tag execution. Added an in-code skip of events already carrying `aGTMrepeated === true` (loop protection) and an `aGTM.d.repeatDone` once-per-page guard so a trigger firing more than once per page no longer duplicates events.
+- **maxEvents default 100** — the default was only applied when GTM passed it as a string; a numeric default slipped through to "unlimited". Now accepted as both string and number (and the field default is a string).
+- **Ineffective permission guard** — a missing `access_globals` permission only logged a warning and then fired anyway. Now aborts.
+- **Config trap** — with both send-type checkboxes off the tag silently did nothing. "Send Events fired via aGTM.f.fire" now defaults to on, with help text noting at least one must be enabled.
+
 ### Other v1.5 fixes and additions
 
 - Bug fix: `consent_events` config option now wired up via `config()` (was never read from user config)
