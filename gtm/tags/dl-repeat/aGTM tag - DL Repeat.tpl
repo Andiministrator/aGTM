@@ -314,13 +314,16 @@ o.f.repeat = o.f.repeat || function (ev) {
   if (o.c.clearEcom && typeof ev.ecommerce!='undefined') {
     o.f.fire({ ecommerce: null, aGTMrepeated: true });
   }
-  // Strip internal fields. aGTMts is load-bearing: aGTM.f.fire() discards any
-  // event that already carries a numeric aGTMts (its loop guard), so a 1:1
-  // replay from aGTM.d.dl would be dropped (fixes F-09). aGTMparams is an
+  // Strip internal fields by setting them undefined - the GTM sandbox has no
+  // 'delete' operator, but o.f.fire JSON-clones the event and JSON.stringify
+  // drops undefined-valued keys, so the event sent to the library has them
+  // removed. aGTMts is load-bearing: aGTM.f.fire() discards any event that
+  // already carries a numeric aGTMts (its loop guard), so a 1:1 replay from
+  // aGTM.d.dl would otherwise be dropped (fixes F-09). aGTMparams is an
   // internal snapshot blob; gtm.uniqueEventId must not be reused.
-  if (typeof ev.aGTMts!='undefined') delete ev.aGTMts;
-  if (typeof ev.aGTMparams!='undefined') delete ev.aGTMparams;
-  if (typeof ev['gtm.uniqueEventId']!='undefined') delete ev['gtm.uniqueEventId'];
+  ev.aGTMts = undefined;
+  ev.aGTMparams = undefined;
+  ev['gtm.uniqueEventId'] = undefined;
   // Repeat marker (R3 / R5)
   ev.aGTMrepeated = true;
   // Additional parameters
