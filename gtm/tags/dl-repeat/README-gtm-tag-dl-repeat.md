@@ -4,7 +4,7 @@
 
 The **aGTM DL Repeat Template** is designed to repeat events that were sent before Google Tag Manager (GTM) was fully loaded or before the `aGTMready` event was fired in the `dataLayer`. This template is especially useful for capturing events that occurred before the user's consent was given or before GTM was fully initialized.
 
-- **Version**: 1.4
+- **Version**: 1.5
 - **Last Updated**: 24.06.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
@@ -29,7 +29,7 @@ For an overview of other available GTM templates, see the [GTM Templates Overvie
 
 ## Requirements
 
-This template requires an existing **aGTM integration** within your GTM setup.
+This template requires an existing **aGTM integration** within your GTM setup, and the **aGTM library v1.5+** (it uses `aGTM.f.dlrepeat`). With an older library the tag logs a warning and does nothing.
 
 ## Template Features
 
@@ -77,10 +77,10 @@ After importing the template, follow these steps to configure it:
 
 | Parameter            | Description                                                                                              | Example            |
 |----------------------|----------------------------------------------------------------------------------------------------------|--------------------|
-| **source**           | Replay source. `aGTM.d.f` (default) = pre-consent / pre-load buffer (original behaviour). `aGTM.d.dl` = aGTM's post-load log (only events sent via `aGTM.f.fire`). **Live GTM dataLayer** = the real `dataLayer`, covers raw `dataLayer.push` events too — the right choice for most shops. | `Live GTM dataLayer` |
-| **gateEvents**       | *(dl only)* The replay runs only once all listed events are present in the log (comma-separated, AND-joined). **Required** when the tag triggers on more than the enrichment event (e.g. with a fallback). Blank only if triggering solely on the enrichment event. | `user_data`        |
-| **fallbackTimeout**  | *(dl only)* If the gate event has not arrived within this many ms, replay runs once anyway (unenriched). `0`/empty disables. Requires the trigger to also fire on `aGTM_repeat_fallback`. | `1500`             |
-| **clearEcom**        | *(dl only)* Push `ecommerce: null` before each repeated event that carries an `ecommerce` object, to avoid bleed (GA4 recommendation). | Unchecked          |
+| **source** *(What should be repeated?)* | `Before consent / before GTM loaded` (default, original behaviour) · `Everything in the dataLayer` (covers raw `dataLayer.push` — **recommended for shops**) · `Only events sent via aGTM.f.fire` (advanced). | Everything in the dataLayer |
+| **gateEvents** *(Wait for event(s) before repeating)* | Repeat only once **all** of these events have appeared (comma-separated, e.g. `user_data`). Empty = repeat immediately. The tag waits on its own — no extra trigger needed. | `user_data` |
+| **fallbackTimeout** *(Give up waiting after (ms))* | How long to wait for the events above before repeating anyway (e.g. `1500`). Covers guests without the awaited event. `0` = no time limit. | `1500` |
+| **clearEcom**        | Reset ecommerce (`ecommerce: null`) before each repeated event, so GA4 values don't bleed between events. | Unchecked          |
 
 ### Advanced Settings
 
@@ -125,59 +125,56 @@ dataLayer.map(function(e){return e.event})    // everything, incl. raw pushes
 - If they only show up in the **live dataLayer** (the normal case for Shopware
   & co. that just `dataLayer.push`) → use **Live GTM dataLayer**.
 
-### Setup — recommended recipe (enrichment + guest fallback)
+### Setup — one trigger, the tag waits on its own
 
-This recipe re-fires the commerce events once for **every** visitor — enriched
-for logged-in users, unenriched (but on time) for guests — so consumer tags can
-trigger purely on `aGTMrepeated = true`.
+The replay engine lives in the aGTM library (`aGTM.f.dlrepeat`), so the tag
+needs only a **single trigger** and watches the dataLayer itself — no
+multi-event trigger, no extra control event.
 
 1. **This tag**
-   - *Replay source* = **Live GTM dataLayer** (use `aGTM.d.dl` only if your
-     events are dispatched through `aGTM.f.fire`).
-   - *Gate event(s)* = the enrichment event, e.g. `user_data`. **This is
-     required for this recipe** (see the warning below).
-   - *Fallback timeout* = e.g. `1500`.
-   - *Whitelist* = the events that actually need enrichment, e.g.
-     `view_item, view_cart, add_to_cart, begin_checkout, purchase` — so the
-     replay does not re-fire unrelated events (e.g. a second `aPageview`).
-   - **Trigger** = a Custom Event trigger matching the early anchor **and** the
-     gate event **and** the fallback signal, e.g. regex:
-     `aPageview|user_data|aGTM_repeat_fallback`.
-     - On `aPageview` the gate is not yet satisfied → the tag schedules the
-       fallback timer and waits (it does **not** replay yet).
-     - On `user_data` (logged-in) → it replays the earlier events; consumer
-       tags now see the late data.
-     - On `aGTM_repeat_fallback` (guest, after the timeout) → it replays once
-       unenriched, so no tags fail.
+   - *What should be repeated?* = **Everything in the dataLayer** (the usual
+     choice for shops; see "Pick the right source" above).
+   - *Wait for event(s) before repeating* = the late event, e.g. `user_data`.
+   - *Give up waiting after (ms)* = e.g. `1500`, so guests without `user_data`
+     still get one repeat.
+   - *Whitelist* = the events that need enrichment, e.g.
+     `view_item, view_cart, add_to_cart, begin_checkout, purchase`.
+   - **Trigger** = a **single** trigger, e.g. **All Pages** (or an early event
+     like `aPageview`). One trigger is enough — the tag waits for the
+     wait-event(s) on its own.
+   - **Tag firing options** = `Once per event` or `Unlimited` — **not** "Once
+     per page" (that would limit the tag to a single firing).
 2. **Consumer tags** (Enhanced Conversions, Criteo, …) — trigger them on
-   `aGTMrepeated` **equals** `true`, and **exclude** the original pass
-   (so each tag fires exactly once, on the repeated round).
+   `aGTMrepeated` **equals** `true`, and **exclude** the original pass (so each
+   fires exactly once, on the repeated round).
 
-> ⚠️ **Gate event(s) is required when you trigger on more than the enrichment
-> event.** An empty gate counts as "ready", so the replay would run on the
-> **first** trigger (e.g. `aPageview`) — unenriched — and the per-page dedup
-> would then block the later enriched pass. Only leave the gate blank if the
-> tag triggers **solely** on the enrichment event (simpler, but then there is
-> no guest fallback). The fallback timeout likewise only takes effect together
-> with a gate event.
+### How it works
 
-> 🔂 **Use only one `source = aGTM.d.dl` "replay engine" tag per page.** It
-> replays the events once; have your GA4 / Criteo / … tags consume the repeated
-> round via `aGTMrepeated = true`. Multiple `dl` replay tags on one page share
-> the same per-page dedup state (`aGTM.d.repeatMax`) and would interfere.
+On its single run the tag hands its settings to `aGTM.f.dlrepeat()` in the
+library. That function watches the chosen source for the wait-event(s) and, once
+they are all present (or after the timeout), repeats the matching earlier events
+once, marked `aGTMrepeated = true`.
+
+- **Logged-in:** `user_data` arrives → the earlier `view_item` / `purchase` are
+  repeated **with** the user data, so Enhanced Conversions / Criteo fire complete.
+- **Guest (no `user_data`):** after the timeout the repeat runs once anyway, so
+  no tags are missed.
 
 ### Guarantees
 
-- **No double conversion:** each source event is repeated at most once per page
-  (per-page watermark + an in-code skip of events already carrying
-  `aGTMrepeated = true`), even if the trigger fires multiple times.
-- **No loop:** repeated events are never repeated again.
-- **Order preserved:** events are replayed in their original order; event data
-  (incl. `ecommerce`, `transaction_id`, items) is carried over unchanged.
+- **No double conversion:** the replay runs **at most once per page**.
+- **No loop:** repeated events (`aGTMrepeated = true`) are never repeated again.
+- **Order preserved:** events keep their original order and data (incl.
+  `ecommerce`, `transaction_id`, items).
 
-> The existing **source = `aGTM.d.f`** behaviour is unchanged and fully
-> backward compatible — tags that do not set the field keep replaying the
-> pre-load buffer exactly as before.
+> Use **one** DL-Repeat tag per page as the "replay engine"; let your GA4 /
+> Criteo / … tags consume the repeated round via `aGTMrepeated = true`.
+
+> The default source **Before consent / before GTM loaded** keeps the original
+> behaviour and is fully backward compatible.
+
+> **Requires the aGTM library v1.5+** (provides `aGTM.f.dlrepeat`). With an older
+> library the tag logs a warning and does nothing.
 
 ---
 

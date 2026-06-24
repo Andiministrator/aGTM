@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 22.06.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 24.06.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -1858,6 +1858,121 @@ aGTM.f.stoptimer = function (nm) {
     }
     delete aGTM.d.timer[nm];
   }
+};
+
+/**
+ * Late-enrichment / DL-repeat engine (driven by the "aGTM - DL Repeat" GTM tag).
+ * The tag is triggered ONCE (e.g. on aPageview) and hands its configuration
+ * here; this function then watches the chosen source for the configured gate
+ * event(s) and, once they are all present (or after a timeout), repeats the
+ * matching earlier events back into the dataLayer marked aGTMrepeated=true, so
+ * downstream tags fire again with the now-complete data. Runs at most once per
+ * page. Keeping the logic in the library lets the tag use a single trigger and
+ * avoids the GTM-sandbox limitations (no setInterval there).
+ * @property {function} aGTM.f.dlrepeat
+ * @param {object} cfg - configuration from the tag:
+ *   source ('f'|'dl'|'live'), gateEvents (csv string), whitelist, blacklist
+ *   (csv, '*' wildcard), maxEvents (number), gtmFired/agtmFired/messages/
+ *   gtmEvents/clearEcom/debug (booleans), addparameter (array of {pkey,pvalue}),
+ *   pollMs (poll interval, default 300), timeoutMs (fallback timeout, 0 = none).
+ * Usage: aGTM.f.dlrepeat({ source:'live', gateEvents:'user_data', timeoutMs:1500 });
+ */
+aGTM.f.dlrepeat = function (cfg) {
+  if (typeof cfg != "object" || !cfg) return;
+  // Run at most once per page
+  if (aGTM.d.dlrepeatDone) return;
+  var dbg = function (m, o) { if (cfg.debug && typeof window.console == "object" && window.console.log) window.console.log("aGTM dlrepeat: " + m, o); };
+  // Resolve the replay source array
+  var getSrc = function () {
+    if (cfg.source == "live") return window[aGTM.c.gdl] || [];
+    if (cfg.source == "dl") return aGTM.d.dl || [];
+    return aGTM.d.f || [];
+  };
+  // Does an event name match a csv list of patterns ('*' = wildcard, trimmed)?
+  var matchList = function (list, name) {
+    var arr = list.split(",");
+    for (var k = 0; k < arr.length; k++) {
+      var p = arr[k].replace(/^\s+|\s+$/g, "");
+      if (!p) continue;
+      if (new RegExp("^" + p.replace(/\*/g, ".*") + "$", "i").test(name)) return true;
+    }
+    return false;
+  };
+  // Are all configured gate events present in the source? (empty = ready now)
+  var gateReady = function (arr) {
+    if (!cfg.gateEvents) return true;
+    var gates = cfg.gateEvents.split(",");
+    for (var g = 0; g < gates.length; g++) {
+      var name = gates[g].replace(/^\s+|\s+$/g, "");
+      if (!name) continue;
+      var found = false;
+      for (var e = 0; e < arr.length; e++) { if (arr[e] && arr[e].event === name) { found = true; break; } }
+      if (!found) return false;
+    }
+    return true;
+  };
+  // Should one source event be repeated?
+  var passes = function (ev) {
+    if (typeof ev != "object" || !ev) return false;
+    if (ev.aGTMrepeated === true) return false; // loop protection
+    // Send type: aGTMdl===true marks raw GTM dataLayer items captured at init;
+    // aGTM.f.fire events carry no aGTMdl.
+    if (ev.aGTMdl === true) { if (!cfg.gtmFired) return false; }
+    else if (!cfg.agtmFired) return false;
+    if (typeof ev.event == "string" && ev.event.indexOf("aGTM") === 0) return false; // aGTM control events
+    if (typeof ev.event != "string" && typeof ev.type == "string" && typeof ev.flags == "object" && ev.flags && ev.flags.enableUntaggedPageReporting) return false;
+    if (!cfg.gtmEvents && typeof ev.event == "string" && /^gtm\.(start|init_consent|init|js|dom|load)$/i.test(ev.event)) return false;
+    if (cfg.whitelist && typeof ev.event == "string" && !matchList(cfg.whitelist, ev.event)) return false;
+    if (cfg.blacklist && typeof ev.event == "string" && matchList(cfg.blacklist, ev.event)) return false;
+    if (!cfg.messages && typeof ev.event != "string") return false;
+    return true;
+  };
+  // Repeat all currently-qualifying events once, then mark done
+  var doReplay = function (enriched) {
+    var arr = getSrc();
+    var n = (arr && typeof arr.length == "number") ? arr.length : 0; // snapshot length: appended replays are not re-scanned
+    var count = 0, max = cfg.maxEvents || 0, fired = 0;
+    for (var i = 0; i < n; i++) {
+      if (!passes(arr[i])) continue;
+      if (max && count >= max) break;
+      count++;
+      var clone = JSON.parse(aGTM.f.sStrf(arr[i]));
+      if (cfg.clearEcom && typeof clone.ecommerce != "undefined") aGTM.f.fire({ ecommerce: null, aGTMrepeated: true });
+      delete clone.aGTMts; // else fire()'s loop guard would drop the event
+      delete clone.aGTMparams;
+      delete clone["gtm.uniqueEventId"];
+      clone.aGTMrepeated = true;
+      if (cfg.addparameter && cfg.addparameter.length) {
+        for (var p = 0; p < cfg.addparameter.length; p++) {
+          if (cfg.addparameter[p] && cfg.addparameter[p].pkey) clone[cfg.addparameter[p].pkey] = cfg.addparameter[p].pvalue;
+        }
+      }
+      aGTM.f.fire(clone);
+      fired++;
+    }
+    aGTM.d.dlrepeatDone = true;
+    dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)"));
+  };
+  dbg("start", cfg);
+  // Gate satisfied already? Replay now.
+  if (gateReady(getSrc())) { doReplay(true); return; }
+  // Otherwise poll until the gate is ready, the fallback timeout hits, or a hard cap.
+  if (aGTM.d.dlrepeatPolling) return;
+  aGTM.d.dlrepeatPolling = true;
+  var pollMs = (typeof cfg.pollMs == "number" && cfg.pollMs >= 50) ? cfg.pollMs : 300;
+  var timeoutMs = (typeof cfg.timeoutMs == "number" && cfg.timeoutMs > 0) ? cfg.timeoutMs : 0;
+  var hardCap = timeoutMs > 0 ? timeoutMs : 30000; // never poll forever
+  var waited = 0;
+  var iv = setInterval(function () {
+    if (aGTM.d.dlrepeatDone) { clearInterval(iv); return; }
+    if (gateReady(getSrc())) { clearInterval(iv); doReplay(true); return; }
+    waited += pollMs;
+    if (waited >= hardCap) {
+      clearInterval(iv);
+      if (timeoutMs > 0) { doReplay(false); } // fallback: replay unenriched so no tags fail
+      else { dbg("gate never satisfied and no fallback configured - nothing repeated"); }
+    }
+  }, pollMs);
 };
 
 /***** Init and Fire Functions *****/
