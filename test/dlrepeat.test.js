@@ -5,13 +5,13 @@ import { resetAGTM } from './helpers.js';
 
 /**
  * Replace aGTM.f.fire with a capture. Repeated (business) events go into the
- * returned array; the aGTM_repeat_done status signal is kept on `.signal`.
+ * returned array; the aGTM_repeat_fallback error signal is kept on `.fallback`.
  */
 function captureFires() {
   const fired = [];
-  fired.signal = null;
+  fired.fallback = null;
   globalThis.aGTM.f.fire = function (o) {
-    if (o && o.event === 'aGTM_repeat_done') { fired.signal = o; return; }
+    if (o && o.event === 'aGTM_repeat_fallback') { fired.fallback = o; return; }
     fired.push(o);
   };
   return fired;
@@ -39,6 +39,7 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired[0]['gtm.uniqueEventId']).toBeUndefined();
     expect(fired[1].event).toBe('purchase');
     expect(globalThis.aGTM.d.dlrepeatDone).toBe(true);
+    expect(fired.fallback).toBeNull();         // enriched replay -> no error event
   });
 
   test('waits (schedules a poll) until all gate events are present', () => {
@@ -154,13 +155,33 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired[0].event).toBe('purchase');
   });
 
-  test('emits aGTM_repeat_done status signal (enriched=true on a gate-ready replay)', () => {
+  test('enriched (gate-ready) replay fires NO aGTM_repeat_fallback even when enabled', () => {
     globalThis.aGTM.d.dl = [{ event: 'view_item', aGTMdl: true }];
     const fired = captureFires();
-    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'view_item' });
-    expect(fired.signal).not.toBeNull();
-    expect(fired.signal.aGTMrepeatEnriched).toBe(true);
-    expect(fired.signal.aGTMrepeatCount).toBe(1);
-    expect(fired.signal.aGTMrepeatSource).toBe('dl');
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'view_item', fallbackEvent: true });
+    expect(fired.length).toBe(1);
+    expect(fired.fallback).toBeNull();         // gate satisfied -> no error event
+  });
+
+  test('timeout fallback fires aGTM_repeat_fallback (error signal) when enabled', () => {
+    globalThis.aGTM.d.dl = [{ event: 'view_item', aGTMdl: true }];
+    const fired = captureFires();
+    let tick = null;
+    const oSI = globalThis.setInterval;
+    const oCI = globalThis.clearInterval;
+    globalThis.setInterval = function (fn) { tick = fn; return 1; };
+    globalThis.clearInterval = function () {};
+    try {
+      // gate 'user_data' never present; cap (timeoutMs) < pollMs so one tick trips it
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'user_data', timeoutMs: 100, pollMs: 300, fallbackEvent: true });
+      expect(fired.fallback).toBeNull();        // still waiting
+      tick();                                   // waited 300 >= cap 100 -> fallback replay
+    } finally {
+      globalThis.setInterval = oSI;
+      globalThis.clearInterval = oCI;
+    }
+    expect(fired.fallback).not.toBeNull();
+    expect(fired.fallback.aGTMrepeatSource).toBe('dl');
+    expect(fired.map(function (e) { return e.event; })).toContain('view_item'); // unenriched replay ran
   });
 });

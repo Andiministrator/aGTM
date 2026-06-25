@@ -162,16 +162,19 @@ once, marked `aGTMrepeated = true`.
 
 ### Monitoring / error detection
 
-After each replay the library fires **`aGTM_repeat_done`** into the dataLayer:
+Enable **"Fire an error event if the wait-event(s) never arrive"**. Then — and
+**only** in the error case (the timeout elapsed and the wait-event(s) had not
+arrived, so the replay ran unenriched) — the library pushes **`aGTM_repeat_fallback`**
+into the dataLayer:
 
 | Key | Meaning |
 |---|---|
-| `aGTMrepeatEnriched` | `true` = ran after the wait-event(s) arrived; `false` = ran via the timeout fallback (the wait-event never came) |
 | `aGTMrepeatCount` | number of events repeated |
 | `aGTMrepeatSource` | `f` / `dl` / `live` |
 
-Trigger a monitoring/alert tag on `aGTM_repeat_done` where `aGTMrepeatEnriched`
-**equals** `false` to catch missing enrichment (e.g. `user_data` not firing).
+Trigger a monitoring/alert tag on **`aGTM_repeat_fallback`** to catch missing
+enrichment (e.g. `user_data` not firing). Nothing is pushed on a normal,
+enriched replay. Needs a fallback timeout > 0.
 
 ### Guarantees
 

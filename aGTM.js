@@ -1955,10 +1955,11 @@ aGTM.f.dlrepeat = function (cfg) {
       aGTM.f.fire(clone);
       fired++;
     }
-    // Status signal so integrators can monitor the replay - e.g. trigger an
-    // error/alert tag on aGTMrepeatEnriched=false (the gate event never came).
-    // Starts with "aGTM" so it bypasses consent and is skipped by passes().
-    aGTM.f.fire({ event: "aGTM_repeat_done", aGTMrepeatEnriched: !!enriched, aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source });
+    // Optional error signal: ONLY on the timeout fallback (gate event never
+    // arrived, so the replay ran unenriched). Off by default; enable via
+    // cfg.fallbackEvent. Trigger an alert/monitoring tag on it. Starts with
+    // "aGTM" so it bypasses consent and is skipped by passes().
+    if (!enriched && cfg.fallbackEvent) aGTM.f.fire({ event: "aGTM_repeat_fallback", aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source });
     dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)"));
   };
   dbg("start", cfg);
