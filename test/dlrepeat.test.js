@@ -3,10 +3,17 @@
 import { beforeEach, afterEach, describe, expect, test } from 'bun:test';
 import { resetAGTM } from './helpers.js';
 
-/** Replace aGTM.f.fire with a capture so we can inspect what gets repeated. */
+/**
+ * Replace aGTM.f.fire with a capture. Repeated (business) events go into the
+ * returned array; the aGTM_repeat_done status signal is kept on `.signal`.
+ */
 function captureFires() {
   const fired = [];
-  globalThis.aGTM.f.fire = function (o) { fired.push(o); };
+  fired.signal = null;
+  globalThis.aGTM.f.fire = function (o) {
+    if (o && o.event === 'aGTM_repeat_done') { fired.signal = o; return; }
+    fired.push(o);
+  };
   return fired;
 }
 
@@ -145,5 +152,15 @@ describe('aGTM.f.dlrepeat', () => {
     globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, clearEcom: true });
     expect(fired.length).toBe(1);
     expect(fired[0].event).toBe('purchase');
+  });
+
+  test('emits aGTM_repeat_done status signal (enriched=true on a gate-ready replay)', () => {
+    globalThis.aGTM.d.dl = [{ event: 'view_item', aGTMdl: true }];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'view_item' });
+    expect(fired.signal).not.toBeNull();
+    expect(fired.signal.aGTMrepeatEnriched).toBe(true);
+    expect(fired.signal.aGTMrepeatCount).toBe(1);
+    expect(fired.signal.aGTMrepeatSource).toBe('dl');
   });
 });

@@ -84,6 +84,12 @@ ein restriktives ES5-Subset — **verschieden** von der sGTM-**Server**-Sandbox:
 - **Send Events of GTM dataLayer** = an (Commerce-Events tragen `aGTMdl:true`).
 - **Trigger** = ein einziger (All Pages), **Once per event**.
 - **Consumer-Tags** (EC/Criteo) auf `aGTMrepeated == true`, Original-Pass ausschließen.
+- **Fallback abschalten:** „Give up waiting after (ms)" = `0` → Replay läuft NUR,
+  wenn die Wait-Events wirklich kommen (kein unangereichertes Notfall-Feuern;
+  interner 30-s-Hard-Cap beendet den Poll dann ohne Replay).
+- **Monitoring:** nach jedem Replay feuert die Library `aGTM_repeat_done`
+  (`aGTMrepeatEnriched` bool, `aGTMrepeatCount`, `aGTMrepeatSource`). Alert-Tag
+  auf `aGTMrepeatEnriched == false` triggern = Gate-Event kam nie (Fehlerfall).
 
 ## Idempotenz / Sicherheit (warum kein Doppel-`purchase`)
 

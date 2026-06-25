@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 24.06.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 25.06.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -1955,6 +1955,10 @@ aGTM.f.dlrepeat = function (cfg) {
       aGTM.f.fire(clone);
       fired++;
     }
+    // Status signal so integrators can monitor the replay - e.g. trigger an
+    // error/alert tag on aGTMrepeatEnriched=false (the gate event never came).
+    // Starts with "aGTM" so it bypasses consent and is skipped by passes().
+    aGTM.f.fire({ event: "aGTM_repeat_done", aGTMrepeatEnriched: !!enriched, aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source });
     dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)"));
   };
   dbg("start", cfg);

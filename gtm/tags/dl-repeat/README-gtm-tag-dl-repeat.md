@@ -160,6 +160,19 @@ once, marked `aGTMrepeated = true`.
 - **Guest (no `user_data`):** after the timeout the repeat runs once anyway, so
   no tags are missed.
 
+### Monitoring / error detection
+
+After each replay the library fires **`aGTM_repeat_done`** into the dataLayer:
+
+| Key | Meaning |
+|---|---|
+| `aGTMrepeatEnriched` | `true` = ran after the wait-event(s) arrived; `false` = ran via the timeout fallback (the wait-event never came) |
+| `aGTMrepeatCount` | number of events repeated |
+| `aGTMrepeatSource` | `f` / `dl` / `live` |
+
+Trigger a monitoring/alert tag on `aGTM_repeat_done` where `aGTMrepeatEnriched`
+**equals** `false` to catch missing enrichment (e.g. `user_data` not firing).
+
 ### Guarantees
 
 - **No double conversion:** the replay runs **at most once per page**.
