@@ -364,7 +364,7 @@ ___WEB_PERMISSIONS___
 ___TESTS___
 
 scenarios:
-- name: Builds config from fields and delegates to aGTM.f.dlrepeat
+- name: Builds config from fields and delegates to the library
   code: |-
     let passed = null;
     mock('queryPermission', function() { return true; });
