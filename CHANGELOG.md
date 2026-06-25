@@ -182,6 +182,7 @@ confirmed against the source and fixed in `gtm/tags/dl-repeat/aGTM tag - DL Repe
 - New CMPs: JTL Consent, JTL EU Cookie
 - New GTM Variable Templates: Consent Check, Consent Info
 - GTM template files renamed (spaces instead of dashes)
+- Brand icon (thumbnail) downsized to 64×64 PNG8 across all GTM templates (~10.4 KB → ~2.6 KB each), shrinking every template's stored size
 - Build system migrated to Bun (`bunx terser`); no `npm install` required
 - `VERSION` file as single source of truth for version number; build propagates to all files
 - `sgtmClient/template.tpl` base64 payload and version auto-updated on each build
