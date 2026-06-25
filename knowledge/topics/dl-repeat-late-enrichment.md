@@ -87,9 +87,11 @@ ein restriktives ES5-Subset — **verschieden** von der sGTM-**Server**-Sandbox:
 - **Fallback abschalten:** „Give up waiting after (ms)" = `0` → Replay läuft NUR,
   wenn die Wait-Events wirklich kommen (kein unangereichertes Notfall-Feuern;
   interner 30-s-Hard-Cap beendet den Poll dann ohne Replay).
-- **Monitoring:** nach jedem Replay feuert die Library `aGTM_repeat_done`
-  (`aGTMrepeatEnriched` bool, `aGTMrepeatCount`, `aGTMrepeatSource`). Alert-Tag
-  auf `aGTMrepeatEnriched == false` triggern = Gate-Event kam nie (Fehlerfall).
+- **Fehler-Monitoring (opt-in):** Checkbox „Fire an error event …" → Library
+  feuert `aGTM_repeat_fallback` **nur** im Fehlerfall (Timeout lief ab, Gate-
+  Event kam nicht, Replay unangereichert) mit `aGTMrepeatCount`/`aGTMrepeatSource`.
+  Alert-Tag darauf triggern. Auf dem normalen (angereicherten) Replay kommt
+  **kein** Event. Braucht Fallback-Timeout > 0.
 
 ## Idempotenz / Sicherheit (warum kein Doppel-`purchase`)
 
