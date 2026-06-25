@@ -68,6 +68,9 @@ ein restriktives ES5-Subset — **verschieden** von der sGTM-**Server**-Sandbox:
 - **Jeder** gelesene/geschriebene/ausgeführte globale Pfad MUSS in
   `___WEB_PERMISSIONS___` (access_globals) deklariert sein, sonst wirft die
   Sandbox. Unbekannte Param-Keys im `.tpl`-JSON können den Import brechen.
+- **`___TESTS___`-Szenario-Namen dürfen keinen Punkt `.` (o. ä. Sonderzeichen)
+  enthalten** — der GTM-Template-Test-Editor lehnt den Import sonst ab
+  („name contains invalid character"). Also nicht `… delegates to aGTM.f.dlrepeat`.
 - **`o.c.debug` muss aus der Config gesetzt werden** — ein `var o = {c:{debug:false}}`
   ohne `o.c.debug = data.debug` lässt alle `if(o.c.debug) log()` tot laufen
   (genau das war lange der Fall, Debug war nie aktiv).
