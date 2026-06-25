@@ -135,6 +135,12 @@
                 "author": "Claude Opus",
                 "text": "Stand nach Live-Debugging mit Andi (HEAD 505bdee): Feature stark weiterentwickelt. Tag 1.3->1.5: (1) v1.4 neue Quelle \"Live GTM dataLayer\" weil aGTM.d.dl nur fire()-Events enthaelt, Shopware pusht roh (F-13); (2) v1.5 Engine in Library aGTM.f.dlrepeat verschoben -> EIN Trigger, Tag pollt selbst (GTM-Sandbox kann kein setInterval). Kritiker-Lauf gemacht, F-15/16/17 gefixt. delete-Sandbox-Bug (F-?, gtm-web-sandbox) + Send-Type-Inversion (F-10) unterwegs gefixt. 190 bun-Tests gruen, build clean, Doku+Knowledge ergaenzt. OFFEN: Live-Verifikation im naechsten Chat (Andi). WICHTIG: aGTM-Library v1.5 muss mit ausgeliefert werden (Tag braucht aGTM.f.dlrepeat).",
                 "created": "2026-06-24"
+              },
+              {
+                "id": "96995a5d-b973-43e5-a4b4-8814485400de",
+                "author": "Claude Opus",
+                "text": "LIVE verifiziert (Andi, 2026-06-25, HEAD c919dd4): Late-Enrichment laeuft live. Finaler Stand v1.5: Engine in Library aGTM.f.dlrepeat (1 Trigger, pollt selbst), Quellen f/dl/live, Gate+Timeout, Dedup/Loop-Schutz; opt-in Fehler-Event aGTM_repeat_fallback (nur Timeout-Fall); ausklappbare Hilfe; Icon ueber ALLE Templates auf 64px verkleinert. 2 Kritiker-Laeufe (keine offenen P0/P1), Findings F-03..F-20 alle behoben/akzeptiert. 192 bun-Tests gruen, build clean. Doku/Knowledge aktuell. Wichtig: Tag braucht aGTM-Library v1.5+ (aGTM.f.dlrepeat). DL-Repeat-Workstream damit abgeschlossen; offen nur noch separat das v1.5-Release-Gate (relgate-Karte) + optionale GTM-Team-Rueckmeldung.",
+                "created": "2026-06-25"
               }
             ],
             "columnId": "col-erledigt",
