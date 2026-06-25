@@ -169,7 +169,7 @@ into the dataLayer:
 
 | Key | Meaning |
 |---|---|
-| `aGTMrepeatCount` | number of events repeated |
+| `aGTMrepeatCount` | number of events repeated (**may be `0`** — e.g. a guest with nothing to replay; the event still signals "fallback ran") |
 | `aGTMrepeatSource` | `f` / `dl` / `live` |
 
 Trigger a monitoring/alert tag on **`aGTM_repeat_fallback`** to catch missing
