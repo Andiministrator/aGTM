@@ -661,6 +661,8 @@ function() {
 
 **Guarantees:** runs **at most once per page** (`aGTM.d.dlrepeatDone`, set at the start of the replay) + every re-fired event carries `aGTMrepeated = true` and is skipped by the filter → no double `purchase`, no loop. The replay iterates a **snapshot length** taken before firing, so re-fired events appended to the live dataLayer are not re-scanned. `aGTMts`/`aGTMparams`/`gtm.uniqueEventId` are stripped before re-firing (else `fire()`'s `aGTMts` loop-guard would drop the event). The poll is bounded (gate ready → timeout → 30 s hard cap) and never leaks an interval; `aGTM.d.dlrepeatPolling` guards against parallel polls and is released if the hard cap is hit without a fallback.
 
+**Status signal:** after each replay the library fires `aGTM_repeat_done` into the dataLayer with `aGTMrepeatEnriched` (boolean — `false` means the gate event never arrived and the replay ran unenriched via the timeout fallback), `aGTMrepeatCount` (events repeated) and `aGTMrepeatSource`. Trigger a monitoring/alert tag on `aGTM_repeat_done` where `aGTMrepeatEnriched == false` to detect missing enrichment. The signal starts with `aGTM` so it bypasses consent and is never itself replayed.
+
 **Requires** the library v1.5+. The tag guards with `copyFromWindow('aGTM.f.dlrepeat')` and logs a warning + does nothing on an older library.
 
 ## Callbacks

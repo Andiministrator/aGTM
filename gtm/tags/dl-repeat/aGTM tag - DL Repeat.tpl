@@ -112,7 +112,7 @@ ___TEMPLATE_PARAMETERS___
         "displayName": "Give up waiting after (ms)",
         "simpleValueType": true,
         "defaultValue": "1500",
-        "help": "How long to wait for the events above before repeating anyway (e.g. 1500 = 1.5s). If the awaited event never comes – e.g. a guest without user_data – the repeat still runs once after this time, so no tags are missed.<br /><br />Set 0 for no time limit: then the repeat only runs once the awaited events actually arrive. Ignored when no wait-events are set."
+        "help": "How long to wait for the events above before repeating anyway (e.g. 1500 = 1.5s). If the awaited event never comes – e.g. a guest without user_data – the repeat still runs once after this time, so no tags are missed.<br /><br />Set <b>0 to disable the fallback</b>: then the repeat runs ONLY if the awaited events actually arrive - if they never come, nothing is repeated. Ignored when no wait-events are set."
       },
       {
         "type": "CHECKBOX",

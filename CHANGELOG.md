@@ -121,6 +121,7 @@ Three new tests cover the hardening (F.* race-safety, non-C-prefix defensive, `g
 - **Single trigger.** Because the library can poll the dataLayer (the GTM sandbox cannot), the tag now needs only **one** trigger (e.g. All Pages). The previous multi-event trigger (`aPageview|user_data|aGTM_repeat_fallback`) and the `aGTM_repeat_fallback` re-trigger control event are gone. `fallbackTimeout` is now an internal wait, not a re-trigger.
 - **Requires the aGTM library v1.5+.** The tag checks for `aGTM.f.dlrepeat` and logs a warning + does nothing if the library is older. Tag template permissions reduced to `aGTM.f.dlrepeat` (execute) + `aGTM.f.rReplace` (execute).
 - Idempotency unchanged in effect: at most one replay per page (`aGTM.d.dlrepeatDone`) + the `aGTMrepeated` loop-skip → no double `purchase`, no loop. Tag field help texts rewritten in plain language. Tag template version → 1.5.
+- **Status signal `aGTM_repeat_done`** fired after each replay (`aGTMrepeatEnriched` bool, `aGTMrepeatCount`, `aGTMrepeatSource`), so integrators can trigger a monitoring/alert tag on `aGTMrepeatEnriched == false` (gate event never arrived → unenriched fallback replay).
 
 ### GTM template "DL Repeat" — live dataLayer replay source (v1.4)
 
