@@ -472,11 +472,14 @@ Requires the aGTM library v1.5+ (uses aGTM.f.dlrepeat).
   (aGTM.f.dlrepeat). The tag now only collects its settings and hands them to
   the library, which watches the dataLayer for the configured wait-event(s) and
   repeats the matching events itself. As a result the tag needs only a SINGLE
-  trigger (e.g. All Pages) - no more multi-event trigger and no aGTM_repeat_
-  fallback control event. Requires the aGTM library v1.5+. Help texts rewritten
-  in plain language; added an expandable "How Late-Enrichment works" help block;
-  optional opt-in error event aGTM_repeat_fallback (fires only when the
-  wait-events never arrive); brand icon downsized (64px, ~75% smaller).
+  trigger (e.g. All Pages) - no more multi-event trigger, and the old
+  aGTM_repeat_fallback *re-trigger* control event is gone. Requires the aGTM
+  library v1.5+. Help texts rewritten in plain language; added an expandable
+  "How Late-Enrichment works" help block; brand icon downsized (64px, ~75%
+  smaller). NOTE: the name aGTM_repeat_fallback is now REUSED for an optional,
+  opt-in error/monitoring event that the library fires ONLY when the wait-events
+  never arrive (the unenriched fallback replay); it no longer re-triggers the
+  tag. Its aGTMrepeatCount may be 0 (e.g. a guest with nothing to replay).
 - 1.4 (24.06.2026): Added "Live GTM dataLayer" as a third replay source, so raw
   dataLayer.push events (e.g. from a Shopware plugin that cannot call
   aGTM.f.fire) can be replayed too - aGTM.d.dl only ever contains events that
