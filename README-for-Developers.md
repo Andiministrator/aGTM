@@ -650,7 +650,7 @@ function() {
 
 **`aGTM.f.parseUrlParams(qs)`** is a minimal ES5 query-string parser (handles percent-encoding, `+`-as-space, malformed sequences) used internally by `resolveAttribution`. Exposed in case integrators need it for related work.
 
-**Backward compatibility:** when `cfg.session.attribution` is absent, the loop is a no-op and `aGTM.d.attribution` stays `{}`. Existing integrations without sGTM Client attribution wiring are unaffected. See [`internal/api/integration-guide.md` §7](internal/api/integration-guide.md) for the full design.
+**Backward compatibility:** when `cfg.session.attribution` is absent, the loop is a no-op and `aGTM.d.attribution` stays `{}`. Existing integrations without sGTM Client attribution wiring are unaffected.
 
 ## DL-Repeat / Late-Enrichment (`aGTM.f.dlrepeat`)
 
