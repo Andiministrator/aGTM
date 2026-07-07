@@ -157,7 +157,7 @@ describe('aGTM.f.run_cc() — F→C uid handoff via consent-store response', () 
     setupRunCc();
     fireUpdateAndPost();
     // Mirror the exact format the server generates server-side
-    const newUid = 'C.1.cl_planai.123456789012.1714900000000';
+    const newUid = 'C.1.cl_example.123456789012.1714900000000';
     consentXHRs()[0].respond(200, { ok: true, uid: newUid });
     expect(aGTM.d.session.uid).toBe(newUid);
     expect(aGTM.d.session.uid.indexOf('C.')).toBe(0);
