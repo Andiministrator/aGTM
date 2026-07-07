@@ -110,8 +110,8 @@ const hasRequiredConsent = function(services, purposes, vendors) {
 // the version digit `1` we switch to the configured `fipLimiter` so the
 // C-format mirrors the F-format (`F{lim}1{lim}…`) for visual consistency
 // in cookies, logs, and analytics dumps. With the default `$` limiter the
-// resulting cookie value is e.g. `C.1$cl_planai$987654321012.1714900000000`
-// — matches the F-side shape `F$1$cl_planai$<hash>.<date>` byte-for-byte
+// resulting cookie value is e.g. `C.1$cl_example$987654321012.1714900000000`
+// — matches the F-side shape `F$1$cl_example$<hash>.<date>` byte-for-byte
 // after the second character.
 const generateCookieUid = function() {
   const rand = generateRandom(123456789012, 999999999999);
