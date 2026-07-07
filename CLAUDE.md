@@ -19,6 +19,7 @@ aGTM/
 ├── aGTM.min.js          # Minified version (derived from aGTM.js, see Build Process)
 ├── aGTM.base64          # Base64-encoded version of aGTM.min.js (used in sGTM)
 ├── aGTM_debug.js        # Debug helper — loads in browser console to decode aGTM.l log entries
+├── README-for-Integrators.md  # Data contract for sGTM/webGTM devs (aGTM object, dataLayer, session/consent/attribution)
 ├── cmp/                 # Consent check functions, one file per CMP provider
 │   ├── cc_<name>.js     # Source version
 │   └── cc_<name>.min.js # Minified version

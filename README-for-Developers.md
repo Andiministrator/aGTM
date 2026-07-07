@@ -11,6 +11,11 @@
 - **Author**: Andi Petzoldt [andi@petzoldt.net](mailto:andi@petzoldt.net)
 - **Repository**: [GitHub Repository](https://github.com/Andiministrator/aGTM/)
 
+> **Building GTM tags/variables or an sGTM handler?** For the **data contract** — what aGTM writes into
+> the `aGTM` object and dataLayer (session, consent, sources/attribution) and how to read/set it from
+> web GTM and server-side GTM — see [**README-for-Integrators.md**](README-for-Integrators.md). This
+> document here covers the library internals and how to extend it.
+
 ## Table of Contents
 
 1. [Initialization and Configuration](#initialization-and-configuration)

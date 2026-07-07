@@ -2,6 +2,17 @@
 
 ## Version 1.5 — *in development*
 
+### Added — Integrator Data Contract documentation
+
+New [README-for-Integrators.md](README-for-Integrators.md): a standalone guide for
+**web GTM** and **server-side GTM** developers/agents describing the aGTM data surface —
+what the library writes into the `aGTM` object (`aGTM.d.session`, `aGTM.d.consent`,
+`aGTM.d.attribution`, `session_status`), which dataLayer lifecycle events it emits
+(`aGTM_ready`, `aGTM_consent_update`, `aGTMparams`/`aGTMconsent`), how to read/set session,
+consent (incl. `consent_events`/`run_cc`/`_noConsent` and the diff/store flow) and
+sources/attribution, plus the POST transport and `/aGTMconsent` contracts. Cross-linked
+from `README.md` and `README-for-Developers.md`.
+
 ### Session feature redesigned (server-side, single source of truth)
 
 The client-side session fetch + auto-denial machinery from earlier v1.5
