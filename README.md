@@ -816,6 +816,9 @@ A: There is a GTM Custom Template you can use to repeat these events.
 Q: *I want to understand how aGTM works, because I want to extend it or I want to use the internal functions for other purposes. Where can I find more information about that?*
 A: Therefore we have started a [Developer Documentation](README-for-Developers.md).
 
+Q: *I build GTM tags/variables or an sGTM handler and need to know what aGTM writes into the `aGTM` object, the dataLayer, and the server — session, consent, sources/attribution.*
+A: See the [Integrator Data Contract](README-for-Integrators.md) — the data surface for web GTM and server-side GTM.
+
 ---
 
 ## Contributing / Building from Source
