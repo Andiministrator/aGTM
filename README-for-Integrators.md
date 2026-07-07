@@ -147,7 +147,7 @@ add custom fields to `cfg.session` server-side and read them in webGTM without a
 aGTM.f.config({
   session: {
     sid:     's-abc',                          // session ID
-    uid:     'C.1$cl_planai$987654...',        // user ID (C.* = promoted cookie user, F.* = fingerprint)
+    uid:     'C.…',                            // user ID (C.* = upgraded cookie user, F.* = fingerprint)
     ga4sid:  '17163412742',                    // GA4-compatible session ID → use as GA4 `sid`
     muidga4: 'ga4.e739429c6b5210.6c68813e',    // GA4-compatible user ID → use as GA4 `cid`
     counter: 3,                                // visit counter (server-side auto-denial input; not branched client-side)
@@ -160,15 +160,15 @@ aGTM.f.config({
 ```
 
 The preset is **accepted** when `cfg.session` is an object carrying at least one of `sid`, `consent`,
-`attribution`, or a **non-empty** `source`. That last rule matters: even a degraded Session API
-response that only carries an affiliate `source` still populates `aGTM.d.session.source` for webGTM.
+`attribution`, or a **non-empty** `source`. That last rule matters: even a degraded server response
+that only carries an affiliate `source` still populates `aGTM.d.session.source` for webGTM.
 
 ### Recognized session fields
 
 | Field | Type | Description |
 |---|---|---|
 | `sid` | string | Session ID. Required for the preset to fully take effect; included in the consent-store POST. |
-| `uid` | string | User ID. `C.*` = promoted stable cookie user, `F.*` = fingerprint. Included in the consent-store POST; can be re-adopted from the server response (F→C promotion). |
+| `uid` | string | User ID. Prefix `C.*` marks an upgraded stable cookie user, `F.*` a fingerprint user (both browser-observable in the cookie). Included in the consent-store POST; the library adopts a `C.*` value returned by the server. |
 | `ga4sid` | string | GA4-compatible session ID — usable **as-is** for the GA4 `sid` parameter. |
 | `muidga4` | string | GA4-compatible user ID — usable **as-is** for the GA4 `cid` parameter. |
 | `counter` | number | Visit counter. Consumed **server-side** (auto-denial decision); no client-side branch. |
@@ -336,8 +336,8 @@ aGTM.f.consent_callback = function(action) {   // action: 'init' | 'update'
 
 ## 7. Sources & Attribution
 
-Two related but distinct pieces of data, both produced server-side by the sGTM Client (from
-`api4sources`) and injected via `cfg.session`:
+Two related but distinct pieces of data, both produced server-side by the sGTM Client and injected
+via `cfg.session`:
 
 ### a) Flat affiliate source — `aGTM.d.session.source`
 
@@ -374,10 +374,10 @@ method through `aGTM.f.resolveAttribution(method)` (a **HYBRID merge**) and stor
 | `lcs` | **API only** | last click source across sessions |
 | `fss` | **API only** | first session source ever for this user |
 
-**Why HYBRID:** the API can be slightly stale (ClickHouse Materialized-View lag). The **current page's
-URL is always freshest**, so URL wins for browser-derivable fields; the API fills cross-session memory
-the URL can't provide (`afs`/`lcs`/`fss`). **Caveat:** `afs`/`lcs`/`fss` have no URL fallback and can
-lag on the very first request of a new session's source.
+**Why HYBRID:** the server-side attribution data can be slightly stale (backend propagation lag). The
+**current page's URL is always freshest**, so URL wins for browser-derivable fields; the API fills
+cross-session memory the URL can't provide (`afs`/`lcs`/`fss`). **Caveat:** `afs`/`lcs`/`fss` have no
+URL fallback and can lag on the very first request of a new session's source.
 
 **Reading attribution in webGTM:**
 
@@ -395,7 +395,7 @@ URL-only attribution view from the current page (source/medium/campaign/click-ID
 API data. `aGTM.f.parseUrlParams(qs)` is the exposed ES5 query-string helper it uses.
 
 > **SPA note:** attribution reflects the **session source** captured at the `/aGTM.js` request. SPA
-> virtual pageviews mid-session are not re-captured in v1.5 (see [`docs/open-decisions.md` OE-1](docs/open-decisions.md)).
+> virtual pageviews mid-session are not re-captured in v1.5.
 
 ---
 
@@ -517,8 +517,9 @@ aGTM.f.fire({
 
 ## 10. The sGTM side — endpoints aGTM talks to
 
-If you build the server-side counterpart, these are the two browser→server contracts. (The Session /
-Sources APIs behind the Client are out of scope here — internal.)
+If you build the server-side counterpart, these are the two browser→server contracts. Only the
+**browser-observable** surface is documented here — how you persist, store, or resolve the data behind
+the endpoint is your implementation's concern.
 
 ### Producing `cfg.session` on `/aGTM.js`
 
@@ -535,8 +536,8 @@ aGTM POSTs a consent diff whenever the CMP state changes:
 ```jsonc
 POST <consent_store_url>
 {
-  "uid": "F.1$tenant$…",              // from aGTM.d.session.uid, if present
-  "sid": "s-abc",                     // from aGTM.d.session.sid, if present
+  "uid": "<user id>",                 // from aGTM.d.session.uid, if present
+  "sid": "<session id>",              // from aGTM.d.session.sid, if present
   "consent": {                        // blacklist: no gtmConsent/blocked/empty
     "hasResponse": true,
     "services": ",ga4,gads,",
@@ -547,17 +548,17 @@ POST <consent_store_url>
 }
 ```
 
-Handler responsibilities:
+Handler responsibilities (the parts the **library** observes or depends on):
 
-- Persist the consent into the Session API record (**full-replace** semantics — the payload uses the
-  same blacklist as the diff hash).
-- Manage the user-ID cookie; optionally perform **F→C promotion** (fingerprint → stable cookie user).
-- Return `{ ok: true }` (or `204`). To hand a promoted ID back to the browser, return
-  `{ ok:true, uid:"C.…" }` — the library adopts `resp.uid` into `aGTM.d.session.uid`
-  **only when it starts with literal `C.`** (race-safety; never downgrades a `C.*` to an echoed `F.*`).
-- **Encrypted bodies** (`{"q":"…"}`, i.e. `consent_store_enc:true`) are **not** decryptable server-side
-  in v1.5 — respond `501`. Keep `consent_store_enc` off until a real crypto upgrade ships
-  ([OE-6](docs/open-decisions.md)).
+- Persist the consent however your session store works (the payload uses **full-replace** semantics —
+  same blacklist as the diff hash, so the record can be replaced wholesale).
+- Respond `{ ok: true }` (or `204`). If your backend re-issues the user ID, you may return
+  `{ ok:true, uid:"…" }`; the library adopts a returned `uid` into `aGTM.d.session.uid` **only when it
+  starts with literal `C.`** (an upgrade marker — the library never downgrades an already-upgraded ID
+  to an echoed fallback).
+- **Encrypted bodies** (`{"q":"…"}`, i.e. `consent_store_enc:true`) require a symmetric server-side
+  decoder. It is not part of v1.5 — the reference handler responds `501`. Keep `consent_store_enc` off
+  until full-stack encryption support ships.
 
 ---
 
