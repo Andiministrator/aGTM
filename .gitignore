@@ -44,6 +44,14 @@ tmp/
 # Reference material for maintainers; not part of the public release.
 internal/
 
+# ── Internal working docs (German, maintainer-local; ADR-0002) ──────────────
+# Decision records, findings, QA checklists, glossary, open decisions and the
+# curated knowledge base are the project's internal working protocol — same
+# "intern = Deutsch" class as CLAUDE.local.md. Kept local, not published.
+# (aboard-sync.json at the repo root stays versioned on purpose — public roadmap.)
+docs/
+knowledge/
+
 # ── aBoard (ADR-0049 / ADR-0067) ────────────────────────────
 # aboard-sync.json IS versioned on purpose (public project roadmap).
 # Everything below is local runtime/build state and stays out of git.
