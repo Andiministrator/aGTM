@@ -135,8 +135,13 @@ multi-event trigger, no extra control event.
    - *What should be repeated?* = **Everything in the dataLayer** (the usual
      choice for shops; see "Pick the right source" above).
    - *Wait for event(s) before repeating* = the late event, e.g. `user_data`.
-   - *Give up waiting after (ms)* = e.g. `1500`, so guests without `user_data`
-     still get one repeat.
+     **Recommended when the wait-event only exists for some visitors** (e.g.
+     `user_data` only for logged-in users): make it **conditional** so guests
+     don't wait for something that never comes —
+     `aPageview, user_data?if=user[id]` (wait for `user_data` only when a `user`
+     event with a non-empty `id` exists). See "Conditional wait-events" below.
+   - *Give up waiting after (ms)* = e.g. `1500`, so visitors for whom the
+     wait-event is required but slow still get one repeat.
    - *Whitelist* = the events that need enrichment, e.g.
      `view_item, view_cart, add_to_cart, begin_checkout, purchase`.
    - **Trigger** = a **single** trigger, e.g. **All Pages** (or an early event
@@ -158,23 +163,56 @@ once, marked `aGTMrepeated = true`.
 - **Logged-in:** `user_data` arrives → the earlier `view_item` / `purchase` are
   repeated **with** the user data, so Enhanced Conversions / Criteo fire complete.
 - **Guest (no `user_data`):** after the timeout the repeat runs once anyway, so
-  no tags are missed.
+  no tags are missed. With a **conditional wait-event** (below) the guest doesn't
+  even wait — the repeat runs in order immediately and no fallback fires.
+
+### Conditional wait-events (`?if=`)
+
+A wait-event only makes sense for the visitors who will actually get it. If you
+gate **site-wide** on an event that only some visitors receive — the classic
+case being `user_data`, which only exists for **logged-in** users — then *every
+guest on every page* runs into the timeout and fires the `aGTM_repeat_fallback`
+control event. That is not an error, it's the normal case for guests — but it
+floods any monitoring tag wired to that event.
+
+Make the wait-event **conditional** so it is only required when it can actually
+arrive. The predicate reuses aGTM's `event[attr]` / `event[attr:value]` syntax:
+
+| Form | The wait-event is required only when… |
+|---|---|
+| `user_data?if=user[id]` | an event `user` with a **non-empty** `id` exists (logged-in) |
+| `user_data?if=user[type:premium]` | an event `user` with `type === "premium"` exists |
+| `user_data` (no `?if=`) | **always** (unchanged default) |
+
+`null`, `undefined` and `""` all count as "not set". The discriminator event
+(here `user`) must be in the dataLayer **before** the repeater checks the gate —
+an always-present early event like `user` (pushed first, before GTM) fits.
+
+**Result for the `user_data?if=user[id]` case:**
+
+- **Logged-in** (`user.id` set) → `user_data` is required → waits, then enriched
+  replay; the fallback control event fires only on a *genuine* miss (meaningful).
+- **Guest** (`user.id` null) → `user_data` is **not** required → the ordered
+  replay runs as soon as `aPageview` is present. No wasted wait, **no fallback**.
 
 ### Monitoring / error detection
 
 Enable **"Fire an error event if the wait-event(s) never arrive"**. Then — and
 **only** in the error case (the timeout elapsed and the wait-event(s) had not
-arrived, so the replay ran unenriched) — the library pushes **`aGTM_repeat_fallback`**
-into the dataLayer:
+arrived, so the replay ran unenriched) **and only when at least one event was
+actually repeated** (`aGTMrepeatCount >= 1`) — the library pushes
+**`aGTM_repeat_fallback`** into the dataLayer:
 
 | Key | Meaning |
 |---|---|
-| `aGTMrepeatCount` | number of events repeated (**may be `0`** — e.g. a guest with nothing to replay; the event still signals "fallback ran") |
+| `aGTMrepeatCount` | number of events repeated (always `>= 1` — the event no longer fires when nothing was replayed) |
 | `aGTMrepeatSource` | `f` / `dl` / `live` |
 
 Trigger a monitoring/alert tag on **`aGTM_repeat_fallback`** to catch missing
 enrichment (e.g. `user_data` not firing). Nothing is pushed on a normal,
-enriched replay. Needs a fallback timeout > 0.
+enriched replay, **nor when there was nothing to replay** — so a guest /
+non-conversion page whose gate event never arrives stays silent instead of
+flooding your exception/monitoring stream. Needs a fallback timeout > 0.
 
 ### Guarantees
 
