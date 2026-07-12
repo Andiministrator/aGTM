@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 25.06.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 12.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -1871,7 +1871,9 @@ aGTM.f.stoptimer = function (nm) {
  * avoids the GTM-sandbox limitations (no setInterval there).
  * @property {function} aGTM.f.dlrepeat
  * @param {object} cfg - configuration from the tag:
- *   source ('f'|'dl'|'live'), gateEvents (csv string), whitelist, blacklist
+ *   source ('f'|'dl'|'live'), gateEvents (csv string; a token may be
+ *   conditional: "G?if=E[A]" / "G?if=E[A:V]" - G is only required when event E
+ *   has a non-empty attr A / A===V, see gateReady below), whitelist, blacklist
  *   (csv, '*' wildcard), maxEvents (number), gtmFired/agtmFired/messages/
  *   gtmEvents/clearEcom/debug (booleans), addparameter (array of {pkey,pvalue}),
  *   pollMs (poll interval, default 300), timeoutMs (fallback timeout, 0 = none).
@@ -1898,16 +1900,62 @@ aGTM.f.dlrepeat = function (cfg) {
     }
     return false;
   };
-  // Are all configured gate events present in the source? (empty = ready now)
+  // Parse the gate tokens once. A token may be CONDITIONAL:
+  //   "G"               - G is always required (pre-v1.5 behaviour, unchanged)
+  //   "G?if=E[A]"       - G is required ONLY IF an event named E with a
+  //                       non-empty attribute A is present in the source
+  //   "G?if=E[A:V]"     - G is required ONLY IF an event E with A === V exists
+  //   "G?if=E"          - G is required ONLY IF an event named E exists at all
+  // The predicate reuses the same "event[attr]"/"event[attr:value]" micro-
+  // syntax as aGTM.c.consent_events. "non-empty" treats null, undefined and ""
+  // all as empty. Use case: gate on user_data only for logged-in visitors
+  // (user_data?if=user[id]) so guests - who never get user_data - replay in
+  // order right away instead of running into the timeout fallback.
+  var parseCond = function (s) {
+    var b = s.indexOf("[");
+    if (b < 0) return { ev: s, attr: null, val: null };
+    var inner = s.substring(b + 1, s.indexOf("]"));
+    var c = inner.indexOf(":");
+    if (c >= 0) return { ev: s.substring(0, b), attr: inner.substring(0, c), val: inner.substring(c + 1) };
+    return { ev: s.substring(0, b), attr: inner, val: null };
+  };
+  var trim = function (s) { return s.replace(/^\s+|\s+$/g, ""); };
+  var parsedGates = [];
+  if (cfg.gateEvents) {
+    var gparts = cfg.gateEvents.split(",");
+    for (var gi = 0; gi < gparts.length; gi++) {
+      var tok = trim(gparts[gi]);
+      if (!tok) continue;
+      var q = tok.indexOf("?if=");
+      if (q >= 0) parsedGates.push({ name: trim(tok.substring(0, q)), cond: parseCond(trim(tok.substring(q + 4))) });
+      else parsedGates.push({ name: tok, cond: null });
+    }
+  }
+  // Is an event with the given name present in the source?
+  var hasEvent = function (arr, name) {
+    for (var e = 0; e < arr.length; e++) { if (arr[e] && arr[e].event === name) return true; }
+    return false;
+  };
+  // Is a conditional-gate predicate met? (exists event c.ev whose attr c.attr
+  // is non-empty, or === c.val; c.attr null = mere event presence)
+  var condMet = function (arr, c) {
+    for (var e = 0; e < arr.length; e++) {
+      var it = arr[e];
+      if (!it || it.event !== c.ev) continue;
+      if (c.attr == null) return true;
+      var v = it[c.attr];
+      if (c.val == null) { if (v != null && v !== "") return true; }
+      else if (String(v) === c.val) return true;
+    }
+    return false;
+  };
+  // Are all REQUIRED gate events present in the source? (empty = ready now;
+  // a conditional gate whose predicate is unmet is not required and skipped)
   var gateReady = function (arr) {
-    if (!cfg.gateEvents) return true;
-    var gates = cfg.gateEvents.split(",");
-    for (var g = 0; g < gates.length; g++) {
-      var name = gates[g].replace(/^\s+|\s+$/g, "");
-      if (!name) continue;
-      var found = false;
-      for (var e = 0; e < arr.length; e++) { if (arr[e] && arr[e].event === name) { found = true; break; } }
-      if (!found) return false;
+    for (var g = 0; g < parsedGates.length; g++) {
+      var pg = parsedGates[g];
+      if (pg.cond && !condMet(arr, pg.cond)) continue;
+      if (!hasEvent(arr, pg.name)) return false;
     }
     return true;
   };
@@ -1956,10 +2004,14 @@ aGTM.f.dlrepeat = function (cfg) {
       fired++;
     }
     // Optional error signal: ONLY on the timeout fallback (gate event never
-    // arrived, so the replay ran unenriched). Off by default; enable via
-    // cfg.fallbackEvent. Trigger an alert/monitoring tag on it. Starts with
-    // "aGTM" so it bypasses consent and is skipped by passes().
-    if (!enriched && cfg.fallbackEvent) aGTM.f.fire({ event: "aGTM_repeat_fallback", aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source });
+    // arrived, so the replay ran unenriched) AND only when at least one event
+    // was actually repeated (fired > 0). If nothing matched, no replay ran, so
+    // there is no missed enrichment to report - a fallback alert would be pure
+    // noise (the normal case for guests / non-conversion pages that never carry
+    // the gate event). Off by default; enable via cfg.fallbackEvent. Trigger an
+    // alert/monitoring tag on it. Starts with "aGTM" so it bypasses consent and
+    // is skipped by passes().
+    if (!enriched && cfg.fallbackEvent && fired > 0) aGTM.f.fire({ event: "aGTM_repeat_fallback", aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source });
     dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)"));
   };
   dbg("start", cfg);

@@ -184,4 +184,120 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired.fallback.aGTMrepeatSource).toBe('dl');
     expect(fired.map(function (e) { return e.event; })).toContain('view_item'); // unenriched replay ran
   });
+
+  test('timeout fallback with NOTHING to replay (fired===0) fires NO aGTM_repeat_fallback', () => {
+    // Nothing qualifies (empty source) -> no replay ran -> no missed enrichment
+    // to report. The error signal must stay silent (fc-moto noise fix): a guest /
+    // non-conversion page where the gate event never arrives is the normal case.
+    globalThis.aGTM.d.dl = [];
+    const fired = captureFires();
+    let tick = null;
+    const oSI = globalThis.setInterval;
+    const oCI = globalThis.clearInterval;
+    globalThis.setInterval = function (fn) { tick = fn; return 1; };
+    globalThis.clearInterval = function () {};
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'user_data', timeoutMs: 100, pollMs: 300, fallbackEvent: true });
+      tick();                                   // waited 300 >= cap 100 -> fallback path, but fired===0
+    } finally {
+      globalThis.setInterval = oSI;
+      globalThis.clearInterval = oCI;
+    }
+    expect(fired.length).toBe(0);              // nothing replayed
+    expect(fired.fallback).toBeNull();         // and therefore NO error signal
+  });
+
+  // --- Conditional gate: "G?if=E[A]" / "G?if=E[A:V]" (v1.5) ------------------
+
+  test('conditional gate: guest (user.id empty) does NOT require user_data -> gate-ready replay, no fallback', () => {
+    // fc-moto guest case: user_data never arrives, but it is only required when
+    // user.id is non-empty. Guest -> user_data dropped from the gate -> the
+    // replay runs in order right away, and it is NOT a timeout fallback.
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: null, aGTMdl: true },
+      { event: 'view_item_list', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 1500, fallbackEvent: true });
+    expect(fired.map((e) => e.event)).toContain('view_item_list'); // ordered replay ran
+    expect(fired.fallback).toBeNull();                              // NOT a fallback
+  });
+
+  test('conditional gate: logged-in (user.id set) + user_data present -> enriched, no fallback', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: '9760249f', aGTMdl: true },
+      { event: 'view_item_list', aGTMdl: true },
+      { event: 'aPageview' },
+      { event: 'user_data', email: 'a@b.de' }
+    ];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 1500, fallbackEvent: true });
+    expect(fired.map((e) => e.event)).toContain('view_item_list');
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: logged-in but user_data missing -> real timeout fallback DOES fire', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: '9760249f', aGTMdl: true },
+      { event: 'view_item_list', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    let tick = null;
+    const oSI = globalThis.setInterval, oCI = globalThis.clearInterval;
+    globalThis.setInterval = function (fn) { tick = fn; return 1; };
+    globalThis.clearInterval = function () {};
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 100, pollMs: 300, fallbackEvent: true });
+      expect(fired.fallback).toBeNull();  // still waiting (user_data required)
+      tick();                             // cap tripped -> unenriched fallback
+    } finally {
+      globalThis.setInterval = oSI; globalThis.clearInterval = oCI;
+    }
+    expect(fired.fallback).not.toBeNull(); // control event fires on the genuine miss
+  });
+
+  test('conditional gate: value match E[A:V] - predicate false -> gate not required', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', type: 'basic', aGTMdl: true },
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[type:premium]', timeoutMs: 1500, fallbackEvent: true });
+    expect(fired.map((e) => e.event)).toContain('purchase'); // basic != premium -> user_data not required
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: value match E[A:V] - predicate true -> gate required (waits, no immediate replay)', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', type: 'premium', aGTMdl: true },
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; }; // arm poll, never tick
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[type:premium]', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);        // premium -> user_data required, not present yet -> no replay
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('unconditional gate stays backward-compatible (no ?if= -> always required)', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'view_item', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; }; // arm poll, never tick
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);        // user_data unconditionally required, absent -> waits
+    expect(fired.fallback).toBeNull();
+  });
 });

@@ -145,6 +145,72 @@
             ],
             "columnId": "col-erledigt",
             "displayId": 14
+          },
+          {
+            "id": "agtm-f23-repeat-fallback-noise",
+            "title": "DL-Repeat: aGTM_repeat_fallback nur bei fired>0 (allg. Rausch-Reduktion)",
+            "description": "Produktionsbefund fc-moto.com: aGTM_repeat_fallback feuerte im Timeout-Fallback auch bei fired===0 (nichts repeatet). Ungefiltert in GA4-exception-Tag verdrahtet -> 7,6 Mio Exceptions/28d (~75% aller). Fix (Library): Fallback-Event nur noch bei fired>0 (aGTM.js:1962). Semantisch korrekt (kein 'replay ran unenriched' wenn 0 Replays; ueberholt F-19). Regressionstest + Doku (tag-README/README-for-Developers/CHANGELOG, count>=1). Bezug F-23. Offen: fc-moto-Config-Handreichung (Error-Checkbox aus ODER Gate/Trigger auf Conversion-Seiten scopen) + Live-Verifikation.",
+            "status": "in-progress",
+            "priority": "P1",
+            "owner": "Claude Opus",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "S",
+            "effort": "1",
+            "agentContext": "aGTM.js:1880-1988 aGTM.f.dlrepeat; Guard-Zeile ~1962; test/dlrepeat.test.js; ES5-only; nach Aenderung bun test + ./build.sh (min+base64). F-23 in docs/findings.md.",
+            "links": [
+              {
+                "type": "related",
+                "targetId": "agtm-f23-conditional-gate"
+              }
+            ],
+            "comments": [
+              {
+                "id": "c9b6dab3-3922-464a-80e8-82415a535838",
+                "author": "Claude Opus",
+                "text": "Library-Fix fertig+verifiziert (2026-07-12): fired>0-Guard in aGTM.f.dlrepeat; 193 bun-Tests gruen (inkl. neuem Regressionstest 'fired===0 -> kein Fallback'); ./build.sh clean, Guard im Minify bestaetigt (fallbackEvent&&i>0&&...). Doku-Sync: F-19 als ueberholt markiert, F-23 angelegt, tag-README/README-for-Developers/CHANGELOG auf count>=1 korrigiert. NICHT committet (dev, wartet auf Andis Zeichen). Offen fuer Andi: fc-moto-GTM-Config (Error-Event-Checkbox aus oder Gate user_data von Nicht-Conversion-Seiten fernhalten) + Live-Check der Exception-Rate.",
+                "created": "2026-07-12"
+              },
+              {
+                "id": "02388bb9-63b1-4235-a8f7-c837146e79a6",
+                "author": "Claude Opus",
+                "text": "KORREKTUR (2026-07-12, nach Andis Gast-dataLayer): Dieser fired>0-Guard behebt fc-moto NICHT. Verifizierter Gast-Fall: nicht eingeloggt => fc-moto pusht KEIN user_data-Event => Gate aPageview,user_data unerfuellbar => jeder Gast-Pageview Timeout ~2000ms => Fallback mit aGTMrepeatCount=2 (user+view_item_list werden repeatet). fired>0 => Guard greift nicht. B bleibt korrekt als allgemeine Verbesserung (leerer Replay soll nicht alarmieren), ist fuer fc-moto aber wirkungslos. Echte fc-moto-Ursache: user_data ist LOGIN-bedingt; site-weites Gaten darauf ist eine Konfig-Falle => separater Handlungsstrang (Config/Doku/ggf. Feature). Board-Direktion offen bis Andi entscheidet.",
+                "created": "2026-07-12"
+              }
+            ],
+            "displayId": 15,
+            "columnId": "col-qa"
+          },
+          {
+            "id": "agtm-f23-conditional-gate",
+            "title": "DL-Repeat: bedingtes Gate (G?if=E[A]) — fc-moto user_data-Fix",
+            "description": "Primaer-Fix fuer F-23 (fc-moto Fallback-Rauschen, 7,6 Mio/28d). Ursache: Gast bekommt kein user_data-Event -> Gate aPageview,user_data site-weit unerfuellbar -> Timeout+Fallback pro Gast-Pageview. Repeater muss fuer alle laufen (Reihenfolge), Blockieren keine Option. Loesung: gateEvents-Token koennen bedingt sein: G?if=E[A] (A nicht-leer) / G?if=E[A:V] (A===V); leer=null/undefined/''. Syntax spiegelt consent_events event[attr]. user_data?if=user[id] -> Gaeste verlangen user_data nicht -> geordneter gate-ready Replay ohne Fallback; Eingeloggte warten weiter, Kontroll-Event nur bei echtem Miss. Rueckwaertskompatibel. fc-moto aendert nur: aPageview,user_data -> aPageview,user_data?if=user[id].",
+            "status": "in-progress",
+            "priority": "P1",
+            "owner": "Claude Opus",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": "2",
+            "agentContext": "aGTM.js aGTM.f.dlrepeat: parseCond/hasEvent/condMet/gateReady (~1901ff); parseCond spiegelt consent_events-Parsing aGTM.js:308-319. Tests test/dlrepeat.test.js (6 neue). Tag-Hilfetext gateEvents-Feld. ES5. bun test + ./build.sh (min+base64+template).",
+            "links": [
+              {
+                "type": "related",
+                "targetId": "agtm-f23-repeat-fallback-noise"
+              }
+            ],
+            "comments": [
+              {
+                "id": "0cda523f-a8ca-4355-94d1-a5c7a1888b77",
+                "author": "Claude Opus",
+                "text": "Gebaut+verifiziert (2026-07-12): parseCond/condMet/gateReady in aGTM.f.dlrepeat; 6 neue Tests (Gast->kein Fallback, eingeloggt+user_data->enriched, eingeloggt-ohne->echter Fallback, E[A:V] true/false, Rueckwaerts-Kompat). 199 bun-Tests gruen, ./build.sh clean. Doku: tag-Hilfetext, README-for-Developers, tag-README (neue Sektion 'Conditional wait-events'), CHANGELOG, CLAUDE.md, findings F-23. In v1.5. Wartet auf Andis Live-Test (er will es 'anschauen und ausprobieren').",
+                "created": "2026-07-12"
+              }
+            ],
+            "displayId": 16,
+            "columnId": "col-qa"
           }
         ]
       },
@@ -343,11 +409,15 @@
         ]
       }
     ],
-    "nextDisplayId": 15,
+    "nextDisplayId": 17,
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "tpl:246`) — `?",
+      "since": "2026-07-12T10:51:04.484098+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
