@@ -181,12 +181,21 @@ arrive. The predicate reuses aGTM's `event[attr]` / `event[attr:value]` syntax:
 | Form | The wait-event is required only when… |
 |---|---|
 | `user_data?if=user[id]` | an event `user` with a **non-empty** `id` exists (logged-in) |
-| `user_data?if=user[type:premium]` | an event `user` with `type === "premium"` exists |
+| `user_data?if=user[type:premium]` | an event `user` with `type === "premium"` exists (strict string compare) |
+| `user_data?if=user` | an event `user` exists at all (any value) |
 | `user_data` (no `?if=`) | **always** (unchanged default) |
 
-`null`, `undefined` and `""` all count as "not set". The discriminator event
-(here `user`) must be in the dataLayer **before** the repeater checks the gate —
-an always-present early event like `user` (pushed first, before GTM) fits.
+`null`, `undefined` and `""` all count as "not set". A **malformed** predicate
+(missing `]`, empty attribute/event) is treated as **unconditional** — the
+wait-event stays required, so a typo never silently drops the gate (with debug
+logging on it also warns). The syntax mirrors aGTM's `consent_events`
+`event[attr]` **form**; note the gate reads a bare `[attr]` as *non-empty*,
+while `consent_events` reads it as *present*.
+
+The discriminator event (here `user`) does **not** need to precede the trigger:
+if it hasn't arrived yet the gate keeps waiting (it is not mistaken for "not
+required"), so a late `user` still leads to a correct enriched replay rather than
+a silent unenriched one. In practice `user` is pushed first (before GTM) anyway.
 
 **Result for the `user_data?if=user[id]` case:**
 
