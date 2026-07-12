@@ -207,6 +207,12 @@
                 "author": "Claude Opus",
                 "text": "Gebaut+verifiziert (2026-07-12): parseCond/condMet/gateReady in aGTM.f.dlrepeat; 6 neue Tests (Gast->kein Fallback, eingeloggt+user_data->enriched, eingeloggt-ohne->echter Fallback, E[A:V] true/false, Rueckwaerts-Kompat). 199 bun-Tests gruen, ./build.sh clean. Doku: tag-Hilfetext, README-for-Developers, tag-README (neue Sektion 'Conditional wait-events'), CHANGELOG, CLAUDE.md, findings F-23. In v1.5. Wartet auf Andis Live-Test (er will es 'anschauen und ausprobieren').",
                 "created": "2026-07-12"
+              },
+              {
+                "id": "de85cec7-66fb-4bab-b645-c067ef00c47d",
+                "author": "Claude Opus",
+                "text": "2 Kritiker-Runden (adversarial, diverse Lenses) durch. Kritiker A fand 1x P1: stiller Enrichment-Verlust, wenn Diskriminator-Event (user) NACH dem Gate-Check kommt -> eingeloggter Nutzer haette un-enriched replayed OHNE Fallback. BEHOBEN via Tri-State-Praedikat condState (1=verlangt / 0=nicht verlangt / -1=Diskriminator fehlt->warten). Zusaetzlich: Malformed-?if= (fehlendes ], leeres Attr) faellt fail-safe auf unbedingt + dbg-Warnung zurueck. Kritiker B: keine P0/P1, ES5 sauber, Doku konsistent; P2-Klarstellungen (PARSE-Syntax vs. consent_events Leerwert-Semantik, ?if=E-Form) eingearbeitet. 6 neue Tests (P1-Race, id:0/false, id:\"\", fehlendes Attr, Malformed, Wert-mit-Doppelpunkt). 205 bun-Tests gruen, build clean. Wartet weiter auf Andis Live-Test.",
+                "created": "2026-07-12"
               }
             ],
             "displayId": 16,
@@ -413,11 +419,7 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": {
-      "question": "tpl:246`) — `?",
-      "since": "2026-07-12T10:51:04.484098+00:00",
-      "askedBy": "Claude Sonnet 4.6"
-    },
+    "awaitingUser": null,
     "identities": [
       {
         "id": "user-default",

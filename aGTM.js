@@ -1906,17 +1906,26 @@ aGTM.f.dlrepeat = function (cfg) {
   //                       non-empty attribute A is present in the source
   //   "G?if=E[A:V]"     - G is required ONLY IF an event E with A === V exists
   //   "G?if=E"          - G is required ONLY IF an event named E exists at all
-  // The predicate reuses the same "event[attr]"/"event[attr:value]" micro-
-  // syntax as aGTM.c.consent_events. "non-empty" treats null, undefined and ""
-  // all as empty. Use case: gate on user_data only for logged-in visitors
-  // (user_data?if=user[id]) so guests - who never get user_data - replay in
-  // order right away instead of running into the timeout fallback.
+  // The predicate reuses the "event[attr]"/"event[attr:value]" PARSE syntax of
+  // aGTM.c.consent_events - but note the empty-value handling differs: the gate
+  // treats a bare [A] as "A non-empty" (null, undefined and "" all count as
+  // empty), whereas consent_events' [attr] matches on mere presence. [A:V] is a
+  // strict string compare (String(v) === V). Use case: gate on user_data only
+  // for logged-in visitors (user_data?if=user[id]) so guests - who never get
+  // user_data - replay in order right away instead of hitting the timeout
+  // fallback. A malformed predicate (no closing "]", empty attr/event, empty
+  // "?if=") is treated as UNCONDITIONAL (G stays required) so a typo fails safe
+  // (never silently drops the gate); with cfg.debug it also logs a warning.
   var parseCond = function (s) {
+    if (!s) return null; // "?if=" with nothing -> invalid
     var b = s.indexOf("[");
-    if (b < 0) return { ev: s, attr: null, val: null };
-    var inner = s.substring(b + 1, s.indexOf("]"));
+    if (b < 0) return { ev: s, attr: null, val: null }; // "E" - presence only
+    var close = s.indexOf("]");
+    if (close < b || !s.substring(0, b)) return null; // no "]" after "[" / no event name
+    var inner = s.substring(b + 1, close);
     var c = inner.indexOf(":");
     if (c >= 0) return { ev: s.substring(0, b), attr: inner.substring(0, c), val: inner.substring(c + 1) };
+    if (!inner) return null; // "E[]" - empty attr
     return { ev: s.substring(0, b), attr: inner, val: null };
   };
   var trim = function (s) { return s.replace(/^\s+|\s+$/g, ""); };
@@ -1927,8 +1936,11 @@ aGTM.f.dlrepeat = function (cfg) {
       var tok = trim(gparts[gi]);
       if (!tok) continue;
       var q = tok.indexOf("?if=");
-      if (q >= 0) parsedGates.push({ name: trim(tok.substring(0, q)), cond: parseCond(trim(tok.substring(q + 4))) });
-      else parsedGates.push({ name: tok, cond: null });
+      if (q < 0) { parsedGates.push({ name: tok, cond: null }); continue; }
+      var gname = trim(tok.substring(0, q));
+      var cond = parseCond(trim(tok.substring(q + 4)));
+      if (!cond) dbg("invalid ?if= predicate, gate treated as unconditional: " + tok);
+      parsedGates.push({ name: gname, cond: cond });
     }
   }
   // Is an event with the given name present in the source?
@@ -1936,25 +1948,37 @@ aGTM.f.dlrepeat = function (cfg) {
     for (var e = 0; e < arr.length; e++) { if (arr[e] && arr[e].event === name) return true; }
     return false;
   };
-  // Is a conditional-gate predicate met? (exists event c.ev whose attr c.attr
-  // is non-empty, or === c.val; c.attr null = mere event presence)
-  var condMet = function (arr, c) {
+  // Evaluate a conditional-gate predicate against the source. Tri-state so an
+  // as-yet-absent discriminator event is NOT mistaken for "not required":
+  //    1  discriminator present AND matches   -> gate G is required
+  //    0  discriminator present, does NOT match -> gate G is not required (skip)
+  //   -1  discriminator not present yet -> unresolved, keep waiting
+  // (-1 avoids a silent false-negative where a logged-in visitor whose "user"
+  // event arrives after the gate check would replay unenriched with no fallback.)
+  var condState = function (arr, c) {
+    var present = false;
     for (var e = 0; e < arr.length; e++) {
       var it = arr[e];
       if (!it || it.event !== c.ev) continue;
-      if (c.attr == null) return true;
+      present = true;
+      if (c.attr == null) return 1;
       var v = it[c.attr];
-      if (c.val == null) { if (v != null && v !== "") return true; }
-      else if (String(v) === c.val) return true;
+      if (c.val == null) { if (v != null && v !== "") return 1; }
+      else if (String(v) === c.val) return 1;
     }
-    return false;
+    return present ? 0 : -1;
   };
-  // Are all REQUIRED gate events present in the source? (empty = ready now;
-  // a conditional gate whose predicate is unmet is not required and skipped)
+  // Are all REQUIRED gate events present in the source? (no gates = ready now.
+  // A conditional gate: predicate matched -> require it; predicate false but
+  // discriminator present -> skip it; discriminator absent -> not ready, wait.)
   var gateReady = function (arr) {
     for (var g = 0; g < parsedGates.length; g++) {
       var pg = parsedGates[g];
-      if (pg.cond && !condMet(arr, pg.cond)) continue;
+      if (pg.cond) {
+        var st = condState(arr, pg.cond);
+        if (st === 0) continue;      // not required
+        if (st === -1) return false; // unresolved -> keep waiting
+      }
       if (!hasEvent(arr, pg.name)) return false;
     }
     return true;

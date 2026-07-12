@@ -300,4 +300,104 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired.length).toBe(0);        // user_data unconditionally required, absent -> waits
     expect(fired.fallback).toBeNull();
   });
+
+  test('conditional gate P1: discriminator absent at gate-check -> WAITS, then enriches when it arrives (no silent unenriched replay)', () => {
+    // Logged-in visitor whose `user` event has not arrived yet: predicate is
+    // unresolved -> the gate must wait, not replay unenriched immediately.
+    globalThis.aGTM.d.dl = [
+      { event: 'view_item_list', aGTMdl: true },
+      { event: 'aPageview' }
+      // no `user`, no `user_data` yet
+    ];
+    const fired = captureFires();
+    let tick = null;
+    const oSI = globalThis.setInterval, oCI = globalThis.clearInterval;
+    globalThis.setInterval = function (fn) { tick = fn; return 1; };
+    globalThis.clearInterval = function () {};
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 5000, pollMs: 300, fallbackEvent: true });
+      expect(fired.length).toBe(0);        // did NOT replay immediately (discriminator unresolved)
+      expect(fired.fallback).toBeNull();
+      globalThis.aGTM.d.dl.push({ event: 'user', id: 'abc' });      // late logged-in signal
+      globalThis.aGTM.d.dl.push({ event: 'user_data', email: 'x@y.z' });
+      tick();                              // poll re-checks -> gate ready -> enriched replay
+    } finally {
+      globalThis.setInterval = oSI; globalThis.clearInterval = oCI;
+    }
+    expect(fired.map((e) => e.event)).toContain('view_item_list'); // enriched replay ran
+    expect(fired.fallback).toBeNull();                             // and it is NOT a fallback
+  });
+
+  test('conditional gate: empty-string id counts as empty -> not required -> immediate replay', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: '', aGTMdl: true },
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 1500, fallbackEvent: true });
+    expect(fired.map((e) => e.event)).toContain('purchase');
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: user present but id attribute missing -> treated as empty -> not required', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', aGTMdl: true },   // no id key at all
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 1500, fallbackEvent: true });
+    expect(fired.map((e) => e.event)).toContain('purchase');
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: id:0 / id:false are real values (non-empty) -> required -> waits', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: 0, aGTMdl: true },
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; };
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);   // 0 is a real value -> user_data required -> waits
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: malformed predicate (no "]") fails safe to unconditional -> waits, not skipped', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: null, aGTMdl: true },
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; };
+    try {
+      // "user[" is malformed -> user_data stays unconditionally required -> waits (does NOT silently drop the gate)
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: value may contain a colon - E[A:http://x] matches on first colon only', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', ref: 'http://x', aGTMdl: true },
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; };
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[ref:http://x]', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);   // ref === 'http://x' -> user_data required -> waits
+    expect(fired.fallback).toBeNull();
+  });
 });
