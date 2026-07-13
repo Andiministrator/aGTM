@@ -268,18 +268,6 @@
             "columnId": "col-schreiben"
           },
           {
-            "id": "agtm-v15-tag-copy",
-            "title": "Copy Tag: observer-Zeile + Cleanup + Tests (F-32)",
-            "description": "P2: tote observer(body,copy)-Zeile L236 entfernen (permanenter Body-Observer, SPA-Last); tote requires/perms; README Phantom-Debug + Fremd-Kommentare; TESTS (Mail/Phone-Erkennung, textfilter, ua_event, Truncation).",
-            "owner": "Claude Opus",
-            "complexity": "niedrig",
-            "effort": 1,
-            "agentContext": "gtm/tags/copy-events/aGTM tag - Copy Events.tpl L236; README; findings F-32",
-            "critical": false,
-            "displayId": 27,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-vars",
             "title": "Variablen: Consent-Check/Info/Content-Counter + Tests (F-37/38/39)",
             "description": "F-37 Consent-Check: leeren Value abfangen (indexOf-Leerstring = granted, L124); F-38 Consent-Info: README aGTM.d.cm-Kopplung+Ordering dokumentieren + base64-Feld + displayName-Fix; F-39 Content-Counter: Null-Guard ...||{} L59; TESTS fuer alle drei (v1.5-Neuzugaenge Prioritaet).",
@@ -526,6 +514,26 @@
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "ERLEDIGT (F-35, Commit 8d53d78, dev gepusht). Timer-Events-Tag Haertung: (a) Least-Privilege — nur execute auf aGTM.f.timer; toter logToConsole-require + logging-Permission + read/write aGTM + aGTM.f.fire-Global raus (Permissions-JSON valide, 1 Block). (b) Seconds/Repeat-Validierung: makeNumber liefert NaN + typeof NaN===number, alter Guard griff nie → jetzt NaN-Self-Inequality (sec!==sec) + Skip bei nicht-positiven Sekunden (kein 0ms-Timer/Tight-Loop mehr); Repeat faellt bei nicht-numerisch/negativ auf Single-Fire, 0=unlimited bleibt. (c) Doppelte addparameter-Schleife entfernt (Merge einmal). (e) 7 ___TESTS___-Szenarien (GTM-only, systemische bun-Abdeckung bleibt F-41). (d) Timer-Akkumulation bei Repeat=0+Multi-Trigger als bekannte Grenze dokumentiert (aGTM.f.timer legt unabhaengige, nie gestoppte Timer an). F-40-Anteil: README Lizenz MIT→Apache-2.0, toter .tpl-Link→realer Leerzeichen-Name, Version 1.0→1.1, Phantom-Debug-Abschnitt getrimmt. Tag 1.0→1.1. 234 bun-Tests gruen, build sauber. In QA fuer den konsolidierten Kritiker-Gate ueber die restlichen P2-Karten."
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-tag-copy",
+            "title": "Copy Tag: observer-Zeile + Cleanup + Tests (F-32)",
+            "description": "P2: tote observer(body,copy)-Zeile L236 entfernen (permanenter Body-Observer, SPA-Last); tote requires/perms; README Phantom-Debug + Fremd-Kommentare; TESTS (Mail/Phone-Erkennung, textfilter, ua_event, Truncation).",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "gtm/tags/copy-events/aGTM tag - Copy Events.tpl L236; README; findings F-32",
+            "critical": false,
+            "displayId": 27,
+            "columnId": "col-qa",
+            "comments": [
+              {
+                "id": "b74f4e95-acd3-4d7d-91b8-19286a11a78d",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "ERLEDIGT (F-32, Commit 7cae1af, dev gepusht). Copy-Events-Tag: tote aGTM.f.observer-Zeile entfernt (permanenter document.body-Subtree-MutationObserver, matchte nie, lief bei jeder DOM-Mutation → SPA-Last). Least-Privilege: logging-Permission + tote logToConsole/copyFromWindow-requires + read/write aGTM-Global + aGTM.f.observer-execute raus; aGTM.f.rTest execute-only (read→false); Perms-JSON valide (4 execute-Keys: fire/addElLst/rTest/rReplace). Fremd-Kommentare korrigiert (Build-ND-Header, getType-JSDoc, Form-Submit-Listener-Label→Copy). 5 ___TESTS___-Szenarien (Typ-Detection string/email, Contact-Prefix, Non-Regex-Textfilter, Param-Merge, Non-String-Guard; GTM-only, systemische bun-Abdeckung bleibt F-41). F-40-Anteil: README Lizenz MIT→Apache-2.0, toter Link→Leerzeichen-Name, Version 1.0→1.1, Phantom-Debug getrimmt. Tag 1.0→1.1. 234 bun-Tests grün, build sauber. In QA für konsolidierten Kritiker-Gate."
               }
             ]
           }
