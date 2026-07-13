@@ -484,6 +484,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "KRITIKER-GATE bestanden: kein P0/P1. P3 gefunden+GEFIXT (Commit 0e9f566): E-Mail-Testszenario-Mock prüfte arguments[2] (Regex-Pattern) statt arguments[1] (kopierter Text) — nur zufällig korrekt. Auf arguments[1] korrigiert. qa:true, → Erledigt."
+              },
+              {
+                "id": "ac0e7c50-dc90-4fe5-a06b-fbd8dc3edf8b",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "2. QA+Kritiker-Runde: Kritiker-R2 P3 — getType-Phone-Zweig war ungetestet (Mock deckte nur E-Mail-@-Pfad). Phone-Testszenario ergänzt (9f8231d). Bestätigt: arguments[1]-Fix der R1 korrekt."
               }
             ],
             "qa": true
@@ -538,6 +544,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "KRITIKER-GATE bestanden: kein P0/P1. F-40-Sweep verifiziert (kein MIT mehr, keine toten Links). qa:true, → Erledigt."
+              },
+              {
+                "id": "e76bc7ff-5d19-40dc-8c73-6d6964f4dc13",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "2. QA+Kritiker-Runde: QA fand 3 tote Dash-.tpl-Referenzen in PROSA (nicht klickbare Links, daher vom ersten Sweep übersehen: consent-mode/form/iframe README) → Leerzeichen-Namen; fehlende Version-Kopfzeilen in consent-check/consent-info-Variablen-READMEs ergänzt (9f8231d). CHANGELOG.md: per-Karte-Einträge Timer/Copy/Variablen + systemischer Sweep-Abschnitt (5e12ae7)."
               }
             ],
             "qa": true
@@ -565,6 +577,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "KRITIKER-GATE bestanden (Sub-Agent, konsolidiert über #26-#30): kein P0/P1. P2 gefunden+GEFIXT (Commit 0e9f566): Sub-Millisekunden-seconds (z.B. 0.0004) passierte den sec>0-Guard, makeInteger(sec*1000) rundet aber auf ms=0 → mit repeat=0 genau der 0ms-Tight-Loop, den der Fix verspricht. Zusatz-Guard if(ms<=0)continue + diskriminierendes Testszenario + Changelog. qa:true, → Erledigt."
+              },
+              {
+                "id": "16b4f0e5-ec86-4c00-b10c-e73748554e50",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "2. QA+Kritiker-Runde (Andis Wunsch): QA-Gate PASS (kein P0/P1/P2), Kritiker-R2 fand P2 OVERFLOW: seconds > ~24,8 Tage überläuft das signed-32-bit setInterval-Delay → feuert sofort → mit repeat=0 derselbe Tight-Loop, den der ms<=0-Guard nur von unten schloss. GEFIXT (9f8231d): if(ms>2147483647)ms=2147483647 + diskriminierendes Testszenario + Changelog. Changelog-Zusage jetzt von BEIDEN Enden ehrlich."
               }
             ],
             "qa": true
@@ -592,6 +610,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "KRITIKER-GATE bestanden: kein P0/P1. P3 gefunden+teils GEFIXT (Commit 0e9f566): ungenutzter aGTM.f.pageinfo-execute-Grant in Pageview entfernt (0 Aufrufe verifiziert). rmLstn-Grant-Lücke bleibt als F-36(f) dokumentiert (einziger Aufrufer auskommentiert, kein Prod-Bruch). Alle 9 geänderten Perms-JSON valide, kein genutzter Grant entfernt. qa:true, → Erledigt."
+              },
+              {
+                "id": "3ecbeb82-7b60-498e-b293-c1a5b1397719",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "2. QA+Kritiker-Runde: Kritiker-R2 P3 — Pageview aGTM.f.rmLstn-Grant-Lücke (F-36f) GESCHLOSSEN: execute-Grant ergänzt (9f8231d), konsistent zu evLstn. Abwägung: latenter Crash bei Reaktivierung des auskommentierten Removal-Pfads > ungenutzter-Grant-Smell; Autor-Kommentar hält Pfad bewusst offen. Ungenutzter pageinfo-Grant war in R1 entfernt. QA-Audit über alle 13 .tpl: sonst keine fehlenden/ungenutzten Grants."
               }
             ],
             "qa": true
