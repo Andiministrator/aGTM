@@ -4,13 +4,13 @@
 
 The **aGTM Timer Events Template** offers a more flexible and robust alternative to the default Google Tag Manager (GTM) timer functionality. It allows you to create precise timer events with customizable repeat settings, add custom event parameters, and optionally include Universal Analytics (UA) event data. This template is especially useful when the default GTM timer does not meet your specific requirements.
 
-- **Version**: 1.0
-- **Last Updated**: 12.02.2024
+- **Version**: 1.1
+- **Last Updated**: 13.07.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
 
-**Template File**: [aGTM-tag-Timer-Events.tpl](./aGTM-tag-Timer-Events.tpl)
+**Template File**: [aGTM tag - Timer Events.tpl](./aGTM%20tag%20-%20Timer%20Events.tpl)
 
 ---
 
@@ -46,7 +46,7 @@ This template requires an existing **aGTM integration** within your GTM setup.
 
 1. Open your **Google Tag Manager** container.
 2. Navigate to **Templates** > **Tag Templates** > **New**.
-3. Import the **aGTM Timer Events Template** (`aGTM-tag-Timer-Events.tpl`).
+3. Import the **aGTM Timer Events Template** (`aGTM tag - Timer Events.tpl`).
 4. Save and publish the template.
 
 ### 2. Tag Configuration
@@ -66,8 +66,8 @@ The **Timer Events** parameter allows you to configure multiple timers. Each row
 
 | Field          | Description                                                                 | Example                  |
 |----------------|-----------------------------------------------------------------------------|--------------------------|
-| **Seconds**    | Time in seconds to wait before firing the event. You can include milliseconds (e.g., `0.2` for 200ms). | `5`, `0.5`, `10`         |
-| **Repeat**     | Number of times the event should repeat. Use `0` for unlimited repetitions. | `3`, `0`, `1`            |
+| **Seconds**    | Time in seconds to wait before firing the event. You can include milliseconds (e.g., `0.2` for 200ms). Must be a positive number — non-numeric, `0` or negative values are ignored (the row is skipped). | `5`, `0.5`, `10`         |
+| **Repeat**     | Number of times the event should repeat. Use `0` for unlimited repetitions. Non-numeric or negative values fall back to a single fire. | `3`, `0`, `1`            |
 | **Event Name** | Name of the event to push into the `dataLayer`. Use `[s]` to include seconds in the name. | `timer_event_[s]`        |
 
 - **Help Text**: Enter the seconds (comma-separated) for each timer event. For example, `1, 5, 10` will create events after 1, 5, and 10 seconds respectively.
@@ -114,9 +114,6 @@ This setup will trigger an event named `timer_event_3` after 3 seconds, repeat i
 
 ## Debugging and Testing
 
-### Enabling Debug Mode
-To view debug messages in the browser console, ensure that your aGTM integration is set to `debug: true`.
-
 ### Checking Event Data
 - Use the **Google Tag Assistant** or **GTM Preview Mode** to verify that events are firing as expected.
 - Check the `dataLayer` to confirm that all configured parameters are included.
@@ -130,12 +127,13 @@ To view debug messages in the browser console, ensure that your aGTM integration
 
 ### Known Limitations
 - This template requires JavaScript access to the `aGTM` object. Make sure it is accessible in the current page context.
+- `aGTM.f.timer` creates an independent timer on every tag run. If this tag is triggered multiple times per page (e.g. on every SPA virtual pageview) while a row uses **Repeat = `0`** (unlimited), those timers accumulate and are never stopped. Prefer a finite Repeat value, or a trigger that fires only once per page, for unlimited timers.
 
 ---
 
 ## License
 
-This template is released under the MIT License. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
+This template is released under the Apache License 2.0. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
 
 ---
 
