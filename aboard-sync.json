@@ -250,18 +250,6 @@
             "columnId": "col-schreiben"
           },
           {
-            "id": "agtm-v15-tag-form",
-            "title": "Form Tag: Konfig-Fallen + Tests (F-30)",
-            "description": "P1: L122 data.startevent auf data.clickevent (Feld tot), L124 maxclicks zahlfaehig (invertierter typeof-Guard = immer 1); aGTMformClicks pro Formular statt global; Null-Guard el.form; TESTS (Submit-Mapping, maxclicks, clickevent-Name, ua_event, addparameter).",
-            "owner": "Claude Opus",
-            "complexity": "mittel",
-            "effort": 2,
-            "agentContext": "gtm/tags/form-events/aGTM tag - Form Events.tpl L122/124/168; README; findings F-30; rein Template",
-            "critical": false,
-            "displayId": 22,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-tag-pageview",
             "title": "Pageview Tag: README-Default + urlListener + Cleanup + Tests (F-36)",
             "description": "P1: README eventname-Default vPageview auf aPageview + Attribut-/Virtual-PV-Felder + NOTES; urlListener-Aufruf (L907) per templateStorage once-Flag idempotent; Debug-log L905/908 raus (logging all); tote requires + pageinfo-Over-Permission + WebGL-Deadcode L615-626 + undefined-Key L864; TESTS (Basis-PV, max_fire-Gate, Attribut-Mapping, dom/page, vPageviews-Idempotenz).",
@@ -445,6 +433,27 @@
                 "id": "dc20836d-92a8-4a8c-b237-bf959ae026eb",
                 "author": "Claude Opus",
                 "text": "F-33 behoben. Security-Fixes: (b) opake/leere Origin fail-closed immer verworfen + Allowlist strikt; (c) Fire nur bei non-empty event (keine dataLayer-Injection); (d) Library ifHSlisten prueft e.source===window.top (Handshake-Spoofing zu); (e) o.d.e per Nachricht geklont (kein Key-Leak); (f) toter eventname-Code raus. Help-Text/README/NOTES verschaerft, Tag 1.0->1.1. Neuer Library-Regressionstest test/iframe_handshake.test.js (5 Faelle), 220 Tests gruen, build.sh ohne Warnung. Offen nur GTM-___TESTS___-Szenarien = systemisch F-41.",
+                "created": "2026-07-13"
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-tag-form",
+            "title": "Form Tag: Konfig-Fallen + Tests (F-30)",
+            "description": "P1: L122 data.startevent auf data.clickevent (Feld tot), L124 maxclicks zahlfaehig (invertierter typeof-Guard = immer 1); aGTMformClicks pro Formular statt global; Null-Guard el.form; TESTS (Submit-Mapping, maxclicks, clickevent-Name, ua_event, addparameter).",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 2,
+            "agentContext": "gtm/tags/form-events/aGTM tag - Form Events.tpl L122/124/168; README; findings F-30; rein Template",
+            "critical": false,
+            "displayId": 22,
+            "columnId": "col-erledigt",
+            "qa": true,
+            "comments": [
+              {
+                "id": "9b2cb193-0f2e-43e7-9c0b-fa3912a49d14",
+                "author": "Claude Opus",
+                "text": "F-30 behoben. (a) clickevent-Feld lebt (war data.startevent → tot); Default form_click statt hart form_start (Verhaltensaenderung, dokumentiert). (b) maxclicks akzeptiert number+numerischen String, NaN/<=0-Guard. (c) aGTMformClicks jetzt Objekt-Map pro Formular. (d) Null-Guard el.form||{}. Tag 1.0->1.1, README Link+Lizenz(Apache) mit. GTM-___TESTS___ = systemisch F-41. Reine Template-Aenderung, kein Build noetig.",
                 "created": "2026-07-13"
               }
             ]
