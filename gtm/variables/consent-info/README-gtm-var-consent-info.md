@@ -1,5 +1,9 @@
 # aGTM var - Consent Info
 
+- **Version**: 1.1
+- **Last Updated**: 13.07.2026
+- **Author**: Andi Petzoldt <andi@petzoldt.net>
+
 ## What is it for?
 
 This GTM Variable Template returns consent and Google Consent Mode signals from aGTM's consent data. Use it to make the full consent state available as a GTM variable for use in triggers, tags, or other variables.

@@ -163,6 +163,11 @@ if (o.c.timers.length>0) {
     // rounds to ms=0; with repeat=0 that is exactly the 0ms tight loop we guard
     // against, so drop it here too.
     if (ms <= 0) continue;
+    // Clamp to the browser's signed-32-bit setInterval/setTimeout ceiling: a
+    // larger delay overflows and fires immediately (with repeat=0 = the same
+    // tight loop). ~24.8 days is far beyond any real page session, so clamping
+    // is harmless and safer than firing a huge value verbatim.
+    if (ms > 2147483647) ms = 2147483647;
 
     // Validate the repeat count. 0 stays "unlimited" (documented); NaN or a
     // negative typo falls back to a single fire so a mistyped value can never
@@ -305,6 +310,14 @@ scenarios:
     });
     runCode({ timers: [{ seconds: '0.0004', repeat: '0', eventname: 'a' }], addparameter: [], ua_event: false });
     assertThat(count).isEqualTo(0);
+- name: Huge seconds are clamped to the 32-bit timer ceiling (no overflow loop)
+  code: |-
+    let call = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { call = { ms: arguments[4] }; }
+    });
+    runCode({ timers: [{ seconds: '3000000', repeat: '0', eventname: 'a' }], addparameter: [], ua_event: false });
+    assertThat(call.ms).isEqualTo(2147483647);
 - name: Invalid or negative repeat falls back to a single fire
   code: |-
     let call = null;
@@ -352,7 +365,9 @@ Requires an aGTM integration of the GTM.
 
 - Non-numeric, zero, negative or sub-millisecond "Seconds" values (anything
   that rounds to 0ms) are now skipped instead of arming a 0ms timer (a 0ms
-  timer combined with unlimited repeat is a tight loop).
+  timer combined with unlimited repeat is a tight loop). Very large values are
+  clamped to the 32-bit timer ceiling (~24.8 days) so they cannot overflow the
+  browser timer and fire immediately (the same tight loop from the other end).
 - "Repeat" falls back to a single fire for non-numeric or negative input; `0` is
   still honoured as "unlimited".
 - Removed the duplicate additional-parameter loop (parameters are merged once).
