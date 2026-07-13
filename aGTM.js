@@ -893,6 +893,13 @@ aGTM.f.proxySupport = function () {
  * Example usage: Include this code early in your HTML to track client-side navigation changes.
  */
 aGTM.f.urlListener = function (eventname, interval, fallback) {
+  // Idempotency guard: urlListener may be invoked more than once (e.g. from
+  // gtm_load AND the Pageview tag, or a multi-trigger SPA setup). Without this
+  // guard each call would re-wrap history.pushState/replaceState in a fresh
+  // Proxy (nesting them → checkUrlChange runs N times per navigation → duplicate
+  // vPageview events) and register another popstate/hashchange listener.
+  if (aGTM.d.urlListener_active) return;
+  aGTM.d.urlListener_active = true;
   if (typeof interval != 'number') interval = 500;
   if (typeof fallback != 'boolean') fallback = false;
   aGTM.d.last_url = aGTM.d.last_url || aGTM.f.getVal('l', 'href');

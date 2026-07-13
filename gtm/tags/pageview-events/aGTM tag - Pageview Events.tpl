@@ -344,14 +344,9 @@ ___TEMPLATE_PARAMETERS___
 ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Import needed libraries
-const log = require('logToConsole');
 const JSON = require('JSON');
 const callInWindow = require('callInWindow');
-const setInWindow = require('setInWindow');
-const copyFromWindow = require('copyFromWindow');
 const copyFromDataLayer = require('copyFromDataLayer');
-//const Object = require('Object');
-const queryPermission = require('queryPermission');
 const Math = require('Math');
 const makeNumber = require('makeNumber');
 const templateStorage = require('templateStorage');
@@ -389,7 +384,6 @@ o.c.adblockEvent = data.adblockEvent;
 o.c.adblockField = data.adblockField;
 o.c.useCookie = typeof data.useCookie=='boolean' ? data.useCookie : false;
 o.c.cookieName = data.cookieName;
-//log('info','data',data);
 
 // Define Bots
 var bots = [
@@ -611,19 +605,6 @@ o.f.checkForBots = function() {
   if (callInWindow('aGTM.f.getVal','n','webdriver')) {
     return 'Bot (webdriver)';
   }
-  // Check WebGL renderer info
-  //var canvas = document.createElement('canvas');
-  //var gl = canvas ? canvas.getContext('webgl') : null;
-  //if (gl) {
-  //  var debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-  //  var vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
-  //  var renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-  //  if (vendor === "Brian Paul" && renderer === "Mesa OffScreen") {
-  //    window.deviceInfo.deviceType = 'Bot';
-  //    window.deviceInfo.browser = 'headlesschrome-webgl';
-  //    return;
-  //  }
-  //}
   // Check screen dimensions
   o.d.screen_width = callInWindow('aGTM.f.getVal','m','width') || 0;
   if (!o.d.screen_width) o.d.screen_width = callInWindow('aGTM.f.getVal','w','outerWidth') || 0;
@@ -902,10 +883,9 @@ if (counter<=o.c.max_fire && ((o.c.use_js_check && o.d.device_type!='Bot') || o.
   o.f.fire(e);
 }
 
-log('info','aGTM.f.urlListener calling',{ac:o.c.vPageviews,ev:o.c.vPageviewEvent,ti:o.c.vPageviewsTimer,fa:o.c.vPageviewsFallback});
-// Activate Listener for virtual vPageviews
+// Activate Listener for virtual vPageviews. The library-side urlListener is
+// idempotent, so a multi-trigger setup will not stack proxies/listeners.
 if (o.c.vPageviews) {
-  log('info','aGTM.f.urlListener called',{ev:o.c.vPageviews});
   callInWindow('aGTM.f.urlListener', o.c.vPageviewEvent, o.c.vPageviewsTimer, o.c.vPageviewsFallback);
 }
 
@@ -924,27 +904,6 @@ data.gtmOnSuccess();
 ___WEB_PERMISSIONS___
 
 [
-  {
-    "instance": {
-      "key": {
-        "publicId": "logging",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "environments",
-          "value": {
-            "type": 1,
-            "string": "all"
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
   {
     "instance": {
       "key": {
@@ -1635,13 +1594,23 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.0
+- Version 1.1
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 02.06.2024
+- Last Update: 13.07.2026
 
 ## Description
 
-Custom GTM Template to send a vPageview with additional information about the client and the page.
+Custom GTM Template to send an aPageview with additional information about the client and the page.
 Like browser, bot-detection, what is the page title or the canonical tag, ...
+
+## Fixes in 1.1
+
+- Virtual-pageview URL listener is now idempotent on the library side, so a
+  multi-trigger setup no longer stacks history-API proxies (which caused
+  duplicate `vPageview` events on SPA navigation).
+- Removed unconditional debug `logToConsole` calls (fired in production).
+- Cleanup: dropped dead `require`s (`logToConsole`, `setInWindow`,
+  `copyFromWindow`, `queryPermission`) and the unused `logging` permission,
+  and removed the commented-out WebGL bot-detection block.
 
 

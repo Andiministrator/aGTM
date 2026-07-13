@@ -163,6 +163,17 @@ confirmed against the source and fixed in `gtm/tags/dl-repeat/aGTM tag - DL Repe
 - **Ineffective permission guard** — a missing `access_globals` permission only logged a warning and then fired anyway. Now aborts.
 - **Config trap** — with both send-type checkboxes off the tag silently did nothing. "Send Events fired via aGTM.f.fire" now defaults to on, with help text noting at least one must be enabled.
 
+### GTM template "Pageview Events" — idempotency + cleanup (v1.5 release-gate)
+
+Template audit finding on `gtm/tags/pageview-events/aGTM tag - Pageview Events.tpl`
+(+ library side `aGTM.js`, tag `1.0 → 1.1`):
+
+- **Duplicate virtual pageviews (library)** — `aGTM.f.urlListener` re-wrapped `history.pushState`/`replaceState` in a fresh Proxy on every call and re-registered listeners. Called from both `gtm_load` and the Pageview tag (or a multi-trigger SPA setup), it stacked proxies → each navigation fired the `vPageview` event N times. It is now guarded by `aGTM.d.urlListener_active` and runs its setup only once. New test `test/urllistener_idempotent.test.js`.
+- **Debug logs in production** — removed the two unconditional `logToConsole` calls around the URL-listener activation (the `logging` permission was scoped to all environments).
+- **README default corrected** — the documented default event name was `vPageview`; the tag actually defaults to `aPageview` (the `vPageview` name was deprecated in v1.4). Example, template filename, version and a broken overview link fixed too.
+- **Least-privilege / dead code** — dropped the dead `require`s (`logToConsole`, `setInWindow`, `copyFromWindow`, `queryPermission`), the now-unused `logging` permission, and the commented-out WebGL bot-detection block.
+- Deferred: GTM `___TESTS___` scenarios (systemic F-41); finer `access_globals` granularity (systemic F-42).
+
 ### GTM template "Form Events" — config traps fixed (v1.5 release-gate)
 
 Template audit finding on `gtm/tags/form-events/aGTM tag - Form Events.tpl`

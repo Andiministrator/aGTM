@@ -1,7 +1,8 @@
 # aGTM (v)Pageview and Page State Events
 
-**Template Filename**: `aGTM-tag-Pageview-Events.tpl`
-**Last Update**: 02.06.2024
+**Template Filename**: `aGTM tag - Pageview Events.tpl`
+**Version**: 1.1
+**Last Update**: 13.07.2026
 **Author**: Andi Petzoldt
 **Description**: This template allows you to send customizable Pageview events or use it as an event listener for `DOMready` and `PAGEready` states. It includes options to collect additional information, such as browser details, device data, bot detection, and more.
 
@@ -34,8 +35,12 @@ With this template, you can define when a Pageview event should be fired and spe
 
 ### Pageview Event Name
 - **Parameter**: `eventname`
-- **Default**: `vPageview`
+- **Default**: `aPageview`
 - Defines the name of the Pageview event that will be pushed to the dataLayer.
+- Note: the event was renamed from `vPageview` to `aPageview` in v1.4; `vPageview`
+  is deprecated and will be removed in v2.0. The separate `vPageviewEvent`
+  parameter (default `vPageview`) still names the *virtual* pageview event fired
+  on SPA URL changes — see [Virtual Pageviews](#virtual-pageviews).
 
 ### When Should the Pageview Event Fire
 - **Parameter**: `pv_fire`
@@ -103,7 +108,7 @@ To send a basic Pageview event with additional attributes:
 
 ```json
 {
-  "eventname": "vPageview",
+  "eventname": "aPageview",
   "pv_fire": "page",
   "max_fire": 1,
   "pv_attributes": [
@@ -129,4 +134,4 @@ To include a human test and AdBlock detection:
 
 ---
 
-For more details, refer to the [GTM Templates Overview](../README-gtm-templates.md).
+For more details, refer to the [GTM Templates Overview](../../README-gtm-templates.md).
