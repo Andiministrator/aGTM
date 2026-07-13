@@ -250,18 +250,6 @@
             "columnId": "col-schreiben"
           },
           {
-            "id": "agtm-v15-tag-iframe",
-            "title": "iFrame Tag: Fail-open/Origin + Library-Handshake + Tests (F-33)",
-            "description": "SICHERHEIT P1: Origin fail-closed (leere/opake Origin verwerfen, L253), Fire in if(ev.event)-Guard (L263/305), o.d.e je Nachricht klonen, toten o.c.eventname-Code raus; LIBRARY aGTM.js 1211-1246 Handshake-Origin pruefen (targetOrigin, ifHSlisten e.origin) - ES5+bun test; TESTS (Allowlist, origin=null-Bypass, event-lose Msg, Filter, Cross-Msg-Isolation).",
-            "owner": "Claude Opus",
-            "complexity": "hoch",
-            "effort": 5,
-            "agentContext": "gtm/tags/iframe-support/aGTM tag - iFrame Support.tpl L253/263/305/212; aGTM.js 1181-1327 Handshake; README; findings F-33; Library-Teil ES5+bun test, Template-Teil GTM-Sandbox",
-            "critical": true,
-            "displayId": 21,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-tag-form",
             "title": "Form Tag: Konfig-Fallen + Tests (F-30)",
             "description": "P1: L122 data.startevent auf data.clickevent (Feld tot), L124 maxclicks zahlfaehig (invertierter typeof-Guard = immer 1); aGTMformClicks pro Formular statt global; Null-Guard el.form; TESTS (Submit-Mapping, maxclicks, clickevent-Name, ua_event, addparameter).",
@@ -436,6 +424,27 @@
                 "id": "a6d49cfe-72bd-407f-ad30-bf9a9d160606",
                 "author": "Claude Opus",
                 "text": "F-31 CODE komplett + 2x kritiker-verifiziert (838775b): (a) Fail-open-Guard, (b) Fallback in Prod + Re-Read, (c) Region auf all-denied-Default (F-31c, recherchiert), Debug-Crash-Fix, README-Komma-Wrappung. PLUS optionales Feld cm_grant_outside (globaler granted-Default ausserhalb Regionen) — Kritiker fand dabei selbst-eingebauten not_set-in-region-P1, gefixt + verifiziert geschlossen. Tag-Version 1.4, README-Header/Link/Defaults korrigiert. Wissen: knowledge/topics/google-consent-mode-region.md. OFFEN nur noch ___TESTS___ (GTM-only, systemisch F-41). Karte bleibt in Arbeit fuer die Test-Welle.",
+                "created": "2026-07-13"
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-tag-iframe",
+            "title": "iFrame Tag: Fail-open/Origin + Library-Handshake + Tests (F-33)",
+            "description": "SICHERHEIT P1: Origin fail-closed (leere/opake Origin verwerfen, L253), Fire in if(ev.event)-Guard (L263/305), o.d.e je Nachricht klonen, toten o.c.eventname-Code raus; LIBRARY aGTM.js 1211-1246 Handshake-Origin pruefen (targetOrigin, ifHSlisten e.origin) - ES5+bun test; TESTS (Allowlist, origin=null-Bypass, event-lose Msg, Filter, Cross-Msg-Isolation).",
+            "owner": "Claude Opus",
+            "complexity": "hoch",
+            "effort": 5,
+            "agentContext": "gtm/tags/iframe-support/aGTM tag - iFrame Support.tpl L253/263/305/212; aGTM.js 1181-1327 Handshake; README; findings F-33; Library-Teil ES5+bun test, Template-Teil GTM-Sandbox",
+            "critical": false,
+            "displayId": 21,
+            "columnId": "col-erledigt",
+            "qa": true,
+            "comments": [
+              {
+                "id": "dc20836d-92a8-4a8c-b237-bf959ae026eb",
+                "author": "Claude Opus",
+                "text": "F-33 behoben. Security-Fixes: (b) opake/leere Origin fail-closed immer verworfen + Allowlist strikt; (c) Fire nur bei non-empty event (keine dataLayer-Injection); (d) Library ifHSlisten prueft e.source===window.top (Handshake-Spoofing zu); (e) o.d.e per Nachricht geklont (kein Key-Leak); (f) toter eventname-Code raus. Help-Text/README/NOTES verschaerft, Tag 1.0->1.1. Neuer Library-Regressionstest test/iframe_handshake.test.js (5 Faelle), 220 Tests gruen, build.sh ohne Warnung. Offen nur GTM-___TESTS___-Szenarien = systemisch F-41.",
                 "created": "2026-07-13"
               }
             ]
