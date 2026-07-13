@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 12.07.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 13.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -1905,7 +1905,11 @@ aGTM.f.dlrepeat = function (cfg) {
   //   "G?if=E[A]"       - G is required ONLY IF an event named E with a
   //                       non-empty attribute A is present in the source
   //   "G?if=E[A:V]"     - G is required ONLY IF an event E with A === V exists
-  //   "G?if=E"          - G is required ONLY IF an event named E exists at all
+  //   "G?if=E"          - G is required until an event named E appears (an
+  //                       absent E means "not yet known" -> keep waiting, not
+  //                       "skip"; see condState tri-state below). Prefer the
+  //                       [A] form with an always-present discriminator for a
+  //                       fast skip; this bare form waits like listing E itself.
   // The predicate reuses the "event[attr]"/"event[attr:value]" PARSE syntax of
   // aGTM.c.consent_events - but note the empty-value handling differs: the gate
   // treats a bare [A] as "A non-empty" (null, undefined and "" all count as
@@ -1913,20 +1917,22 @@ aGTM.f.dlrepeat = function (cfg) {
   // strict string compare (String(v) === V). Use case: gate on user_data only
   // for logged-in visitors (user_data?if=user[id]) so guests - who never get
   // user_data - replay in order right away instead of hitting the timeout
-  // fallback. A malformed predicate (no closing "]", empty attr/event, empty
-  // "?if=") is treated as UNCONDITIONAL (G stays required) so a typo fails safe
-  // (never silently drops the gate); with cfg.debug it also logs a warning.
+  // fallback. A malformed predicate (no closing "]", empty attr/event, trailing
+  // junk after "]", empty "?if=") is treated as UNCONDITIONAL (G stays required)
+  // so a typo fails safe (never silently drops the gate); with cfg.debug it also
+  // logs a warning.
   var parseCond = function (s) {
     if (!s) return null; // "?if=" with nothing -> invalid
     var b = s.indexOf("[");
     if (b < 0) return { ev: s, attr: null, val: null }; // "E" - presence only
     var close = s.indexOf("]");
     if (close < b || !s.substring(0, b)) return null; // no "]" after "[" / no event name
+    if (close + 1 !== s.length) return null; // trailing chars after "]" -> malformed
     var inner = s.substring(b + 1, close);
     var c = inner.indexOf(":");
-    if (c >= 0) return { ev: s.substring(0, b), attr: inner.substring(0, c), val: inner.substring(c + 1) };
-    if (!inner) return null; // "E[]" - empty attr
-    return { ev: s.substring(0, b), attr: inner, val: null };
+    var attr = c >= 0 ? inner.substring(0, c) : inner;
+    if (!attr) return null; // "E[]" / "E[:v]" - empty attribute
+    return { ev: s.substring(0, b), attr: attr, val: c >= 0 ? inner.substring(c + 1) : null };
   };
   var trim = function (s) { return s.replace(/^\s+|\s+$/g, ""); };
   var parsedGates = [];
@@ -1938,6 +1944,7 @@ aGTM.f.dlrepeat = function (cfg) {
       var q = tok.indexOf("?if=");
       if (q < 0) { parsedGates.push({ name: tok, cond: null }); continue; }
       var gname = trim(tok.substring(0, q));
+      if (!gname) { dbg("gate token with empty name before ?if=, skipped: " + tok); continue; }
       var cond = parseCond(trim(tok.substring(q + 4)));
       if (!cond) dbg("invalid ?if= predicate, gate treated as unconditional: " + tok);
       parsedGates.push({ name: gname, cond: cond });

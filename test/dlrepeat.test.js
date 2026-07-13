@@ -400,4 +400,82 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired.length).toBe(0);   // ref === 'http://x' -> user_data required -> waits
     expect(fired.fallback).toBeNull();
   });
+
+  test('conditional gate: presence-only ?if=E - E present -> G required -> waits', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'order_complete' },
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; };
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=order_complete', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);   // order_complete present -> user_data required -> waits
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: presence-only ?if=E - E absent -> tri-state waits (NOT an immediate skip)', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+      // no order_complete
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; };
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=order_complete', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);   // absent E -> -1 -> waits, does not replay early
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: trailing junk after "]" fails safe to unconditional -> waits', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: null, aGTMdl: true },
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; };
+    try {
+      // "user[id]x" is malformed -> user_data stays unconditionally required -> waits (not silently skipped)
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]x', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: empty gate name before ?if= is skipped (token ignored)', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    // "?if=user[id]" has no gate name -> that token is skipped; only aPageview remains -> ready now
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, ?if=user[id]', timeoutMs: 1500, fallbackEvent: true });
+    expect(fired.map((e) => e.event)).toContain('purchase');
+    expect(fired.fallback).toBeNull();
+  });
+
+  test('conditional gate: an unresolved (-1) gate blocks replay even when other gates are satisfied', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: '', aGTMdl: true },   // guest -> user_data?if=user[id] resolves to skip (0)
+      { event: 'purchase', aGTMdl: true },
+      { event: 'aPageview' }
+      // order_complete absent -> receipt?if=order_complete is unresolved (-1)
+    ];
+    const fired = captureFires();
+    const oSI = globalThis.setInterval;
+    globalThis.setInterval = function () { return 1; };
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id], receipt?if=order_complete', timeoutMs: 1500, fallbackEvent: true });
+    } finally { globalThis.setInterval = oSI; }
+    expect(fired.length).toBe(0);   // one -1 gate holds the whole replay despite a 0-skip on another
+    expect(fired.fallback).toBeNull();
+  });
 });
