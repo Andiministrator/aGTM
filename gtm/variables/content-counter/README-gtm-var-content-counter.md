@@ -4,11 +4,11 @@
 
 The **aGTM var - Content Counter** template counts either the number of words or images on a webpage. It is designed to be used within Google Tag Manager (GTM) as a variable.
 
-- **Version**: 1.0
-- **Last Updated**: 7.6.2024
+- **Version**: 1.1
+- **Last Updated**: 13.07.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
-**Template File**: [aGTM-var-Content-Counter.tpl](./aGTM-var-Content-Counter.tpl)
+**Template File**: [aGTM var - Content Counter.tpl](./aGTM%20var%20-%20Content%20Counter.tpl)
 
 ---
 
@@ -25,7 +25,7 @@ The **aGTM var - Content Counter** template counts either the number of words or
 
 1. Open your **Google Tag Manager** container.
 2. Navigate to **Variables** > **User-Defined Variables** > **New**.
-3. Import the **aGTM var - Content Counter** template (`aGTM-var-Content-Counter.tpl`).
+3. Import the **aGTM var - Content Counter** template (`aGTM var - Content Counter.tpl`).
 4. Save and publish the template.
 
 ### 2. Variable Configuration
@@ -51,12 +51,13 @@ Then, use this variable in your GTM tags or triggers as needed.
 
 - This variable uses the `aGTM.f.pageinfo` function to retrieve information about the page content.
 - Ensure that the `aGTM` integration is correctly set up in your GTM container.
+- If aGTM is not yet loaded when the variable is evaluated, it safely returns `0` (words/images) rather than throwing.
 
 ---
 
 ## License
 
-This template is released under the MIT License. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
+This template is released under the Apache License 2.0. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
 
 ---
 

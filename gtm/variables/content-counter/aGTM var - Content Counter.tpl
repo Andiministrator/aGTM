@@ -43,7 +43,6 @@ ___TEMPLATE_PARAMETERS___
 ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Import needed libraries
-const log = require('logToConsole');
 const callInWindow = require('callInWindow');
 
 // Get Config
@@ -55,8 +54,9 @@ var pi = {
   countImages: thing=='images' ? true : false,
 };
 
-// get info
-var o = callInWindow('aGTM.f.pageinfo',pi);
+// get info. Guard against aGTM not being loaded yet: pageinfo returns undefined
+// then, and o.words/o.images below would throw. Fall back to an empty object.
+var o = callInWindow('aGTM.f.pageinfo',pi) || {};
 
 // Return
 switch (thing) {
@@ -71,27 +71,6 @@ switch (thing) {
 ___WEB_PERMISSIONS___
 
 [
-  {
-    "instance": {
-      "key": {
-        "publicId": "logging",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "environments",
-          "value": {
-            "type": 1,
-            "string": "all"
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
   {
     "instance": {
       "key": {
@@ -158,11 +137,60 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Counts words from pageinfo
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.pageinfo') return { words: 42, images: 3 };
+    });
+    let r = runCode({ thing: 'words' });
+    assertThat(r).isEqualTo(42);
+- name: Counts images from pageinfo
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.pageinfo') return { words: 42, images: 3 };
+    });
+    let r = runCode({ thing: 'images' });
+    assertThat(r).isEqualTo(3);
+- name: Missing aGTM returns 0 instead of throwing
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.pageinfo') return undefined;
+    });
+    let r = runCode({ thing: 'words' });
+    assertThat(r).isEqualTo(0);
+- name: Unknown selection returns null
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.pageinfo') return { words: 42, images: 3 };
+    });
+    let r = runCode({ thing: '-' });
+    assertThat(r).isEqualTo(null);
+setup: ''
 
 
 ___NOTES___
 
-Created on 7.6.2024, 14:10:22
+# aGTM Custom Template
+
+- Version 1.1
+- Autor: Andi Petzoldt <andi@petzoldt.net>
+- Last Update: 13.07.2026
+
+## Description
+
+Variable counting the words or images of the current document via
+`aGTM.f.pageinfo`.
+
+## Changelog
+
+### Version 1.1 (13.07.2026)
+
+- Null guard: if aGTM is not loaded yet, `aGTM.f.pageinfo` returns undefined
+  and the `o.words`/`o.images` access threw. It now falls back to an empty
+  object and returns `0` instead.
+- Least-privilege permissions: removed the dead `logToConsole` require and the
+  unused `logging` permission (only execute on `aGTM.f.pageinfo` remains).
+- Added ___TESTS___ scenarios.
 
 
