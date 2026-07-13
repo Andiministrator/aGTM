@@ -219,6 +219,12 @@
                 "author": "Claude Opus",
                 "text": "LIVE bei fc-moto seit 2026-07-13 (Client+Config aPageview,user_data?if=user[id]). 3. Runde nach Live (Kritiker C + QA D): kein P0/P1. QA D verifizierte Artefakt-Sync (aGTM.min.js<->Source, base64<->min.js, tpl-Blob<->base64 alle identisch, Build idempotent) - der live ausgelieferte Stand = Quelle. Kritiker C bestaetigte Tri-State/Malformed-Fix korrekt. Zusatz-Haertung eingebaut: parseCond failt auch bei Trailing-Junk nach ] sicher zu unbedingt; leerer Gate-Name vor ?if= wird geskippt; Presence-Form ?if=E Doku praezisiert (-1=warten). 5 neue Tests (Presence present/absent, Trailing, leerer Name, gemischte Multi-Gates mit -1-Blockade). 210 bun-Tests gruen, build clean. Karte erledigt.",
                 "created": "2026-07-13"
+              },
+              {
+                "id": "a2594a8c-44a7-4f63-aac7-fa800fdcc4c2",
+                "author": "Claude Opus",
+                "text": "Follow-on (e3536ca + 8d34f2a): aGTM_repeat_fallback traegt jetzt Diagnose-Felder aGTMrepeatMissing (Komma-Liste der beim Timeout fehlenden Pflicht-Gates = Schuldiger, z.B. user_data; bei abwesendem Diskriminator dessen Event) + aGTMrepeatWaited (Give-up-ms). Motiv: Fallback trat bei fc-moto weiter auf (28-Tage-Fenster dominiert von Pre-Fix-Tagen; ausserdem Timing-Schwanz eingeloggter user_data-Pushes, Andi hat Timeout 1500->2500 gestellt). Pre-Deploy-Runde (Kritiker E + QA F): kein P0/P1/P2. missingGates in allen 4 Zweigen korrekt (Node-Replika), timeoutMs nie undefined im Fallback, enriched-Pfad unberuehrt, Artefakt-Sync byte-genau, ES5 sauber, Doku konsistent. 2 P3 abgeraeumt (Doppelaufruf gecacht + 2 Tests). 213 bun-Tests gruen. Deploy-freigabe. Rollout: Client zuerst, dann GA4-Params missing/waited am Repeater-Error-Tag ergaenzen.",
+                "created": "2026-07-13"
               }
             ],
             "displayId": 16,
@@ -443,7 +449,11 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "js` MATCH, gehärtete Logik im Minify (`invalid ?",
+      "since": "2026-07-13T05:48:02.455772+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
