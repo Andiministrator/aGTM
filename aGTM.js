@@ -1219,6 +1219,10 @@ aGTM.f.ifHandshake = function () {
       var iframe = iframes[i];
       if (!iframe || !iframe.contentWindow || !iframe.contentWindow.postMessage)
         continue;
+      // targetOrigin "*" is intentional: the handshake carries only a fixed,
+      // non-sensitive token and the top window cannot enumerate each child's
+      // origin. Security is enforced on the receiver side (ifHSlisten verifies
+      // e.source === window.top before adopting the origin).
       iframe.contentWindow.postMessage("aGTM_Top2iFrame Handshake", "*");
     }
     // Mark that the handshake attempt was made
@@ -1233,6 +1237,10 @@ aGTM.f.ifHandshake = function () {
 aGTM.f.ifHSlisten = function (e) {
   if (
     aGTM.d.is_iframe &&
+    // Only accept the handshake from the actual parent/top window. Without this
+    // check a sibling iframe or an injected script could forge the handshake
+    // string and hijack aGTM.d.iframe.origin, redirecting all outgoing events.
+    e.source === window.top &&
     typeof e.data == "string" &&
     e.data == "aGTM_Top2iFrame Handshake"
   ) {

@@ -50,7 +50,7 @@ ___TEMPLATE_PARAMETERS___
         "isUnique": false
       }
     ],
-    "help": "If you define no hostnames, all events from all iFrames will be received."
+    "help": "Recommended: list the exact hostnames you expect iFrame events from. If you leave this empty, events from ANY http/https iFrame origin are accepted — use only for trusted same-site setups. Opaque origins (sandboxed / srcdoc frames reporting origin \"null\", data:/blob:) are ALWAYS rejected, regardless of this list."
   },
   {
     "type": "LABEL",
@@ -208,9 +208,10 @@ o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
 // Check if page is in an iFrame
 o.c.isiframe = callInWindow('aGTM.f.isIFrame');
 
-// Prepare event
+// Prepare the base event: predefined dataLayer params + additional params.
+// This object is the immutable template; msgListener clones it per message so
+// keys from one message never leak into the next.
 o.d.e = {};
-if (o.c.eventname) o.d.e.event = o.c.eventname;
 if (o.c.dlparams.length>0) {
   for (var i=0; i<o.c.dlparams.length; i++) {
     var dlp = o.c.dlparams[i].dlparam;
@@ -248,9 +249,14 @@ o.f.url2host = o.f.url2host || function (url) {
 o.f.msgListener = function (msg,org) {
   if (typeof msg!='object' || !msg) return;
   var ev = JSON.parse(JSON.stringify(msg));
-  // Check hostname
+  // Origin check (fail-closed). Resolve the sender hostname first. An opaque or
+  // non-http origin ('null' from sandboxed/srcdoc frames, data:/blob:) resolves
+  // to '' and can never be allow-listed — it is always rejected, whether or not
+  // a hostname allow-list is configured. When an allow-list IS configured, the
+  // resolved hostname must additionally match one of its entries.
   var hostname = org ? o.f.url2host(org) : '';
-  if (o.c.hostnamelist.length>0 && hostname) {
+  if (!hostname) return;
+  if (o.c.hostnamelist.length>0) {
     var track = false;
     for (var i=0; i<o.c.hostnamelist.length; i++) {
       var h = o.c.hostnamelist[i].hostname;
@@ -260,54 +266,57 @@ o.f.msgListener = function (msg,org) {
     }
     if (!track) return;
   }
-  if (typeof ev.event=='string' && ev.event) {
-    // Event Filter
-    if (o.c.eventfilter.length>0) {
-      // Include Filter
-      var track = false; var count = 0;
-      for (var i=0; i<o.c.eventfilter.length; i++) {
-        var row = o.c.eventfilter[i];
-        if (row.filtertype=='include') {
-          count++;
-          if (row.filterisregex) {
-            if (callInWindow('aGTM.f.rTest', ev.event, row.filterpattern)) { track = true; break; }
-          } else if (row.filterpattern==ev.event) { track = true; break; }
-        }
-      }
-      if (!track && count>0) return;
-      // Exclude Filter + Prefix
-      for (var i=0; i<o.c.eventfilter.length; i++) {
-        var row = o.c.eventfilter[i];
-        if (row.filtertype=='exclude') {
-          if (row.filterisregex) {
-            if (callInWindow('aGTM.f.rTest', ev.event, row.filterpattern)) { return; }
-          } else if (row.filterpattern==ev.event) { return; }
-        }
-      }
-      // Prefix Filter
-      if (!o.c.addprefixtoall) {
-        for (var i=0; i<o.c.eventfilter.length; i++) {
-          var row = o.c.eventfilter[i];
-          if (row.filtertype=='prefix') {
-            if (row.filterisregex) {
-              if (callInWindow('aGTM.f.rTest', ev.event, row.filterpattern)) { ev.event = o.c.eventprefix + ev.event; }
-            } else if (row.filterpattern==ev.event) { ev.event = o.c.eventprefix + ev.event; }
-          }
-        }
+  // Only process real aGTM events (carrying a non-empty 'event'). Event-less
+  // foreign messages are dropped to prevent dataLayer injection/poisoning.
+  if (typeof ev.event!='string' || !ev.event) return;
+  // Event Filter
+  if (o.c.eventfilter.length>0) {
+    // Include Filter
+    var itrack = false; var count = 0;
+    for (var i=0; i<o.c.eventfilter.length; i++) {
+      var row = o.c.eventfilter[i];
+      if (row.filtertype=='include') {
+        count++;
+        if (row.filterisregex) {
+          if (callInWindow('aGTM.f.rTest', ev.event, row.filterpattern)) { itrack = true; break; }
+        } else if (row.filterpattern==ev.event) { itrack = true; break; }
       }
     }
-    // Set Event Name
-    if (o.c.eventprefix) {
-      if (o.c.addprefixtoall) ev.event = o.c.eventprefix + ev.event;
+    if (!itrack && count>0) return;
+    // Exclude Filter + Prefix
+    for (var i=0; i<o.c.eventfilter.length; i++) {
+      var row = o.c.eventfilter[i];
+      if (row.filtertype=='exclude') {
+        if (row.filterisregex) {
+          if (callInWindow('aGTM.f.rTest', ev.event, row.filterpattern)) { return; }
+        } else if (row.filterpattern==ev.event) { return; }
+      }
+    }
+    // Prefix Filter
+    if (!o.c.addprefixtoall) {
+      for (var i=0; i<o.c.eventfilter.length; i++) {
+        var row = o.c.eventfilter[i];
+        if (row.filtertype=='prefix') {
+          if (row.filterisregex) {
+            if (callInWindow('aGTM.f.rTest', ev.event, row.filterpattern)) { ev.event = o.c.eventprefix + ev.event; }
+          } else if (row.filterpattern==ev.event) { ev.event = o.c.eventprefix + ev.event; }
+        }
+      }
     }
   }
-  // Merge predifined event with iFrame Message Event
+  // Set Event Name
+  if (o.c.eventprefix) {
+    if (o.c.addprefixtoall) ev.event = o.c.eventprefix + ev.event;
+  }
+  // Merge the predefined params (fresh clone per message, so keys from one
+  // message never leak into the next) with the iFrame message event.
+  var out = JSON.parse(JSON.stringify(o.d.e));
   for (var key in ev) {
-    o.d.e[key] = ev[key];
+    out[key] = ev[key];
   }
   // Fire event
-  callInWindow('aGTM.f.fire', o.d.e);
-  o.d.q.push(o.d.e);
+  callInWindow('aGTM.f.fire', out);
+  o.d.q.push(out);
 };
 
 // iFrame/Top Listener
@@ -633,9 +642,20 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.0
+- Version 1.1
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 30.03.2024
+- Last Update: 13.07.2026
+
+## Security
+
+Foreign-origin postMessages are handled fail-closed:
+- Opaque / non-http origins (sandboxed or srcdoc frames reporting origin "null",
+  data:/blob:) are always rejected — they can never be allow-listed.
+- When a hostname allow-list is configured, the sender hostname must match it.
+- Only messages carrying a non-empty `event` are fired; event-less foreign
+  messages are dropped (no dataLayer injection).
+- On the library side the iFrame accepts the top→iFrame handshake only from
+  `window.top`, so the return origin cannot be hijacked by a sibling frame.
 
 ## Description
 
