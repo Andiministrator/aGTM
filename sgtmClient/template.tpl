@@ -1881,50 +1881,286 @@ ___SERVER_PERMISSIONS___
 ___TESTS___
 
 scenarios:
-- name: Check JS Code
+# ─────────────────────────────────────────────────────────────────────────────
+# These scenarios run ONLY inside GTM's server-template "Tests" tab (sandboxed
+# server JS) — they are NOT covered by `bun test` (that harness only exercises
+# the library, aGTM.js). They focus on the pure/config-derivable logic; the
+# I/O-heavy Session/Consent/Sources HTTP paths are covered end-to-end by the
+# internal/api smoketest (gitignored). See card #18 / finding F-41.
+#
+# Two request shapes are exercised:
+#   * GET /aGTM.js (scenarios 1-8) — reaches buildAndSend() ONLY via the
+#     session sendHttpGet .then(); buildAndSend is declared after the top-level
+#     body, so it must be reached through that microtask (the sandbox forbids
+#     referencing it before its declaration). mockServe() therefore configures
+#     session_api_url AND a synchronously-resolving Promise mock for sendHttpGet
+#     so the .then runs within runCode() and buildAndSend() executes.
+#     CAVEAT: this assumes GTM's server-template test harness flushes the
+#     mocked-Promise microtask queue inside runCode(). If a serve scenario ever
+#     shows setResponse* "not called" / empty body, the harness does NOT flush
+#     synchronously and the serve scenarios need a different driver. The four
+#     synchronous scenarios below do not depend on this.
+#   * POST /aGTMconsent / bot-403 / unknown-id (scenarios 9-12) — fully
+#     synchronous, no HTTP, no Promise: robust regardless of the flush caveat.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Serve aGTM.js — 200, JS content-type, body embeds library + config + init
   code: |
-    // Set Mocks
-    //mock('setResponseStatus', 200);
-    //mock('setResponseHeader', '1.2.2');
-    //mock('setResponseBody', 'console.log("aGTM");');
-    //mock('returnResponse');
+    const data = serveData();
+    let body = '';
+    mockServe({id: 'GTM-XYZ123'});
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertApi('setResponseHeader').wasCalledWith('Content-Type', 'application/javascript');
+    assertApi('returnResponse').wasCalled();
+    // Decoded aGTM library is injected verbatim (fromBase64 of the payload).
+    assertThat(body).contains('window.aGTM');
+    // The config wrapper and the integrator init call are appended after it.
+    assertThat(body).contains('aGTM.f.config(');
+    assertThat(body).contains('aGTM.f.init();');
 
-    // Run Code
-    runCode(mockData);
+- name: GTM container without consent → noConsent flag in emitted config
+  code: |
+    const data = serveData();
+    data.gtm = [{gtm_id: 'GTM-XYZ123', gtm_consent: false, gtm_env: ''}];
+    let body = '';
+    mockServe({id: 'GTM-XYZ123'});
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    // lastIndexOf, NOT indexOf: the embedded library itself calls
+    // aGTM.f.config(aGTM.c) inside init(), so 'aGTM.f.config(' also occurs
+    // once *inside* the library blob. The appended config wrapper is the LAST
+    // occurrence, so lastIndexOf isolates it.
+    const cfg = body.substring(body.lastIndexOf('aGTM.f.config('));
+    assertThat(cfg).contains('"noConsent":true');
 
-    // Checks
-    //assertApi('setResponseStatus').wasCalledWith(200);
-    //assertApi('setResponseHeader').wasCalled();
-    //assertApi('setResponseBody').wasCalled();
-    //assertApi('returnResponse').wasCalled();
+- name: GTM container with consent → no noConsent flag
+  code: |
+    const data = serveData();
+    data.gtm = [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_env: ''}];
+    let body = '';
+    mockServe({id: 'GTM-XYZ123'});
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    // lastIndexOf, NOT indexOf: the embedded library itself calls
+    // aGTM.f.config(aGTM.c) inside init(), so 'aGTM.f.config(' also occurs
+    // once *inside* the library blob. The appended config wrapper is the LAST
+    // occurrence, so lastIndexOf isolates it.
+    const cfg = body.substring(body.lastIndexOf('aGTM.f.config('));
+    assertThat(cfg).doesNotContain('"noConsent"');
+
+- name: Config flags emitted when set (gdl / debug / useListener / sendConsentEvent)
+  code: |
+    const data = serveData();
+    data.gdl = 'dataLayer';
+    data.debug = true;
+    data.useListener = true;
+    data.sendConsentEvent = true;
+    data.consent_events = 'cmpEvent,cmpUpdate';
+    let body = '';
+    mockServe({id: 'GTM-XYZ123'});
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    // lastIndexOf, NOT indexOf: the embedded library itself calls
+    // aGTM.f.config(aGTM.c) inside init(), so 'aGTM.f.config(' also occurs
+    // once *inside* the library blob. The appended config wrapper is the LAST
+    // occurrence, so lastIndexOf isolates it.
+    const cfg = body.substring(body.lastIndexOf('aGTM.f.config('));
+    assertThat(cfg).contains('"gdl":"dataLayer"');
+    assertThat(cfg).contains('"debug":true');
+    assertThat(cfg).contains('"useListener":true');
+    assertThat(cfg).contains('"sendConsentEvent":true');
+    assertThat(cfg).contains('"consent_events":"cmpEvent,cmpUpdate"');
+
+- name: Config flags omitted when unset
+  code: |
+    const data = serveData();
+    data.gdl = '';
+    data.debug = false;
+    data.useListener = false;
+    data.sendConsentEvent = false;
+    let body = '';
+    mockServe({id: 'GTM-XYZ123'});
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    // lastIndexOf, NOT indexOf: the embedded library itself calls
+    // aGTM.f.config(aGTM.c) inside init(), so 'aGTM.f.config(' also occurs
+    // once *inside* the library blob. The appended config wrapper is the LAST
+    // occurrence, so lastIndexOf isolates it.
+    const cfg = body.substring(body.lastIndexOf('aGTM.f.config('));
+    assertThat(cfg).doesNotContain('"gdl":');
+    assertThat(cfg).doesNotContain('"debug":true');
+    assertThat(cfg).doesNotContain('"useListener":true');
+    assertThat(cfg).doesNotContain('"sendConsentEvent":true');
+
+- name: CMP consent-check code injected between library and config
+  code: |
+    const data = serveData();
+    data.cmp = '/*CMP-MARKER*/aGTM.f.consent_check=function(){return true;};';
+    let body = '';
+    mockServe({id: 'GTM-XYZ123'});
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    assertThat(body).contains('/*CMP-MARKER*/');
+    // Ordering: CMP block sits before the appended config wrapper. Use
+    // lastIndexOf for the wrapper — the library blob (which precedes the CMP
+    // block) contains its own aGTM.f.config(aGTM.c) call, so indexOf would
+    // point into the library and invert the comparison.
+    assertThat(body.indexOf('/*CMP-MARKER*/') < body.lastIndexOf('aGTM.f.config(')).isTrue();
+
+- name: consent_store_url builder present when consent-store enabled
+  code: |
+    const data = serveData();
+    data.consent_store_enabled = true;
+    let body = '';
+    mockServe({id: 'GTM-XYZ123'});
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    // lastIndexOf, NOT indexOf: the embedded library itself calls
+    // aGTM.f.config(aGTM.c) inside init(), so 'aGTM.f.config(' also occurs
+    // once *inside* the library blob. The appended config wrapper is the LAST
+    // occurrence, so lastIndexOf isolates it.
+    const cfg = body.substring(body.lastIndexOf('aGTM.f.config('));
+    // Browser-side URL builder (document.currentScript.src + /aGTMconsent).
+    assertThat(cfg).contains('document.currentScript');
+    assertThat(cfg).contains('/aGTMconsent');
+
+- name: consent_store_url builder bypassed when consent-store disabled
+  code: |
+    const data = serveData();
+    data.consent_store_enabled = false;
+    let body = '';
+    mockServe({id: 'GTM-XYZ123'});
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    // lastIndexOf, NOT indexOf: the embedded library itself calls
+    // aGTM.f.config(aGTM.c) inside init(), so 'aGTM.f.config(' also occurs
+    // once *inside* the library blob. The appended config wrapper is the LAST
+    // occurrence, so lastIndexOf isolates it.
+    const cfg = body.substring(body.lastIndexOf('aGTM.f.config('));
+    // Identity wrapper instead of the currentScript builder.
+    assertThat(cfg).contains('function(c){return c;}');
+    assertThat(cfg).doesNotContain('document.currentScript');
+
+- name: POST /aGTMconsent (plain, no Session API) → 200 with ok + echoed uid
+  code: |
+    const data = baseData();
+    let body = '';
+    mockPost('/aGTMconsent', JSON.stringify({uid: 'C.1$cl_test$123456.789', consent: {hasResponse: true, services: ',Google,'}}));
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertApi('setResponseHeader').wasCalledWith('Content-Type', 'application/json');
+    assertApi('returnResponse').wasCalled();
+    assertThat(body).contains('"ok":true');
+    assertThat(body).contains('"uid":"C.1$cl_test$123456.789"');
+
+- name: POST /aGTMconsent encrypted payload → 501 (server-side decrypt unsupported)
+  code: |
+    const data = baseData();
+    let body = '';
+    mockPost('/aGTMconsent', JSON.stringify({q: 'ENCRYPTED_BLOB'}));
+    mock('setResponseBody', function(b) { body = b; });
+    runCode(data);
+    assertApi('setResponseStatus').wasCalledWith(501);
+    assertThat(body).contains('not supported');
+
+- name: Bot check enabled but no client IP → 403
+  code: |
+    const data = baseData();
+    data.botCheckEnabled = true;
+    data.botCheck = 'https://bots.example/api';
+    mock('getRequestPath', function() { return '/aGTM.js'; });
+    mock('getRequestMethod', function() { return 'GET'; });
+    mock('getRequestQueryParameters', function() { return {id: 'GTM-XYZ123'}; });
+    mock('getRequestHeader', function() { return ''; });
+    mock('getRemoteAddress', function() { return ''; });
+    mock('getCookieValues', function() { return []; });
+    mock('getTimestampMillis', function() { return 1714900000000; });
+    runCode(data);
+    assertApi('setResponseStatus').wasCalledWith(403);
+    assertApi('returnResponse').wasCalled();
+
+- name: Unknown GTM container id → no response emitted
+  code: |
+    const data = baseData();
+    data.gtm = [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_env: ''}];
+    mock('getRequestPath', function() { return '/aGTM.js'; });
+    mock('getRequestMethod', function() { return 'GET'; });
+    mock('getRequestQueryParameters', function() { return {id: 'GTM-DOES-NOT-MATCH'}; });
+    runCode(data);
+    assertApi('setResponseStatus').wasNotCalled();
+    assertApi('returnResponse').wasNotCalled();
 setup: |-
-  // Import needed libraries
+  // ── Test helpers (shared, re-run before every scenario) ────────────────────
   const log = require('logToConsole');
+  const Promise = require('Promise');
 
-  // Setup MockData
-  const mockData = {
-    gtm: {
-      gtm_id: 'GTM-XYZ123',
-      gtm_consent: true,
-      gtm_env: ''
-    },
-    cmp: null,
-    consent: {
-      gtmPurposes: 'Functional',
-      gtmServices: 'Google Tag Manager',
-      gtmVendors: 'Google Inc'
-    },
-    ck_consent: {
-      ckVendors: 'Set Cookie Cookie'
-    },
-    sendConsentEvent: true,
-    useListener: false,
-    consent_events: 'cmpEvent,cmpUpdate',
-    vPageview: false,
-    dlStateEvents: false,
-    gdl: '',
-    nonce: 'ABC123',
-    debug: true
+  // Fresh template `data` (config object) per scenario. Minimal serve config;
+  // scenarios mutate the returned object before runCode().
+  const baseData = function() {
+    return {
+      gtm: [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_env: '', gtm_url: ''}],
+      cmp: '',
+      tenant_id: 'cl_test',
+      consent_store_enabled: true,
+      cookie_name: '_TPU',
+      cookie_mode: 'always',
+      cookie_lifetime: 365,
+      fingerprint_allowed: true,
+      sendConsentEvent: true,
+      useListener: false,
+      consent_events: 'cmpEvent,cmpUpdate',
+      gdl: '',
+      nonce: 'ABC123',
+      debug: false
+    };
+  };
+
+  // serveData: baseData plus a Session API URL. Required so the GET /aGTM.js
+  // handler takes the async session branch (see mockServe) rather than the
+  // synchronous else-branch, which would reach buildAndSend() before its
+  // declaration (sandbox "reference before declaration").
+  const serveData = function() {
+    const d = baseData();
+    d.session_api_url = 'https://sgtm.example/tp/session';
+    return d;
+  };
+
+  // Mock browser → Client GET /aGTM.js inputs. sendHttpGet resolves
+  // synchronously so the session .then() runs within runCode() and
+  // buildAndSend() executes. sessionResp defaults to an empty 200 (no stored
+  // session/consent → minimal sessionData, no F→C promote path).
+  const mockServe = function(query, sessionResp) {
+    mock('getRequestPath', function() { return '/aGTM.js'; });
+    mock('getRequestMethod', function() { return 'GET'; });
+    mock('getRequestQueryParameters', function() { return query; });
+    mock('getRequestHeader', function() { return ''; });
+    mock('getRemoteAddress', function() { return '203.0.113.9'; });
+    mock('getCookieValues', function() { return []; });
+    mock('getTimestampMillis', function() { return 1714900000000; });
+    // cookieMode 'always' → continueAfterSession() writes the uid cookie.
+    // Mock it to keep the scenario hermetic (no-op in the test env anyway).
+    mock('setCookie', function() {});
+    mock('sendHttpGet', function() {
+      return Promise.create(function(resolve) {
+        resolve(sessionResp || {statusCode: 200, body: '{}'});
+      });
+    });
+  };
+
+  // Mock browser → Client POST (consent-store route). No Session API is
+  // configured in these scenarios, so the handler stays fully synchronous.
+  const mockPost = function(path, bodyStr) {
+    mock('getRequestPath', function() { return path; });
+    mock('getRequestMethod', function() { return 'POST'; });
+    mock('getRequestBody', function() { return bodyStr; });
+    mock('getRequestQueryParameters', function() { return {}; });
+    mock('getRequestHeader', function() { return ''; });
+    mock('getRemoteAddress', function() { return '203.0.113.9'; });
+    mock('getCookieValues', function() { return []; });
+    mock('getTimestampMillis', function() { return 1714900000000; });
   };
 
 
