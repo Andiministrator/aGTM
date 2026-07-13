@@ -88,7 +88,8 @@ ___TEMPLATE_PARAMETERS___
             "displayValue": "Hostname Level"
           }
         ],
-        "simpleValueType": true
+        "simpleValueType": true,
+        "defaultValue": "domain"
       },
       {
         "type": "TEXT",
@@ -205,17 +206,15 @@ ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 /**
  * aGTM Click Listener
- * @version 1.3
- * @lastupdate 04.07.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.4
+ * @lastupdate 13.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
 */
 
 // Import needed libraries
-const log = require('logToConsole');
 const JSON = require('JSON');
 const parseUrl = require('parseUrl');
 const callInWindow = require('callInWindow');
-const copyFromWindow = require('copyFromWindow');
 
 /**
  * Build aGTM shadow object
@@ -251,6 +250,12 @@ setConf(o.c, data, 'outbound_event', 'string', '');
 setConf(o.c, data, 'cross_domains', 'string', '');
 if (o.c.cross_domains) o.c.cross_domains = callInWindow('aGTM.f.rReplace', o.c.cross_domains, '[^\\.0-9a-zA-Z_,-]', '');
 setConf(o.c, data, 'cross_matching', 'string', 'domain');
+// Guard the SELECT: an unset SELECT delivers '' (which passes the string type
+// check above, so the 'domain' default never kicks in) and a macro could deliver
+// anything. Only an explicit 'hostname' selects hostname scope; every other value
+// falls back to the safer 'domain' scope (subdomains of an internal domain still
+// count as internal, so same-site links are not misreported as outbound).
+if (o.c.cross_matching !== 'hostname') o.c.cross_matching = 'domain';
 setConf(o.c, data, 'usecontact', 'boolean', false);
 setConf(o.c, data, 'contactprefix', 'string', '');
 setConf(o.c, data, 'textfilter', 'object', []);
@@ -412,27 +417,6 @@ ___WEB_PERMISSIONS___
   {
     "instance": {
       "key": {
-        "publicId": "logging",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "environments",
-          "value": {
-            "type": 1,
-            "string": "all"
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
-  {
-    "instance": {
-      "key": {
         "publicId": "access_globals",
         "versionId": "1"
       },
@@ -478,45 +462,6 @@ ___WEB_PERMISSIONS___
                   {
                     "type": 8,
                     "boolean": true
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
                   }
                 ]
               },
@@ -777,13 +722,21 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.0
+- Version 1.4
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 07.03.2024
+- Last Update: 13.07.2026
 
 ## Description
 
 This template handles Click Tracking.
 Requires an aGTM integration of the GTM.
+
+## Changelog
+
+- 1.4: Fix `cross_matching` config trap (unset SELECT ran in hostname scope,
+  reporting same-site links as outbound) — added `defaultValue: "domain"` plus a
+  normalize guard. Removed dead `logToConsole`/`copyFromWindow` requires, the
+  unused `logging` permission and the over-broad `aGTM` read/write global
+  (least-privilege: only `execute` on the concrete `aGTM.f.*` paths remains).
 
 
