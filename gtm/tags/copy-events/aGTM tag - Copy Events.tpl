@@ -122,14 +122,12 @@ ___TEMPLATE_PARAMETERS___
 ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Import needed libraries
-const log = require('logToConsole');
 const JSON = require('JSON');
 const callInWindow = require('callInWindow');
-const copyFromWindow = require('copyFromWindow');
 
 /**
- * Build ND aGTM shadow object
- * @lastupdate 12.02.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * Build aGTM shadow object
+ * @lastupdate 13.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {object} o
  * @param {object} c - config
@@ -169,9 +167,9 @@ o.c.addparameter.forEach(function(row) {
 });
 
 /**
- * Gets back a (predefined) value from window, document, or body
+ * Detects whether a copied text is an email address, a phone number or a plain string.
  * @param {string} t - The text to be analyzed.
- * @returns {Object} - An object with 'type' (the detected type: 'email', 'phone', or 'string') 
+ * @returns {Object} - An object with 'type' (the detected type: 'email', 'phone', or 'string')
  *                     and 'text' (the processed or trimmed text).
  *                     'len' is the length of the original text.
  * Usage: var textType = aGTM.f.getType('some text');
@@ -231,9 +229,8 @@ o.f.copied = function(co) {
   o.d.q.push(ev);
 };
 
-// Form Submit Listener
+// Copy Listener
 callInWindow('aGTM.f.addElLst','body','copy',function(e){o.f.copied(e);});
-callInWindow('aGTM.f.observer','body','copy',function(e){o.f.copied(e);});
 
 // Call data.gtmOnSuccess when the tag is finished.
 data.gtmOnSuccess();
@@ -242,27 +239,6 @@ data.gtmOnSuccess();
 ___WEB_PERMISSIONS___
 
 [
-  {
-    "instance": {
-      "key": {
-        "publicId": "logging",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "environments",
-          "value": {
-            "type": 1,
-            "string": "debug"
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
   {
     "instance": {
       "key": {
@@ -337,85 +313,7 @@ ___WEB_PERMISSIONS___
                 "mapValue": [
                   {
                     "type": 1,
-                    "string": "aGTM"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
                     "string": "aGTM.f.addElLst"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.f.observer"
                   },
                   {
                     "type": 8,
@@ -458,7 +356,7 @@ ___WEB_PERMISSIONS___
                   },
                   {
                     "type": 8,
-                    "boolean": true
+                    "boolean": false
                   },
                   {
                     "type": 8,
@@ -524,7 +422,70 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Plain string copy fires the configured event with the text and length
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ eventname: 'text_copy', usecontact: false, contactprefix: 'contact_', textfilter: [], addparameter: [], ua_event: false });
+    cb('hello world');
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('text_copy');
+    assertThat(fired.type).isEqualTo('string');
+    assertThat(fired.text).isEqualTo('hello world');
+    assertThat(fired.text_length).isEqualTo(11);
+- name: Email copy with usecontact uses the contact prefix event name
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.rTest') { return arguments[2].indexOf('@') !== -1; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ eventname: 'text_copy', usecontact: true, contactprefix: 'contact_', textfilter: [], addparameter: [], ua_event: false });
+    cb('john@example.com');
+    assertThat(fired.event).isEqualTo('contact_email');
+    assertThat(fired.type).isEqualTo('email');
+- name: A non-regex text filter blurs the matching part
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ eventname: 'text_copy', usecontact: false, contactprefix: 'contact_', textfilter: [{ pattern: 'secret', isregex: false, replacetext: '***' }], addparameter: [], ua_event: false });
+    cb('my secret');
+    assertThat(fired.text).isEqualTo('my ***');
+- name: Additional parameters are merged into the copy event
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ eventname: 'text_copy', usecontact: false, contactprefix: 'contact_', textfilter: [], addparameter: [{ pkey: 'foo', pvalue: 'bar' }], ua_event: false });
+    cb('hello');
+    assertThat(fired.foo).isEqualTo('bar');
+- name: Non-string copy input does not fire an event
+  code: |-
+    let fired = false, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ eventname: 'text_copy', usecontact: false, contactprefix: 'contact_', textfilter: [], addparameter: [], ua_event: false });
+    cb(undefined);
+    assertThat(fired).isEqualTo(false);
 setup: ''
 
 
@@ -532,13 +493,29 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.0
+- Version 1.1
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 20.03.2024
+- Last Update: 13.07.2026
 
 ## Description
 
 This template handles Tracking of Copying Text.
 Requires an aGTM integration of the GTM.
+
+## Changelog
+
+### Version 1.1 (13.07.2026)
+
+- Removed the dead `aGTM.f.observer` call, which installed a permanent
+  `document.body` subtree MutationObserver that never matched a copy event but
+  ran on every DOM mutation (unnecessary SPA load).
+- Least-privilege permissions: dropped the unused `logging` permission, the
+  dead `logToConsole`/`copyFromWindow` requires, the read/write `aGTM` global
+  and the now-unused `aGTM.f.observer` execute grant; `aGTM.f.rTest` is
+  execute-only now.
+- Corrected copied/misleading comments (shadow-object header, `getType`
+  description, the "Form Submit Listener" label on the copy listener).
+- Added ___TESTS___ scenarios covering type detection, contact prefixing,
+  text filtering and the non-string guard.
 
 
