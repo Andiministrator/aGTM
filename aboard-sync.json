@@ -277,7 +277,15 @@
             "agentContext": "gtm/tags/timer-events/aGTM tag - Timer Events.tpl L164/143-155/187-296; README; findings F-35",
             "critical": false,
             "displayId": 26,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "comments": [
+              {
+                "id": "5819bcd0-4b08-459f-9c19-54b07436d6bb",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "ERLEDIGT (F-35, Commit 8d53d78, dev gepusht). Timer-Events-Tag Haertung: (a) Least-Privilege — nur execute auf aGTM.f.timer; toter logToConsole-require + logging-Permission + read/write aGTM + aGTM.f.fire-Global raus (Permissions-JSON valide, 1 Block). (b) Seconds/Repeat-Validierung: makeNumber liefert NaN + typeof NaN===number, alter Guard griff nie → jetzt NaN-Self-Inequality (sec!==sec) + Skip bei nicht-positiven Sekunden (kein 0ms-Timer/Tight-Loop mehr); Repeat faellt bei nicht-numerisch/negativ auf Single-Fire, 0=unlimited bleibt. (c) Doppelte addparameter-Schleife entfernt (Merge einmal). (e) 7 ___TESTS___-Szenarien (GTM-only, systemische bun-Abdeckung bleibt F-41). (d) Timer-Akkumulation bei Repeat=0+Multi-Trigger als bekannte Grenze dokumentiert (aGTM.f.timer legt unabhaengige, nie gestoppte Timer an). F-40-Anteil: README Lizenz MIT→Apache-2.0, toter .tpl-Link→realer Leerzeichen-Name, Version 1.0→1.1, Phantom-Debug-Abschnitt getrimmt. Tag 1.0→1.1. 234 bun-Tests gruen, build sauber. In QA fuer den konsolidierten Kritiker-Gate ueber die restlichen P2-Karten."
+              }
+            ]
           },
           {
             "id": "agtm-v15-tag-copy",
