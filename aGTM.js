@@ -1990,6 +1990,25 @@ aGTM.f.dlrepeat = function (cfg) {
     }
     return true;
   };
+  // Which required gate events are still absent? Used only for the timeout-
+  // fallback diagnostic: it names the culprit(s) so a monitor can see WHAT never
+  // arrived - e.g. "user_data" for a logged-in visitor whose enrichment was too
+  // slow. A conditional gate whose discriminator is absent reports the missing
+  // discriminator event; a skipped (not-required) conditional gate reports
+  // nothing.
+  var missingGates = function (arr) {
+    var miss = [];
+    for (var g = 0; g < parsedGates.length; g++) {
+      var pg = parsedGates[g];
+      if (pg.cond) {
+        var st = condState(arr, pg.cond);
+        if (st === 0) continue;                              // not required
+        if (st === -1) { miss.push(pg.cond.ev); continue; }  // discriminator never arrived
+      }
+      if (!hasEvent(arr, pg.name)) miss.push(pg.name);
+    }
+    return miss;
+  };
   // Should one source event be repeated?
   var passes = function (ev) {
     if (typeof ev != "object" || !ev) return false;
@@ -2042,8 +2061,10 @@ aGTM.f.dlrepeat = function (cfg) {
     // the gate event). Off by default; enable via cfg.fallbackEvent. Trigger an
     // alert/monitoring tag on it. Starts with "aGTM" so it bypasses consent and
     // is skipped by passes().
-    if (!enriched && cfg.fallbackEvent && fired > 0) aGTM.f.fire({ event: "aGTM_repeat_fallback", aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source });
-    dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)"));
+    // aGTMrepeatMissing names the gate event(s) still absent at the timeout (the
+    // culprit, e.g. "user_data"); aGTMrepeatWaited is the give-up threshold (ms).
+    if (!enriched && cfg.fallbackEvent && fired > 0) aGTM.f.fire({ event: "aGTM_repeat_fallback", aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source, aGTMrepeatMissing: missingGates(arr).join(","), aGTMrepeatWaited: timeoutMs });
+    dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)") + (enriched ? "" : ", missing=" + missingGates(arr).join(",")));
   };
   dbg("start", cfg);
   // Re-entrancy guard: if a poll is already running, do not start a second

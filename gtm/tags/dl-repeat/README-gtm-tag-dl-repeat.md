@@ -216,6 +216,8 @@ actually repeated** (`aGTMrepeatCount >= 1`) — the library pushes
 |---|---|
 | `aGTMrepeatCount` | number of events repeated (always `>= 1` — the event no longer fires when nothing was replayed) |
 | `aGTMrepeatSource` | `f` / `dl` / `live` |
+| `aGTMrepeatMissing` | comma-list of the wait-event(s) still **absent** when the timeout hit — the culprit (e.g. `user_data`). For a conditional gate whose discriminator never arrived, this is that discriminator event. Send it as a GA4 parameter to see *what* never came. |
+| `aGTMrepeatWaited` | the give-up threshold in ms (your fallback timeout) |
 
 Trigger a monitoring/alert tag on **`aGTM_repeat_fallback`** to catch missing
 enrichment (e.g. `user_data` not firing). Nothing is pushed on a normal,

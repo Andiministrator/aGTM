@@ -164,7 +164,7 @@ ___TEMPLATE_PARAMETERS___
         "name": "fallbackEvent",
         "checkboxText": "Fire an error event if the wait-event(s) never arrive (aGTM_repeat_fallback)",
         "simpleValueType": true,
-        "help": "Pushes an <b>aGTM_repeat_fallback</b> event ONLY in the error case - when the timeout elapsed and the wait-event(s) had not arrived, so the replay ran unenriched. (Nothing is pushed on a normal, enriched replay.) Carries <b>aGTMrepeatCount</b> and <b>aGTMrepeatSource</b>. Trigger a monitoring/alert tag on it to catch missing enrichment. Off by default. Needs a fallback timeout > 0."
+        "help": "Pushes an <b>aGTM_repeat_fallback</b> event ONLY in the error case - when the timeout elapsed and the wait-event(s) had not arrived, so the replay ran unenriched. (Nothing is pushed on a normal, enriched replay.) Carries <b>aGTMrepeatCount</b>, <b>aGTMrepeatSource</b>, <b>aGTMrepeatMissing</b> (the wait-event(s) that were still missing when the timeout hit – e.g. <b>user_data</b> – so you see WHAT never arrived) and <b>aGTMrepeatWaited</b> (the timeout in ms). Trigger a monitoring/alert tag on it to catch missing enrichment. Off by default. Needs a fallback timeout > 0."
       }
     ]
   },

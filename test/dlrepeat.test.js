@@ -185,6 +185,29 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired.map(function (e) { return e.event; })).toContain('view_item'); // unenriched replay ran
   });
 
+  test('timeout fallback names the missing gate(s) via aGTMrepeatMissing + aGTMrepeatWaited', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'user', id: '9760249f', aGTMdl: true }, // logged-in -> user_data required
+      { event: 'view_item_list', aGTMdl: true },
+      { event: 'aPageview' }
+      // user_data never arrives
+    ];
+    const fired = captureFires();
+    let tick = null;
+    const oSI = globalThis.setInterval, oCI = globalThis.clearInterval;
+    globalThis.setInterval = function (fn) { tick = fn; return 1; };
+    globalThis.clearInterval = function () {};
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 100, pollMs: 300, fallbackEvent: true });
+      tick(); // cap tripped -> unenriched fallback
+    } finally {
+      globalThis.setInterval = oSI; globalThis.clearInterval = oCI;
+    }
+    expect(fired.fallback).not.toBeNull();
+    expect(fired.fallback.aGTMrepeatMissing).toBe('user_data'); // the culprit is named
+    expect(fired.fallback.aGTMrepeatWaited).toBe(100);          // the give-up threshold
+  });
+
   test('timeout fallback with NOTHING to replay (fired===0) fires NO aGTM_repeat_fallback', () => {
     // Nothing qualifies (empty source) -> no replay ran -> no missed enrichment
     // to report. The error signal must stay silent (fc-moto noise fix): a guest /
