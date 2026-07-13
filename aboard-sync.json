@@ -238,6 +238,12 @@
                 "author": "Claude Opus",
                 "text": "OE-3 GESCHLOSSEN: Consent-Write-Vertrag (/consent full-replace + /promote atomar) vollständig in api4sgtm/team-spec.md fixiert; /consent-Write-Bug behoben 2026-05-05 (Smoketest step 3 strict); Smoketest deckt steps 1-4/19-20/21 ab. Kein ADR (Vertrags-Verifikation). Rest rein operativ: Smoketest grün gg. Release-Build = Andis Zug. open-decisions.md aktualisiert.",
                 "created": "2026-07-13"
+              },
+              {
+                "id": "1f70bf99-f90a-42b1-a086-b0b48ebf234b",
+                "author": "Claude Opus",
+                "text": "HANDOFF (Session 2026-07-13, Chat-Wechsel): v1.5-Scope erweitert auf \"alles vor Tag fixen\" (Andis Entscheidung) — kompletter GTM-Template-Audit gemacht (9 Reviewer), Findings F-24..F-42 in docs/findings.md, 13 Arbeitskarten im Sprint. ERLEDIGT diese Session: #19 Library-Fixes (F-24/25/27, 215 Tests, 25cc8cd) + #20 Consent-Mode KOMPLETT (Code+Kritiker 2x, F-31 inkl. Fail-open, Region F-31c recherchiert, neues Feld cm_grant_outside; 838775b) — offen an #20 nur ___TESTS___ (GTM-only, systemisch F-41). NAECHSTER SCHRITT: #21 iFrame (F-33, zweiter Security-P1: fail-open postMessage + Library-Handshake-Origin aGTM.js 1211-1246). Danach #22 Form (P1), #23 Pageview (P1), dann P2-Tags + #28 Variablen + #29 READMEs(F-40) + #30 Perms-Cleanup(F-42) + #18 Client-Tests + die GTM-Test-Welle (F-41, nur in GTM lauffaehig). Board ADR-0067-migriert: Ops an aboard-sync.inbox/, NIE aboard-sync.json direkt. Knowledge: neue google-consent-mode-region.md.",
+                "created": "2026-07-13"
               }
             ],
             "displayId": 1,
