@@ -46,7 +46,7 @@ This template requires an existing **aGTM integration** within your GTM setup.
 
 1. Open your **Google Tag Manager** container.
 2. Navigate to **Templates** > **Tag Templates** > **New**.
-3. Import the **aGTM Consent Mode Template** (`aGTM-tag-Consent-Mode.tpl`).
+3. Import the **aGTM Consent Mode Template** (`aGTM tag - Consent Mode.tpl`).
 4. Save and publish the template.
 
 ### 2. Tag Configuration

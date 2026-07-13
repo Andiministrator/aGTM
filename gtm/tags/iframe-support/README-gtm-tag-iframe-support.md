@@ -32,7 +32,7 @@ This template is used to capture events fired from an embedded iFrame and send t
 
 ## Setup Instructions
 
-1. **Download the Template**: Ensure that the template file `aGTM-tag-iFrame-Support.tpl` is placed in your GTM workspace.
+1. **Download the Template**: Ensure that the template file `aGTM tag - iFrame Support.tpl` is placed in your GTM workspace.
 2. **Configure the Tag**: Add a new tag in your GTM container using this template.
 3. **Customize the Parameters**: Follow the configuration options below to set up your iFrame event tracking.
 

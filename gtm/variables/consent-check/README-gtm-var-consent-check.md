@@ -1,5 +1,9 @@
 # aGTM var - Consent Check
 
+- **Version**: 1.1
+- **Last Updated**: 13.07.2026
+- **Author**: Andi Petzoldt <andi@petzoldt.net>
+
 ## What is it for?
 
 This GTM Variable Template checks whether a specific value (e.g. a purpose, service, or vendor name) is present in aGTM's consent data. It allows you to use consent signals directly as GTM variables in triggers or tags.

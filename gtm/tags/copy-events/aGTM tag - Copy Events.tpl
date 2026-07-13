@@ -452,6 +452,21 @@ scenarios:
     cb('john@example.com');
     assertThat(fired.event).isEqualTo('contact_email');
     assertThat(fired.type).isEqualTo('email');
+- name: Phone copy with usecontact uses the contact prefix event name
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      // email pattern contains '@', phone pattern does not -> classify a
+      // digit string with no '@' as phone.
+      if (fn === 'aGTM.f.rTest') { return arguments[2].indexOf('@') === -1; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ eventname: 'text_copy', usecontact: true, contactprefix: 'contact_', textfilter: [], addparameter: [], ua_event: false });
+    cb('+49 170 1234567');
+    assertThat(fired.event).isEqualTo('contact_phone');
+    assertThat(fired.type).isEqualTo('phone');
 - name: A non-regex text filter blurs the matching part
   code: |-
     let fired = null, cb = null;
