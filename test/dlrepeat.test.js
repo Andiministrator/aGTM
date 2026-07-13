@@ -208,6 +208,43 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired.fallback.aGTMrepeatWaited).toBe(100);          // the give-up threshold
   });
 
+  test('timeout fallback: an absent discriminator reports the discriminator event in aGTMrepeatMissing', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'view_item_list', aGTMdl: true },
+      { event: 'aPageview' }
+      // no `user` event at all -> user_data?if=user[id] stays unresolved (-1)
+    ];
+    const fired = captureFires();
+    let tick = null;
+    const oSI = globalThis.setInterval, oCI = globalThis.clearInterval;
+    globalThis.setInterval = function (fn) { tick = fn; return 1; };
+    globalThis.clearInterval = function () {};
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, user_data?if=user[id]', timeoutMs: 100, pollMs: 300, fallbackEvent: true });
+      tick();
+    } finally { globalThis.setInterval = oSI; globalThis.clearInterval = oCI; }
+    expect(fired.fallback).not.toBeNull();
+    expect(fired.fallback.aGTMrepeatMissing).toBe('user'); // the discriminator that never arrived
+  });
+
+  test('timeout fallback: multiple missing gates are comma-joined in aGTMrepeatMissing', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'view_item_list', aGTMdl: true },
+      { event: 'aPageview' }
+    ];
+    const fired = captureFires();
+    let tick = null;
+    const oSI = globalThis.setInterval, oCI = globalThis.clearInterval;
+    globalThis.setInterval = function (fn) { tick = fn; return 1; };
+    globalThis.clearInterval = function () {};
+    try {
+      globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, gateEvents: 'aPageview, foo, bar', timeoutMs: 100, pollMs: 300, fallbackEvent: true });
+      tick();
+    } finally { globalThis.setInterval = oSI; globalThis.clearInterval = oCI; }
+    expect(fired.fallback).not.toBeNull();
+    expect(fired.fallback.aGTMrepeatMissing).toBe('foo,bar'); // both unconditional missing gates
+  });
+
   test('timeout fallback with NOTHING to replay (fired===0) fires NO aGTM_repeat_fallback', () => {
     // Nothing qualifies (empty source) -> no replay ran -> no missed enrichment
     // to report. The error signal must stay silent (fc-moto noise fix): a guest /

@@ -2063,8 +2063,10 @@ aGTM.f.dlrepeat = function (cfg) {
     // is skipped by passes().
     // aGTMrepeatMissing names the gate event(s) still absent at the timeout (the
     // culprit, e.g. "user_data"); aGTMrepeatWaited is the give-up threshold (ms).
-    if (!enriched && cfg.fallbackEvent && fired > 0) aGTM.f.fire({ event: "aGTM_repeat_fallback", aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source, aGTMrepeatMissing: missingGates(arr).join(","), aGTMrepeatWaited: timeoutMs });
-    dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)") + (enriched ? "" : ", missing=" + missingGates(arr).join(",")));
+    // Computed once here, only on the fallback path.
+    var missing = enriched ? "" : missingGates(arr).join(",");
+    if (!enriched && cfg.fallbackEvent && fired > 0) aGTM.f.fire({ event: "aGTM_repeat_fallback", aGTMrepeatCount: fired, aGTMrepeatSource: cfg.source, aGTMrepeatMissing: missing, aGTMrepeatWaited: timeoutMs });
+    dbg("replayed " + fired + " event(s), enriched=" + (enriched ? "yes" : "no(fallback)") + (enriched ? "" : ", missing=" + missing));
   };
   dbg("start", cfg);
   // Re-entrancy guard: if a poll is already running, do not start a second
