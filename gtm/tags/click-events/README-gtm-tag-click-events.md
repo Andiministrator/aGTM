@@ -4,13 +4,13 @@
 
 The **aGTM Click Events Template** provides a highly customizable click event listener that captures detailed information about user interactions on a webpage. This template offers more flexibility and data compared to the built-in GTM click listeners. It's especially useful for tracking outbound links, file downloads, email, and phone clicks.
 
-- **Version**: 1.0
-- **Last Updated**: 07.03.2024
+- **Version**: 1.4
+- **Last Updated**: 13.07.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
 
-**Template File**: [aGTM-tag-Click-Events.tpl](./tags/aGTM-tag-Click-Events.tpl)
+**Template File**: [aGTM tag - Click Events.tpl](./aGTM%20tag%20-%20Click%20Events.tpl)
 
 ---
 
@@ -46,7 +46,7 @@ This template requires an existing **aGTM integration** within your GTM setup.
 
 1. Open your **Google Tag Manager** container.
 2. Navigate to **Templates** > **Tag Templates** > **New**.
-3. Import the **aGTM Click Events Template** (`aGTM-tag-Click-Events.tpl`).
+3. Import the **aGTM Click Events Template** (`aGTM tag - Click Events.tpl`).
 4. Save and publish the template.
 
 ### 2. Tag Configuration
@@ -79,9 +79,9 @@ After importing the template, follow these steps to configure it:
 
 | Field                | Description                                 | Example               |
 |----------------------|---------------------------------------------|-----------------------|
-| **Cross Domains**    | Comma-separated list of internal domains.   | `example.com, sub.example.com` |
-| **Cross Matching**   | Determines the matching level (domain/hostname). | `domain` |
-| **Attach Outbound**  | Appends `_outbound` to event names for outbound links. | Checked/Unchecked |
+| **Cross Domains**    | Comma-separated list of internal domains that are **not** treated as outbound. Your own hostname is always added automatically. | `example.com, sub.example.com` |
+| **Cross Matching**   | Matching level for internal/outbound decisions. `domain` (default) treats all subdomains of an internal domain as internal; `hostname` requires an exact host match. Leave unset to use `domain`. | `domain` |
+| **Outbound Event Name** | Event name used for outbound clicks (`outbound_event`). | `click_outbound` |
 
 ### Contact Options (`contact_options`)
 
@@ -120,7 +120,8 @@ Here’s an example of how to set up click tracking:
 3. **Download Event**: `file_download`
 4. **Outbound Settings**:
    - **Cross Domains**: `example.com`
-   - **Attach Outbound**: Checked
+   - **Cross Matching**: `domain`
+   - **Outbound Event Name**: `click_outbound`
 
 5. **Contact Options**:
    - **Use Contact**: Checked
@@ -159,7 +160,7 @@ To view debug messages in the browser console, ensure that your aGTM integration
 
 ## License
 
-This template is released under the MIT License. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
+This template is released under the Apache License 2.0. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
 
 ---
 
