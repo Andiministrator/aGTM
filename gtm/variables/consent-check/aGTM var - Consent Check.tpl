@@ -99,7 +99,6 @@ ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 // https://developers.google.com/tag-platform/tag-manager/templates/api?hl=de
 
 // Import needed libraries
-const log = require('logToConsole');
 const callInWindow = require('callInWindow');
 const makeString = require('makeString');
 
@@ -121,7 +120,9 @@ if (typeof agtm!='object' || typeof agtm.d!='object' || typeof agtm.d.consent!='
 if (typeof mode=='string' && mode && typeof agtm.d.consent[mode]=='string') { f = agtm.d.consent[mode]; }
 
 // Check Consent
-if (f && f.indexOf(v)!==-1) { consent = true; }
+// Guard against an empty "value": indexOf('') returns 0 (!== -1), which would
+// grant consent for every non-empty field. Require a non-empty string to check.
+if (f && typeof v=='string' && v && f.indexOf(v)!==-1) { consent = true; }
 
 // Build return value
 var c = consent;
@@ -193,68 +194,8 @@ ___WEB_PERMISSIONS___
                     "boolean": true
                   }
                 ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
               }
             ]
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
-  {
-    "instance": {
-      "key": {
-        "publicId": "logging",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "environments",
-          "value": {
-            "type": 1,
-            "string": "debug"
           }
         }
       ]
@@ -269,12 +210,77 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Matching value returns true
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') return { d: { consent: { services: ',Google Analytics,Meta,' } } };
+    });
+    let r = runCode({ mode: 'services', value: ',Google Analytics,', return: 'boolean', stringify: false });
+    assertThat(r).isEqualTo(true);
+- name: Non-matching value returns false
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') return { d: { consent: { services: ',Meta,' } } };
+    });
+    let r = runCode({ mode: 'services', value: ',Google Analytics,', return: 'boolean', stringify: false });
+    assertThat(r).isEqualTo(false);
+- name: Empty value does not grant consent
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') return { d: { consent: { services: ',Google Analytics,' } } };
+    });
+    let r = runCode({ mode: 'services', value: '', return: 'boolean', stringify: false });
+    assertThat(r).isEqualTo(false);
+- name: Consent Mode return maps to granted/denied
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') return { d: { consent: { purposes: ',analytics,' } } };
+    });
+    let granted = runCode({ mode: 'purposes', value: ',analytics,', return: 'cm', stringify: false });
+    assertThat(granted).isEqualTo('granted');
+    let denied = runCode({ mode: 'purposes', value: ',ads,', return: 'cm', stringify: false });
+    assertThat(denied).isEqualTo('denied');
+- name: Integer return can be stringified
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') return { d: { consent: { services: ',GA,' } } };
+    });
+    let r = runCode({ mode: 'services', value: ',GA,', return: 'integer', stringify: true });
+    assertThat(r).isEqualTo('1');
+- name: Missing aGTM returns false
+  code: |-
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') return undefined;
+    });
+    let r = runCode({ mode: 'services', value: ',GA,', return: 'boolean', stringify: false });
+    assertThat(r).isEqualTo(false);
 setup: ''
 
 
 ___NOTES___
 
-Created on 7.6.2024, 14:10:22
+# aGTM Custom Template
+
+- Version 1.1
+- Autor: Andi Petzoldt <andi@petzoldt.net>
+- Last Update: 13.07.2026
+
+## Description
+
+Variable to check whether a given string is present in one of the aGTM consent
+fields (purposes/services/vendors and their ID variants).
+
+## Changelog
+
+### Version 1.1 (13.07.2026)
+
+- Fixed the empty-value config trap: `indexOf('')` returns 0, so an empty
+  "String value to check" previously granted consent for every non-empty
+  field. An empty value now returns "not granted".
+- Least-privilege permissions: removed the dead `logToConsole` require, the
+  `logging` permission and the unused read `aGTM` global (only execute on
+  `aGTM.f.getVal` remains).
+- Added ___TESTS___ scenarios.
 
 
