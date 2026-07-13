@@ -268,18 +268,6 @@
             "columnId": "col-schreiben"
           },
           {
-            "id": "agtm-v15-vars",
-            "title": "Variablen: Consent-Check/Info/Content-Counter + Tests (F-37/38/39)",
-            "description": "F-37 Consent-Check: leeren Value abfangen (indexOf-Leerstring = granted, L124); F-38 Consent-Info: README aGTM.d.cm-Kopplung+Ordering dokumentieren + base64-Feld + displayName-Fix; F-39 Content-Counter: Null-Guard ...||{} L59; TESTS fuer alle drei (v1.5-Neuzugaenge Prioritaet).",
-            "owner": "Claude Opus",
-            "complexity": "mittel",
-            "effort": 3,
-            "agentContext": "gtm/variables/consent-check|consent-info|content-counter; findings F-37/38/39; consent-info aGTM.d.cm wird vom Consent-Mode-TAG geschrieben (L589), nicht Library",
-            "critical": false,
-            "displayId": 28,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-readmes",
             "title": "Systemisch: READMEs Apache-2.0 + tote Links + Versionen (F-40)",
             "description": "Alle Tag-/Variablen-READMEs: Lizenz MIT auf Apache-2.0 (rechtl. Fehlangabe, public); tote .tpl-Links Bindestrich auf Leerzeichen-Dateiname; Versions-/Datums-Drift README/Code/NOTES vereinheitlichen.",
@@ -534,6 +522,26 @@
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "ERLEDIGT (F-32, Commit 7cae1af, dev gepusht). Copy-Events-Tag: tote aGTM.f.observer-Zeile entfernt (permanenter document.body-Subtree-MutationObserver, matchte nie, lief bei jeder DOM-Mutation → SPA-Last). Least-Privilege: logging-Permission + tote logToConsole/copyFromWindow-requires + read/write aGTM-Global + aGTM.f.observer-execute raus; aGTM.f.rTest execute-only (read→false); Perms-JSON valide (4 execute-Keys: fire/addElLst/rTest/rReplace). Fremd-Kommentare korrigiert (Build-ND-Header, getType-JSDoc, Form-Submit-Listener-Label→Copy). 5 ___TESTS___-Szenarien (Typ-Detection string/email, Contact-Prefix, Non-Regex-Textfilter, Param-Merge, Non-String-Guard; GTM-only, systemische bun-Abdeckung bleibt F-41). F-40-Anteil: README Lizenz MIT→Apache-2.0, toter Link→Leerzeichen-Name, Version 1.0→1.1, Phantom-Debug getrimmt. Tag 1.0→1.1. 234 bun-Tests grün, build sauber. In QA für konsolidierten Kritiker-Gate."
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-vars",
+            "title": "Variablen: Consent-Check/Info/Content-Counter + Tests (F-37/38/39)",
+            "description": "F-37 Consent-Check: leeren Value abfangen (indexOf-Leerstring = granted, L124); F-38 Consent-Info: README aGTM.d.cm-Kopplung+Ordering dokumentieren + base64-Feld + displayName-Fix; F-39 Content-Counter: Null-Guard ...||{} L59; TESTS fuer alle drei (v1.5-Neuzugaenge Prioritaet).",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/variables/consent-check|consent-info|content-counter; findings F-37/38/39; consent-info aGTM.d.cm wird vom Consent-Mode-TAG geschrieben (L589), nicht Library",
+            "critical": false,
+            "displayId": 28,
+            "columnId": "col-qa",
+            "comments": [
+              {
+                "id": "f08d6726-a650-4877-9b27-66fd27d4d419",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "ERLEDIGT (F-37/38/39, Commit 257e3d1, dev gepusht). Alle drei Variablen-Templates gehärtet. F-37 Consent-Check: Empty-Value-Falle behoben (indexOf()===0 → jeder nicht-leere Consent-String war granted; jetzt typeof v==string && v-Guard → leerer Value = nicht granted). F-38 Consent-Info: displayName-Fix (aGTM var - Consent → Consent Info); CM-Kopplung dokumentiert (cm/all lesen aGTM.d.cm, geschrieben vom Consent-Mode-TAG nicht der Library → ohne Tag/vor Tag-Lauf all-denied Default; README-Abschnitt + Inline-Kommentar); base64-Feld dokumentiert; Lib-Seed bewusst NICHT (Default reicht). F-39 Content-Counter: Null-Guard (pageinfo||{}) → sicherer 0-Default statt Exception bei noch-nicht-geladenem aGTM. Alle drei: Least-Privilege (tote logToConsole-requires + logging-Permissions + read-aGTM-Globals raus, nur getVal/pageinfo execute; Perms-JSON valide). ___TESTS___: 6+6+4 Szenarien (GTM-only, systemische bun-Abdeckung bleibt F-41). F-40-Anteil: READMEs Apache-Lizenz, tote Links→Leerzeichen-Namen, Versionen→1.1, stringify/base64 dokumentiert. 234 bun-Tests grün, build sauber. In QA für konsolidierten Kritiker-Gate."
               }
             ]
           }
