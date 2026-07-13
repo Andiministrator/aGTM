@@ -75,9 +75,10 @@ The **Form Field Click Event** parameter sets the event name for when users clic
 
 ### Maximum Field Clicks (`maxclicks`)
 
-Defines the maximum number of times a form field click event can be fired for a single form.
+Defines the maximum number of times a form field click event can be fired **per form**.
 
 - **Default**: `1`
+- The counter is tracked independently for each form (keyed by form id / name / action).
 
 ### Additional Event Parameters (`addparameter`)
 
@@ -133,6 +134,11 @@ To view debug messages in the browser console, ensure that your aGTM integration
 ### Known Limitations
 
 - This template requires JavaScript access to the `aGTM` object. Ensure it is accessible in the current page context.
+- The per-form click counter keys forms by their `id` / `name` / `action`. Multiple forms on the same page that expose none of these attributes share a single counter, so `maxclicks` applies to them collectively rather than individually.
+
+### Upgrade Note (1.0 → 1.1)
+
+In 1.0 the form-click event name was, due to a bug, always emitted as `form_start` regardless of configuration. From 1.1 the configured **Form Field Click Event** (`clickevent`, default `form_click`) is honoured. If you have GTM triggers or tags listening for `form_start`, repoint them to your configured event name (default `form_click`) — otherwise they silently stop firing after the update.
 
 ---
 

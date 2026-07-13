@@ -97,7 +97,6 @@ ___TEMPLATE_PARAMETERS___
 ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Import needed libraries
-const log = require('logToConsole');
 const JSON = require('JSON');
 const callInWindow = require('callInWindow');
 const setInWindow = require('setInWindow');
@@ -195,7 +194,7 @@ o.f.formstart = o.f.formstart || function(el) {
       o.d.e[row.pkey] = row.pvalue;
     });
     var e = JSON.parse(JSON.stringify(o.d.e));
-    e.event = o.c.clickevent || 'form_start';
+    e.event = o.c.clickevent || 'form_click';
     e.field_id = el.id || null;
     e.field_name = el.name || null;
     e.field_type = el.type || null;
@@ -237,27 +236,6 @@ data.gtmOnSuccess();
 ___WEB_PERMISSIONS___
 
 [
-  {
-    "instance": {
-      "key": {
-        "publicId": "logging",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "environments",
-          "value": {
-            "type": 1,
-            "string": "debug"
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
   {
     "instance": {
       "key": {
@@ -506,8 +484,17 @@ Requires an aGTM integration of the GTM.
 - "Maximum of form field clicks" (`maxclicks`) is now honoured — the previous
   guard only accepted a string, so the NUMBER field always fell back to 1.
 - The click counter is now tracked per form instead of once globally, so
-  `maxclicks` applies independently to each form on the page.
+  `maxclicks` applies independently to each form on the page. Forms are keyed by
+  id / name / action; multiple forms that expose none of these share one counter
+  (rare edge — still strictly better than the previous page-wide counter).
 - Null-guard for fields without a resolvable `<form>` ancestor (no more
   exception on `el.form.id`).
+- Cleanup: removed the dead `logToConsole` require and the unused `logging`
+  permission.
+
+> **Upgrade note:** because the form-click event name was previously stuck on
+> `form_start`, any GTM trigger/tag currently listening for `form_start` must be
+> repointed to your configured click event name (default `form_click`) after
+> updating — otherwise it silently stops firing.
 
 

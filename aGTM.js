@@ -56,6 +56,7 @@ aGTM.f.objinit = function() {
       timer: null
     }],
     [aGTM.d, "last_url", location.href],
+    [aGTM.d, "urlListener_active", false],
     [aGTM.f, "tl", {}],
     [aGTM.f, "dl", {}],
     [aGTM.f, "pl", {}],
@@ -894,10 +895,14 @@ aGTM.f.proxySupport = function () {
  */
 aGTM.f.urlListener = function (eventname, interval, fallback) {
   // Idempotency guard: urlListener may be invoked more than once (e.g. from
-  // gtm_load AND the Pageview tag, or a multi-trigger SPA setup). Without this
-  // guard each call would re-wrap history.pushState/replaceState in a fresh
-  // Proxy (nesting them → checkUrlChange runs N times per navigation → duplicate
-  // vPageview events) and register another popstate/hashchange listener.
+  // gtm_load AND the Pageview tag, or a multi-trigger SPA setup). Each call would
+  // otherwise leak resources — the shared last_url dedup already suppresses
+  // duplicate events, but without this guard every call would (a) re-wrap
+  // history.pushState/replaceState in another Proxy (unbounded nesting), (b)
+  // register another polling interval (timer names get a unique suffix, so there
+  // is no dedup — the extra setInterval is never stopped) and (c) add another
+  // popstate/hashchange listener. First caller wins; a later call with different
+  // parameters is intentionally ignored (single active listener per page).
   if (aGTM.d.urlListener_active) return;
   aGTM.d.urlListener_active = true;
   if (typeof interval != 'number') interval = 500;
