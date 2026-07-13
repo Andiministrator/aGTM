@@ -353,7 +353,8 @@ const templateStorage = require('templateStorage');
 
 /**
  * Build ND aGTM shadow object
- * @lastupdate 12.02.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.2
+ * @lastupdate 13.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {object} o
  * @param {object} c - config
@@ -745,8 +746,16 @@ o.f.handleEventListener = function(mode) {
   var events = ['mousemove', 'keydown', 'scroll', 'touchstart'];
   // Handle Event Listener
   for (var i=0; i<events.length; i++) {
-    var t = mode=='rem' ? 'aGTM.f.rmLstn' : 'aGTM.f.evLstn';
-    callInWindow(t,'window',events[i],o.f.handleUserInteraction);
+    if (mode=='rem') {
+      callInWindow('aGTM.f.rmLstn','window',events[i],o.f.handleUserInteraction);
+    } else {
+      // CWV: register the interaction detectors passively — they never call
+      // preventDefault, and a non-passive 'scroll'/'touchstart' listener would
+      // otherwise block scrolling (INP/jank). No throttle: the handler self-
+      // disarms after the first interaction and the fn reference must stay
+      // matchable for the (latent) removal path above.
+      callInWindow('aGTM.f.evLstn','window',events[i],o.f.handleUserInteraction,{passive:true});
+    }
   }
 };
 
@@ -781,7 +790,10 @@ o.f.getABpixel = function() {
 // Get Browser Info and Dimensions and add Listener
 o.f.checkDeviceInfo();
 o.f.getDims();
-callInWindow('aGTM.f.evLstn','window','resize',o.f.getDims);
+// CWV: passive (never blocks) + throttle the resize handler — getDims performs
+// layout reads (offsetWidth/innerHeight/…) that force a reflow, so bound how
+// often they run on a rapid resize/orientation stream.
+callInWindow('aGTM.f.evLstn','window','resize',o.f.getDims,{passive:true,throttle:250});
 
 // Prepare event
 o.c.bottest_jsexct = '';
@@ -1594,7 +1606,7 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.1
+- Version 1.2
 - Autor: Andi Petzoldt <andi@petzoldt.net>
 - Last Update: 13.07.2026
 
@@ -1602,6 +1614,14 @@ ___NOTES___
 
 Custom GTM Template to send an aPageview with additional information about the client and the page.
 Like browser, bot-detection, what is the page title or the canonical tag, ...
+
+## Fixes in 1.2
+
+- Core Web Vitals: the `resize` listener (layout-heavy `getDims`) is now
+  registered passive + throttled (250 ms), and the human-interaction detectors
+  (`mousemove`/`keydown`/`scroll`/`touchstart`) are registered passive so a
+  non-passive `scroll`/`touchstart` listener no longer blocks scrolling
+  (INP/jank). Requires aGTM library v1.5+ (`aGTM.f.evLstn` options).
 
 ## Fixes in 1.1
 

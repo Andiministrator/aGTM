@@ -2,6 +2,18 @@
 
 ## Version 1.5 — *in development*
 
+### Added — passive/throttle options for `aGTM.f.evLstn` (Core Web Vitals)
+
+`aGTM.f.evLstn(el, ev, fct, opts)` gained an optional 4th argument
+`{ passive, throttle }` (ignored for `message` listeners). Passive listeners
+never block scrolling/touch (better INP, no scroll jank) and are only used when
+the browser actually supports the option (`aGTM.f.passiveSupported()`, cached);
+`throttle` (ms) coalesces high-frequency events via the new `aGTM.f.throttle()`
+(leading+trailing) so a handler's layout reads run at most once per window. The
+Scroll and Pageview GTM templates now register their `scroll`/`resize`/
+interaction listeners passive + throttled. Backward compatible (the option is
+opt-in; existing 3-argument calls are unchanged).
+
 ### Added — Integrator Data Contract documentation
 
 New [README-for-Integrators.md](README-for-Integrators.md): a standalone guide for

@@ -57,6 +57,7 @@ aGTM.f.objinit = function() {
     }],
     [aGTM.d, "last_url", location.href],
     [aGTM.d, "urlListener_active", false],
+    [aGTM.d, "passive_supported", null],
     [aGTM.f, "tl", {}],
     [aGTM.f, "dl", {}],
     [aGTM.f, "pl", {}],
@@ -1304,14 +1305,90 @@ aGTM.f.vSt = function (input) {
 };
 
 /**
+ * Feature-detects support for the passive event-listener option (cached).
+ * A passive listener promises never to call preventDefault(), so the browser
+ * can start scrolling/panning without waiting for the handler — this is the
+ * key Core-Web-Vitals lever for scroll/touch/wheel listeners (better INP, no
+ * scroll-blocking jank). On old engines that treat the 3rd addEventListener
+ * argument as a boolean useCapture, passing an options object would silently
+ * turn on capture, so we only pass it when real support is detected.
+ * @property {function} aGTM.f.passiveSupported
+ * @returns {boolean} true if { passive: ... } is honoured by addEventListener.
+ */
+aGTM.f.passiveSupported = function () {
+  if (typeof aGTM.d.passive_supported == "boolean") return aGTM.d.passive_supported;
+  var supported = false;
+  try {
+    var opts = Object.defineProperty({}, "passive", {
+      get: function () { supported = true; return true; }
+    });
+    var noop = function () {};
+    window.addEventListener("aGTMpassivetest", noop, opts);
+    window.removeEventListener("aGTMpassivetest", noop, opts);
+  } catch (e) {
+    supported = false;
+  }
+  aGTM.d.passive_supported = supported;
+  return supported;
+};
+
+/**
+ * Wraps a function in a leading+trailing throttle. High-frequency events
+ * (scroll, resize) then run the wrapped handler at most once per `wait` ms
+ * instead of on every event — this bounds how often the handler's layout
+ * reads (offsetHeight/scrollHeight/…) force a reflow, keeping the main thread
+ * responsive (Core Web Vitals). The trailing call guarantees the final state
+ * (e.g. the deepest scroll position) is still measured, so no threshold is
+ * missed when the user stops between throttle windows.
+ * @property {function} aGTM.f.throttle
+ * @param {function} fct - the function to throttle.
+ * @param {number} wait - minimum milliseconds between invocations.
+ * @returns {function} the throttled wrapper.
+ */
+aGTM.f.throttle = function (fct, wait) {
+  if (typeof fct != "function") return fct;
+  if (typeof wait != "number" || wait <= 0) return fct;
+  var last = 0;
+  var timer = null;
+  var lastCtx = null;
+  var lastArgs = null;
+  return function () {
+    var now = Date.now();
+    // Always capture the latest context/args so the trailing call reflects the
+    // most recent event, not the one that happened to schedule the timer.
+    lastCtx = this;
+    lastArgs = arguments;
+    var remaining = wait - (now - last);
+    if (remaining <= 0) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      last = now;
+      fct.apply(lastCtx, lastArgs);
+    } else if (!timer) {
+      timer = setTimeout(function () {
+        last = Date.now();
+        timer = null;
+        fct.apply(lastCtx, lastArgs);
+      }, remaining);
+    }
+  };
+};
+
+/**
  * Adds an event listener to a specified DOM element.
  * @property {function} aGTM.f.evLstn
  * @param {object|string} el - The DOM object to which you want to add the event listener, or a string 'window'/'document'.
  * @param {string} ev - The name of the event, e.g., 'mousedown'.
  * @param {function} fct - The function to execute when the event is triggered.
+ * @param {object} [opts] - Optional listener tuning (ignored for 'message'):
+ *   @param {boolean} [opts.passive] - register as a passive listener when the
+ *     browser supports it (CWV: never blocks scrolling). Falls back to a normal
+ *     listener on unsupported engines.
+ *   @param {number} [opts.throttle] - throttle the handler to at most one call
+ *     per this many ms (leading+trailing); use for scroll/resize.
  * Usage: aGTM.f.evLstn(document.querySelector('div.button'), 'mousedown', click_fct);
+ * Usage: aGTM.f.evLstn('window', 'scroll', onScroll, { passive: true, throttle: 200 });
  */
-aGTM.f.evLstn = function (el, ev, fct) {
+aGTM.f.evLstn = function (el, ev, fct, opts) {
   // If 'el' is 'window' or 'document' string, convert it to the actual object
   if (el === "window") el = window;
   if (el === "document") el = document;
@@ -1325,6 +1402,7 @@ aGTM.f.evLstn = function (el, ev, fct) {
     aGTM.f.log("e11", { el: el, ev: ev, fct: fct });
     return;
   }
+  if (typeof opts != "object" || !opts) opts = {};
   // Try to add the event listener
   try {
     if (ev == "message") {
@@ -1338,7 +1416,17 @@ aGTM.f.evLstn = function (el, ev, fct) {
         });
       }
     } else {
-      el.addEventListener(ev, fct);
+      // Coalesce high-frequency events before they hit the handler (CWV).
+      var handler = (typeof opts.throttle == "number" && opts.throttle > 0)
+        ? aGTM.f.throttle(fct, opts.throttle)
+        : fct;
+      // Only pass a real options object when passive is both requested and
+      // supported; otherwise keep the classic boolean-useCapture signature.
+      if (opts.passive === true && aGTM.f.passiveSupported()) {
+        el.addEventListener(ev, handler, { passive: true });
+      } else {
+        el.addEventListener(ev, handler);
+      }
     }
   } catch (e) {
     // Log if there is an error adding the event listener
