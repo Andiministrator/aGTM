@@ -228,6 +228,20 @@ ___TEMPLATE_PARAMETERS___
     ]
   },
   {
+    "type": "CHECKBOX",
+    "name": "cm_grant_outside",
+    "checkboxText": "Grant consent by default outside the configured regions",
+    "simpleValueType": true,
+    "help": "Only relevant when Regions is set to specific regions (not <strong>all</strong>). Emits an additional GLOBAL granted default (Google's two-default pattern: a region-scoped default plus a global granted fallback), so visitors OUTSIDE the configured regions are granted by default instead of being left unset. Use this when you suppress the consent banner outside those regions and want everything allowed there. The region-scoped default is more specific and still wins inside the regions.",
+    "enablingConditions": [
+      {
+        "paramName": "cm_update",
+        "paramValue": true,
+        "type": "NOT_EQUALS"
+      }
+    ]
+  },
+  {
     "type": "LABEL",
     "name": "further_options",
     "displayName": "\u003cbr /\u003e\u003cb\u003eFurther Options:\u003c/b\u003e\u003cbr /\u003e"
@@ -491,6 +505,7 @@ o.c.url_passthrough = typeof data.url_passthrough=='boolean' ? data.url_passthro
 o.c.ads_data_redaction = typeof data.ads_data_redaction=='boolean' ? data.ads_data_redaction : false;
 o.c.ms_consent_mode = typeof data.ms_consent_mode=='boolean' ? data.ms_consent_mode : false;
 o.c.cm_event = typeof data.cm_event=='boolean' ? data.cm_event : false;
+o.c.cm_grant_outside = typeof data.cm_grant_outside=='boolean' ? data.cm_grant_outside : false;
 
 // Get consent signals from aGTM. Guard against aGTM not being loaded yet
 // (copyFromWindow returns undefined): without this, the .hasResponse access
@@ -561,6 +576,30 @@ if (o.c.cm_update) {
   updateConsentState(o.d.cm);
   if (debug) log('info','Consent Update', JSON.parse(JSON.stringify(o.d.cm)));
 } else {
+  // Optional GLOBAL granted fallback (Google's two-default pattern): when a
+  // specific region is configured (o.d.cm.region present) and cm_grant_outside
+  // is on, emit a global granted default (no region) FIRST so visitors OUTSIDE
+  // the configured regions are granted by default instead of being left unset
+  // (Consent Mode treats a region-scoped-only default as undefined elsewhere).
+  // The region-scoped default set below is more specific and wins inside the
+  // regions. Without this, "everything allowed outside the regions" relied
+  // solely on the update firing granted in time.
+  if (o.c.cm_grant_outside && o.d.cm.region) {
+    o.d.cmg = {};
+    // Grant ONLY the signals the region-scoped default below actually covers
+    // (i.e. those present in o.d.cm). Signals left at "not_set" are excluded
+    // from o.d.cm (see the `not_set` skip above), so granting all 7 here would
+    // make Consent Mode's per-signal merge fall those not_set signals back to
+    // this global granted value INSIDE the deny region too - a fail-open. By
+    // mirroring o.d.cm's signal set, every signal the regional default covers
+    // wins in-region, and not_set signals stay unset everywhere.
+    for (var gi=0; gi<o.c.cm_signals.length; gi++) {
+      var gsig = o.c.cm_signals[gi];
+      if (typeof o.d.cm[gsig] != 'undefined') o.d.cmg[gsig] = 'granted';
+    }
+    setDefaultConsentState(o.d.cmg);
+    if (debug) log('info','Consent Global Granted Default (outside regions)', JSON.parse(JSON.stringify(o.d.cmg)));
+  }
   if (o.c.cm_update_after_default) {
     o.d.cmd = {};
     for (var i=0; i<o.c.cm_signals.length; i++) {
@@ -1306,12 +1345,26 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.3
+- Version 1.4
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 25.09.2025
+- Last Update: 13.07.2026
 
 ## Description
 
 This template sets the Google (and Microsoft) Consent Mode signals for GTM.
+
+## Changes in 1.4
+
+- Fix: guard against `aGTM.d.consent` being undefined (aGTM not loaded yet) so
+  the tag no longer throws and skips setting the default consent state on the
+  Consent Initialization trigger (fail-open closed).
+- Fix: the consent-check fallback now runs in production (not only in debug) and
+  re-reads the consent it just wrote.
+- Fix: in "Update after Default" mode the region is now applied to the (denied)
+  default via `setDefaultConsentState`; it stays off `updateConsentState`
+  (which has no region parameter). A configured `cm_regions` is no longer ignored.
+- New: optional `cm_grant_outside` — emit a global granted default (for the
+  managed signals) so visitors outside the configured regions are granted by
+  default (Google's two-default pattern).
 
 
