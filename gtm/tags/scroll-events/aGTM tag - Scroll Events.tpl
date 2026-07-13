@@ -104,16 +104,16 @@ ___TEMPLATE_PARAMETERS___
 ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Import needed libraries
-const log = require('logToConsole');
 const JSON = require('JSON');
 const callInWindow = require('callInWindow');
 const copyFromWindow = require('copyFromWindow');
-const queryPermission = require('queryPermission');
+const setInWindow = require('setInWindow');
 const Math = require('Math');
 
 /**
  * Build ND aGTM shadow object
- * @lastupdate 12.02.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 13.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {object} o
  * @param {object} c - config
@@ -135,7 +135,16 @@ o.c.isscrollevent = typeof data.isscrollevent=='boolean' ? data.isscrollevent : 
 o.c.ua_event = typeof data.ua_event=='boolean' ? data.ua_event : false;
 
 // Initiate variables
-o.d.steps = o.c.stepstring.split(',');
+// Parse the step thresholds: trim, coerce to number, drop empty/NaN/out-of-range
+// and duplicates, then sort ascending. Without this an out-of-order or
+// trailing-comma config (e.g. "50,25," ) leaves a threshold unreachable (the
+// while-loop below advances monotonically) or emits a garbage ">%" event.
+o.d.steps = [];
+o.c.stepstring.split(',').forEach(function(s) {
+  var n = Math.round(s * 1);
+  if (typeof n=='number' && n>0 && n<=100 && o.d.steps.indexOf(n)===-1) o.d.steps.push(n);
+});
+o.d.steps.sort(function(a, b) { return a - b; });
 if (typeof o.d.scrolldepth_max!='number') o.d.scrolldepth_max = 0;
 if (typeof o.d.scrolldepth_next!='number') o.d.scrolldepth_next = 0;
 if (typeof o.d.viewport_width!='number') o.d.viewport_width = 0;
@@ -237,10 +246,21 @@ o.f.getMaxScrollDepth = o.f.getMaxScrollDepth || function() {
 
 // Run
 o.f.getSizes();
-var tempScrollDepth=o.f.getScrollDepth();
-callInWindow('aGTM.f.evLstn','window','resize',o.f.getSizes);
 if (o.d.viewport_relation>o.d.viewport_start) {
-  callInWindow('aGTM.f.evLstn','window','scroll',o.f.getMaxScrollDepth);
+  // Register the scroll/resize listeners at most once per page. A multi-trigger
+  // or SPA setup can execute this tag repeatedly; without the guard each run adds
+  // another listener (never removed) whose closure keeps firing → duplicated
+  // scroll events + a listener leak. Note: on SPA route changes the first
+  // listener is reused (scroll depth is not reset per virtual page) — run only
+  // one scroll-tracking tag per page.
+  if (!copyFromWindow('aGTM.d.scrollListener_active')) {
+    setInWindow('aGTM.d.scrollListener_active', true, true);
+    // CWV: passive listeners never block scrolling (better INP/no scroll jank);
+    // the throttle bounds how often the handlers' layout reads (getSizes:
+    // offsetHeight/scrollHeight/…) force a reflow. resize 250ms, scroll 200ms.
+    callInWindow('aGTM.f.evLstn','window','resize',o.f.getSizes,{passive:true,throttle:250});
+    callInWindow('aGTM.f.evLstn','window','scroll',o.f.getMaxScrollDepth,{passive:true,throttle:200});
+  }
 } else if (o.c.noscrollevent) {
   // Prepare event
   o.c.addparameter.forEach(function(row) {
@@ -264,27 +284,6 @@ data.gtmOnSuccess();
 ___WEB_PERMISSIONS___
 
 [
-  {
-    "instance": {
-      "key": {
-        "publicId": "logging",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "environments",
-          "value": {
-            "type": 1,
-            "string": "debug"
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
   {
     "instance": {
       "key": {
@@ -359,7 +358,7 @@ ___WEB_PERMISSIONS___
                 "mapValue": [
                   {
                     "type": 1,
-                    "string": "aGTM"
+                    "string": "aGTM.d.scrollListener_active"
                   },
                   {
                     "type": 8,
@@ -476,14 +475,34 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.0
+- Version 1.1
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 12.02.2024
+- Last Update: 13.07.2026
 
 ## Description
 
 The GTM scroll tracking sends events even if the user hasn't scrolled.
 This Custom Template is for a better scroll tracking.
-Requires an aGTM integration of the GTM.
+Requires an aGTM integration of the GTM (library v1.5+).
+
+## Fixes in 1.1
+
+- Core Web Vitals: the scroll/resize listeners are now registered passive
+  (never block scrolling → better INP/no jank) and throttled (scroll 200 ms,
+  resize 250 ms) via the new `aGTM.f.evLstn` options — the layout reads in
+  `getSizes()` no longer run on every scroll event. Requires aGTM library v1.5+.
+- Registration guard: the listeners are added at most once per page, so a
+  multi-trigger/SPA setup no longer stacks duplicate listeners (event
+  multiplication + leak). Run only one scroll-tracking tag per page; on SPA
+  route changes the first listener is reused (scroll depth is not reset per
+  virtual page).
+- The `steps` config is trimmed, numeric-coerced, de-duplicated and sorted
+  ascending, so an out-of-order or trailing-comma value (e.g. `"50,25,"`) can no
+  longer make a threshold unreachable or emit a stray `>%` event. `scroll_depth`
+  is now a number.
+- Cleanup: dropped dead `require`s (`logToConsole`, `queryPermission`), the
+  unused `logging` permission and the over-broad `aGTM` read/write global
+  (least-privilege: only `execute` on the concrete `aGTM.f.*` paths plus a
+  granular `aGTM.d.scrollListener_active` read/write remain).
 
 

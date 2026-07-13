@@ -4,13 +4,13 @@
 
 The **aGTM Scroll Events Template** provides enhanced scroll tracking functionality for Google Tag Manager (GTM). This template allows you to define custom scroll events at specific scroll depths, detect when users start scrolling, and even handle cases where the viewport is too small for scrolling. This is particularly useful when the default GTM scroll tracking does not provide the precision you need.
 
-- **Version**: 1.0
-- **Last Updated**: 12.02.2024
+- **Version**: 1.1
+- **Last Updated**: 13.07.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
 
-**Template File**: [aGTM-tag-Scroll-Events.tpl](./aGTM-tag-Scroll-Events.tpl)
+**Template File**: [aGTM tag - Scroll Events.tpl](./aGTM%20tag%20-%20Scroll%20Events.tpl)
 
 ---
 
@@ -45,7 +45,7 @@ This template requires an existing **aGTM integration** within your GTM setup.
 
 1. Open your **Google Tag Manager** container.
 2. Navigate to **Templates** > **Tag Templates** > **New**.
-3. Import the **aGTM Scroll Events Template** (`aGTM-tag-Scroll-Events.tpl`).
+3. Import the **aGTM Scroll Events Template** (`aGTM tag - Scroll Events.tpl`).
 4. Save and publish the template.
 5. Create a new tag using the imported template.
 
@@ -80,6 +80,10 @@ You can add custom parameters to the event using this table.
 - **Description**: Comma-separated list of scroll depth percentages to track.
 - **Default Value**: `25,50,75,90`
 - **Example**: `10,30,60,100`
+- **Note**: The list is trimmed, coerced to numbers, de-duplicated and sorted
+  ascending automatically, so order and stray whitespace/trailing commas do not
+  matter (`"90, 25 ,50,"` behaves like `25,50,90`). Values outside 1–100 are
+  dropped.
 
 ### No Scroll Event (`noscrollevent`)
 
@@ -125,15 +129,25 @@ To view debug messages in the browser console, ensure that your aGTM integration
 
 - This template improves upon the default GTM scroll tracking by offering more precise control over scroll events.
 - Ensure that your aGTM integration is properly configured for this template to function correctly.
+- **Performance (Core Web Vitals)**: the scroll and resize listeners are
+  registered as *passive* (they never block scrolling) and *throttled* (scroll
+  200 ms, resize 250 ms), so scroll tracking does not cause scroll jank or hurt
+  INP. This relies on the `aGTM.f.evLstn` options added in aGTM library **v1.5**.
 
 ### Known Limitations
 - This template requires JavaScript access to the `aGTM` object. Make sure it is accessible in the current page context.
+- Requires the aGTM library **v1.5+** (uses the passive/throttle `aGTM.f.evLstn`
+  options).
+- **Run only one scroll-tracking tag per page.** The listeners are registered
+  once per page via a shared guard; a second scroll tag would not register its
+  own listeners. On single-page-app route changes the first listener is reused —
+  the tracked scroll depth is not reset per virtual page.
 
 ---
 
 ## License
 
-This template is released under the MIT License. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
+This template is released under the Apache License 2.0. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
 
 ---
 
