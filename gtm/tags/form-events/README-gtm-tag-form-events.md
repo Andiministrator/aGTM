@@ -4,13 +4,13 @@
 
 The **aGTM Form Events Template** is an advanced event listener for form interactions on your website. It provides more detailed information about form submissions and user interactions with form fields compared to the default Google Tag Manager (GTM) form listener. This template allows you to capture detailed data on form submits, clicks into form fields, and more, with highly customizable settings.
 
-- **Version**: 1.0
-- **Last Updated**: 20.03.2024
+- **Version**: 1.1
+- **Last Updated**: 13.07.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
 
-**Template File**: [aGTM-tag-Form-Events.tpl](./aGTM-tag-Form-Events.tpl)
+**Template File**: [aGTM tag - Form Events.tpl](./aGTM%20tag%20-%20Form%20Events.tpl)
 
 ---
 
@@ -138,7 +138,7 @@ To view debug messages in the browser console, ensure that your aGTM integration
 
 ## License
 
-This template is released under the MIT License. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
+This template is released under the Apache License 2.0. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
 
 ---
 

@@ -163,6 +163,18 @@ confirmed against the source and fixed in `gtm/tags/dl-repeat/aGTM tag - DL Repe
 - **Ineffective permission guard** — a missing `access_globals` permission only logged a warning and then fired anyway. Now aborts.
 - **Config trap** — with both send-type checkboxes off the tag silently did nothing. "Send Events fired via aGTM.f.fire" now defaults to on, with help text noting at least one must be enabled.
 
+### GTM template "Form Events" — config traps fixed (v1.5 release-gate)
+
+Template audit finding on `gtm/tags/form-events/aGTM tag - Form Events.tpl`
+(tag `1.0 → 1.1`). Rendered several fields ineffective:
+
+- **Form-click event name field was dead** — the code read a non-existent `startevent` field instead of `clickevent`, so the event name was always hard-coded to `form_start`. It now reads `clickevent` and defaults to `form_click` (the field default). **Behaviour change**: integrations that relied on the accidental `form_start` name now emit the value configured in the field (default `form_click`).
+- **`maxclicks` was always 1** — the guard only accepted a string, but the NUMBER field passes a number, so any configured limit was ignored. It now accepts number and numeric string with a NaN / `<= 0` guard.
+- **Click counter was global** — a single `aGTMformClicks` number capped the click event across all forms on the page combined. It is now a per-form map, so `maxclicks` applies to each form independently.
+- **Null-deref fix** — a focused field without a resolvable `<form>` ancestor (`el.form === null`) no longer throws on `el.form.id`.
+- Docs: README version/link/license (MIT → Apache-2.0) corrected.
+- Tests: GTM `___TESTS___` scenarios remain part of the systemic test buildout.
+
 ### GTM template "iFrame Support" — security hardening (v1.5 release-gate)
 
 Template audit finding on `gtm/tags/iframe-support/aGTM tag - iFrame Support.tpl`

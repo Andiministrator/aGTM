@@ -119,9 +119,20 @@ const copyFromWindow = require('copyFromWindow');
 var o = o || { c: {debug:false}, d:{ d:data, e:{}, q:[] }, f:{} };
 
 // Get tag configuration
-o.c.startevent = typeof data.startevent=='string' ? data.startevent : '';
+// Field is named 'clickevent' (was mis-read as 'startevent' → field was dead and
+// the form-click event was always hard-coded to 'form_start').
+o.c.clickevent = typeof data.clickevent=='string' ? data.clickevent : '';
 o.c.submitevent = typeof data.submitevent=='string' ? data.submitevent : '';
-o.c.maxclicks = typeof data.maxclicks=='string' ? data.maxclicks : 1; o.c.maxclicks = o.c.maxclicks * 1;
+// maxclicks is a NUMBER field → GTM passes a number, not a string. The old
+// typeof=='string' guard therefore always fell back to 1 (configured value ignored).
+// Accept number and numeric string, guard against NaN / <=0.
+o.c.maxclicks = 1;
+if (typeof data.maxclicks=='number' && data.maxclicks>0) {
+  o.c.maxclicks = data.maxclicks;
+} else if (typeof data.maxclicks=='string' && data.maxclicks) {
+  var mc = data.maxclicks * 1;
+  if (mc>0) o.c.maxclicks = mc;
+}
 o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
 o.c.ua_event = typeof data.ua_event=='boolean' ? data.ua_event : false;
 
@@ -165,27 +176,36 @@ o.f.submit = o.f.submit || function(el) {
  */
 o.f.formstart = o.f.formstart || function(el) {
   if (typeof el=='object' && typeof el.length!='number' && !el.eventModel) {
-    var click_count = copyFromWindow('aGTMformClicks'); if (typeof click_count!='number') click_count = 0;
+    // Null-guard: el.form is null when the focused field has no <form> ancestor
+    // (e.g. associated via the form= attribute) — el.form.id would otherwise throw.
+    var frm = (el && typeof el.form=='object' && el.form) ? el.form : {};
+    // Per-form click counter (was a single global number → maxclicks capped across
+    // ALL forms on the page combined). Keyed by form identity so each form counts
+    // independently.
+    var formKey = frm.id || frm.name || frm.action || 'form';
+    var clicks = copyFromWindow('aGTMformClicks');
+    if (typeof clicks!='object' || !clicks) clicks = {};
+    var click_count = typeof clicks[formKey]=='number' ? clicks[formKey] : 0;
     click_count++;
-    setInWindow('aGTMformClicks', click_count, true);
+    clicks[formKey] = click_count;
+    setInWindow('aGTMformClicks', clicks, true);
     if (click_count>o.c.maxclicks) return;
     // Prepare event
     o.c.addparameter.forEach(function(row) {
       o.d.e[row.pkey] = row.pvalue;
     });
     var e = JSON.parse(JSON.stringify(o.d.e));
-    e.event = o.c.startevent || 'form_start';
+    e.event = o.c.clickevent || 'form_start';
     e.field_id = el.id || null;
     e.field_name = el.name || null;
     e.field_type = el.type || null;
     e.field_position = el.position || null;
     e.form_clicks = click_count;
-    e.form = e.form || {};
-    e.form_id = el.form.id || null;
-    e.form_name = el.form.name || null;
-    e.form_class = el.form.class || null;
-    e.form_destination = el.form.action || null;
-    e.form_length = el.form.elements || 0;
+    e.form_id = frm.id || null;
+    e.form_name = frm.name || null;
+    e.form_class = frm.class || null;
+    e.form_destination = frm.action || null;
+    e.form_length = frm.elements || 0;
     e.target = el.target || null;
     e.parentID = el.parentID || null;
     e.parentClass = el.parentClass || null;
@@ -468,13 +488,26 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.0
+- Version 1.1
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 20.03.2024
+- Last Update: 13.07.2026
 
 ## Description
 
 This template handles Form Tracking.
 Requires an aGTM integration of the GTM.
+
+## Fixes in 1.1
+
+- The "Event Name, if a user clicks into a form" field (`clickevent`) is now
+  actually read — previously the code looked for a non-existent `startevent`
+  field, so the form-click event name was always hard-coded to `form_start`.
+  It now defaults to `form_click` (the field default) and honours your value.
+- "Maximum of form field clicks" (`maxclicks`) is now honoured — the previous
+  guard only accepted a string, so the NUMBER field always fell back to 1.
+- The click counter is now tracked per form instead of once globally, so
+  `maxclicks` applies independently to each form on the page.
+- Null-guard for fields without a resolvable `<form>` ancestor (no more
+  exception on `el.form.id`).
 
 
