@@ -213,6 +213,41 @@ fail-open; fixed to fail-closed (tag `1.0 → 1.1`):
 - **Docs / defaults** — hostname-filter help text and README now warn that an empty list accepts any http/https origin (trusted same-site only) and that opaque origins are always rejected.
 - **Tests** — library regression test `test/iframe_handshake.test.js` (handshake accepted from top, forged handshake rejected, wrong payload / non-iframe ignored, queue flushed to the verified origin). GTM `___TESTS___` scenarios remain part of the systemic test buildout.
 
+### GTM template "Timer Events" — validation + least-privilege (v1.5 release-gate)
+
+Template audit finding on `gtm/tags/timer-events/aGTM tag - Timer Events.tpl`
+(tag `1.0 → 1.1`):
+
+- **Ineffective NaN guard → 0ms timer** — `makeNumber('abc')` returns `NaN` and `typeof NaN === 'number'`, so the old `typeof` guard let non-numeric seconds through and `makeInteger(NaN*1000)` armed a 0ms timer; combined with `repeat = 0` (unlimited) that is a tight loop hammering `aGTM.f.fire`. Seconds are now validated via the NaN self-inequality and any non-positive or sub-millisecond value (rounds to 0ms) is skipped. **Both ends closed:** very large seconds are clamped to the 32-bit `setInterval`/`setTimeout` ceiling (`2147483647` ms, ~24.8 days) so they cannot overflow the browser timer and fire immediately. `repeat` falls back to a single fire for non-numeric/negative input; `0` stays "unlimited".
+- **Duplicate loop removed** — the additional-parameter table was merged into the event twice; now once.
+- **Least-privilege** — only `execute` on `aGTM.f.timer` remains; the dead `logToConsole` require, the `logging` permission and the read/write `aGTM` + `aGTM.f.fire` globals were removed.
+- **Known limitation documented** — `aGTM.f.timer` creates an independent, never-stopped timer per tag run; unlimited `repeat` on a multi-firing trigger accumulates. Prefer a finite repeat or a once-per-page trigger.
+- Tests: `___TESTS___` scenarios cover the seconds/repeat validation (GTM-only; systemic bun coverage remains F-41).
+
+### GTM template "Copy Events" — dead observer removed + least-privilege (v1.5 release-gate)
+
+Template audit finding on `gtm/tags/copy-events/aGTM tag - Copy Events.tpl`
+(tag `1.0 → 1.1`):
+
+- **Dead `document.body` MutationObserver removed** — a stray `aGTM.f.observer` call installed a permanent subtree observer that never matched a copy event but ran on every DOM mutation (needless SPA load). The real listener is `aGTM.f.addElLst`.
+- **Least-privilege** — removed the `logging` permission, the dead `logToConsole`/`copyFromWindow` requires, the read/write `aGTM` global and the now-unused `aGTM.f.observer` grant; `aGTM.f.rTest` is execute-only.
+- Corrected copied/misleading comments; README license (MIT → Apache-2.0), link and version fixed.
+- Tests: `___TESTS___` scenarios cover type detection (string/email/phone), the contact prefix, text filtering, parameter merge and the non-string guard.
+
+### GTM variable templates — guards + docs (v1.5 release-gate)
+
+Template audit findings on the three variable templates:
+
+- **Consent Check** (`aGTM var - Consent Check.tpl`, `1.1`) — **empty-value config trap fixed**: `indexOf('')` returns `0`, so an empty "String value to check" granted consent for every non-empty field. An empty value now returns not-granted. Least-privilege (dead `logToConsole` require, `logging` permission and unused read `aGTM` global removed). README documents the `stringify` field + empty-value behaviour.
+- **Consent Info** (`aGTM var - Consent Info.tpl`, `1.1`) — internal `displayName` corrected ("aGTM var - Consent" → "… Consent Info"). Documented (README + inline note) that the `cm`/`all` modes read `aGTM.d.cm`, which is written by the **Consent Mode tag**, not the library — without that tag, or when evaluated before it runs, the signals fall back to all-denied (tag coupling + ordering race). Documented the `base64` field. Least-privilege cleanup.
+- **Content Counter** (`aGTM var - Content Counter.tpl`, `1.1`) — **null guard**: `aGTM.f.pageinfo` returns `undefined` before aGTM has loaded; `o.words`/`o.images` then threw. It now falls back to an empty object and returns `0`. Least-privilege cleanup. README license/link/version fixed.
+- Tests: `___TESTS___` scenarios added to all three (GTM-only; systemic bun coverage remains F-41).
+
+### GTM templates — systemic license + least-privilege sweep (v1.5 release-gate)
+
+- **License** — every remaining tag/variable README stated the **MIT** License; the project is **Apache-2.0**. All corrected. Dead dash-style `.tpl` references (both clickable links and inline prose) fixed to the real space-containing filenames across all templates.
+- **Least-privilege (F-42)** — the over-broad read/write `aGTM` `access_globals` key was statically confirmed dead (no `copyFromWindow`/`setInWindow` on it; every `callInWindow` target has its own execute grant) and removed from the core `aGTM Tag`, Form, Pageview and iFrame templates; iFrame additionally dropped its dead `logToConsole`/`copyFromWindow` requires and the `logging` permission. The Pageview `aGTM.f.rmLstn` grant (previously missing for the latent listener-removal path) was added so code and permissions are honest.
+
 ### Other v1.5 fixes and additions
 
 - Bug fix: `consent_events` config option now wired up via `config()` (was never read from user config)
@@ -248,7 +283,7 @@ fail-open; fixed to fail-closed (tag `1.0 → 1.1`):
 - Build system migrated to Bun (`bunx terser`); no `npm install` required
 - `VERSION` file as single source of truth for version number; build propagates to all files
 - `sgtmClient/template.tpl` base64 payload and version auto-updated on each build
-- Test suite grown from 75 to 134 tests across 13 files (`bun test`)
+- Test suite grown from 75 to 234 tests across 19 files (`bun test`) — final count to be confirmed at release-tag time
 - Debug `console.log` removed from `urlListener`
 - String obfuscation for Google identifiers unified
 
