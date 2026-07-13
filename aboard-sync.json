@@ -462,26 +462,6 @@
             "qa": true
           },
           {
-            "id": "agtm-v15-tag-timer",
-            "title": "Timer Tag: Perms/NaN/dup + Tests (F-35)",
-            "description": "P2: Permissions auf aGTM.f.timer+execute reduzieren (aGTM write + aGTM.f.fire + logging raus); seconds-Zahlen-Validator/NaN-Check (L164); eine der doppelten addparameter-Schleifen raus (L143-148/153-155); TESTS (timer-Call, ms-Parsing, ua_event, addparameter, leeres timers).",
-            "owner": "Claude Opus",
-            "complexity": "niedrig",
-            "effort": 2,
-            "agentContext": "gtm/tags/timer-events/aGTM tag - Timer Events.tpl L164/143-155/187-296; README; findings F-35",
-            "critical": false,
-            "displayId": 26,
-            "columnId": "col-qa",
-            "comments": [
-              {
-                "id": "5819bcd0-4b08-459f-9c19-54b07436d6bb",
-                "author": "Claude Opus",
-                "created": "2026-07-13",
-                "text": "ERLEDIGT (F-35, Commit 8d53d78, dev gepusht). Timer-Events-Tag Haertung: (a) Least-Privilege — nur execute auf aGTM.f.timer; toter logToConsole-require + logging-Permission + read/write aGTM + aGTM.f.fire-Global raus (Permissions-JSON valide, 1 Block). (b) Seconds/Repeat-Validierung: makeNumber liefert NaN + typeof NaN===number, alter Guard griff nie → jetzt NaN-Self-Inequality (sec!==sec) + Skip bei nicht-positiven Sekunden (kein 0ms-Timer/Tight-Loop mehr); Repeat faellt bei nicht-numerisch/negativ auf Single-Fire, 0=unlimited bleibt. (c) Doppelte addparameter-Schleife entfernt (Merge einmal). (e) 7 ___TESTS___-Szenarien (GTM-only, systemische bun-Abdeckung bleibt F-41). (d) Timer-Akkumulation bei Repeat=0+Multi-Trigger als bekannte Grenze dokumentiert (aGTM.f.timer legt unabhaengige, nie gestoppte Timer an). F-40-Anteil: README Lizenz MIT→Apache-2.0, toter .tpl-Link→realer Leerzeichen-Name, Version 1.0→1.1, Phantom-Debug-Abschnitt getrimmt. Tag 1.0→1.1. 234 bun-Tests gruen, build sauber. In QA fuer den konsolidierten Kritiker-Gate ueber die restlichen P2-Karten."
-              }
-            ]
-          },
-          {
             "id": "agtm-v15-tag-copy",
             "title": "Copy Tag: observer-Zeile + Cleanup + Tests (F-32)",
             "description": "P2: tote observer(body,copy)-Zeile L236 entfernen (permanenter Body-Observer, SPA-Last); tote requires/perms; README Phantom-Debug + Fremd-Kommentare; TESTS (Mail/Phone-Erkennung, textfilter, ua_event, Truncation).",
@@ -491,15 +471,22 @@
             "agentContext": "gtm/tags/copy-events/aGTM tag - Copy Events.tpl L236; README; findings F-32",
             "critical": false,
             "displayId": 27,
-            "columnId": "col-qa",
+            "columnId": "col-erledigt",
             "comments": [
               {
                 "id": "b74f4e95-acd3-4d7d-91b8-19286a11a78d",
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "ERLEDIGT (F-32, Commit 7cae1af, dev gepusht). Copy-Events-Tag: tote aGTM.f.observer-Zeile entfernt (permanenter document.body-Subtree-MutationObserver, matchte nie, lief bei jeder DOM-Mutation → SPA-Last). Least-Privilege: logging-Permission + tote logToConsole/copyFromWindow-requires + read/write aGTM-Global + aGTM.f.observer-execute raus; aGTM.f.rTest execute-only (read→false); Perms-JSON valide (4 execute-Keys: fire/addElLst/rTest/rReplace). Fremd-Kommentare korrigiert (Build-ND-Header, getType-JSDoc, Form-Submit-Listener-Label→Copy). 5 ___TESTS___-Szenarien (Typ-Detection string/email, Contact-Prefix, Non-Regex-Textfilter, Param-Merge, Non-String-Guard; GTM-only, systemische bun-Abdeckung bleibt F-41). F-40-Anteil: README Lizenz MIT→Apache-2.0, toter Link→Leerzeichen-Name, Version 1.0→1.1, Phantom-Debug getrimmt. Tag 1.0→1.1. 234 bun-Tests grün, build sauber. In QA für konsolidierten Kritiker-Gate."
+              },
+              {
+                "id": "78b3a7f7-0035-4a39-b4ab-678e2afb0819",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "KRITIKER-GATE bestanden: kein P0/P1. P3 gefunden+GEFIXT (Commit 0e9f566): E-Mail-Testszenario-Mock prüfte arguments[2] (Regex-Pattern) statt arguments[1] (kopierter Text) — nur zufällig korrekt. Auf arguments[1] korrigiert. qa:true, → Erledigt."
               }
-            ]
+            ],
+            "qa": true
           },
           {
             "id": "agtm-v15-vars",
@@ -511,15 +498,22 @@
             "agentContext": "gtm/variables/consent-check|consent-info|content-counter; findings F-37/38/39; consent-info aGTM.d.cm wird vom Consent-Mode-TAG geschrieben (L589), nicht Library",
             "critical": false,
             "displayId": 28,
-            "columnId": "col-qa",
+            "columnId": "col-erledigt",
             "comments": [
               {
                 "id": "f08d6726-a650-4877-9b27-66fd27d4d419",
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "ERLEDIGT (F-37/38/39, Commit 257e3d1, dev gepusht). Alle drei Variablen-Templates gehärtet. F-37 Consent-Check: Empty-Value-Falle behoben (indexOf()===0 → jeder nicht-leere Consent-String war granted; jetzt typeof v==string && v-Guard → leerer Value = nicht granted). F-38 Consent-Info: displayName-Fix (aGTM var - Consent → Consent Info); CM-Kopplung dokumentiert (cm/all lesen aGTM.d.cm, geschrieben vom Consent-Mode-TAG nicht der Library → ohne Tag/vor Tag-Lauf all-denied Default; README-Abschnitt + Inline-Kommentar); base64-Feld dokumentiert; Lib-Seed bewusst NICHT (Default reicht). F-39 Content-Counter: Null-Guard (pageinfo||{}) → sicherer 0-Default statt Exception bei noch-nicht-geladenem aGTM. Alle drei: Least-Privilege (tote logToConsole-requires + logging-Permissions + read-aGTM-Globals raus, nur getVal/pageinfo execute; Perms-JSON valide). ___TESTS___: 6+6+4 Szenarien (GTM-only, systemische bun-Abdeckung bleibt F-41). F-40-Anteil: READMEs Apache-Lizenz, tote Links→Leerzeichen-Namen, Versionen→1.1, stringify/base64 dokumentiert. 234 bun-Tests grün, build sauber. In QA für konsolidierten Kritiker-Gate."
+              },
+              {
+                "id": "6a011bd5-f747-402e-be55-a2a244ef2c06",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "KRITIKER-GATE bestanden: kein P0/P1, keine Findings zu den Variablen. Empty-Guard/Null-Guard/CM-Kopplung als korrekt+diskriminierend verifiziert. qa:true, → Erledigt."
               }
-            ]
+            ],
+            "qa": true
           },
           {
             "id": "agtm-v15-readmes",
@@ -531,15 +525,49 @@
             "agentContext": "gtm/tags/*/README*.md + gtm/variables/*/README*.md; findings F-40; Lizenz-Quelle CLAUDE.md=Apache 2.0",
             "critical": false,
             "displayId": 29,
-            "columnId": "col-qa",
+            "columnId": "col-erledigt",
             "comments": [
               {
                 "id": "b01fe5e5-5185-49a7-ad29-4c72435d08a5",
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "ERLEDIGT (F-40 systemisch, Commit 28f17c0, dev gepusht). Der Großteil (Lizenz/Link/Version PRO Template) wurde bereits in #20-#28 beim jeweiligen Karten-Touch mitgezogen. Systemischer Rest war nur: zwei verbliebene MIT-Lizenzen (consent-mode + dl-repeat README) → Apache-2.0. Verifiziert über ALLE getrackten Docs (git ls-files): kein MIT-License-String mehr, keine toten Dash-Style-.tpl-Links, alle Links in gtm/README-gtm-templates.md lösen auf reale (Leerzeichen-)Dateien auf. Versions-/Datums-Drift (F-40c) pro Template beim jeweiligen Karten-Touch bereinigt. In QA für konsolidierten Kritiker-Gate."
+              },
+              {
+                "id": "aa5ebca6-d399-402f-adfb-b843e976010a",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "KRITIKER-GATE bestanden: kein P0/P1. F-40-Sweep verifiziert (kein MIT mehr, keine toten Links). qa:true, → Erledigt."
               }
-            ]
+            ],
+            "qa": true
+          },
+          {
+            "id": "agtm-v15-tag-timer",
+            "title": "Timer Tag: Perms/NaN/dup + Tests (F-35)",
+            "description": "P2: Permissions auf aGTM.f.timer+execute reduzieren (aGTM write + aGTM.f.fire + logging raus); seconds-Zahlen-Validator/NaN-Check (L164); eine der doppelten addparameter-Schleifen raus (L143-148/153-155); TESTS (timer-Call, ms-Parsing, ua_event, addparameter, leeres timers).",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 2,
+            "agentContext": "gtm/tags/timer-events/aGTM tag - Timer Events.tpl L164/143-155/187-296; README; findings F-35",
+            "critical": false,
+            "displayId": 26,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "5819bcd0-4b08-459f-9c19-54b07436d6bb",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "ERLEDIGT (F-35, Commit 8d53d78, dev gepusht). Timer-Events-Tag Haertung: (a) Least-Privilege — nur execute auf aGTM.f.timer; toter logToConsole-require + logging-Permission + read/write aGTM + aGTM.f.fire-Global raus (Permissions-JSON valide, 1 Block). (b) Seconds/Repeat-Validierung: makeNumber liefert NaN + typeof NaN===number, alter Guard griff nie → jetzt NaN-Self-Inequality (sec!==sec) + Skip bei nicht-positiven Sekunden (kein 0ms-Timer/Tight-Loop mehr); Repeat faellt bei nicht-numerisch/negativ auf Single-Fire, 0=unlimited bleibt. (c) Doppelte addparameter-Schleife entfernt (Merge einmal). (e) 7 ___TESTS___-Szenarien (GTM-only, systemische bun-Abdeckung bleibt F-41). (d) Timer-Akkumulation bei Repeat=0+Multi-Trigger als bekannte Grenze dokumentiert (aGTM.f.timer legt unabhaengige, nie gestoppte Timer an). F-40-Anteil: README Lizenz MIT→Apache-2.0, toter .tpl-Link→realer Leerzeichen-Name, Version 1.0→1.1, Phantom-Debug-Abschnitt getrimmt. Tag 1.0→1.1. 234 bun-Tests gruen, build sauber. In QA fuer den konsolidierten Kritiker-Gate ueber die restlichen P2-Karten."
+              },
+              {
+                "id": "63c08128-f571-4e8a-a644-3952eac7943c",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "KRITIKER-GATE bestanden (Sub-Agent, konsolidiert über #26-#30): kein P0/P1. P2 gefunden+GEFIXT (Commit 0e9f566): Sub-Millisekunden-seconds (z.B. 0.0004) passierte den sec>0-Guard, makeInteger(sec*1000) rundet aber auf ms=0 → mit repeat=0 genau der 0ms-Tight-Loop, den der Fix verspricht. Zusatz-Guard if(ms<=0)continue + diskriminierendes Testszenario + Changelog. qa:true, → Erledigt."
+              }
+            ],
+            "qa": true
           },
           {
             "id": "agtm-v15-perms-cleanup",
@@ -551,15 +579,22 @@
             "agentContext": "alle gtm/tags/*.tpl + gtm/variables/*.tpl WEB_PERMISSIONS; findings F-42",
             "critical": false,
             "displayId": 30,
-            "columnId": "col-qa",
+            "columnId": "col-erledigt",
             "comments": [
               {
                 "id": "9ecbc8a4-90ea-4a75-ad6b-9e5053062e69",
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "ERLEDIGT (F-42 systemisch, Commit 5455e92, dev gepusht). Per-Template-Anteil wurde in #24-#28 mitgezogen. Systemischer Rest: statisch verifiziert (kein copyFromWindow/setInWindow auf bare aGTM, jedes callInWindow-Target hat eigenen execute-Grant) → über-breiter aGTM-rw war in ALLEN 4 verbliebenen Templates tot und entfernt: Core aGTM Tag (nur aGTM.f.fire execute bleibt), Form (nur aGTMformClicks rw genutzt), Pageview (alles granular execute), iFrame (zusätzlich tote logToConsole+copyFromWindow-requires + logging-Permission raus; copyFromDataLayer+read_data_layer bleiben). Bewusst NICHT angetastet weil genutzt: consent-mode (9 log-Calls, granulare rw aGTM.d.cm/uetq/clarity), dl-repeat (3 dbg + aGTM.f.dlrepeat-read-Guard), scroll (scrollListener_active-rw), Core-Tag logging (1 echter Call). Alle Perms-JSON re-validiert, permission-only (kein Verhaltensänderung). 234 bun-Tests grün, build sauber. In QA für konsolidierten Kritiker-Gate."
+              },
+              {
+                "id": "9f3e4f96-708e-4ea5-81b0-56b21d1a578c",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "KRITIKER-GATE bestanden: kein P0/P1. P3 gefunden+teils GEFIXT (Commit 0e9f566): ungenutzter aGTM.f.pageinfo-execute-Grant in Pageview entfernt (0 Aufrufe verifiziert). rmLstn-Grant-Lücke bleibt als F-36(f) dokumentiert (einziger Aufrufer auskommentiert, kein Prod-Bruch). Alle 9 geänderten Perms-JSON valide, kein genutzter Grant entfernt. qa:true, → Erledigt."
               }
-            ]
+            ],
+            "qa": true
           }
         ]
       },
