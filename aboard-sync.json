@@ -268,18 +268,6 @@
             "columnId": "col-schreiben"
           },
           {
-            "id": "agtm-v15-perms-cleanup",
-            "title": "Systemisch: Permission/Deadcode-Cleanup alle Tags (F-42)",
-            "description": "Pro Template: tote require(logToConsole/copyFromWindow/queryPermission) + ungenutzte logging-Permission + ueberbreiten access_globals-Key aGTM(read/write) entfernen (nur execute auf konkreten aGTM.f.* noetig). Least-Privilege fuer GTM-Gallery.",
-            "owner": "Claude Opus",
-            "complexity": "niedrig",
-            "effort": 2,
-            "agentContext": "alle gtm/tags/*.tpl + gtm/variables/*.tpl WEB_PERMISSIONS; findings F-42",
-            "critical": false,
-            "displayId": 30,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-sgtm-client-template-tests",
             "title": "sGTM Client: ___TESTS___ ausbauen (aktuell 1 No-op-Smoke-Test)",
             "description": "Der ___TESTS___-Block in sgtmClient/template.tpl (Z.1881ff) hat genau EIN Szenario Check JS Code: runCode(mockData) mit ALLEN assertApi auskommentiert => prueft nichts ausser wirft-nicht, bei einer Mock-Config. ~750 Zeilen Server-Logik (SANDBOXED_JS_FOR_SERVER 891-1638) template-seitig ungetestet. Ausbau: (a) Smoke-Test echte Assertions geben (setResponseStatus 200, setResponseHeader Content-Type, setResponseBody enthaelt aGTM-Lib-base64); (b) Branch-Tests fuer config-ableitbare Logik: gtm_consent true/false, cmp none vs. konfiguriert, gdl gesetzt/leer, debug on/off, useListener, sendConsentEvent; (c) base64-Injektion/URL-Bau. I/O-lastige Pfade (Session/Consent/Sources HTTP) bleiben besser vom internal/api-Smoketest abgedeckt (E2E) - Template-Tests fokussieren pure/config-Logik.",
@@ -550,6 +538,26 @@
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "ERLEDIGT (F-40 systemisch, Commit 28f17c0, dev gepusht). Der Großteil (Lizenz/Link/Version PRO Template) wurde bereits in #20-#28 beim jeweiligen Karten-Touch mitgezogen. Systemischer Rest war nur: zwei verbliebene MIT-Lizenzen (consent-mode + dl-repeat README) → Apache-2.0. Verifiziert über ALLE getrackten Docs (git ls-files): kein MIT-License-String mehr, keine toten Dash-Style-.tpl-Links, alle Links in gtm/README-gtm-templates.md lösen auf reale (Leerzeichen-)Dateien auf. Versions-/Datums-Drift (F-40c) pro Template beim jeweiligen Karten-Touch bereinigt. In QA für konsolidierten Kritiker-Gate."
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-perms-cleanup",
+            "title": "Systemisch: Permission/Deadcode-Cleanup alle Tags (F-42)",
+            "description": "Pro Template: tote require(logToConsole/copyFromWindow/queryPermission) + ungenutzte logging-Permission + ueberbreiten access_globals-Key aGTM(read/write) entfernen (nur execute auf konkreten aGTM.f.* noetig). Least-Privilege fuer GTM-Gallery.",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 2,
+            "agentContext": "alle gtm/tags/*.tpl + gtm/variables/*.tpl WEB_PERMISSIONS; findings F-42",
+            "critical": false,
+            "displayId": 30,
+            "columnId": "col-qa",
+            "comments": [
+              {
+                "id": "9ecbc8a4-90ea-4a75-ad6b-9e5053062e69",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "ERLEDIGT (F-42 systemisch, Commit 5455e92, dev gepusht). Per-Template-Anteil wurde in #24-#28 mitgezogen. Systemischer Rest: statisch verifiziert (kein copyFromWindow/setInWindow auf bare aGTM, jedes callInWindow-Target hat eigenen execute-Grant) → über-breiter aGTM-rw war in ALLEN 4 verbliebenen Templates tot und entfernt: Core aGTM Tag (nur aGTM.f.fire execute bleibt), Form (nur aGTMformClicks rw genutzt), Pageview (alles granular execute), iFrame (zusätzlich tote logToConsole+copyFromWindow-requires + logging-Permission raus; copyFromDataLayer+read_data_layer bleiben). Bewusst NICHT angetastet weil genutzt: consent-mode (9 log-Calls, granulare rw aGTM.d.cm/uetq/clarity), dl-repeat (3 dbg + aGTM.f.dlrepeat-read-Guard), scroll (scrollListener_active-rw), Core-Tag logging (1 echter Call). Alle Perms-JSON re-validiert, permission-only (kein Verhaltensänderung). 234 bun-Tests grün, build sauber. In QA für konsolidierten Kritiker-Gate."
               }
             ]
           }
