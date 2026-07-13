@@ -425,6 +425,12 @@
                 "author": "Claude Opus",
                 "text": "F-31c behoben (4fde372) nach Google-Doku-Recherche: region gehoert auf setDefaultConsentState, NICHT updateConsentState. Fix = Region auf all-denied-Default o.d.cmd; Update bleibt region-los (korrekt). Andi nutzt Update-after-Default immer → war real betroffen (Deny-Default galt global statt EWR-gescopt). Wissen gesichert in knowledge/topics/google-consent-mode-region.md. README dokumentiert Region/After-Default-Semantik. Damit alle F-31-CODE-Punkte erledigt; offen nur ___TESTS___ (GTM-only, gehoert zur systemischen Test-Welle F-41).",
                 "created": "2026-07-13"
+              },
+              {
+                "id": "a6d49cfe-72bd-407f-ad30-bf9a9d160606",
+                "author": "Claude Opus",
+                "text": "F-31 CODE komplett + 2x kritiker-verifiziert (838775b): (a) Fail-open-Guard, (b) Fallback in Prod + Re-Read, (c) Region auf all-denied-Default (F-31c, recherchiert), Debug-Crash-Fix, README-Komma-Wrappung. PLUS optionales Feld cm_grant_outside (globaler granted-Default ausserhalb Regionen) — Kritiker fand dabei selbst-eingebauten not_set-in-region-P1, gefixt + verifiziert geschlossen. Tag-Version 1.4, README-Header/Link/Defaults korrigiert. Wissen: knowledge/topics/google-consent-mode-region.md. OFFEN nur noch ___TESTS___ (GTM-only, systemisch F-41). Karte bleibt in Arbeit fuer die Test-Welle.",
+                "created": "2026-07-13"
               }
             ]
           }
