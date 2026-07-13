@@ -256,30 +256,6 @@
             "columnId": "col-schreiben"
           },
           {
-            "id": "agtm-v15-tag-click",
-            "title": "Click Tag: cross_matching-Falle + Tests (F-29)",
-            "description": "P2: cross_matching defaultValue domain + setConf-Leerstring-Falle pruefen (interne Klicks als outbound); TESTS (Download, Outbound/intern, Cross-Matching-Modus, Contact-Prefix, Text-Filter); Cleanup tote requires/perms.",
-            "owner": "Claude Opus",
-            "complexity": "niedrig",
-            "effort": 2,
-            "agentContext": "gtm/tags/click-events/aGTM tag - Click Events.tpl L253/339/395; README; findings F-29",
-            "critical": false,
-            "displayId": 24,
-            "columnId": "col-backlog"
-          },
-          {
-            "id": "agtm-v15-tag-scroll",
-            "title": "Scroll Tag: Throttle/Leak/steps + Tests (F-34)",
-            "description": "P2: Scroll-Listener Throttle+passive (Weiche: Template oder zentral in aGTM.f.evLstn - Entscheidung Andi); Registrierungs-Guard gg. Doppel-Listener (SPA); steps sortieren+trimmen; TESTS (Schwelle-Fire, Dedup, noscrollevent, isscrollevent, ua_event).",
-            "owner": "Claude Opus",
-            "complexity": "mittel",
-            "effort": 3,
-            "agentContext": "gtm/tags/scroll-events/aGTM tag - Scroll Events.tpl L199-243/138/221; aGTM.f.evLstn (ES5!); README; findings F-34",
-            "critical": false,
-            "displayId": 25,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-tag-timer",
             "title": "Timer Tag: Perms/NaN/dup + Tests (F-35)",
             "description": "P2: Permissions auf aGTM.f.timer+execute reduzieren (aGTM write + aGTM.f.fire + logging raus); seconds-Zahlen-Validator/NaN-Check (L164); eine der doppelten addparameter-Schleifen raus (L143-148/153-155); TESTS (timer-Call, ms-Parsing, ua_event, addparameter, leeres timers).",
@@ -490,6 +466,48 @@
                 "created": "2026-07-13"
               }
             ]
+          },
+          {
+            "id": "agtm-v15-tag-click",
+            "title": "Click Tag: cross_matching-Falle + Tests (F-29)",
+            "description": "P2: cross_matching defaultValue domain + setConf-Leerstring-Falle pruefen (interne Klicks als outbound); TESTS (Download, Outbound/intern, Cross-Matching-Modus, Contact-Prefix, Text-Filter); Cleanup tote requires/perms.",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 2,
+            "agentContext": "gtm/tags/click-events/aGTM tag - Click Events.tpl L253/339/395; README; findings F-29",
+            "critical": false,
+            "displayId": 24,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "4ad9a921-8c4c-416e-b768-1d54d7d7a33e",
+                "author": "Claude Opus",
+                "text": "F-29 behoben (Click-Tag). (a) cross_matching-Konfig-Falle: SELECT hatte keinen defaultValue -> ungesetzt = \"\" bestand den setConf-string-Check -> lief still im Hostname-Modus -> same-site-Subdomain-Links als outbound gewertet. Fix: defaultValue:\"domain\" am SELECT + Normalize-Guard (nur explizit \"hostname\" waehlt Hostname-Scope, alles andere -> sicherer domain-Scope). (c) Least-Privilege/Dead-Code: tote require(logToConsole)+require(copyFromWindow) raus, logging-Permission raus, ueberbreiter aGTM-rw-Global raus (verifiziert: 7 genutzte aGTM.f.*-Pfade == 7 granted execute-Keys). F-40-Anteil: README MIT->Apache-2.0, toter .tpl-Link (Leerzeichen/%20), Version 1.3->1.4, falsche Outbound-Tabelle+Example (Phantom-Feld \"Attach Outbound\") korrigiert. Tag 1.3->1.4, NOTES-Changelog. Alle 3 JSON-Bloecke valide, 223 bun-Tests gruen, ./build.sh sauber (keine min/base64-Drift, Library unberuehrt). Kritiker-Runde (adversarial): kein P0/P1/P2; 3 P3 (README-Beispiel/Prosa-Dateiname + Datumsstempel 2025->2026) direkt mitbehoben. (b) GTM-___TESTS___ bleibt systemisch F-41 (kein bun-test-Pfad).",
+                "created": "2026-07-13"
+              }
+            ],
+            "qa": true
+          },
+          {
+            "id": "agtm-v15-tag-scroll",
+            "title": "Scroll Tag: Throttle/Leak/steps + Tests (F-34)",
+            "description": "P2: Scroll-Listener Throttle+passive (Weiche: Template oder zentral in aGTM.f.evLstn - Entscheidung Andi); Registrierungs-Guard gg. Doppel-Listener (SPA); steps sortieren+trimmen; TESTS (Schwelle-Fire, Dedup, noscrollevent, isscrollevent, ua_event).",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/tags/scroll-events/aGTM tag - Scroll Events.tpl L199-243/138/221; aGTM.f.evLstn (ES5!); README; findings F-34",
+            "critical": false,
+            "displayId": 25,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "1dad7cfa-02b5-47ac-b0b2-6c94c6d3a9f3",
+                "author": "Claude Opus",
+                "text": "F-34 behoben (Scroll-Tag CWV-Haertung). WEICHE (Andi entschieden): passive+throttle zentral opt-in in aGTM.f.evLstn, CWV-neutral bis -positiv. Library: neuer opt. 4. Param evLstn(el,ev,fct,{passive,throttle}) + aGTM.f.passiveSupported() (feature-detected, gecached) + aGTM.f.throttle() (leading+trailing). passive:true entblockt Scrolling (INP), throttle begrenzt Reflow-Reads. message-Zweig ignoriert opts (iFrame F-33 unberuehrt), 5 bestehende 3-arg-Aufrufer unveraendert. Scroll-Tag: scroll {passive,throttle:200}/resize {250}, Leak-Guard scrollListener_active (Registrierung 1x/Seite), steps trim/Number/dedup/sort, tote requires+logging+aGTM-rw-Global raus (nur execute + granular scrollListener_active-rw). Tag 1.0->1.1. Cross-Template CWV-Konsistenz (auf Andis Audit-Bitte): Pageview resize + Human-Detektoren (scroll/touchstart waren non-passiv) jetzt passiv, Tag 1.1->1.2 (additiv, kein Verhaltensbruch). iFrame unberuehrt. 11 neue Library-Tests (evlstn_passive_throttle.test.js), 234 gruen, build sauber. Kritiker-Runde: kein P0/P1; P2 throttle-trailing-Args gefixt (latest-args + diskriminierender Test); 2 P3 (scroll_depth string->number, fail-clean bei Muell-steps) dokumentiert/akzeptiert. Doku: CHANGELOG, beide NOTES/READMEs (inkl. F-40 Lizenz/Link), knowledge/topics/cwv-event-listener-muster.md, Memory. GTM-___TESTS___ bleibt systemisch F-41.",
+                "created": "2026-07-13"
+              }
+            ],
+            "qa": true
           }
         ]
       },
