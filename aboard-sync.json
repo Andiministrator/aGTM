@@ -419,6 +419,12 @@
                 "author": "Claude Opus",
                 "text": "Teil-Fortschritt (eb4d945): Fail-open-Null-Deref (Z.500) mit ||{}-Guard geschlossen; Fallback laeuft jetzt in Prod (debug&&-Gate raus) + Re-Read nach consent_check; Debug-Crash Z.579 (o.d.cmd→o.d.cm); README Komma-Wrappung (,Google Ads,). OFFEN auf dieser Karte: (1) cm_regions im After-Default-Modus = Consent-Semantik-Weiche → Andi entscheidet; (2) ___TESTS___-Suite (nur in GTM lauffaehig). Bleibt in Arbeit.",
                 "created": "2026-07-13"
+              },
+              {
+                "id": "631682c3-8989-48bb-aca3-8c705eef6faf",
+                "author": "Claude Opus",
+                "text": "F-31c behoben (4fde372) nach Google-Doku-Recherche: region gehoert auf setDefaultConsentState, NICHT updateConsentState. Fix = Region auf all-denied-Default o.d.cmd; Update bleibt region-los (korrekt). Andi nutzt Update-after-Default immer → war real betroffen (Deny-Default galt global statt EWR-gescopt). Wissen gesichert in knowledge/topics/google-consent-mode-region.md. README dokumentiert Region/After-Default-Semantik. Damit alle F-31-CODE-Punkte erledigt; offen nur ___TESTS___ (GTM-only, gehoert zur systemischen Test-Welle F-41).",
+                "created": "2026-07-13"
               }
             ]
           }
@@ -623,11 +629,7 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": {
-      "question": "5 bei den GTM-Templates — wie weit ziehen?",
-      "since": "2026-07-13T07:34:16.064290+00:00",
-      "askedBy": "Claude Sonnet 4.6"
-    },
+    "awaitingUser": null,
     "identities": [
       {
         "id": "user-default",
