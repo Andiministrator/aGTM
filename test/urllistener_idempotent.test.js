@@ -36,19 +36,23 @@ describe('aGTM.f.urlListener — idempotency guard', () => {
     expect(wrapped2).toBe(wrapped1);
   });
 
-  it('fires exactly one event for a single navigation', () => {
-    let fires = 0;
-    const origFire = globalThis.aGTM.f.fire;
-    globalThis.aGTM.f.fire = function (ev) { if (ev && ev.event === 'vPageview') fires++; };
+  it('registers the polling timer only once across repeated calls', () => {
+    // With interval > 0 and fallback = false, urlListener also registers a polling
+    // timer via aGTM.f.timer (alongside the Proxy). Timer names get a unique suffix,
+    // so there is NO name dedup — without the idempotency guard a second call would
+    // add a second, never-stopped interval. This asserts the real leak is closed.
+    // (A naive "fires exactly one event" check would NOT discriminate: the shared
+    // aGTM.d.last_url dedup masks the duplicate fire even when the guard is absent.)
+    globalThis.aGTM.f.urlListener('vPageview', 50, false);
+    globalThis.aGTM.f.urlListener('vPageview', 50, false); // must be a no-op
+    const timerKeys = Object.keys(globalThis.aGTM.d.timer).filter(function (k) {
+      return k.indexOf('urlListener_') === 0;
+    });
     try {
-      globalThis.aGTM.f.urlListener('vPageview', 0, false);
-      globalThis.aGTM.f.urlListener('vPageview', 0, false); // no-op
-      globalThis.location.href = 'http://localhost/next';
-      globalThis.history.pushState({}, '', '/next');
-      expect(fires).toBe(1);
+      expect(timerKeys.length).toBe(1);
     } finally {
-      globalThis.aGTM.f.fire = origFire;
-      globalThis.location.href = 'http://localhost/test';
+      // Stop the interval so it does not leak into other tests.
+      timerKeys.forEach(function (k) { globalThis.aGTM.f.stoptimer(k); });
     }
   });
 });
