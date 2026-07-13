@@ -73,9 +73,22 @@ Configure the consent attributes and their conditions. Each row in the table rep
 ### Additional Options
 
 - **Use as Consent Update (`cm_update`)**: Use this tag as a consent update rather than setting defaults.
+- **Update after Default (`cm_update_after_default`)**: Set an all-denied default first, then immediately apply the real consent as an update (one tag, one page load).
 - **Wait for Consent Update (`cm_wait`)**: Delay setting the consent state (in milliseconds).
+- **CM Regions (`cm_regions`)**: Comma-separated ISO 3166-2 region codes (e.g. `DE,AT,US-CA`) that scope the **default** consent state. Leave at `all` (or empty) for a global default.
 - **URL Passthrough (`url_passthrough`)**: Pass through URL parameters for better ad tracking.
 - **Ads Data Redaction (`ads_data_redaction`)**: Redact ads data when `ad_storage` is denied.
+
+> **How `cm_regions` interacts with "Update after Default":** Consent Mode's
+> `region` parameter is only valid on the **default** state, not on updates
+> (`updateConsentState` is location-independent). So in *Update after Default*
+> mode the all-denied **default** is scoped to `cm_regions`, and the following
+> **update** (region-less) applies the real consent to the current visitor
+> everywhere. **Outside** the configured regions there is then *no aGTM default*
+> — Google Consent Mode treats that as unset, and the region-less update provides
+> the actual state. If you need an explicit *granted* baseline outside the regions
+> (independent of the update), set a second, global Consent Mode tag with granted
+> defaults and no region (Google's recommended two-default pattern).
 
 ### Consent Default Settings (`cm_defaults`)
 

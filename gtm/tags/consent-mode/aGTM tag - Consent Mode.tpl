@@ -567,11 +567,21 @@ if (o.c.cm_update) {
       var s = o.c.cm_signals[i];
       o.d.cmd[s] = 'denied';
     }
+    // Region belongs on the DEFAULT: `region` is only valid on
+    // setDefaultConsentState, not updateConsentState (the update is already
+    // location-independent). Without this the all-denied default applied
+    // GLOBALLY - a configured cm_regions was silently ignored, so the deny
+    // baseline hit visitors outside the intended regions too (F-31c). Scoping
+    // the denied default to cm_regions means the region-less update below sets
+    // the real consent per user everywhere else. NOTE: outside the region there
+    // is now no aGTM default (Consent Mode treats unset per Google's rules); the
+    // region-less updateConsentState provides the actual state for those users.
+    if (o.d.cm.region) o.d.cmd.region = o.d.cm.region;
     setDefaultConsentState(o.d.cmd);
     if (debug) log('info','Consent Default before Update', 'Default', JSON.parse(JSON.stringify(o.d.cmd)), 'Update', JSON.parse(JSON.stringify(o.d.cm)));
     let cm = JSON.parse(JSON.stringify(o.d.cm));
     Object.delete(cm, 'wait_for_update');
-    Object.delete(cm, 'region');
+    Object.delete(cm, 'region'); // correct: updateConsentState has no region param
     updateConsentState(cm);
     if (debug) log('info','Consent Update after Default', JSON.parse(JSON.stringify(cm)));
   } else {
