@@ -182,7 +182,7 @@ arrive. The predicate reuses aGTM's `event[attr]` / `event[attr:value]` syntax:
 |---|---|
 | `user_data?if=user[id]` | an event `user` with a **non-empty** `id` exists (logged-in) |
 | `user_data?if=user[type:premium]` | an event `user` with `type === "premium"` exists (strict string compare) |
-| `user_data?if=user` | an event `user` exists at all (any value) |
+| `user_data?if=user` | an event `user` exists at all (an *absent* `user` keeps waiting until it appears or the timeout — it is **not** an instant skip; prefer the `[attr]` form with an always-present discriminator when you want the fast guest skip) |
 | `user_data` (no `?if=`) | **always** (unchanged default) |
 
 `null`, `undefined` and `""` all count as "not set". A **malformed** predicate

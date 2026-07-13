@@ -153,7 +153,7 @@
             "status": "in-progress",
             "priority": "P1",
             "owner": "Claude Opus",
-            "qa": false,
+            "qa": true,
             "critical": false,
             "blocked": false,
             "complexity": "S",
@@ -180,7 +180,7 @@
               }
             ],
             "displayId": 15,
-            "columnId": "col-qa"
+            "columnId": "col-erledigt"
           },
           {
             "id": "agtm-f23-conditional-gate",
@@ -189,7 +189,7 @@
             "status": "in-progress",
             "priority": "P1",
             "owner": "Claude Opus",
-            "qa": false,
+            "qa": true,
             "critical": false,
             "blocked": false,
             "complexity": "M",
@@ -213,10 +213,16 @@
                 "author": "Claude Opus",
                 "text": "2 Kritiker-Runden (adversarial, diverse Lenses) durch. Kritiker A fand 1x P1: stiller Enrichment-Verlust, wenn Diskriminator-Event (user) NACH dem Gate-Check kommt -> eingeloggter Nutzer haette un-enriched replayed OHNE Fallback. BEHOBEN via Tri-State-Praedikat condState (1=verlangt / 0=nicht verlangt / -1=Diskriminator fehlt->warten). Zusaetzlich: Malformed-?if= (fehlendes ], leeres Attr) faellt fail-safe auf unbedingt + dbg-Warnung zurueck. Kritiker B: keine P0/P1, ES5 sauber, Doku konsistent; P2-Klarstellungen (PARSE-Syntax vs. consent_events Leerwert-Semantik, ?if=E-Form) eingearbeitet. 6 neue Tests (P1-Race, id:0/false, id:\"\", fehlendes Attr, Malformed, Wert-mit-Doppelpunkt). 205 bun-Tests gruen, build clean. Wartet weiter auf Andis Live-Test.",
                 "created": "2026-07-12"
+              },
+              {
+                "id": "b997502f-572a-416a-8671-03853fc716a8",
+                "author": "Claude Opus",
+                "text": "LIVE bei fc-moto seit 2026-07-13 (Client+Config aPageview,user_data?if=user[id]). 3. Runde nach Live (Kritiker C + QA D): kein P0/P1. QA D verifizierte Artefakt-Sync (aGTM.min.js<->Source, base64<->min.js, tpl-Blob<->base64 alle identisch, Build idempotent) - der live ausgelieferte Stand = Quelle. Kritiker C bestaetigte Tri-State/Malformed-Fix korrekt. Zusatz-Haertung eingebaut: parseCond failt auch bei Trailing-Junk nach ] sicher zu unbedingt; leerer Gate-Name vor ?if= wird geskippt; Presence-Form ?if=E Doku praezisiert (-1=warten). 5 neue Tests (Presence present/absent, Trailing, leerer Name, gemischte Multi-Gates mit -1-Blockade). 210 bun-Tests gruen, build clean. Karte erledigt.",
+                "created": "2026-07-13"
               }
             ],
             "displayId": 16,
-            "columnId": "col-qa"
+            "columnId": "col-erledigt"
           }
         ]
       },
@@ -332,6 +338,24 @@
             "comments": [],
             "displayId": 8,
             "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-sgtm-client-template-tests",
+            "title": "sGTM Client: ___TESTS___ ausbauen (aktuell 1 No-op-Smoke-Test)",
+            "description": "Der ___TESTS___-Block in sgtmClient/template.tpl (Z.1881ff) hat genau EIN Szenario Check JS Code: runCode(mockData) mit ALLEN assertApi auskommentiert => prueft nichts ausser wirft-nicht, bei einer Mock-Config. ~750 Zeilen Server-Logik (SANDBOXED_JS_FOR_SERVER 891-1638) template-seitig ungetestet. Ausbau: (a) Smoke-Test echte Assertions geben (setResponseStatus 200, setResponseHeader Content-Type, setResponseBody enthaelt aGTM-Lib-base64); (b) Branch-Tests fuer config-ableitbare Logik: gtm_consent true/false, cmp none vs. konfiguriert, gdl gesetzt/leer, debug on/off, useListener, sendConsentEvent; (c) base64-Injektion/URL-Bau. I/O-lastige Pfade (Session/Consent/Sources HTTP) bleiben besser vom internal/api-Smoketest abgedeckt (E2E) - Template-Tests fokussieren pure/config-Logik.",
+            "status": "todo",
+            "priority": "P2",
+            "owner": "Claude",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": "2",
+            "agentContext": "sgtmClient/template.tpl ___TESTS___ (1881ff, YAML scenarios+setup), Logik in ___SANDBOXED_JS_FOR_SERVER___ (891-1638). GTM Server-Template-Test-API: mock()/assertApi()/runCode()/require(). WICHTIG (Memory sgtm-client-source-template-sync): der Sandboxed-Block muss byte-identisch zur sgtmClient/src/*.js-Source bleiben - Tests aendern NUR den ___TESTS___-Block, nie den Logik-Block. build.sh syncht base64+version. E2E-Abdeckung liegt im internal/api-Smoketest (gitignored).",
+            "links": [],
+            "comments": [],
+            "displayId": 18,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -415,7 +439,7 @@
         ]
       }
     ],
-    "nextDisplayId": 17,
+    "nextDisplayId": 19,
     "attachments": [],
     "background": null,
     "templates": [],
