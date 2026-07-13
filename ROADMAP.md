@@ -14,6 +14,7 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 - `_noConsent` event property: bypasses consent gate for both DL push and POST
 - `_noDLPush` event property: skips the GTM dataLayer push but still records internally + still POSTs — for Google-independent event transport
 - Foundation for standalone aGTM usage without a webGTM container
+- **DL-Repeat / late-enrichment engine moved into the library** (`aGTM.f.dlrepeat`): the GTM "DL Repeat" tag is now a thin wrapper; the library watches the chosen source (`aGTM.d.f` / `aGTM.d.dl` / live `dataLayer`) and replays matching earlier events once the wait-event(s) arrive (or after a timeout). Includes the conditional gate syntax (`G?if=E[A]`) and the opt-in `aGTM_repeat_fallback` error signal with `aGTMrepeatMissing`/`aGTMrepeatWaited` diagnostics.
 - New CMPs: JTL Consent, JTL EU Cookie
 - New GTM Variable Templates: Consent Check, Consent Info
 - Build script (`build.sh`) for automated minification and Base64 generation
