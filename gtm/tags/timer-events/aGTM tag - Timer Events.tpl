@@ -159,6 +159,10 @@ if (o.c.timers.length>0) {
     var sec = makeNumber(t.seconds);
     if (sec !== sec || sec <= 0) continue;
     var ms = makeInteger( sec * 1000 );
+    // A sub-millisecond seconds value (e.g. 0.0004) passes the sec>0 guard but
+    // rounds to ms=0; with repeat=0 that is exactly the 0ms tight loop we guard
+    // against, so drop it here too.
+    if (ms <= 0) continue;
 
     // Validate the repeat count. 0 stays "unlimited" (documented); NaN or a
     // negative typo falls back to a single fire so a mistyped value can never
@@ -293,6 +297,14 @@ scenarios:
     });
     runCode({ timers: [{ seconds: '0', repeat: '1', eventname: 'a' }, { seconds: '-5', repeat: '1', eventname: 'b' }], addparameter: [], ua_event: false });
     assertThat(count).isEqualTo(0);
+- name: Sub-millisecond seconds that round to 0ms are skipped
+  code: |-
+    let count = 0;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { count++; }
+    });
+    runCode({ timers: [{ seconds: '0.0004', repeat: '0', eventname: 'a' }], addparameter: [], ua_event: false });
+    assertThat(count).isEqualTo(0);
 - name: Invalid or negative repeat falls back to a single fire
   code: |-
     let call = null;
@@ -338,8 +350,9 @@ Requires an aGTM integration of the GTM.
 
 ### Version 1.1 (13.07.2026)
 
-- Non-numeric, zero or negative "Seconds" values are now skipped instead of
-  arming a 0ms timer (a 0ms timer combined with unlimited repeat is a tight loop).
+- Non-numeric, zero, negative or sub-millisecond "Seconds" values (anything
+  that rounds to 0ms) are now skipped instead of arming a 0ms timer (a 0ms
+  timer combined with unlimited repeat is a tight loop).
 - "Repeat" falls back to a single fire for non-numeric or negative input; `0` is
   still honoured as "unlimited".
 - Removed the duplicate additional-parameter loop (parameters are merged once).

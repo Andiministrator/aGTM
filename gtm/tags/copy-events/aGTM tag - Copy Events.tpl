@@ -444,7 +444,7 @@ scenarios:
     let fired = null, cb = null;
     mock('callInWindow', function(fn) {
       if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
-      if (fn === 'aGTM.f.rTest') { return arguments[2].indexOf('@') !== -1; }
+      if (fn === 'aGTM.f.rTest') { return arguments[1].indexOf('@') !== -1; }
       if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
       if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
     });
