@@ -1,12 +1,12 @@
 # aGTM iFrame Support
 
-**Version**: 1.0
+**Version**: 1.1
 **Author**: Andi Petzoldt (<andi@petzoldt.net>)
-**Last Update**: 30.03.2024
+**Last Update**: 13.07.2026
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
 
-**Template File**: [aGTM-tag-iFrame-Support.tpl](./aGTM-tag-iFrame-Support.tpl)
+**Template File**: [aGTM tag - iFrame Support.tpl](./aGTM%20tag%20-%20iFrame%20Support.tpl)
 
 ---
 
@@ -43,6 +43,23 @@ Define a list of hostnames to specify which iFrames should be allowed to send ev
 
 - **Hostname**: The domain name from which events are allowed.
 - **Regexp?**: Enable if the hostname is a regular expression.
+
+> **Security — fail-closed origin handling.** Foreign-origin `postMessage`s are
+> validated before an event is fired:
+> - **Opaque / non-http origins** (sandboxed or `srcdoc` frames reporting origin
+>   `"null"`, `data:`/`blob:`) are **always rejected** — they can never be
+>   allow-listed.
+> - When you configure a hostname allow-list, the sender hostname **must** match
+>   an entry, otherwise the message is dropped.
+> - Only messages carrying a non-empty `event` are fired; event-less foreign
+>   messages are ignored (no dataLayer injection).
+> - Leaving the list empty accepts events from **any** http/https iFrame origin —
+>   use this only for trusted same-site setups; for production, list the exact
+>   hostnames you expect.
+>
+> On the library side, the iFrame accepts the top→iFrame handshake only from
+> `window.top`, so a sibling frame or injected script cannot hijack the return
+> origin.
 
 ### Event Filter and Modifications
 - **Event Prefix**: Add a prefix to the event names (e.g., `iframe_`).

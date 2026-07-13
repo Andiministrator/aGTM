@@ -163,6 +163,20 @@ confirmed against the source and fixed in `gtm/tags/dl-repeat/aGTM tag - DL Repe
 - **Ineffective permission guard** — a missing `access_globals` permission only logged a warning and then fired anyway. Now aborts.
 - **Config trap** — with both send-type checkboxes off the tag silently did nothing. "Send Events fired via aGTM.f.fire" now defaults to on, with help text noting at least one must be enabled.
 
+### GTM template "iFrame Support" — security hardening (v1.5 release-gate)
+
+Template audit finding on `gtm/tags/iframe-support/aGTM tag - iFrame Support.tpl`
+(+ library side `aGTM.js`). The tag processed foreign-origin `postMessage`s
+fail-open; fixed to fail-closed (tag `1.0 → 1.1`):
+
+- **Opaque-origin bypass** — an opaque / non-http origin (sandboxed or `srcdoc` frames reporting origin `"null"`, `data:`/`blob:`) resolved to an empty hostname, which skipped the allow-list check entirely and let the message through even when an allow-list was configured. Opaque origins are now **always rejected**; a configured allow-list is enforced strictly.
+- **dataLayer injection via event-less messages** — foreign messages without a valid `event` were unconditionally merged into the predefined event and fired. Now only messages carrying a non-empty `event` are processed.
+- **Handshake origin hijack (library)** — `aGTM.f.ifHSlisten` adopted the sender origin of any message matching the handshake string, so a sibling frame or injected script could forge the handshake and redirect all outgoing iFrame events. It now accepts the handshake only from `window.top` (`e.source === window.top`). The top-side `targetOrigin: "*"` broadcast is retained (fixed non-sensitive token) and documented as safe because security is enforced on the receiver.
+- **Cross-message state leak** — the predefined event object `o.d.e` was mutated in place on every message (and pushed to the queue by reference), so parameters leaked between messages. It is now an immutable base cloned per message.
+- **Dead code** — removed the unreachable `o.c.eventname` branch.
+- **Docs / defaults** — hostname-filter help text and README now warn that an empty list accepts any http/https origin (trusted same-site only) and that opaque origins are always rejected.
+- **Tests** — library regression test `test/iframe_handshake.test.js` (handshake accepted from top, forged handshake rejected, wrong payload / non-iframe ignored, queue flushed to the verified origin). GTM `___TESTS___` scenarios remain part of the systemic test buildout.
+
 ### Other v1.5 fixes and additions
 
 - Bug fix: `consent_events` config option now wired up via `config()` (was never read from user config)
