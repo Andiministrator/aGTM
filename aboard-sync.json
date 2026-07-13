@@ -422,6 +422,12 @@
                 "author": "Claude Opus",
                 "text": "F-33 behoben. Security-Fixes: (b) opake/leere Origin fail-closed immer verworfen + Allowlist strikt; (c) Fire nur bei non-empty event (keine dataLayer-Injection); (d) Library ifHSlisten prueft e.source===window.top (Handshake-Spoofing zu); (e) o.d.e per Nachricht geklont (kein Key-Leak); (f) toter eventname-Code raus. Help-Text/README/NOTES verschaerft, Tag 1.0->1.1. Neuer Library-Regressionstest test/iframe_handshake.test.js (5 Faelle), 220 Tests gruen, build.sh ohne Warnung. Offen nur GTM-___TESTS___-Szenarien = systemisch F-41.",
                 "created": "2026-07-13"
+              },
+              {
+                "id": "1b79cef8-b8cc-4f5e-85fe-4dd849f6d69b",
+                "author": "Claude Opus",
+                "text": "QA/Kritiker-Runde bestanden (2026-07-13): Fix schliesst Fail-open ohne Bypass (e.source===window.top cross-origin ok/wirft nicht; opake Origin immer raus; Event-Pflicht; Per-Message-Klon). Test 2 diskriminierend (failt ohne Fix, empirisch). Kein P0/P1. Design-Vermerke (kein Blocker): Top-Empfaenger prueft e.source nicht -> leere Allowlist=trusted-only (dokumentiert); verschachtelte iFrames unveraendert nicht unterstuetzt (keine Regression).",
+                "created": "2026-07-13"
               }
             ]
           },
@@ -443,6 +449,12 @@
                 "author": "Claude Opus",
                 "text": "F-30 behoben. (a) clickevent-Feld lebt (war data.startevent → tot); Default form_click statt hart form_start (Verhaltensaenderung, dokumentiert). (b) maxclicks akzeptiert number+numerischen String, NaN/<=0-Guard. (c) aGTMformClicks jetzt Objekt-Map pro Formular. (d) Null-Guard el.form||{}. Tag 1.0->1.1, README Link+Lizenz(Apache) mit. GTM-___TESTS___ = systemisch F-41. Reine Template-Aenderung, kein Build noetig.",
                 "created": "2026-07-13"
+              },
+              {
+                "id": "558e343d-5185-400f-bf3c-85980c7fd8c1",
+                "author": "Claude Opus",
+                "text": "QA/Kritiker-Runde bestanden (2026-07-13): kein P0/P1. Follow-ups in 723822e: totes logToConsole-require + logging-Permission raus (Konsistenz #23); form_start-Fallback->form_click; Migrations-Hinweis (Trigger form_start->form_click umstellen) in README/NOTES/CHANGELOG; anonyme-Formulare-teilen-Counter als bekannte Grenze dokumentiert. maxclicks/Null-Guard/Per-Form-Counter verifiziert sauber.",
+                "created": "2026-07-13"
               }
             ]
           },
@@ -463,6 +475,12 @@
                 "id": "9e9d1885-f4ea-40f7-9a14-26eb91f627c9",
                 "author": "Claude Opus",
                 "text": "F-36 behoben. (a) README-Default vPageview->aPageview + Beispiel/Deprecation/Dateiname/Link (Tag-Feld war schon korrekt aPageview). (b) LIBRARY-Fix aGTM.f.urlListener Idempotenz-Guard urlListener_active (deckt gtm_load + Tag) -> keine Proxy-Verschachtelung/Doppel-vPageview; Test test/urllistener_idempotent.test.js (3), 223 gruen, build sauber. (c) ungegatete log()-Zeilen raus. (e) tote requires (logToConsole/setInWindow/copyFromWindow/queryPermission) + logging-Permission + WebGL-Deadcode raus, Perms-JSON valide. Tag 1.0->1.1. Deferred: (d) GTM-Tests F-41; (f)+pageinfo-Perm-Granularitaet F-42.",
+                "created": "2026-07-13"
+              },
+              {
+                "id": "720b15b5-4883-4291-a5ea-bb6626da3433",
+                "author": "Claude Opus",
+                "text": "QA/Kritiker-Runde bestanden (2026-07-13): kein P0/P1. Follow-ups in 723822e: Test 3 war tautologisch (gruen auch ohne Guard, last_url-Dedup maskiert Doppel-Fire) -> auf Timer-Anzahl umgestellt (echte Idempotenz, ohne Guard failen alle 3, verifiziert); Guard-Kommentar korrigiert (Ressourcen-Leak statt Doppel-Events); urlListener_active in objinit. Dead-Code-Removal + Perms-JSON verifiziert valide.",
                 "created": "2026-07-13"
               }
             ]
