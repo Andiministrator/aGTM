@@ -492,14 +492,24 @@ o.c.ads_data_redaction = typeof data.ads_data_redaction=='boolean' ? data.ads_da
 o.c.ms_consent_mode = typeof data.ms_consent_mode=='boolean' ? data.ms_consent_mode : false;
 o.c.cm_event = typeof data.cm_event=='boolean' ? data.cm_event : false;
 
-// Get consent signals from aGTM
-var consent = copyFromWindow('aGTM.d.consent');
+// Get consent signals from aGTM. Guard against aGTM not being loaded yet
+// (copyFromWindow returns undefined): without this, the .hasResponse access
+// below throws a TypeError, so setDefaultConsentState/updateConsentState never
+// run and NO deny-default is set - fail-open exactly in the consent-critical
+// moment (e.g. when the tag fires on the Consent Initialization trigger before
+// aGTM populated aGTM.d.consent). Fail closed: missing consent = {}.
+var consent = copyFromWindow('aGTM.d.consent') || {};
 if (debug) log('info','aGTM Consent Info', JSON.parse(JSON.stringify(consent)));
 
-// Run Consent Check Fallback
-if (debug && typeof consent.hasResponse!='boolean' || !consent.hasResponse) {
+// Run Consent Check Fallback: when aGTM has no valid consent response yet, ask
+// the CMP directly, THEN re-read the freshly written consent so the signal
+// computation below actually uses it (the copy taken above is stale and would
+// otherwise ignore what consent_check just wrote). No debug gating - the
+// fallback must run in production too.
+if (typeof consent.hasResponse!='boolean' || !consent.hasResponse) {
   const c_check = callInWindow('aGTM.f.consent_check', 'init');
   if (debug) log('info','consent_check Info', c_check);
+  consent = copyFromWindow('aGTM.d.consent') || consent;
 }
 
 // Helper function to check a defined consent in aGTM
@@ -566,7 +576,7 @@ if (o.c.cm_update) {
     if (debug) log('info','Consent Update after Default', JSON.parse(JSON.stringify(cm)));
   } else {
     setDefaultConsentState(o.d.cm);
-    if (debug) log('info','Consent Default', JSON.parse(JSON.stringify(o.d.cmd)));
+    if (debug) log('info','Consent Default', JSON.parse(JSON.stringify(o.d.cm)));
   }
 }
 

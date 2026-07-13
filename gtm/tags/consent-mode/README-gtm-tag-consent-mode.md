@@ -68,7 +68,7 @@ Configure the consent attributes and their conditions. Each row in the table rep
 |--------------------|------------------------------------------------|--------------------|
 | **Consent Mode Attribute** | Select which attribute to set.               | `ad_storage`       |
 | **Consent Type**   | Define the type of consent (Purpose, Service, Vendor, etc.). | `Service`          |
-| **Consent Value**  | Value to check for consent.                    | `Google Ads`       |
+| **Consent Value**  | Value to check for consent. aGTM stores consent as comma-wrapped token strings (e.g. `,Google Ads,Google Tag Manager,`), and the match is a substring check — so **wrap the value in commas** (`,Google Ads,`) for an exact token match. Without the commas, `Google Ads` would also match a service named `Google Ads Remarketing` (false grant). | `,Google Ads,`     |
 
 ### Additional Options
 
@@ -97,7 +97,7 @@ Here’s an example of how to set up the Consent Mode:
 1. **Consent Attributes**:
    - **Consent Mode Attribute**: `ad_storage`
    - **Consent Type**: `Service`
-   - **Consent Value**: `Google Ads`
+   - **Consent Value**: `,Google Ads,` (comma-wrapped for an exact token match — see note above)
 
 2. **Additional Options**:
    - **Wait for Consent Update**: `500ms`
