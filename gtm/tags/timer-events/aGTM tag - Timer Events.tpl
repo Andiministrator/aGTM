@@ -112,7 +112,6 @@ ___TEMPLATE_PARAMETERS___
 ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Import needed libraries
-const log = require('logToConsole');
 const callInWindow = require('callInWindow');
 const makeInteger = require('makeInteger');
 const makeNumber = require('makeNumber');
@@ -121,7 +120,7 @@ const JSON = require('JSON');
 
 /**
  * Build aGTM shadow object
- * @lastupdate 12.02.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 13.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {object} o
  * @param {object} c - config
@@ -139,7 +138,7 @@ o.c.timers = typeof data.timers=='object' ? data.timers : [];
 o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
 o.c.ua_event = typeof data.ua_event=='boolean' ? data.ua_event : false;
 
-// Prepare event
+// Merge the additional parameters into the base event once (reused per timer row).
 if (o.c.addparameter.length>0) {
   for (var j=0; j<o.c.addparameter.length; j++) {
     var row = o.c.addparameter[j];
@@ -149,20 +148,28 @@ if (o.c.addparameter.length>0) {
 
 // Run
 if (o.c.timers.length>0) {
-  // Prepare event
-  o.c.addparameter.forEach(function(row) {
-    o.d.e[row.pkey] = row.pvalue;
-  });
   for (var i=0; i<o.c.timers.length; i++) {
     var t = o.c.timers[i];
 
-    // Create new event object
-    var ev = JSON.parse(JSON.stringify(o.d.e));
+    // Validate the delay. makeNumber returns NaN for non-numeric input and
+    // typeof NaN === 'number', so the old typeof-guard let it through and
+    // makeInteger(NaN*1000) armed a 0ms timer (with unlimited repeat = a tight
+    // loop). Use the NaN self-inequality (sec !== sec) and skip any row whose
+    // seconds is not a positive number instead of silently firing at 0ms.
+    var sec = makeNumber(t.seconds);
+    if (sec !== sec || sec <= 0) continue;
+    var ms = makeInteger( sec * 1000 );
 
-    // Check and prepare parameters
-    ev.event = t.eventname; //if (ev.event.indexOf('[s]')) ev.event = ev.event.replace('[s]', makeString(t.seconds));
-    var ms = makeNumber(t.seconds); if (typeof ms!='number') ms = 0; ms = makeInteger( ms * 1000 );
-    var rp = makeInteger(t.repeat); if (typeof rp!='number') rp = 1;
+    // Validate the repeat count. 0 stays "unlimited" (documented); NaN or a
+    // negative typo falls back to a single fire so a mistyped value can never
+    // create an unintended unlimited timer.
+    var rp = makeNumber(t.repeat);
+    if (rp !== rp || rp < 0) rp = 1;
+    rp = makeInteger(rp);
+
+    // Create a fresh event object per timer row
+    var ev = JSON.parse(JSON.stringify(o.d.e));
+    ev.event = t.eventname; // the '[s]' placeholder is resolved by aGTM.f.timerfkt at fire time
 
     // UA Event
     if (o.c.ua_event) {
@@ -171,7 +178,7 @@ if (o.c.timers.length>0) {
       ev.event_label = makeString(t.seconds) + 's x ' + makeString(rp);
     }
 
-    // Overhand Timer to aGTM
+    // Hand the timer over to aGTM
     callInWindow('aGTM.f.timer', '', false, ev, ms, rp);
 
   }
@@ -187,27 +194,6 @@ ___WEB_PERMISSIONS___
   {
     "instance": {
       "key": {
-        "publicId": "logging",
-        "versionId": "1"
-      },
-      "param": [
-        {
-          "key": "environments",
-          "value": {
-            "type": 1,
-            "string": "debug"
-          }
-        }
-      ]
-    },
-    "clientAnnotations": {
-      "isEditedByUser": true
-    },
-    "isRequired": true
-  },
-  {
-    "instance": {
-      "key": {
         "publicId": "access_globals",
         "versionId": "1"
       },
@@ -217,84 +203,6 @@ ___WEB_PERMISSIONS___
           "value": {
             "type": 2,
             "listItem": [
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM.f.fire"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  }
-                ]
-              },
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "aGTM"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
               {
                 "type": 3,
                 "mapKey": [
@@ -349,7 +257,66 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Converts seconds to milliseconds and forwards the repeat count
+  code: |-
+    let call = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { call = { ev: arguments[3], ms: arguments[4], rp: arguments[5] }; }
+    });
+    runCode({ timers: [{ seconds: '2', repeat: '3', eventname: 'my_timer' }], addparameter: [], ua_event: false });
+    assertThat(call).isDefined();
+    assertThat(call.ms).isEqualTo(2000);
+    assertThat(call.rp).isEqualTo(3);
+    assertThat(call.ev.event).isEqualTo('my_timer');
+- name: Fractional seconds resolve to milliseconds
+  code: |-
+    let call = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { call = { ms: arguments[4] }; }
+    });
+    runCode({ timers: [{ seconds: '0.2', repeat: '1', eventname: 'timer' }], addparameter: [], ua_event: false });
+    assertThat(call.ms).isEqualTo(200);
+- name: Non-numeric seconds are skipped instead of arming a 0ms timer
+  code: |-
+    let called = false;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { called = true; }
+    });
+    runCode({ timers: [{ seconds: 'abc', repeat: '1', eventname: 'timer' }], addparameter: [], ua_event: false });
+    assertThat(called).isEqualTo(false);
+- name: Zero or negative seconds are skipped
+  code: |-
+    let count = 0;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { count++; }
+    });
+    runCode({ timers: [{ seconds: '0', repeat: '1', eventname: 'a' }, { seconds: '-5', repeat: '1', eventname: 'b' }], addparameter: [], ua_event: false });
+    assertThat(count).isEqualTo(0);
+- name: Invalid or negative repeat falls back to a single fire
+  code: |-
+    let call = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { call = { rp: arguments[5] }; }
+    });
+    runCode({ timers: [{ seconds: '1', repeat: 'oops', eventname: 'timer' }], addparameter: [], ua_event: false });
+    assertThat(call.rp).isEqualTo(1);
+- name: Repeat 0 is preserved as unlimited
+  code: |-
+    let call = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { call = { rp: arguments[5] }; }
+    });
+    runCode({ timers: [{ seconds: '1', repeat: '0', eventname: 'timer' }], addparameter: [], ua_event: false });
+    assertThat(call.rp).isEqualTo(0);
+- name: Additional parameters are merged into the timer event
+  code: |-
+    let call = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.timer') { call = { ev: arguments[3] }; }
+    });
+    runCode({ timers: [{ seconds: '1', repeat: '1', eventname: 'timer' }], addparameter: [{ pkey: 'foo', pvalue: 'bar' }], ua_event: false });
+    assertThat(call.ev.foo).isEqualTo('bar');
 setup: ''
 
 
@@ -357,14 +324,36 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.0
+- Version 1.1
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 12.02.2024
+- Last Update: 13.07.2026
 
 ## Description
 
 Sometimes the GTM timer event isn't working as expected.
 This Custom Template is for an alternative.
 Requires an aGTM integration of the GTM.
+
+## Changelog
+
+### Version 1.1 (13.07.2026)
+
+- Non-numeric, zero or negative "Seconds" values are now skipped instead of
+  arming a 0ms timer (a 0ms timer combined with unlimited repeat is a tight loop).
+- "Repeat" falls back to a single fire for non-numeric or negative input; `0` is
+  still honoured as "unlimited".
+- Removed the duplicate additional-parameter loop (parameters are merged once).
+- Least-privilege permissions: only "execute" on `aGTM.f.timer` is requested now
+  (the unused `logging` permission and the read/write `aGTM` + `aGTM.f.fire`
+  globals were removed).
+- Added ___TESTS___ scenarios covering the seconds/repeat validation.
+
+## Known limitation
+
+`aGTM.f.timer` creates an independent timer on every tag run. If this tag is
+triggered multiple times per page (e.g. on every SPA virtual pageview) while a
+row uses Repeat = `0` (unlimited), those timers accumulate and are never
+stopped. Prefer a finite Repeat value, or a trigger that fires only once per
+page, for unlimited timers.
 
 
