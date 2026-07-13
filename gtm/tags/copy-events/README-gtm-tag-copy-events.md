@@ -4,13 +4,13 @@
 
 The **aGTM Copy Events Template** allows you to track whenever users copy text from your website. It provides detailed information about the copied content, such as whether it was an email address or a phone number, and allows you to filter or modify the captured text. This template is ideal for monitoring user engagement with specific content.
 
-- **Version**: 1.0
-- **Last Updated**: 20.03.2024
+- **Version**: 1.1
+- **Last Updated**: 13.07.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
 
-**Template File**: [aGTM-tag-Copy-Events.tpl](./aGTM-tag-Copy-Events.tpl)
+**Template File**: [aGTM tag - Copy Events.tpl](./aGTM%20tag%20-%20Copy%20Events.tpl)
 
 ---
 
@@ -48,7 +48,7 @@ This template requires an existing **aGTM integration** within your GTM setup.
 
 1. Open your **Google Tag Manager** container.
 2. Navigate to **Templates** > **Tag Templates** > **New**.
-3. Import the **aGTM Copy Events Template** (`aGTM-tag-Copy-Events.tpl`).
+3. Import the **aGTM Copy Events Template** (`aGTM tag - Copy Events.tpl`).
 4. Save and publish the template.
 
 ### 2. Tag Configuration
@@ -120,9 +120,6 @@ Here’s an example of how to set up a copy event:
 
 ## Debugging and Testing
 
-### Enabling Debug Mode
-To view debug messages in the browser console, ensure that your aGTM integration is set to `debug: true`.
-
 ### Checking Event Data
 - Use the **Google Tag Assistant** or **GTM Preview Mode** to verify that events are firing as expected.
 - Check the `dataLayer` to confirm that all configured parameters are included.
@@ -141,7 +138,7 @@ To view debug messages in the browser console, ensure that your aGTM integration
 
 ## License
 
-This template is released under the MIT License. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
+This template is released under the Apache License 2.0. For more details, visit the [GitHub Repository](https://github.com/Andiministrator/aGTM/).
 
 ---
 
