@@ -90,6 +90,35 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired.map((e) => e.event)).toEqual(['view_item']);
   });
 
+  // F-24: a white-/blacklist entry containing regex metacharacters must be
+  // matched literally, not blow up the RegExp constructor (which would abort
+  // the replay mid-loop -> partial replay). '.' is literal, only '*' wildcards.
+  test('whitelist with regex metacharacters matches literally without aborting', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'view_item(A)', aGTMdl: true },
+      { event: 'checkout.step', aGTMdl: true },
+      { event: 'checkoutXstep', aGTMdl: true },  // '.' must be literal -> NOT matched
+      { event: 'purchase', aGTMdl: true }
+    ];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true, whitelist: 'view_item(A),checkout.step' });
+    expect(fired.map((e) => e.event).sort()).toEqual(['checkout.step', 'view_item(A)']);
+  });
+
+  // F-25: a live-source event carrying a truthy eventModel must be re-fired with
+  // eventModel stripped (else fire()'s eventModel guard would silently drop it
+  // while it was still counted in `fired`).
+  test('replay strips eventModel so the event is not silently dropped', () => {
+    globalThis.aGTM.d.dl = [
+      { event: 'purchase', aGTMdl: true, eventModel: { value: 9 } }
+    ];
+    const fired = captureFires();
+    globalThis.aGTM.f.dlrepeat({ source: 'dl', gtmFired: true });
+    expect(fired.length).toBe(1);
+    expect(fired[0].event).toBe('purchase');
+    expect(fired[0].eventModel).toBeUndefined();
+  });
+
   test('runs at most once per page (dlrepeatDone guard)', () => {
     globalThis.aGTM.d.dl = [{ event: 'view_item', aGTMdl: true }];
     const fired = captureFires();

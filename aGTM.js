@@ -1875,8 +1875,11 @@ aGTM.f.stoptimer = function (nm) {
  *   conditional: "G?if=E[A]" / "G?if=E[A:V]" - G is only required when event E
  *   has a non-empty attr A / A===V, see gateReady below), whitelist, blacklist
  *   (csv, '*' wildcard), maxEvents (number), gtmFired/agtmFired/messages/
- *   gtmEvents/clearEcom/debug (booleans), addparameter (array of {pkey,pvalue}),
- *   pollMs (poll interval, default 300), timeoutMs (fallback timeout, 0 = none).
+ *   gtmEvents/clearEcom/fallbackEvent/debug (booleans), addparameter (array of
+ *   {pkey,pvalue}), pollMs (poll interval, default 300), timeoutMs (fallback
+ *   timeout, 0 = none). With fallbackEvent on, an "aGTM_repeat_fallback" event
+ *   is fired ONLY on the timeout path when at least one event was replayed
+ *   (see doReplay).
  * Usage: aGTM.f.dlrepeat({ source:'live', gateEvents:'user_data', timeoutMs:1500 });
  */
 aGTM.f.dlrepeat = function (cfg) {
@@ -1896,7 +1899,16 @@ aGTM.f.dlrepeat = function (cfg) {
     for (var k = 0; k < arr.length; k++) {
       var p = arr[k].replace(/^\s+|\s+$/g, "");
       if (!p) continue;
-      if (new RegExp("^" + p.replace(/\*/g, ".*") + "$", "i").test(name)) return true;
+      // Escape every regex metacharacter first, THEN turn the (now-escaped) '*'
+      // back into '.*' so only '*' acts as a wildcard. Without this a literal
+      // '(' / '[' / '+' in a white-/blacklist entry (e.g. "view_item(") makes
+      // the RegExp constructor throw and aborts the replay mid-loop (partial
+      // replay -> some conversion tags never re-fire). The try/catch is a
+      // belt-and-suspenders guard: a malformed pattern skips, it never throws.
+      var rx = p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
+      try {
+        if (new RegExp("^" + rx + "$", "i").test(name)) return true;
+      } catch (e) { /* malformed pattern: treat as non-match, keep scanning */ }
     }
     return false;
   };
@@ -2043,6 +2055,7 @@ aGTM.f.dlrepeat = function (cfg) {
       if (cfg.clearEcom && hasConsent && typeof clone.ecommerce != "undefined") aGTM.f.fire({ ecommerce: null, aGTMrepeated: true });
       delete clone.aGTMts; // else fire()'s loop guard would drop the event
       delete clone.aGTMparams;
+      delete clone.eventModel; // fire() also drops events with a truthy eventModel; strip it so a live-source item is not silently dropped while still counted in `fired`
       delete clone["gtm.uniqueEventId"];
       clone.aGTMrepeated = true;
       if (cfg.addparameter && cfg.addparameter.length) {
