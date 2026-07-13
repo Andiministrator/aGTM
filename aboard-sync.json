@@ -268,18 +268,6 @@
             "columnId": "col-schreiben"
           },
           {
-            "id": "agtm-v15-readmes",
-            "title": "Systemisch: READMEs Apache-2.0 + tote Links + Versionen (F-40)",
-            "description": "Alle Tag-/Variablen-READMEs: Lizenz MIT auf Apache-2.0 (rechtl. Fehlangabe, public); tote .tpl-Links Bindestrich auf Leerzeichen-Dateiname; Versions-/Datums-Drift README/Code/NOTES vereinheitlichen.",
-            "owner": "Claude Opus",
-            "complexity": "niedrig",
-            "effort": 2,
-            "agentContext": "gtm/tags/*/README*.md + gtm/variables/*/README*.md; findings F-40; Lizenz-Quelle CLAUDE.md=Apache 2.0",
-            "critical": false,
-            "displayId": 29,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-perms-cleanup",
             "title": "Systemisch: Permission/Deadcode-Cleanup alle Tags (F-42)",
             "description": "Pro Template: tote require(logToConsole/copyFromWindow/queryPermission) + ungenutzte logging-Permission + ueberbreiten access_globals-Key aGTM(read/write) entfernen (nur execute auf konkreten aGTM.f.* noetig). Least-Privilege fuer GTM-Gallery.",
@@ -542,6 +530,26 @@
                 "author": "Claude Opus",
                 "created": "2026-07-13",
                 "text": "ERLEDIGT (F-37/38/39, Commit 257e3d1, dev gepusht). Alle drei Variablen-Templates gehärtet. F-37 Consent-Check: Empty-Value-Falle behoben (indexOf()===0 → jeder nicht-leere Consent-String war granted; jetzt typeof v==string && v-Guard → leerer Value = nicht granted). F-38 Consent-Info: displayName-Fix (aGTM var - Consent → Consent Info); CM-Kopplung dokumentiert (cm/all lesen aGTM.d.cm, geschrieben vom Consent-Mode-TAG nicht der Library → ohne Tag/vor Tag-Lauf all-denied Default; README-Abschnitt + Inline-Kommentar); base64-Feld dokumentiert; Lib-Seed bewusst NICHT (Default reicht). F-39 Content-Counter: Null-Guard (pageinfo||{}) → sicherer 0-Default statt Exception bei noch-nicht-geladenem aGTM. Alle drei: Least-Privilege (tote logToConsole-requires + logging-Permissions + read-aGTM-Globals raus, nur getVal/pageinfo execute; Perms-JSON valide). ___TESTS___: 6+6+4 Szenarien (GTM-only, systemische bun-Abdeckung bleibt F-41). F-40-Anteil: READMEs Apache-Lizenz, tote Links→Leerzeichen-Namen, Versionen→1.1, stringify/base64 dokumentiert. 234 bun-Tests grün, build sauber. In QA für konsolidierten Kritiker-Gate."
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-readmes",
+            "title": "Systemisch: READMEs Apache-2.0 + tote Links + Versionen (F-40)",
+            "description": "Alle Tag-/Variablen-READMEs: Lizenz MIT auf Apache-2.0 (rechtl. Fehlangabe, public); tote .tpl-Links Bindestrich auf Leerzeichen-Dateiname; Versions-/Datums-Drift README/Code/NOTES vereinheitlichen.",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 2,
+            "agentContext": "gtm/tags/*/README*.md + gtm/variables/*/README*.md; findings F-40; Lizenz-Quelle CLAUDE.md=Apache 2.0",
+            "critical": false,
+            "displayId": 29,
+            "columnId": "col-qa",
+            "comments": [
+              {
+                "id": "b01fe5e5-5185-49a7-ad29-4c72435d08a5",
+                "author": "Claude Opus",
+                "created": "2026-07-13",
+                "text": "ERLEDIGT (F-40 systemisch, Commit 28f17c0, dev gepusht). Der Großteil (Lizenz/Link/Version PRO Template) wurde bereits in #20-#28 beim jeweiligen Karten-Touch mitgezogen. Systemischer Rest war nur: zwei verbliebene MIT-Lizenzen (consent-mode + dl-repeat README) → Apache-2.0. Verifiziert über ALLE getrackten Docs (git ls-files): kein MIT-License-String mehr, keine toten Dash-Style-.tpl-Links, alle Links in gtm/README-gtm-templates.md lösen auf reale (Leerzeichen-)Dateien auf. Versions-/Datums-Drift (F-40c) pro Template beim jeweiligen Karten-Touch bereinigt. In QA für konsolidierten Kritiker-Gate."
               }
             ]
           }
