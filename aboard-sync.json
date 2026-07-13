@@ -244,18 +244,6 @@
             "columnId": "col-schreiben"
           },
           {
-            "id": "agtm-v15-tag-consentmode",
-            "title": "Consent-Mode Tag: Fail-open-Fix + Tests (F-31)",
-            "description": "SICHERHEIT P1: consent||{} Guard (L500) + Re-Read copyFromWindow nach consent_check (L501); cm_regions ins After-Default; README Komma-Wrappung-Beispiel; TESTS (Default-Deny/granted/denied/After-Default/undefined-consent) + mockData-Feldnamen aktualisieren.",
-            "owner": "Claude Opus",
-            "complexity": "mittel",
-            "effort": 3,
-            "agentContext": "gtm/tags/consent-mode/aGTM tag - Consent Mode.tpl L500/501/528-565/1264; README; findings F-31; Web-Sandbox, Tests nur in GTM lauffaehig",
-            "critical": true,
-            "displayId": 20,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-tag-iframe",
             "title": "iFrame Tag: Fail-open/Origin + Library-Handshake + Tests (F-33)",
             "description": "SICHERHEIT P1: Origin fail-closed (leere/opake Origin verwerfen, L253), Fire in if(ev.event)-Guard (L263/305), o.d.e je Nachricht klonen, toten o.c.eventname-Code raus; LIBRARY aGTM.js 1211-1246 Handshake-Origin pruefen (targetOrigin, ifHSlisten e.origin) - ES5+bun test; TESTS (Allowlist, origin=null-Bypass, event-lose Msg, Filter, Cross-Msg-Isolation).",
@@ -410,6 +398,26 @@
                 "id": "23c611da-cc8c-4a3b-b9de-f857f374bf37",
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit 25cc8cd): F-24 matchList Metazeichen-Escaping + try/catch, F-25 eventModel-Strip in doReplay, F-27 JSDoc fallbackEvent, ROADMAP DL-Repeat-Zeile. 2 Regressionstests, 215 grün, Build sauber. F-26-Rest (CHANGELOG-Label + finale Testzahl) bewusst als Pre-Tag-Schritt an Release-Gate #1 verschoben (Label jetzt noch korrekt, Testzahl waechst noch).",
+                "created": "2026-07-13"
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-tag-consentmode",
+            "title": "Consent-Mode Tag: Fail-open-Fix + Tests (F-31)",
+            "description": "SICHERHEIT P1: consent||{} Guard (L500) + Re-Read copyFromWindow nach consent_check (L501); cm_regions ins After-Default; README Komma-Wrappung-Beispiel; TESTS (Default-Deny/granted/denied/After-Default/undefined-consent) + mockData-Feldnamen aktualisieren.",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/tags/consent-mode/aGTM tag - Consent Mode.tpl L500/501/528-565/1264; README; findings F-31; Web-Sandbox, Tests nur in GTM lauffaehig",
+            "critical": true,
+            "displayId": 20,
+            "columnId": "col-schreiben",
+            "comments": [
+              {
+                "id": "bcc148e0-b263-4d1e-9a35-c58e60f17c6b",
+                "author": "Claude Opus",
+                "text": "Teil-Fortschritt (eb4d945): Fail-open-Null-Deref (Z.500) mit ||{}-Guard geschlossen; Fallback laeuft jetzt in Prod (debug&&-Gate raus) + Re-Read nach consent_check; Debug-Crash Z.579 (o.d.cmd→o.d.cm); README Komma-Wrappung (,Google Ads,). OFFEN auf dieser Karte: (1) cm_regions im After-Default-Modus = Consent-Semantik-Weiche → Andi entscheidet; (2) ___TESTS___-Suite (nur in GTM lauffaehig). Bleibt in Arbeit.",
                 "created": "2026-07-13"
               }
             ]
