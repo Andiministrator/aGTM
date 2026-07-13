@@ -32,24 +32,6 @@
         "kind": "sprint",
         "cards": [
           {
-            "id": "agtm-v15-relgate",
-            "title": "v1.5 Release-Gate: OE-3 Consent-Write-Endpoint verifizieren + /sprint-abschluss vor Tag",
-            "description": "Vor dem `v1.5`-Tag den server-seitigen Consent-Write-Endpoint-Vertrag (Hard-Gate) final verifizieren (SESSION-REDESIGN.md §7, OE-3 in docs/open-decisions.md — laut Smoketest weitgehend geklärt, aber offiziell zu schließen). Danach `/sprint-abschluss` inkl. Kritiker-Lauf (ADR-0062), erst dann Merge dev→main + Tag. Merge/Tag NUR auf Andis ausdrückliches Zeichen.",
-            "status": "offen",
-            "priority": "hoch",
-            "owner": "",
-            "qa": false,
-            "critical": false,
-            "blocked": false,
-            "complexity": "",
-            "effort": null,
-            "agentContext": "SESSION-REDESIGN.md §7 · docs/open-decisions.md OE-3 · internal/api/ (gitignored, Smoketest) · docs/qa/sprint-abschluss.md · ADR-0062 · VERSION=1.5",
-            "links": [],
-            "comments": [],
-            "displayId": 1,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-ck",
             "title": "ck-URL-Parameter: entscheiden (implementieren / aus README entfernen / als „geplant\" markieren)",
             "description": "Doku/Code-Inkonsistenz: README.md dokumentiert `ckServices`/`ckVendors`/`ckPurposes` + `ck=0|1|2` an der gtm.js-URL, aber im Code NICHT implementiert (OE-2, ROADMAP „Backlog / To Be Reviewed\"). Entscheiden, ob der v1.5-POST-Transport-Layer denselben Zweck abdeckt. Optionen: (a) in gtm_load() implementieren, (b) ersatzlos aus README entfernen, (c) als „geplant\" markieren. Falls (a) gewählt → Implementierung wandert nach v1.6.",
@@ -229,6 +211,208 @@
             ],
             "displayId": 16,
             "columnId": "col-erledigt"
+          },
+          {
+            "id": "agtm-v15-relgate",
+            "title": "v1.5 Release-Gate: OE-3 Consent-Write-Endpoint verifizieren + /sprint-abschluss vor Tag",
+            "description": "Vor dem `v1.5`-Tag den server-seitigen Consent-Write-Endpoint-Vertrag (Hard-Gate) final verifizieren (SESSION-REDESIGN.md §7, OE-3 in docs/open-decisions.md — laut Smoketest weitgehend geklärt, aber offiziell zu schließen). Danach `/sprint-abschluss` inkl. Kritiker-Lauf (ADR-0062), erst dann Merge dev→main + Tag. Merge/Tag NUR auf Andis ausdrückliches Zeichen.",
+            "status": "offen",
+            "priority": "hoch",
+            "owner": "Claude Opus",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": 2,
+            "agentContext": "SESSION-REDESIGN.md §7 · docs/open-decisions.md OE-3 · internal/api/ (gitignored, Smoketest) · docs/qa/sprint-abschluss.md · ADR-0062 · VERSION=1.5",
+            "links": [],
+            "comments": [
+              {
+                "id": "d36566f4-91da-4754-8358-ccb3791f08ca",
+                "author": "Claude Opus",
+                "text": "Aufgegriffen: OE-3 Consent-Write-Endpoint final verifizieren, dann /sprint-abschluss (Kritiker, ADR-0062). Merge dev→main + v1.5-Tag NUR auf Andis ausdrückliches Zeichen. GA4-Fallback-Gegenprüfung (F-23) auf Andis Wunsch zurückgestellt.",
+                "created": "2026-07-13"
+              },
+              {
+                "id": "7f911d1e-e75f-4a8a-8b4b-e48dd34f35bc",
+                "author": "Claude Opus",
+                "text": "OE-3 GESCHLOSSEN: Consent-Write-Vertrag (/consent full-replace + /promote atomar) vollständig in api4sgtm/team-spec.md fixiert; /consent-Write-Bug behoben 2026-05-05 (Smoketest step 3 strict); Smoketest deckt steps 1-4/19-20/21 ab. Kein ADR (Vertrags-Verifikation). Rest rein operativ: Smoketest grün gg. Release-Build = Andis Zug. open-decisions.md aktualisiert.",
+                "created": "2026-07-13"
+              }
+            ],
+            "displayId": 1,
+            "columnId": "col-schreiben"
+          },
+          {
+            "id": "agtm-v15-tag-consentmode",
+            "title": "Consent-Mode Tag: Fail-open-Fix + Tests (F-31)",
+            "description": "SICHERHEIT P1: consent||{} Guard (L500) + Re-Read copyFromWindow nach consent_check (L501); cm_regions ins After-Default; README Komma-Wrappung-Beispiel; TESTS (Default-Deny/granted/denied/After-Default/undefined-consent) + mockData-Feldnamen aktualisieren.",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/tags/consent-mode/aGTM tag - Consent Mode.tpl L500/501/528-565/1264; README; findings F-31; Web-Sandbox, Tests nur in GTM lauffaehig",
+            "critical": true,
+            "displayId": 20,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-tag-iframe",
+            "title": "iFrame Tag: Fail-open/Origin + Library-Handshake + Tests (F-33)",
+            "description": "SICHERHEIT P1: Origin fail-closed (leere/opake Origin verwerfen, L253), Fire in if(ev.event)-Guard (L263/305), o.d.e je Nachricht klonen, toten o.c.eventname-Code raus; LIBRARY aGTM.js 1211-1246 Handshake-Origin pruefen (targetOrigin, ifHSlisten e.origin) - ES5+bun test; TESTS (Allowlist, origin=null-Bypass, event-lose Msg, Filter, Cross-Msg-Isolation).",
+            "owner": "Claude Opus",
+            "complexity": "hoch",
+            "effort": 5,
+            "agentContext": "gtm/tags/iframe-support/aGTM tag - iFrame Support.tpl L253/263/305/212; aGTM.js 1181-1327 Handshake; README; findings F-33; Library-Teil ES5+bun test, Template-Teil GTM-Sandbox",
+            "critical": true,
+            "displayId": 21,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-tag-form",
+            "title": "Form Tag: Konfig-Fallen + Tests (F-30)",
+            "description": "P1: L122 data.startevent auf data.clickevent (Feld tot), L124 maxclicks zahlfaehig (invertierter typeof-Guard = immer 1); aGTMformClicks pro Formular statt global; Null-Guard el.form; TESTS (Submit-Mapping, maxclicks, clickevent-Name, ua_event, addparameter).",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 2,
+            "agentContext": "gtm/tags/form-events/aGTM tag - Form Events.tpl L122/124/168; README; findings F-30; rein Template",
+            "critical": false,
+            "displayId": 22,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-tag-pageview",
+            "title": "Pageview Tag: README-Default + urlListener + Cleanup + Tests (F-36)",
+            "description": "P1: README eventname-Default vPageview auf aPageview + Attribut-/Virtual-PV-Felder + NOTES; urlListener-Aufruf (L907) per templateStorage once-Flag idempotent; Debug-log L905/908 raus (logging all); tote requires + pageinfo-Over-Permission + WebGL-Deadcode L615-626 + undefined-Key L864; TESTS (Basis-PV, max_fire-Gate, Attribut-Mapping, dom/page, vPageviews-Idempotenz).",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/tags/pageview-events/aGTM tag - Pageview Events.tpl L907/905/908/864/615-626; README; findings F-36; groesstes Tag 1647L",
+            "critical": false,
+            "displayId": 23,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-tag-click",
+            "title": "Click Tag: cross_matching-Falle + Tests (F-29)",
+            "description": "P2: cross_matching defaultValue domain + setConf-Leerstring-Falle pruefen (interne Klicks als outbound); TESTS (Download, Outbound/intern, Cross-Matching-Modus, Contact-Prefix, Text-Filter); Cleanup tote requires/perms.",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 2,
+            "agentContext": "gtm/tags/click-events/aGTM tag - Click Events.tpl L253/339/395; README; findings F-29",
+            "critical": false,
+            "displayId": 24,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-tag-scroll",
+            "title": "Scroll Tag: Throttle/Leak/steps + Tests (F-34)",
+            "description": "P2: Scroll-Listener Throttle+passive (Weiche: Template oder zentral in aGTM.f.evLstn - Entscheidung Andi); Registrierungs-Guard gg. Doppel-Listener (SPA); steps sortieren+trimmen; TESTS (Schwelle-Fire, Dedup, noscrollevent, isscrollevent, ua_event).",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/tags/scroll-events/aGTM tag - Scroll Events.tpl L199-243/138/221; aGTM.f.evLstn (ES5!); README; findings F-34",
+            "critical": false,
+            "displayId": 25,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-tag-timer",
+            "title": "Timer Tag: Perms/NaN/dup + Tests (F-35)",
+            "description": "P2: Permissions auf aGTM.f.timer+execute reduzieren (aGTM write + aGTM.f.fire + logging raus); seconds-Zahlen-Validator/NaN-Check (L164); eine der doppelten addparameter-Schleifen raus (L143-148/153-155); TESTS (timer-Call, ms-Parsing, ua_event, addparameter, leeres timers).",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 2,
+            "agentContext": "gtm/tags/timer-events/aGTM tag - Timer Events.tpl L164/143-155/187-296; README; findings F-35",
+            "critical": false,
+            "displayId": 26,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-tag-copy",
+            "title": "Copy Tag: observer-Zeile + Cleanup + Tests (F-32)",
+            "description": "P2: tote observer(body,copy)-Zeile L236 entfernen (permanenter Body-Observer, SPA-Last); tote requires/perms; README Phantom-Debug + Fremd-Kommentare; TESTS (Mail/Phone-Erkennung, textfilter, ua_event, Truncation).",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "gtm/tags/copy-events/aGTM tag - Copy Events.tpl L236; README; findings F-32",
+            "critical": false,
+            "displayId": 27,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-vars",
+            "title": "Variablen: Consent-Check/Info/Content-Counter + Tests (F-37/38/39)",
+            "description": "F-37 Consent-Check: leeren Value abfangen (indexOf-Leerstring = granted, L124); F-38 Consent-Info: README aGTM.d.cm-Kopplung+Ordering dokumentieren + base64-Feld + displayName-Fix; F-39 Content-Counter: Null-Guard ...||{} L59; TESTS fuer alle drei (v1.5-Neuzugaenge Prioritaet).",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/variables/consent-check|consent-info|content-counter; findings F-37/38/39; consent-info aGTM.d.cm wird vom Consent-Mode-TAG geschrieben (L589), nicht Library",
+            "critical": false,
+            "displayId": 28,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-readmes",
+            "title": "Systemisch: READMEs Apache-2.0 + tote Links + Versionen (F-40)",
+            "description": "Alle Tag-/Variablen-READMEs: Lizenz MIT auf Apache-2.0 (rechtl. Fehlangabe, public); tote .tpl-Links Bindestrich auf Leerzeichen-Dateiname; Versions-/Datums-Drift README/Code/NOTES vereinheitlichen.",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 2,
+            "agentContext": "gtm/tags/*/README*.md + gtm/variables/*/README*.md; findings F-40; Lizenz-Quelle CLAUDE.md=Apache 2.0",
+            "critical": false,
+            "displayId": 29,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-perms-cleanup",
+            "title": "Systemisch: Permission/Deadcode-Cleanup alle Tags (F-42)",
+            "description": "Pro Template: tote require(logToConsole/copyFromWindow/queryPermission) + ungenutzte logging-Permission + ueberbreiten access_globals-Key aGTM(read/write) entfernen (nur execute auf konkreten aGTM.f.* noetig). Least-Privilege fuer GTM-Gallery.",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 2,
+            "agentContext": "alle gtm/tags/*.tpl + gtm/variables/*.tpl WEB_PERMISSIONS; findings F-42",
+            "critical": false,
+            "displayId": 30,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-sgtm-client-template-tests",
+            "title": "sGTM Client: ___TESTS___ ausbauen (aktuell 1 No-op-Smoke-Test)",
+            "description": "Der ___TESTS___-Block in sgtmClient/template.tpl (Z.1881ff) hat genau EIN Szenario Check JS Code: runCode(mockData) mit ALLEN assertApi auskommentiert => prueft nichts ausser wirft-nicht, bei einer Mock-Config. ~750 Zeilen Server-Logik (SANDBOXED_JS_FOR_SERVER 891-1638) template-seitig ungetestet. Ausbau: (a) Smoke-Test echte Assertions geben (setResponseStatus 200, setResponseHeader Content-Type, setResponseBody enthaelt aGTM-Lib-base64); (b) Branch-Tests fuer config-ableitbare Logik: gtm_consent true/false, cmp none vs. konfiguriert, gdl gesetzt/leer, debug on/off, useListener, sendConsentEvent; (c) base64-Injektion/URL-Bau. I/O-lastige Pfade (Session/Consent/Sources HTTP) bleiben besser vom internal/api-Smoketest abgedeckt (E2E) - Template-Tests fokussieren pure/config-Logik.",
+            "status": "todo",
+            "priority": "P2",
+            "owner": "Claude Opus",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "sgtmClient/template.tpl ___TESTS___ (1881ff, YAML scenarios+setup), Logik in ___SANDBOXED_JS_FOR_SERVER___ (891-1638). GTM Server-Template-Test-API: mock()/assertApi()/runCode()/require(). WICHTIG (Memory sgtm-client-source-template-sync): der Sandboxed-Block muss byte-identisch zur sgtmClient/src/*.js-Source bleiben - Tests aendern NUR den ___TESTS___-Block, nie den Logik-Block. build.sh syncht base64+version. E2E-Abdeckung liegt im internal/api-Smoketest (gitignored).",
+            "links": [],
+            "comments": [],
+            "displayId": 18,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-libfix",
+            "title": "Library-Fixes F-24/25/27 + Release-Hygiene F-26",
+            "description": "F-24 matchList RegExp-Metazeichen escapen (+try/catch), F-25 eventModel in doReplay-Strip, F-27 JSDoc fallbackEvent. F-26: CHANGELOG in-development-Label raus, ROADMAP Testzahl 179 auf 213 + DL-Repeat-Zeile ergaenzen. aGTM.js = ES5, bun test + build.sh gruen.",
+            "owner": "Claude Opus",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "aGTM.js matchList/doReplay/JSDoc dlrepeat; CHANGELOG.md Z3; ROADMAP.md; findings F-24/25/26/27; ES5+bun test+build.sh",
+            "critical": false,
+            "displayId": 19,
+            "columnId": "col-erledigt",
+            "qa": true,
+            "comments": [
+              {
+                "id": "23c611da-cc8c-4a3b-b9de-f857f374bf37",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit 25cc8cd): F-24 matchList Metazeichen-Escaping + try/catch, F-25 eventModel-Strip in doReplay, F-27 JSDoc fallbackEvent, ROADMAP DL-Repeat-Zeile. 2 Regressionstests, 215 grün, Build sauber. F-26-Rest (CHANGELOG-Label + finale Testzahl) bewusst als Pre-Tag-Schritt an Release-Gate #1 verschoben (Label jetzt noch korrekt, Testzahl waechst noch).",
+                "created": "2026-07-13"
+              }
+            ]
           }
         ]
       },
@@ -344,24 +528,6 @@
             "comments": [],
             "displayId": 8,
             "columnId": "col-backlog"
-          },
-          {
-            "id": "agtm-sgtm-client-template-tests",
-            "title": "sGTM Client: ___TESTS___ ausbauen (aktuell 1 No-op-Smoke-Test)",
-            "description": "Der ___TESTS___-Block in sgtmClient/template.tpl (Z.1881ff) hat genau EIN Szenario Check JS Code: runCode(mockData) mit ALLEN assertApi auskommentiert => prueft nichts ausser wirft-nicht, bei einer Mock-Config. ~750 Zeilen Server-Logik (SANDBOXED_JS_FOR_SERVER 891-1638) template-seitig ungetestet. Ausbau: (a) Smoke-Test echte Assertions geben (setResponseStatus 200, setResponseHeader Content-Type, setResponseBody enthaelt aGTM-Lib-base64); (b) Branch-Tests fuer config-ableitbare Logik: gtm_consent true/false, cmp none vs. konfiguriert, gdl gesetzt/leer, debug on/off, useListener, sendConsentEvent; (c) base64-Injektion/URL-Bau. I/O-lastige Pfade (Session/Consent/Sources HTTP) bleiben besser vom internal/api-Smoketest abgedeckt (E2E) - Template-Tests fokussieren pure/config-Logik.",
-            "status": "todo",
-            "priority": "P2",
-            "owner": "Claude",
-            "qa": false,
-            "critical": false,
-            "blocked": false,
-            "complexity": "M",
-            "effort": "2",
-            "agentContext": "sgtmClient/template.tpl ___TESTS___ (1881ff, YAML scenarios+setup), Logik in ___SANDBOXED_JS_FOR_SERVER___ (891-1638). GTM Server-Template-Test-API: mock()/assertApi()/runCode()/require(). WICHTIG (Memory sgtm-client-source-template-sync): der Sandboxed-Block muss byte-identisch zur sgtmClient/src/*.js-Source bleiben - Tests aendern NUR den ___TESTS___-Block, nie den Logik-Block. build.sh syncht base64+version. E2E-Abdeckung liegt im internal/api-Smoketest (gitignored).",
-            "links": [],
-            "comments": [],
-            "displayId": 18,
-            "columnId": "col-backlog"
           }
         ]
       },
@@ -445,13 +611,13 @@
         ]
       }
     ],
-    "nextDisplayId": 19,
+    "nextDisplayId": 31,
     "attachments": [],
     "background": null,
     "templates": [],
     "awaitingUser": {
-      "question": "js` MATCH, gehärtete Logik im Minify (`invalid ?",
-      "since": "2026-07-13T05:48:02.455772+00:00",
+      "question": "5 bei den GTM-Templates — wie weit ziehen?",
+      "since": "2026-07-13T07:34:16.064290+00:00",
       "askedBy": "Claude Sonnet 4.6"
     },
     "identities": [
