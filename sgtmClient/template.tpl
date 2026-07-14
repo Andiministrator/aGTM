@@ -1904,7 +1904,7 @@ scenarios:
 #     synchronous, no HTTP, no Promise: robust regardless of the flush caveat.
 # ─────────────────────────────────────────────────────────────────────────────
 
-- name: Serve aGTM.js — 200, JS content-type, body embeds library + config + init
+- name: Serve JS route - 200 JS content-type - body embeds library config and init
   code: |
     const data = serveData();
     let body = '';
@@ -1920,7 +1920,7 @@ scenarios:
     assertThat(body).contains('aGTM.f.config(');
     assertThat(body).contains('aGTM.f.init();');
 
-- name: GTM container without consent → noConsent flag in emitted config
+- name: GTM container without consent - noConsent flag in emitted config
   code: |
     const data = serveData();
     data.gtm = [{gtm_id: 'GTM-XYZ123', gtm_consent: false, gtm_env: ''}];
@@ -1935,7 +1935,7 @@ scenarios:
     const cfg = body.substring(body.lastIndexOf('aGTM.f.config('));
     assertThat(cfg).contains('"noConsent":true');
 
-- name: GTM container with consent → no noConsent flag
+- name: GTM container with consent - no noConsent flag
   code: |
     const data = serveData();
     data.gtm = [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_env: ''}];
@@ -1950,7 +1950,7 @@ scenarios:
     const cfg = body.substring(body.lastIndexOf('aGTM.f.config('));
     assertThat(cfg).doesNotContain('"noConsent"');
 
-- name: Config flags emitted when set (gdl / debug / useListener / sendConsentEvent)
+- name: Config flags emitted when set - gdl debug useListener sendConsentEvent
   code: |
     const data = serveData();
     data.gdl = 'dataLayer';
@@ -2043,7 +2043,7 @@ scenarios:
     assertThat(cfg).contains('function(c){return c;}');
     assertThat(cfg).doesNotContain('document.currentScript');
 
-- name: POST /aGTMconsent (plain, no Session API) → 200 with ok + echoed uid
+- name: POST consent route plain no Session API - 200 with ok and echoed uid
   code: |
     const data = baseData();
     let body = '';
@@ -2056,7 +2056,7 @@ scenarios:
     assertThat(body).contains('"ok":true');
     assertThat(body).contains('"uid":"C.1$cl_test$123456.789"');
 
-- name: POST /aGTMconsent encrypted payload → 501 (server-side decrypt unsupported)
+- name: POST consent route encrypted payload - 501 server-side decrypt unsupported
   code: |
     const data = baseData();
     let body = '';
@@ -2066,7 +2066,7 @@ scenarios:
     assertApi('setResponseStatus').wasCalledWith(501);
     assertThat(body).contains('not supported');
 
-- name: Bot check enabled but no client IP → 403
+- name: Bot check enabled but no client IP - 403
   code: |
     const data = baseData();
     data.botCheckEnabled = true;
@@ -2082,7 +2082,7 @@ scenarios:
     assertApi('setResponseStatus').wasCalledWith(403);
     assertApi('returnResponse').wasCalled();
 
-- name: Unknown GTM container id → no response emitted
+- name: Unknown GTM container id - no response emitted
   code: |
     const data = baseData();
     data.gtm = [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_env: ''}];
