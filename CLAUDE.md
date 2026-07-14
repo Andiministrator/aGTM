@@ -88,12 +88,26 @@ Tests live in `test/`. Browser globals are set up via `test/setup.js` (loaded au
 | `build.sh` | Orchestrates the full build: inject version → safety check → minify → base64 → update sGTM template |
 | `scripts/inject-version.js` | Reads `VERSION`, writes `@version` + `aGTM.d.version` in `aGTM.js`, updates `@lastupdate`, updates `package.json` |
 | `scripts/check-init.js` | Strips comments from `aGTM.js` and checks for an accidental uncommented `aGTM.f.init()` call |
-| `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` |
+| `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` **and** re-syncs the same base64 blob into `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js` so the client source stays byte-identical to the template's sandboxed block (the blob is the only line that drifts across a library rebuild — see below) |
 | `bunfig.toml` | Configures `bun test`: preloads `test/setup.js` before every test file |
 | `test/setup.js` | Sets up browser globals (`window`, `document`, etc.) and loads `aGTM.js` into global scope via indirect eval |
 | `test/helpers.js` | `MockXHR` class and `resetAGTM()` — used in every test file |
 
 **Release flow:** edit `VERSION` → `./build.sh` → commit → merge `dev` → `main` → `git tag v<version>`
+
+### sGTM Client source ↔ template sync invariant
+
+The server logic ships in two places that must stay **byte-identical**: the
+`___SANDBOXED_JS_FOR_SERVER___` block inside `sgtmClient/template.tpl` (what GTM
+actually runs) and the human-readable `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js`.
+`build.sh` does **not** regenerate the logic block from the source — so any
+edit to the server logic must be applied to **both** files identically. The one
+exception is the embedded aGTM-library base64 blob (`const agtm = fromBase64('…')`):
+`scripts/update-sgtm-template.js` injects the freshly built `aGTM.base64` into
+that line in **both** files, so the blob never drifts across a library rebuild
+(previously it did — finding F-43). After any change, verify with a `diff` of
+the extracted block against the source; only the `___TESTS___` block of the
+template has no source counterpart and may diverge freely.
 
 ### Minification rules
 
