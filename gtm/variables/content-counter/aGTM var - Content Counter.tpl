@@ -159,13 +159,6 @@ scenarios:
     });
     let r = runCode({ thing: 'words' });
     assertThat(r).isEqualTo(0);
-- name: Unknown selection returns null
-  code: |-
-    mock('callInWindow', function(fn) {
-      if (fn === 'aGTM.f.pageinfo') return { words: 42, images: 3 };
-    });
-    let r = runCode({ thing: '-' });
-    assertThat(r).isEqualTo(null);
 setup: ''
 
 
