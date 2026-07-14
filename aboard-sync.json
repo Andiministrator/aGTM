@@ -69,6 +69,12 @@
                 "author": "Claude Opus",
                 "text": "ERLEDIGT (2026-07-14): sGTM-Client ___TESTS___ von 1 assertionslosem No-op auf 9 echte Szenarien ausgebaut. Im GTM-Server-Container-Tests-Tab 8/8 GRUEN verifiziert (Andi); S5-Schaerfung (Cookie-Name+Wert) + S9 (Negativ: consent-Mode ohne granted -> kein Cookie) post-Kritiker ergaenzt, getraced, low-risk -> finale 9/9-Bestaetigung ist trivialer Rest-Check.\n\nScope: SYNCHRON erreichbare Request-Logik — Consent-Store-POST-Handler (uid-Echo, Cookie-Fallback, 501-enc-Guard, Cookie-Write+Wert, store-disabled, granted-Gate negativ) + GET-Routing (Bot-403, Unknown-ID, Fremd-Route). Die config-building-Fläche (buildAndSend) ist NUR async erreichbar (Forward-Ref-Design) und im Tests-Tab strukturell nicht unit-testbar (F-44) -> bleibt E2E im internal/api-Smoketest.\n\nKritiker-Runde: 8/8 (jetzt 9) Szenarien DISKRIMINIEREND, keine Tautologie; No-op-Masking-Verdacht entkräftet (assertApi trackt unabhängig). Einzige Schwaeche (S5 nur wasCalled) behoben.\n\nVier Harness-Fallen nacheinander ausgeraeumt + in knowledge/topics/gtm-template-hardening-muster.md §6 dokumentiert (Playbook fuer F-41 Web-Templates): (1) Test-Namen nur ASCII ohne '.'/Sonderzeichen; (2) Config-Var NICHT 'data' (vorgebunden) -> mockData; (3) require('JSON'); (4) Response-Lifecycle (claimRequest/returnResponse/setResponse*) als No-op mocken (Harness teilt 'client returned'-State ueber Szenarien).\n\nNebenfixe diese Session: F-43 (build.sh/update-sgtm-template.js synct base64 jetzt auch in src/.js -> Block byte-identisch, idempotent), F-28 (dl-repeat logging-env debug->all, Tag 1.5.1), F-27 als bereits behoben verifiziert, F-44 (buildAndSend-Async-Testgrenze) dokumentiert+akzeptiert. Doku: CLAUDE.md, CHANGELOG, Memory. Commits bis 07311ef (dev gepusht).\n\nVerbleibend an F-41: die 11 GTM-WEB-Templates (8 Event-Tags + 3 Variablen) — eigener Sprint, Playbook liegt vor.",
                 "created": "2026-07-14"
+              },
+              {
+                "id": "9f6463ea-35ce-4d24-82ce-53418d14a21d",
+                "author": "Claude Opus",
+                "text": "BESTAETIGT 2026-07-14: alle 9 Szenarien grün im GTM-Server-Container-Tests-Tab (Andi) — inkl. der post-Kritiker-Politur (S5 Cookie-Name+Wert, S9 granted-Gate-Negativ). Kein Rest-Check mehr offen; #18 vollständig verifiziert abgeschlossen.",
+                "created": "2026-07-14"
               }
             ],
             "displayId": 18,
