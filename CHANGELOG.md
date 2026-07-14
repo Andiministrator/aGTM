@@ -248,6 +248,15 @@ Template audit findings on the three variable templates:
 - **License** — every remaining tag/variable README stated the **MIT** License; the project is **Apache-2.0**. All corrected. Dead dash-style `.tpl` references (both clickable links and inline prose) fixed to the real space-containing filenames across all templates.
 - **Least-privilege (F-42)** — the over-broad read/write `aGTM` `access_globals` key was statically confirmed dead (no `copyFromWindow`/`setInWindow` on it; every `callInWindow` target has its own execute grant) and removed from the core `aGTM Tag`, Form, Pageview and iFrame templates; iFrame additionally dropped its dead `logToConsole`/`copyFromWindow` requires and the `logging` permission. The Pageview `aGTM.f.rmLstn` grant (previously missing for the latent listener-removal path) was added so code and permissions are honest.
 
+### sGTM Client — server-template tests + source-sync tooling (v1.5 release-gate)
+
+- **Tests (#18)** — the sGTM Client server template (`sgtmClient/template.tpl`) had a single assertion-less smoke test; it now carries **12 real `___TESTS___` scenarios** covering the pure/config-derivable logic: `/aGTM.js` serve (200 + `application/javascript` + body embedding the library, config wrapper and `aGTM.f.init()`), the `noConsent` flag, config-flag emission (`gdl`/`debug`/`useListener`/`sendConsentEvent`), CMP injection + ordering, the browser-side `consent_store_url` builder (on/off), `POST /aGTMconsent` (200 and the encrypted-payload 501 guard), the bot-403 path and unknown-container-id. The I/O-heavy Session/Consent/Sources HTTP paths stay covered by the internal API smoketest (E2E). Serve scenarios drive `buildAndSend()` through a synchronously-resolving `sendHttpGet` Promise mock; must be confirmed once in the GTM server-container Tests tab (documented caveat in the block).
+- **Source-sync tooling (F-43)** — `scripts/update-sgtm-template.js` now injects the freshly built `aGTM.base64` blob into **both** the template's sandboxed block **and** `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js`, so the human-readable client source no longer drifts from what ships (it had gone stale, 38 432 vs 47 588 chars). Idempotent; keeps the byte-identity invariant automatic across library rebuilds.
+
+### GTM template "DL Repeat" — version-guard warning visible in production (F-28)
+
+- The `logging` permission `environments` was widened from `"debug"` to `"all"` so the unconditional "aGTM.f.dlrepeat not found — update the aGTM library to v1.5+" guard actually surfaces in live containers (where a stale library manifests). The other two log calls stay `cfg.debug`-gated, so no live noise. Tag 1.5 → 1.5.1.
+
 ### Other v1.5 fixes and additions
 
 - Bug fix: `consent_events` config option now wired up via `config()` (was never read from user config)
