@@ -1948,10 +1948,27 @@ scenarios:
   code: |
     const mockData = baseData();
     mockData.cookie_mode = 'consent';
+    let ckName = '', ckVal = '';
     mockPost('/aGTMconsent', JSON.stringify({uid: 'C.1$cl_test$123.456', consent: {hasResponse: true, services: ',Google,'}}));
+    // Capture name + value so a cookie written with the wrong/empty value fails.
+    mock('setCookie', function(n, v) { ckName = n; ckVal = v; });
     runCode(mockData);
     assertApi('setResponseStatus').wasCalledWith(200);
     assertApi('setCookie').wasCalled();
+    assertThat(ckName).isEqualTo('_TPU');
+    assertThat(ckVal).isEqualTo('C.1$cl_test$123.456');
+
+- name: POST consent route in cookie-consent mode without granted consent writes no cookie
+  code: |
+    const mockData = baseData();
+    mockData.cookie_mode = 'consent';
+    // A required consent service the payload does not grant → hasRequiredConsent
+    // returns false, so the cookie must NOT be written (it hangs on the gate).
+    mockData.consent_service = 'Analytics';
+    mockPost('/aGTMconsent', JSON.stringify({uid: 'C.1$cl_test$123.456', consent: {hasResponse: true, services: ',Google,'}}));
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertApi('setCookie').wasNotCalled();
 
 - name: Bot check enabled but no client IP - 403
   code: |
