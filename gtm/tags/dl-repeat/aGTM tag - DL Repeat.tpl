@@ -294,7 +294,7 @@ ___WEB_PERMISSIONS___
           "key": "environments",
           "value": {
             "type": 1,
-            "string": "debug"
+            "string": "all"
           }
         }
       ]
@@ -457,9 +457,9 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.5
+- Version 1.5.1
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 24.06.2026
+- Last Update: 14.07.2026
 
 ## Description
 
@@ -468,6 +468,11 @@ Requires the aGTM library v1.5+ (uses aGTM.f.dlrepeat).
 
 ## Changelog
 
+- 1.5.1 (14.07.2026): logging permission environment changed from "debug" to
+  "all" (F-28) so the unconditional "aGTM.f.dlrepeat not found - update the aGTM
+  library to v1.5 or newer" version-guard warning surfaces in production, where a
+  stale library actually manifests. The other two log calls stay debug-gated
+  (cfg.debug), so live containers get no extra noise.
 - 1.5 (24.06.2026): The replay engine moved into the aGTM library
   (aGTM.f.dlrepeat). The tag now only collects its settings and hands them to
   the library, which watches the dataLayer for the configured wait-event(s) and
