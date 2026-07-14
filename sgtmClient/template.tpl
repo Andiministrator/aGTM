@@ -2096,6 +2096,7 @@ setup: |-
   // ── Test helpers (shared, re-run before every scenario) ────────────────────
   const log = require('logToConsole');
   const Promise = require('Promise');
+  const JSON = require('JSON');
 
   // Fresh template `mockData` (config object) per scenario. Minimal serve config;
   // scenarios mutate the returned object before runCode().
