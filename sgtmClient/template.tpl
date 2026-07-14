@@ -2018,6 +2018,16 @@ setup: |-
     mock('getCookieValues', function() { return []; });
     mock('getTimestampMillis', function() { return 1714900000000; });
     mock('setCookie', function() {});
+    // Mock the response lifecycle as no-ops. The GTM server-template test
+    // harness shares the "client has returned" state ACROSS scenarios in a run,
+    // so a real returnResponse() in one scenario makes the next scenario's real
+    // claimRequest() throw "claim a request after a Client had returned". No-op
+    // mocks keep every scenario isolated; assertApi still tracks the calls.
+    mock('claimRequest', function() {});
+    mock('returnResponse', function() {});
+    mock('setResponseStatus', function() {});
+    mock('setResponseHeader', function() {});
+    mock('setResponseBody', function() {});
   };
 
   // Mock a browser → Client GET (routing / bot scenarios). remoteAddr '' drives
@@ -2031,6 +2041,16 @@ setup: |-
     mock('getCookieValues', function() { return []; });
     mock('getTimestampMillis', function() { return 1714900000000; });
     mock('setCookie', function() {});
+    // Mock the response lifecycle as no-ops. The GTM server-template test
+    // harness shares the "client has returned" state ACROSS scenarios in a run,
+    // so a real returnResponse() in one scenario makes the next scenario's real
+    // claimRequest() throw "claim a request after a Client had returned". No-op
+    // mocks keep every scenario isolated; assertApi still tracks the calls.
+    mock('claimRequest', function() {});
+    mock('returnResponse', function() {});
+    mock('setResponseStatus', function() {});
+    mock('setResponseHeader', function() {});
+    mock('setResponseBody', function() {});
   };
 
 
