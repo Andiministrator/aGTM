@@ -310,7 +310,7 @@ scenarios:
     });
     runCode({ timers: [{ seconds: '0.0004', repeat: '0', eventname: 'a' }], addparameter: [], ua_event: false });
     assertThat(count).isEqualTo(0);
-- name: Huge seconds are clamped to the 32-bit timer ceiling (no overflow loop)
+- name: Huge seconds are clamped to the 32-bit timer ceiling - no overflow loop
   code: |-
     let call = null;
     mock('callInWindow', function(fn) {

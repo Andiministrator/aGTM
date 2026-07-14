@@ -185,7 +185,7 @@ scenarios:
     });
     let r = runCode({ mode: 'cm', base64: false });
     assertThat(r.ad_storage).isEqualTo('granted');
-- name: Consent Mode falls back to all-denied when aGTM.d.cm is absent
+- name: Consent Mode falls back to all-denied when the cm signal is absent
   code: |-
     mock('callInWindow', function(fn) {
       if (fn === 'aGTM.f.getVal') return { d: { consent: { hasResponse: true } } };
