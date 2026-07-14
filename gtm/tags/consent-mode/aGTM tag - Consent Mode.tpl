@@ -1322,22 +1322,132 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Unresolved aGTM consent still sets a denied default - fail-open guard
+  code: |-
+    // aGTM not loaded yet: copyFromWindow('aGTM.d.consent') returns undefined.
+    // Without the `|| {}` guard the consent.hasResponse access throws and
+    // setDefaultConsentState never runs (fail-open). It must still fire denied.
+    let defArg = null;
+    mock('copyFromWindow', function() { return undefined; });
+    mock('callInWindow', function() { return undefined; });
+    mock('setDefaultConsentState', function(o) { defArg = o; });
+    runCode({
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', personalization_storage: 'denied',
+      functionality_storage: 'denied', security_storage: 'denied'
+    });
+    assertThat(defArg).isDefined();
+    assertThat(defArg.ad_storage).isEqualTo('denied');
+- name: Granted signals pass through to the default consent state
+  code: |-
+    let defArg = null;
+    mock('copyFromWindow', function() { return { hasResponse: true }; });
+    mock('setDefaultConsentState', function(o) { defArg = o; });
+    runCode({
+      ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted',
+      analytics_storage: 'granted', personalization_storage: 'granted',
+      functionality_storage: 'granted', security_storage: 'granted'
+    });
+    assertThat(defArg).isDefined();
+    assertThat(defArg.ad_storage).isEqualTo('granted');
+    assertThat(defArg.analytics_storage).isEqualTo('granted');
+    assertApi('updateConsentState').wasNotCalled();
+- name: Update mode calls updateConsentState instead of the default
+  code: |-
+    let updArg = null;
+    mock('copyFromWindow', function() { return { hasResponse: true }; });
+    mock('updateConsentState', function(o) { updArg = o; });
+    runCode({
+      cm_update: true,
+      ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted',
+      analytics_storage: 'granted', personalization_storage: 'granted',
+      functionality_storage: 'granted', security_storage: 'granted'
+    });
+    assertThat(updArg).isDefined();
+    assertThat(updArg.ad_storage).isEqualTo('granted');
+    assertApi('setDefaultConsentState').wasNotCalled();
+- name: Update after default scopes the denied default to the configured region
+  code: |-
+    // F-31c: `region` belongs on setDefaultConsentState (the denied baseline),
+    // NOT on updateConsentState (which has no region param). The all-denied
+    // default must carry the region; the region-less update sets real consent.
+    let defArg = null, updArg = null;
+    mock('copyFromWindow', function() { return { hasResponse: true }; });
+    mock('setDefaultConsentState', function(o) { defArg = o; });
+    mock('updateConsentState', function(o) { updArg = o; });
+    runCode({
+      cm_update_after_default: true,
+      cm_regions: 'DE,AT',
+      ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted',
+      analytics_storage: 'granted', personalization_storage: 'granted',
+      functionality_storage: 'granted', security_storage: 'granted'
+    });
+    assertThat(defArg).isDefined();
+    assertThat(defArg.ad_storage).isEqualTo('denied');
+    assertThat(defArg.region).isDefined();
+    assertThat(defArg.region.length).isEqualTo(2);
+    assertThat(defArg.region[0]).isEqualTo('DE');
+    assertThat(defArg.region[1]).isEqualTo('AT');
+    assertThat(updArg).isDefined();
+    assertThat(updArg.ad_storage).isEqualTo('granted');
+    assertThat(updArg.region).isUndefined();
+- name: Consent-check fallback re-reads the freshly written consent
+  code: |-
+    // The tag re-reads aGTM.d.consent AFTER consent_check so the signal
+    // computation uses what the CMP just wrote. Without the re-read the stale
+    // (empty) first copy is used and the attribute maps to denied.
+    let n = 0, defArg = null;
+    mock('copyFromWindow', function(key) {
+      if (key === 'aGTM.d.consent') {
+        n++;
+        return n === 1 ? { hasResponse: false, purposes: '' }
+                       : { hasResponse: true, purposes: 'analytics' };
+      }
+      return undefined;
+    });
+    mock('callInWindow', function() { return undefined; });
+    mock('setDefaultConsentState', function(o) { defArg = o; });
+    runCode({
+      cm_attributes: [{ cm_attribute: 'analytics_storage', cm_type: 'purposes', cm_value: 'analytics' }],
+      ad_storage: 'not_set', ad_user_data: 'not_set', ad_personalization: 'not_set',
+      analytics_storage: 'not_set', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    assertThat(defArg).isDefined();
+    assertThat(defArg.analytics_storage).isEqualTo('granted');
+- name: not_set signals are omitted from the consent state
+  code: |-
+    let defArg = null;
+    mock('copyFromWindow', function() { return { hasResponse: true }; });
+    mock('setDefaultConsentState', function(o) { defArg = o; });
+    runCode({
+      ad_storage: 'not_set', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'granted', personalization_storage: 'denied',
+      functionality_storage: 'denied', security_storage: 'denied'
+    });
+    assertThat(defArg).isDefined();
+    assertThat(defArg.ad_storage).isUndefined();
+    assertThat(defArg.analytics_storage).isEqualTo('granted');
 setup: |-
   const mockData = {
-    command: 'default',
-    ad_storage: 'granted',
-    analytics_storage: 'denied',
-    ad_user_data: 'granted',
+    cm_update: false,
+    cm_update_after_default: false,
+    cm_attributes: [],
+    cm_wait: '0',
+    cm_regions: 'all',
+    cm_grant_outside: false,
+    url_passthrough: true,
+    ads_data_redaction: true,
+    ms_consent_mode: false,
+    cm_event: false,
+    ad_storage: 'denied',
+    ad_user_data: 'denied',
     ad_personalization: 'denied',
+    analytics_storage: 'denied',
     personalization_storage: 'denied',
     functionality_storage: 'denied',
     security_storage: 'denied',
-    wait_for_update: 500,
-    regions: 'all',
-    url_passthrough: true,
-    ads_data_redaction: true,
-    sendDataLayer: false,
   };
 
 
@@ -1366,5 +1476,9 @@ This template sets the Google (and Microsoft) Consent Mode signals for GTM.
 - New: optional `cm_grant_outside` — emit a global granted default (for the
   managed signals) so visitors outside the configured regions are granted by
   default (Google's two-default pattern).
+- Tests: added `___TESTS___` regression scenarios (F-41) covering the fail-open
+  guard, granted pass-through, update vs. default mode, region-scoped denied
+  default in "update after default", the consent-check re-read, and the
+  `not_set` signal omission.
 
 
