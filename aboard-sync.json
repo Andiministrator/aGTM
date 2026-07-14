@@ -360,6 +360,12 @@
                 "author": "Claude Opus",
                 "text": "F-31 CODE komplett + 2x kritiker-verifiziert (838775b): (a) Fail-open-Guard, (b) Fallback in Prod + Re-Read, (c) Region auf all-denied-Default (F-31c, recherchiert), Debug-Crash-Fix, README-Komma-Wrappung. PLUS optionales Feld cm_grant_outside (globaler granted-Default ausserhalb Regionen) — Kritiker fand dabei selbst-eingebauten not_set-in-region-P1, gefixt + verifiziert geschlossen. Tag-Version 1.4, README-Header/Link/Defaults korrigiert. Wissen: knowledge/topics/google-consent-mode-region.md. OFFEN nur noch ___TESTS___ (GTM-only, systemisch F-41). Karte bleibt in Arbeit fuer die Test-Welle.",
                 "created": "2026-07-13"
+              },
+              {
+                "id": "cfa0e49d-be2b-4783-90aa-4902952e5841",
+                "author": "Claude Opus",
+                "text": "HANDOFF (Chat-Wechsel 2026-07-14) fuer den F-41-Web-Template-Test-Sprint: #18 (sGTM-Client-Tests) ist ERLEDIGT — dabei wurde ein vollstaendiges Playbook fuer GTM-Template-___TESTS___ erarbeitet: knowledge/topics/gtm-template-hardening-muster.md §5 (Tautologie/diskriminierend) + §6 (Sandbox-Fallen).\nEMPFOHLENER NAECHSTER SCHRITT: dieses #20 abschliessen — der Consent-Mode-Tag-CODE ist fertig (F-31, Commits eb4d945/4fde372), NUR die ___TESTS___ fehlen (systemisch F-41). Damit schliesst #20 UND startet der F-41-Web-Template-Sweep.\nWICHTIG Unterschied zu #18: das ist die GTM-WEB-Sandbox (nicht Server) — callInWindow/copyFromWindow/setInWindow, KEIN delete/setInterval. Referenz fuer Web-Sandbox-Test-Muster: der DL-Repeat-Tag (gtm/tags/dl-repeat/) hat als EINZIGES Web-Template bereits 3 echte ___TESTS___-Szenarien.\nPlaybook-Kern (aus #18, gilt auch web): Test-Namen nur ASCII ohne .; Config-Var NICHT data nennen; require noetiger Globals (JSON etc.); jeder Test MUSS ohne den Fix rot werden (Tautologie-Falle); iterativ MIT Andis Tests-Tab-Feedback (blind schreiben scheiterte 5x bei #18).\nDanach die restlichen 10 Web-Templates (click/form/copy/iframe/scroll/timer/pageview + 3 Variablen) je 3-5 Szenarien. #1 Release-Gate + v1.5-Tag bleiben Andis expliziter Zug (Smoketest + /sprint-abschluss).",
+                "created": "2026-07-14"
               }
             ]
           },
