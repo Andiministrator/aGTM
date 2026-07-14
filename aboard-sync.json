@@ -372,6 +372,12 @@
                 "author": "Claude Opus",
                 "text": "HANDOFF (Chat-Wechsel 2026-07-14) fuer den F-41-Web-Template-Test-Sprint: #18 (sGTM-Client-Tests) ist ERLEDIGT — dabei wurde ein vollstaendiges Playbook fuer GTM-Template-___TESTS___ erarbeitet: knowledge/topics/gtm-template-hardening-muster.md §5 (Tautologie/diskriminierend) + §6 (Sandbox-Fallen).\nEMPFOHLENER NAECHSTER SCHRITT: dieses #20 abschliessen — der Consent-Mode-Tag-CODE ist fertig (F-31, Commits eb4d945/4fde372), NUR die ___TESTS___ fehlen (systemisch F-41). Damit schliesst #20 UND startet der F-41-Web-Template-Sweep.\nWICHTIG Unterschied zu #18: das ist die GTM-WEB-Sandbox (nicht Server) — callInWindow/copyFromWindow/setInWindow, KEIN delete/setInterval. Referenz fuer Web-Sandbox-Test-Muster: der DL-Repeat-Tag (gtm/tags/dl-repeat/) hat als EINZIGES Web-Template bereits 3 echte ___TESTS___-Szenarien.\nPlaybook-Kern (aus #18, gilt auch web): Test-Namen nur ASCII ohne .; Config-Var NICHT data nennen; require noetiger Globals (JSON etc.); jeder Test MUSS ohne den Fix rot werden (Tautologie-Falle); iterativ MIT Andis Tests-Tab-Feedback (blind schreiben scheiterte 5x bei #18).\nDanach die restlichen 10 Web-Templates (click/form/copy/iframe/scroll/timer/pageview + 3 Variablen) je 3-5 Szenarien. #1 Release-Gate + v1.5-Tag bleiben Andis expliziter Zug (Smoketest + /sprint-abschluss).",
                 "created": "2026-07-14"
+              },
+              {
+                "id": "3ea6e340-3917-4954-8233-1bc3d51bb9d2",
+                "author": "Claude Opus",
+                "text": "HANDOFF-UPDATE (2026-07-14, Chat-Wechsel 2): Stand F-41 nach dieser Session praezise:\nMIT Tests (6 Web-Templates): consent-check + consent-info = im Tests-Tab GRUEN verifiziert (Andi); copy-events/timer-events/content-counter/dl-repeat = Namen import-sicher gemacht (. und () raus), gleiches Muster wie die gruenen -> niedriges Risiko, aber von Andi noch NICHT gelaufen.\nOHNE Tests (6 Tags = der eigentliche F-41-Rest): click-events, consent-mode (=DIESE Karte #20), form-events, iframe-support, pageview-events, scroll-events.\n\nANDI macht direkt nach dieser Session: alle Tags neu importieren + Tests ausfuehren. -> ERSTER Schritt naechster Chat: etwaige Fehlermeldungen aus den 4 noch-ungelaufenen Mit-Tests-Templates (copy/timer/content-counter/dl-repeat) fixen. DANACH: Tests fuer die 6 testlosen Tags schreiben, Start mit consent-mode (#20, sicherheitskritisch, schliesst die Karte).\n\nWEB-Template-Test-Muster (neu dokumentiert): knowledge/topics/gtm-template-hardening-muster.md §7 — setup: (KEINE requires, anders als Server-Sandbox), Variable=mock(callInWindow getVal-Stub)+runCode(cfg)-Rueckgabe+assertThat; Tag=mock(callInWindow fire/timer)+assertApi(callInWindow).wasCalledWith. Referenzen: consent-check (variable, gruen), copy/timer (tag). §6 = Namens-/Sandbox-Fallen (kein ., kein const data). §5 = Tautologie-Pflicht.\n\nBoard ADR-0067-migriert (Ops an Inbox). #18 erledigt/qa:true. #1 Release-Gate + v1.5-Tag bleiben Andis expliziter Zug.",
+                "created": "2026-07-14"
               }
             ]
           },
@@ -858,7 +864,11 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "Kurz verifizieren — Click-Events-Tag: hat es Tests, und habe **ich** diese Session dort etwas geändert?",
+      "since": "2026-07-14T11:02:53.038158+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
