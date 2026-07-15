@@ -949,6 +949,12 @@
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit ec7ab71, gepusht dev). 6 Stellen von String-Komma-replace auf global /,/g umgestellt: cc_usercentrics (name + categorySlug), cc_sourcepoint (purposes/vendors map), cc_cookiefirst (purposes/services). ccm19 war bereits global (= Intent bestaetigt; Sourcepoint-Kommentar sagt no comma in vendor string). Kein aGTM.js- oder sGTM-Blob-Impact (CMP = separate on-demand min.js). build.sh regeneriert 3 min.js, Fix drin verifiziert. 346 Tests gruen. P2 -> kein schwerer Kritiker (mechanisch, matcht Sibling-Muster). OFFENE LUECKE: CMP consent_check hat keinen bun-Unit-Harness -> Kandidat fuer eigene Test-Infra-Karte. findings F-51, CHANGELOG.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "642a0228-f99c-4980-bd09-f32a0021c814",
+                "author": "Claude Opus",
+                "text": "Nachtrag (Commit eeb915f): Consentmanager erweitert — pushte TCF purposesList/vendorsList .name GANZ ohne Strip (gleiche Klasse, TCF-Vendornamen mit Komma) -> Strip + Type-Guard mit id-Fallback ergaenzt. Damit F-51 auf 4 CMP-Dateien. Restliches Muster OFFEN (Andis Entscheidung): Matomo/Usercentrics3/Shopware5 pushen service.name ohne Strip -> niedrigere Praxis-Wahrscheinlichkeit (admin-Kurzlabels vs TCF). Strukturluecke bleibt: kein CMP consent_check bun-Harness.",
+                "created": "2026-07-15"
               }
             ]
           }
