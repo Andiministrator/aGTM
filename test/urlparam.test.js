@@ -37,7 +37,9 @@ describe('aGTM.f.urlParam()', () => {
   });
 
   test('returns null for empty / non-string names (guards the escape step)', () => {
-    // The added name.replace() would throw on undefined/null without the guard.
+    // Discriminating for undefined/null: the added name.replace() would throw
+    // on them without the guard. The '' case returns null either way (no match)
+    // and documents the empty-name contract.
     expect(aGTM.f.urlParam('', 'https://x/?foo=1')).toBeNull();
     expect(aGTM.f.urlParam(undefined, 'https://x/?foo=1')).toBeNull();
     expect(aGTM.f.urlParam(null, 'https://x/?foo=1')).toBeNull();

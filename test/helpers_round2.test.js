@@ -90,12 +90,17 @@ describe('aGTM.f.getVal()', () => {
   });
 
   test('returns undefined when object or attribute is empty / non-string (vSt guard)', () => {
+    // The discriminating sub-case is the non-string attribute: without the vSt
+    // guard, getVal('l', 123) would throw on 123.match(...) below. The empty
+    // '' cases document the guard contract but return undefined either way.
+    expect(aGTM.f.getVal('l', 123)).toBeUndefined(); // no guard → 123.match throws
     expect(aGTM.f.getVal('', 'href')).toBeUndefined();
     expect(aGTM.f.getVal('l', '')).toBeUndefined();
-    expect(aGTM.f.getVal('l', 123)).toBeUndefined();
   });
 
   test('returns undefined for an attribute with no letters (match guard)', () => {
+    // Documents the /[a-z]/i letter requirement; location['123'] is undefined
+    // anyway, so this pins the contract rather than a value difference.
     expect(aGTM.f.getVal('l', '123')).toBeUndefined();
   });
 

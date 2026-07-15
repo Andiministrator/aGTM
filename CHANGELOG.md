@@ -27,6 +27,30 @@ type guard returns `null` for empty/non-string names. Found by the F-45 helper
 unit tests; verified by an independent critic (16-case battery). Discovered
 latent, pre-existing (not a v1.5 regression).
 
+### Fixed — `aGTM.f.urlParam()` query-parameter read: escape the name (F-47)
+
+Sibling of the gc F-45 fix. `aGTM.f.urlParam(name, url)` interpolated `name`
+into `new RegExp("[?&]" + name + "…")` unescaped, so a name containing a regex
+metacharacter could match the wrong parameter (`a.b` matching `axb=`) or crash
+the RegExp constructor before any `try` (`a(b` → unbalanced group →
+`SyntaxError`). The name is now regex-escaped and a type guard returns `null`
+for empty/non-string names. No anchoring is needed — the leading `[?&]` and
+trailing `=` already fence the name to a full query-parameter boundary. All
+callers pass literals (`aGTMoptout`, `gtm_debug`), so there was no runtime
+risk; the latent trap is now closed. Verified by two independent critics.
+
+### Fixed — `aGTM.f.sc()` cookie write: encode value, reject unsafe name (F-45 sibling)
+
+Rounds out the cookie-helper hardening symmetric to gc's read-side fix. `sc()`
+wrote the name and value verbatim, so a `";"`/`"="` in the value corrupted the
+cookie string (gc's `[^;]+` then truncated the read at the first `";"`). The
+value is now URL-encoded on write — symmetric with gc's `decodeURIComponent` on
+read, so separators in a value round-trip cleanly — and a name carrying
+`";"`/`"="`/whitespace is rejected (no-op) instead of writing a corrupt cookie
+(gc reads by the raw, non-decoded name, so an encoded name could not be read
+back). `encodeURIComponent` is identity on the literal `"0"`/`"1"` values the
+callers pass, so there is no regression.
+
 ### Added — test coverage sweep (GTM templates + core library helpers)
 
 - **GTM template `___TESTS___` sweep (F-41):** every GTM template that had an
@@ -43,7 +67,13 @@ latent, pre-existing (not a v1.5 regression).
   serialization gating the consent-store POST), the `rTest`/`rMatch`/`rReplace`
   (+`vSt`) regex helpers used by every template, `sStrf` (safe stringify incl.
   circular-reference fallback), and `gc`/`sc` (cookie get/set).
-- Test suite now at **287 tests across 23 files** (`bun test`).
+- **Round-2 helper unit tests:** direct coverage for six further pure helpers
+  that had none — `strclean`, `an` (assign-or-default via `hasOwnProperty`),
+  `vOb` (valid-object check incl. circular-reference fallback), `getVal`
+  (window/document/location accessor + its guards), `propset`, and `isIFrame`.
+  Plus `urlParam` (`test/urlparam.test.js`) and the sc separator-encode
+  round-trip cases.
+- Test suite now at **319 tests across 25 files** (`bun test`).
 
 ### Added — Integrator Data Contract documentation
 
