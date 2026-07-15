@@ -79,6 +79,12 @@ describe('aGTM.f.rMatch()', () => {
     expect(aGTM.f.rMatch('Hello', 'hello')).toBeNull();
   });
 
+  test('is NOT vSt-guarded — throws on a non-string subject (unlike rTest/rReplace)', () => {
+    // load-bearing contrast: rMatch calls s.match() directly with no guard,
+    // so a non-string subject throws instead of returning a safe value
+    expect(() => aGTM.f.rMatch(null, 'a')).toThrow();
+  });
+
   test('exposes capture groups', () => {
     const m = aGTM.f.rMatch('a=1', '(\\w)=(\\d)');
     expect(m[1]).toBe('a');

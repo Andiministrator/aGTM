@@ -40,5 +40,7 @@ describe('aGTM.f.sStrf()', () => {
     const before = aGTM.l.length;
     aGTM.f.sStrf('not-an-object');
     expect(aGTM.l.length).toBeGreaterThan(before);
+    // pin the actual log id, not just that *something* was logged
+    expect(aGTM.l[aGTM.l.length - 1].id).toBe('e16');
   });
 });
