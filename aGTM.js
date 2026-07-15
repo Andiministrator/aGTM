@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 14.07.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 15.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -745,12 +745,21 @@ aGTM.f.start_consent_poll = function () {
 /**
  * Retrieves the value of a cookie.
  * @property {function} aGTM.f.gc
- * @param {string} n - The name of the cookie.
+ * @param {string} n - The name of the cookie. Expected to be a literal name
+ *   without cookie separators; it is regex-escaped and left-anchored so a name
+ *   that is a suffix of another cookie name (e.g. reading 'b' with 'ab=…' present)
+ *   or that contains regex metacharacters can no longer produce a wrong/crashing
+ *   read (F-45).
  * @returns {string|null} - The value of the cookie or null if the cookie does not exist.
  * Usage: aGTM.f.gc('consent');
  */
 aGTM.f.gc = function (n) {
-  var re = new RegExp(n + "=([^;]+)");
+  if (typeof n != "string" || !n) return null;
+  // Escape regex metacharacters in the name, then anchor it to a cookie boundary
+  // (start of string or after a "; " separator) so it cannot match inside another
+  // cookie's name. The value group stays match[1] (the boundary is non-capturing).
+  var esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  var re = new RegExp("(?:^|;\\s*)" + esc + "=([^;]+)");
   var value = null;
   try {
     var d = document;

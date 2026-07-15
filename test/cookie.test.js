@@ -28,13 +28,30 @@ describe('aGTM.f.gc() / aGTM.f.sc()', () => {
     expect(aGTM.f.gc('b')).toBe('2');
   });
 
-  test('gc() has NO left name boundary — a suffix-collision cookie wins (KNOWN, F-45)', () => {
-    // Characterization pin: gc() builds new RegExp(n + "=([^;]+)") with the name
-    // neither escaped nor anchored, so reading 'b' matches the 'b=' inside 'ab=9'.
-    // This documents the latent bug (F-45); when gc() is hardened (escape + anchor
-    // the name) this expectation must flip to '2'.
+  test('gc() is left-anchored — a suffix-collision cookie name does NOT win (F-45)', () => {
+    // Reading 'b' must not match the 'b=' inside 'ab='. Before the F-45 fix the
+    // unanchored regex returned '9'; the left anchor now yields the real 'b=2'.
     document.cookie = 'ab=9; b=2';
-    expect(aGTM.f.gc('b')).toBe('9');
+    expect(aGTM.f.gc('b')).toBe('2');
+  });
+
+  test('gc() escapes regex metacharacters in the name (F-45)', () => {
+    // Before the fix the name went unescaped into new RegExp(): '.' matched any
+    // char (so gc('a.b') wrongly hit 'axb='), and a name like 'a(b' made the
+    // RegExp constructor THROW an uncaught SyntaxError (built before the try).
+    document.cookie = 'axb=9; a.b=2';
+    expect(aGTM.f.gc('a.b')).toBe('2');
+    document.cookie = 'a(b=1';
+    expect(aGTM.f.gc('a(b')).toBe('1'); // must not throw
+  });
+
+  test('gc() returns null for empty / non-string names (guards the escape step)', () => {
+    // The new n.replace() would throw on undefined/null without this guard, so
+    // the guard protects the added escape line (not an old-vs-new value diff).
+    document.cookie = 'a=1; b=2';
+    expect(aGTM.f.gc('')).toBeNull();
+    expect(aGTM.f.gc(undefined)).toBeNull();
+    expect(aGTM.f.gc(null)).toBeNull();
   });
 
   test('gc() URI-decodes the stored value', () => {
