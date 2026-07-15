@@ -823,6 +823,12 @@
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit 220f8db, gepusht dev). Fix spiegelt gc/F-45: String-Type-Guard (schuetzt die neue .replace-Zeile) + Regex-Escape des Param-Namens; KEIN Anchor noetig (fuehrendes [?&] + trailing = grenzt bereits ab). Aufrufer nur Literale (aGTMoptout/gtm_debug) -> null Praxisrisiko, latente Falle zu. Neuer test/urlparam.test.js (7 Faelle), 2 diskriminierend: '.'-Fehlmatch (axb=9 vs a.b=2 -> Altcode liefert 9) + '('-SyntaxError (Altcode wirft vor try). 294 Tests gruen, ./build.sh sauber, min.js +80 B. Findings F-47 -> behoben.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "3cbd2f6b-a7e0-413f-887c-31f18625e3b2",
+                "author": "Claude Opus",
+                "text": "QA+Kritiker-Runde (2 unabh. Sub-Agents, 2026-07-15): BEIDE FREIGABE JA, kein P0/P1/P2. (A) Code-Korrektheit: adversarialer ASCII-Sweep 32-126 -> kein new-RegExp-Throw, Escape-Klasse kanonisch vollstaendig; urlParam-Boundary-Angriff (F-45-analog) WIDERLEGT -> [?&] links + Pflicht-Alternation (=|&|#|$) rechts zaeunen beidseitig (urlParam(b,?ab=9&b=2)=2, ?foobar=9=null); ES5 konform. (B) Tests: alle fix-kritischen Assertions gegen nachgestellten Altcode ROT (diskriminierend belegt), keine falschen Erwartungswerte. Build/Sync/Groesse einwandfrei. 1 P3 (ueberklaimender Kommentar am -Fall) ehrlich korrigiert (Commit f9dbdc8).",
+                "created": "2026-07-15"
               }
             ]
           },
@@ -844,6 +850,12 @@
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit fadb5dd, gepusht dev). Neuer test/helpers_round2.test.js: 21 diskriminierende Faelle fuer strclean/an/vOb/getVal/propset/isIFrame. Kern-Diskriminatoren: an() kopiert falsy own-value (0/false/'') via hasOwnProperty statt zu defaulten; propset() ueberschreibt falsy + swallowed error bei non-writable target; vOb() false bei zirkulaerem Objekt (stringify throws->caught); getVal() vSt- + letter-match-Guard; isIFrame() true-Pfad via window.top-Override. Anders als F-45-Runde: KEIN neuer latenter Bug gefunden, die Helfer verhalten sich wie dokumentiert. Test-only, kein Build. 315 Tests gruen.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "9a2f5043-7711-42e9-9e04-5d10a234f1cf",
+                "author": "Claude Opus",
+                "text": "QA+Kritiker-Runde (2026-07-15): FREIGABE JA. Kern-Diskriminatoren empirisch bestaetigt: an() falsy-own-value via hasOwnProperty (naives || wuerde defaulten), propset overwrite-falsy, vOb circular (stringify throws->caught), getVal non-string-attr (123.match wuerde werfen), isIFrame top!==self. 2 P3-Transparenznotizen (schwache getVal-/123-Smoke-Assertions) -> Kommentare ehrlich gemacht, welche Sub-Assertion wirklich diskriminiert (Commit f9dbdc8). Kein echtes Finding.",
+                "created": "2026-07-15"
               }
             ]
           },
@@ -864,6 +876,12 @@
                 "id": "bf6eecc6-d521-4c51-8514-52e1444612a1",
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit aed603d, gepusht dev). Symmetrisch zur gc-Read-Haertung (F-45/F-47): Value via encodeURIComponent (spiegelt gc's decodeURIComponent -> ;/=/, im Wert round-trippt jetzt sauber); Name-Guard gegen ;/=/Whitespace (gc liest den Namen ROH ohne decode -> Namen-Encoding waere asymmetrisch, daher no-op statt korruptem Cookie). Alle 3 Aufrufer nutzen saubere Literale (aGTMoptout/aGTMdebug, 1/0) -> encodeURIComponent identity, KEINE Regression. cookie.test.js +4 diskriminierende Faelle (Separator-Value-Roundtrip: Altcode liefert 'a' statt 'a;b=c'; Name-mit-= no-op; Name-mit-;/Whitespace no-op; Literal-No-Regression). 319 Tests gruen, ./build.sh sauber (base64/sGTM-Blob re-injiziert), min.js +39 B. Damit Cookie-Helfer-Haertung symmetrisch abgerundet.",
+                "created": "2026-07-15"
+              },
+              {
+                "id": "5e52b949-d291-45f5-9c25-4b92cff146aa",
+                "author": "Claude Opus",
+                "text": "QA+Kritiker-Runde (2026-07-15): FREIGABE JA, kein Finding. sc(encode)<->gc(decode)-Symmetrie ueber 17 Haertefaelle (;/=/,/%/malformed-%/Unicode/Steuerzeichen) sauber round-getrippt, kein decodeURIComponent-Throw (encodeURIComponent erzeugt nie ;). Name-Guard /[;=\\s]/ deckt genau die store-und-read-back-brechenden Zeichen; weitere RFC-Separatoren brechen Roundtrip nicht -> fuer Literal-Aufrufer ausreichend (P3-Notiz, kein Bug). encodeURIComponent identity auf 0/1 -> keine Regression. sc-Encode-Tests gegen Altcode ROT (diskriminierend). Build/Sync gruen.",
                 "created": "2026-07-15"
               }
             ]
