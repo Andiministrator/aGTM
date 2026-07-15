@@ -14,6 +14,24 @@ Scroll and Pageview GTM templates now register their `scroll`/`resize`/
 interaction listeners passive + throttled. Backward compatible (the option is
 opt-in; existing 3-argument calls are unchanged).
 
+### Added — test coverage sweep (GTM templates + core library helpers)
+
+- **GTM template `___TESTS___` sweep (F-41):** every GTM template that had an
+  empty `scenarios: []` now carries real Tests-tab scenarios — all 13 web
+  templates (click, form, scroll, pageview, copy, timer, consent-mode,
+  iframe-support, dl-repeat, the core `aGTM Tag`, and the Consent-Check/
+  Consent-Info/Content-Counter variables) plus the sGTM Client (9 scenarios for
+  the synchronously reachable consent-store surface). Each scenario is
+  discriminating (fails if its fix is reverted); the config-building path of the
+  sGTM Client stays E2E in the `internal/api` smoketest (structurally not
+  unit-testable in the GTM Tests tab, F-44).
+- **Core library helper unit tests (bun):** added coverage for pure helpers that
+  previously had none — `consent_serialize` (the load-bearing consent-hash
+  serialization gating the consent-store POST), the `rTest`/`rMatch`/`rReplace`
+  (+`vSt`) regex helpers used by every template, `sStrf` (safe stringify incl.
+  circular-reference fallback), and `gc`/`sc` (cookie get/set).
+- Test suite now at **283 tests across 23 files** (`bun test`).
+
 ### Added — Integrator Data Contract documentation
 
 New [README-for-Integrators.md](README-for-Integrators.md): a standalone guide for
@@ -292,7 +310,7 @@ Template audit findings on the three variable templates:
 - Build system migrated to Bun (`bunx terser`); no `npm install` required
 - `VERSION` file as single source of truth for version number; build propagates to all files
 - `sgtmClient/template.tpl` base64 payload and version auto-updated on each build
-- Test suite grown from 75 to 234 tests across 19 files (`bun test`) — final count to be confirmed at release-tag time
+- Test suite grown from 75 to 283 tests across 23 files (`bun test`) — final count to be confirmed at release-tag time
 - Debug `console.log` removed from `urlListener`
 - String obfuscation for Google identifiers unified
 
