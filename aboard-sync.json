@@ -671,18 +671,6 @@
             "qa": true
           },
           {
-            "id": "agtm-v15-lib-helper-tests",
-            "title": "Library-Unit-Tests: ungetestete Kern-Helfer (consent_serialize, rReplace/rTest/rMatch, sStrf, url2host, getCookie/setCookie)",
-            "description": "Bun-Unit-Tests fuer pure Library-Helfer ohne Coverage. Test-only, null Runtime-Risiko. Prio: consent_serialize (load-bearing Consent-Hash, steuert Consent-Store-POST-Gating, 0 Tests) + die Regex-Helfer, die JEDES GTM-Template nutzt und die Template-Tests nur mocken. EMPFOHLEN als naechster v1.5-Fuellpunkt waehrend Live-Tests laufen.",
-            "complexity": "mittel",
-            "effort": 3,
-            "agentContext": "aGTM.js: consent_serialize (Consent-Hash, load-bearing fuer Consent-Store-Diff, 0 Unit-Tests), rReplace/rTest/rMatch (Regex-Helfer, von allen Templates genutzt+gemockt), sStrf (deep-copy), url2host, getCookie/setCookie. Neue test/*.test.js; browser-globals via test/setup.js; resetAGTM()/MockXHR in test/helpers.js. Falls ein Helfer rot wird = echter Bug jetzt gefunden. ES5 gilt fuer aGTM.js, nicht fuer Testcode.",
-            "owner": "Claude Opus",
-            "critical": false,
-            "displayId": 31,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-release-hygiene",
             "title": "Release-Hygiene: ROADMAP-Testzahl syncen + CHANGELOG um F-41-Test-Sweep ergaenzen (F-26)",
             "description": "ROADMAP.md Z.21 nennt 179 Tests/15 Dateien (real 234+/19+). CHANGELOG v1.5-Sektion um den GTM-Template-___TESTS___-Sweep (F-41) ergaenzen. Das CHANGELOG-Label \"in development\" (Z.3) bleibt bis zum echten git tag v1.5. Klein, niedriger Wert, aber tag-vorbereitend.",
@@ -705,6 +693,27 @@
             "critical": false,
             "displayId": 33,
             "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-lib-helper-tests",
+            "title": "Library-Unit-Tests: ungetestete Kern-Helfer (consent_serialize, rReplace/rTest/rMatch, sStrf, url2host, getCookie/setCookie)",
+            "description": "Bun-Unit-Tests fuer pure Library-Helfer ohne Coverage. Test-only, null Runtime-Risiko. Prio: consent_serialize (load-bearing Consent-Hash, steuert Consent-Store-POST-Gating, 0 Tests) + die Regex-Helfer, die JEDES GTM-Template nutzt und die Template-Tests nur mocken. EMPFOHLEN als naechster v1.5-Fuellpunkt waehrend Live-Tests laufen.",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "aGTM.js: consent_serialize (Consent-Hash, load-bearing fuer Consent-Store-Diff, 0 Unit-Tests), rReplace/rTest/rMatch (Regex-Helfer, von allen Templates genutzt+gemockt), sStrf (deep-copy), url2host, getCookie/setCookie. Neue test/*.test.js; browser-globals via test/setup.js; resetAGTM()/MockXHR in test/helpers.js. Falls ein Helfer rot wird = echter Bug jetzt gefunden. ES5 gilt fuer aGTM.js, nicht fuer Testcode.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 31,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "0ab3d514-69aa-4e12-b28b-28ee7db2c7ef",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit 84c384b): 49 bun-Unit-Tests fuer die ungetesteten Kern-Helfer. consent_serialize (12: sortierte Keys, gtmConsent/blocked-Blacklist, empty/null-Skip, 0/false bleiben, Objekt-JSON-stringify, gtmConsent-Flip != Consent-Change), rTest/rMatch/rReplace + vSt (23: Case-Sensitivity je Helfer, vSt-Guards, global replace, *->.* Wildcard aus F-05), sStrf (6: inkl. [Circular]-Fallback), gc/sc (9: Roundtrip, Multi-Cookie-Grenze, URI-decode, No-op-Guards). Test-only, kein Library-/CMP-Touch -> ES5/build.sh-Gate nicht einschlaegig. 283 Tests gruen (vorher 234). HINWEIS: url2host aus der Karten-Kandidatenliste existiert NICHT als Library-Funktion (nur als iFrame-TAG-Helfer) -> weggelassen; die uebrigen genannten Helfer alle abgedeckt.",
+                "created": "2026-07-15"
+              }
+            ],
+            "qa": true
           }
         ]
       },
@@ -907,11 +916,7 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": {
-      "question": "5-CHANGELOG-Sektion vollständig (für den späteren Tag), und welche puren Library-Helfer haben noch keine bun-Tests?",
-      "since": "2026-07-15T05:35:54.276140+00:00",
-      "askedBy": "Claude Sonnet 4.6"
-    },
+    "awaitingUser": null,
     "identities": [
       {
         "id": "user-default",
