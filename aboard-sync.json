@@ -891,6 +891,26 @@
                 "created": "2026-07-15"
               }
             ]
+          },
+          {
+            "id": "agtm-v15-chelp-failopen",
+            "title": "Consent-Gate Fail-Open in chelp() -> fail-closed (F-49, security P1)",
+            "description": "aGTM.f.chelp (Consent-Gate in run_cc) hatte if(need&&given) -> bei gesetztem gtm*-Requirement + bare  als granted-String wurde der Check uebersprungen -> return true -> gtmConsent=true -> GTM laedt OHNE erforderliche Einwilligung. Erreichbar ueber Cookiebot/Usercentrics v2+v3/CCM19 (schreiben bare  bei voll abgelehnter Kategorie). Config- & CMP-abhaengig, Altbestand (kein v1.5-Regress). Fund via Runde-3-Helfer-Tests; evalCons-Schwester war bereits fail-closed (Divergenz = Bug-Signal).",
+            "complexity": "niedrig",
+            "effort": 1,
+            "owner": "Claude Opus",
+            "critical": false,
+            "qa": true,
+            "displayId": 39,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "cf5a7483-ea3e-46cd-959d-c8006be02f1a",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit 204295e, gepusht dev). Fix fail-closed: if(need_cons){ if(!given_cons) return false; ... }. Unabh. Kritiker-Sub-Agent: FREIGABE JA — Fail-Open echt+erreichbar bestaetigt (Node-Beleg + CMP-Dateien gelesen: Cookiebot/UC/UC3/CCM19 bare , Consentmanager comma-wrapped nicht betroffen); KEINE Fail-Closed-Regression (einziger Verhaltensdelta = die zwei Bug-Faelle, alle legitimen Ladepfade bit-identisch; B2-Reset-Race in run_cc geprueft; blocked-Server-Signal wird jetzt korrekt geehrt statt umgangen); ES5 sauber; Tests diskriminierend. Neuer test/consent_helpers.test.js (11, F-49-Test gegen Altcode ROT + evalCons-Symmetrie). 330 Tests gruen, build sauber, min.js +15 B. findings F-49, CHANGELOG (security), knowledge/topics/consent-gate-fail-closed.md. LIVE-IMPLIKATION: aendert das Gate NUR fuer gtm*-konfigurierte Seiten mit abgelehnter Pflichtkategorie -> Rollout beim naechsten fc-moto-Client-Re-Import; fc-moto nur betroffen wenn gtm* gesetzt.",
+                "created": "2026-07-15"
+              }
+            ]
           }
         ]
       },
@@ -1089,7 +1109,7 @@
         ]
       }
     ],
-    "nextDisplayId": 39,
+    "nextDisplayId": 40,
     "attachments": [],
     "background": null,
     "templates": [],
