@@ -30,7 +30,7 @@ opt-in; existing 3-argument calls are unchanged).
   serialization gating the consent-store POST), the `rTest`/`rMatch`/`rReplace`
   (+`vSt`) regex helpers used by every template, `sStrf` (safe stringify incl.
   circular-reference fallback), and `gc`/`sc` (cookie get/set).
-- Test suite now at **283 tests across 23 files** (`bun test`).
+- Test suite now at **285 tests across 23 files** (`bun test`).
 
 ### Added — Integrator Data Contract documentation
 
@@ -311,7 +311,7 @@ Template audit findings on the three variable templates:
 - Build system migrated to Bun (`bunx terser`); no `npm install` required
 - `VERSION` file as single source of truth for version number; build propagates to all files
 - `sgtmClient/template.tpl` base64 payload and version auto-updated on each build
-- Test suite grown from 75 to 283 tests across 23 files (`bun test`) — final count to be confirmed at release-tag time
+- Test suite grown from 75 to 285 tests across 23 files (`bun test`) — final count to be confirmed at release-tag time
 - Debug `console.log` removed from `urlListener`
 - String obfuscation for Google identifiers unified
 

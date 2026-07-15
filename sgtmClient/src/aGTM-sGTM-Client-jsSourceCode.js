@@ -78,7 +78,7 @@ const CFG = {
   // sources_method validated against the 5 api4sources methods; a stale or
   // overridden config value falls back to last_touch, otherwise attribution
   // would be requested/wrapped under an invalid method key (F-01).
-  sourcesMethod: {last_touch: 1, first_touch: 1, last_click: 1, first_click: 1, last_non_direct_click: 1}[data.sources_method] ? data.sources_method : 'last_touch',
+  sourcesMethod: {last_touch: 1, first_touch: 1, last_click: 1, first_click: 1, last_non_direct_click: 1}[data.sources_method] === 1 ? data.sources_method : 'last_touch',
   // Pre-aGTM Init Code: arbitrary JS prepended verbatim to the /aGTM.js
   // response. Use case: CMP loaders that must define globals before aGTM
   // starts. Must be ES5; no try/catch wrap (silent errors hide bugs).

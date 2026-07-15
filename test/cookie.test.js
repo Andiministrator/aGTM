@@ -21,9 +21,20 @@ describe('aGTM.f.gc() / aGTM.f.sc()', () => {
     expect(aGTM.f.gc('does_not_exist')).toBeNull();
   });
 
-  test('gc() reads a value out of a multi-cookie string (stops at ";")', () => {
+  test('gc() reads a value out of a multi-cookie string (stops at the ";" right boundary)', () => {
+    // exercises only the [^;]+ RIGHT boundary; the fixture has no name-suffix
+    // collision, so it does not (and cannot) prove left name-boundary safety
     document.cookie = 'a=1; b=2; c=3';
     expect(aGTM.f.gc('b')).toBe('2');
+  });
+
+  test('gc() has NO left name boundary — a suffix-collision cookie wins (KNOWN, F-45)', () => {
+    // Characterization pin: gc() builds new RegExp(n + "=([^;]+)") with the name
+    // neither escaped nor anchored, so reading 'b' matches the 'b=' inside 'ab=9'.
+    // This documents the latent bug (F-45); when gc() is hardened (escape + anchor
+    // the name) this expectation must flip to '2'.
+    document.cookie = 'ab=9; b=2';
+    expect(aGTM.f.gc('b')).toBe('9');
   });
 
   test('gc() URI-decodes the stored value', () => {
