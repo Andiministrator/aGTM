@@ -270,7 +270,7 @@
             "owner": "Claude Opus",
             "qa": false,
             "critical": false,
-            "blocked": false,
+            "blocked": true,
             "complexity": "mittel",
             "effort": 2,
             "agentContext": "SESSION-REDESIGN.md §7 · docs/open-decisions.md OE-3 · internal/api/ (gitignored, Smoketest) · docs/qa/sprint-abschluss.md · ADR-0062 · VERSION=1.5",
@@ -316,6 +316,12 @@
                 "id": "b0990fbe-3559-4020-9c74-2e1a70644b2f",
                 "author": "Claude Opus",
                 "text": "Release-Gate-Fortschritt (2026-07-15, Andi): neuer sGTM-Client (RC, Blob==aGTM.base64 inkl. F-45, Server-Logik inkl. F-33) bei fc-moto importiert — kombinierter Smoketest GRUEN gegen Live-Infra (api4sgtm/api4sources). Client ist LIVE, Beobachtungsphase laeuft. Damit ist das operative Gate-Kriterium 'Smoketest gruen gegen Release-Build' erfuellt. OFFEN vor git tag v1.5: (1) Beobachtungsfenster (Andis Call), (2) /sprint-abschluss inkl. Kritiker, (3) Pre-Tag-Hygiene F-26 (CHANGELOG 'in development' streichen + finale Testzahl 287/23 festzurren), (4) dev->main-Merge + Tag NUR auf Andis Zeichen. Karte bleibt In Arbeit.",
+                "created": "2026-07-15"
+              },
+              {
+                "id": "e20ed8b8-9f99-48d5-b299-3dc223000c3b",
+                "author": "Claude Opus",
+                "text": "BLOCKED = wartet auf Andis Live-Test-Freigabe. v1.5 laeuft auf unbestimmte Zeit im Live-Test (fc-moto u.a.). Release-Abschluss (sprint-abschluss / dev->main / git tag v1.5 / Pre-Tag-Hygiene) ruht komplett bis Andi explizit 'ready' sagt. Karte NICHT als aktiven Auftrag behandeln.",
                 "created": "2026-07-15"
               }
             ],
