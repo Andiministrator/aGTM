@@ -323,6 +323,12 @@
                 "author": "Claude Opus",
                 "text": "BLOCKED = wartet auf Andis Live-Test-Freigabe. v1.5 laeuft auf unbestimmte Zeit im Live-Test (fc-moto u.a.). Release-Abschluss (sprint-abschluss / dev->main / git tag v1.5 / Pre-Tag-Hygiene) ruht komplett bis Andi explizit 'ready' sagt. Karte NICHT als aktiven Auftrag behandeln.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "a7d98611-c529-473d-8561-e9f28aa1f66c",
+                "author": "Claude Opus",
+                "text": "Release-Gate-Update (Andi, 2026-07-15): neuer sGTM-Client bei fc-moto NEU importiert + live gestellt — jetzt byte-aktuell mit dev-HEAD (eingebetteter Library-Blob == aGTM.base64 inkl. F-45/F-47/F-48; Server-Logik inkl. F-33). Laeuft, Beobachtungsfenster laeuft. Die drei letzten Library-Aenderungen (F-47 urlParam / F-48 sc / Helfer-Tests) haben null beobachtbaren Laufzeiteffekt (Literal-Only-Aufrufer) — der Re-Import haelt live==dev sauber, ohne funktionale Delta zu erwarten. OFFEN vor git tag v1.5 unveraendert: (1) Beobachtungsfenster (Andis Call), (2) /sprint-abschluss inkl. Kritiker, (3) Pre-Tag-Hygiene F-26 (CHANGELOG in-development streichen + finale Testzahl 319/25 festzurren), (4) dev->main-Merge + Tag NUR auf Andis Zeichen. Karte bleibt In Arbeit/blocked.",
+                "created": "2026-07-15"
               }
             ],
             "displayId": 1,
