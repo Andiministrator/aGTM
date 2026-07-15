@@ -114,8 +114,8 @@ aGTM.f.consent_check = function (action) {
     }
   }
   // cleanup services array (no comma in vendor string)
-  var purposes_clean = purposes.map(function(item) { return item.replace(',', ''); });
-  var vendors_clean = vendors.map(function(item) { return item.replace(',', ''); });
+  var purposes_clean = purposes.map(function(item) { return item.replace(/,/g, ''); });
+  var vendors_clean = vendors.map(function(item) { return item.replace(/,/g, ''); });
   // Put all data in data object
   aGTM.d.consent = aGTM.d.consent || {};
   aGTM.d.consent.purposes = ',' + purposes_clean.join(',') + ',';

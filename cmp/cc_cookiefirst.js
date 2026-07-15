@@ -38,7 +38,7 @@ aGTM.f.consent_check = function (action) {
     if (typeof k!='string' || typeof cfPurposes[k]!='boolean') continue;
     if (cfPurposes[k]) {
       purposesCtr++;
-      purposes.push(k.replace(',',''));
+      purposes.push(k.replace(/,/g,''));
     }
   }
   // Get Services Consent data
@@ -51,7 +51,7 @@ aGTM.f.consent_check = function (action) {
     serviceAllCtr++;
     if (cfServices[k]) {
       serviceCtr++;
-      services.push(k.replace(',',''));
+      services.push(k.replace(/,/g,''));
     }
   }
   // Sort Purpose Array and stringify it

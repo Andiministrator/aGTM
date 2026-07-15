@@ -27,6 +27,20 @@ type guard returns `null` for empty/non-string names. Found by the F-45 helper
 unit tests; verified by an independent critic (16-case battery). Discovered
 latent, pre-existing (not a v1.5 regression).
 
+### Fixed — CMP name comma-stripping only removed the first comma (F-51)
+
+Three CMP `consent_check` implementations stripped commas from
+service/purpose/vendor names with `name.replace(',', '')`, which — with a
+string first argument — only replaces the **first** occurrence. Because the
+consent state is stored as a comma-delimited, comma-wrapped string, a name
+containing two or more commas kept an embedded comma and was later split into
+two entries, causing a consent mismatch (a configured `gtm*` requirement would
+not match → GTM stays blocked) or a distorted consent hash/store. Reachable
+with e.g. IAB-TCF vendor names like "Amazon.com, Inc." (Sourcepoint). Fixed to
+a global replace (`/,/g`) in `cc_usercentrics.js`, `cc_sourcepoint.js`, and
+`cc_cookiefirst.js`, matching the already-correct `cc_ccm19.js`. CMP files are
+separate on-demand scripts, so this does not affect the embedded library blob.
+
 ### Fixed — consent-gate fail-open in `aGTM.f.chelp()` (F-49, security)
 
 The core consent gate that decides `gtmConsent` (GTM loads only if every
