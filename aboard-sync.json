@@ -911,6 +911,26 @@
                 "created": "2026-07-15"
               }
             ]
+          },
+          {
+            "id": "agtm-v15-helper-tests-round3",
+            "title": "Runde-3 Helfer-Unit-Tests (chelp/evalCons/pageinfo/aGTM_event/timerfkt/proxySupport/log/DOM-Guards) + F-50",
+            "description": "Fortsetzung Runde 2. Deckte ZWEI echte latente Bugs auf: F-49 (chelp Consent-Gate Fail-Open, P1, eigene Karte) + F-50 (pageinfo Wortzaehlung inflationiert durch Whitespace-Text-Nodes, P3). test/consent_helpers.test.js (11) + test/helpers_round3.test.js (16). Restliche untestete Helfer sind DOM-/Lifecycle-lastig (init/gtm_load/sendnaus/optout/…), indirekt abgedeckt.",
+            "complexity": "mittel",
+            "effort": 2,
+            "owner": "Claude Opus",
+            "critical": false,
+            "qa": true,
+            "displayId": 40,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "d796b6f0-f658-4368-9477-fca88816df42",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commits 204295e F-49 + d480c34 F-50, gepusht dev). Muster bestaetigt: Helfer-Tests schreiben deckt latente Bugs auf. F-49 = P1 Consent-Fail-Open (eigene Karte, Kritiker FREIGABE JA). F-50 = pageinfo zaehlte jeden Whitespace-only-Text-Node als 1 Wort (\"\".split(/\\s+/)=[\"\"] length 1) -> Wortzahl vielfach ueberhoeht (3 echte -> 6); Empty-Guard gefixt, Test gegen Altcode ROT. Round-3-Coverage: chelp/evalCons (Consent-Gate), pageinfo (Wort/Bild/script-skip), aGTM_event, timerfkt (count/seconds/[s]/no-mutation), proxySupport, log (clone-safety), getNodeAttr/newNode/delNode-Guards. F-50 P3 -> kein schwerer Kritiker (Doktrin K bei P0/P1), Diskriminierung per node-Sim+Test belegt. 346 Tests gruen, build sauber, min.js +14 B. findings F-50, CHANGELOG, ROADMAP-Testzahl 346/27.",
+                "created": "2026-07-15"
+              }
+            ]
           }
         ]
       },
@@ -1109,7 +1129,7 @@
         ]
       }
     ],
-    "nextDisplayId": 40,
+    "nextDisplayId": 41,
     "attachments": [],
     "background": null,
     "templates": [],
