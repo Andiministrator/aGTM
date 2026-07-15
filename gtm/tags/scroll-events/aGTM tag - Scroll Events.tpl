@@ -470,9 +470,10 @@ ___TESTS___
 scenarios:
 - name: Steps are parsed trimmed deduped range-checked and sorted ascending
   code: |-
-    // F-34c: an out-of-order / dup / out-of-range config must be normalised, else
-    // the monotonic while-loop stops at the first unreachable threshold and later
-    // steps never fire. Driving a full scroll must emit 25,50,75,90 in order.
+    // F-34c: a dup / out-of-range / out-of-order config is normalised to
+    // 25,50,75,90. Driving a full scroll (depth 100) reaches every threshold, so
+    // this discriminates the SORT (depths[0]===25, not 75) and DEDUP (length 4).
+    // The "unreachable threshold" consequence is covered by the next scenario.
     let depths = [], scrollHandler = null;
     mock('callInWindow', function(fn) {
       if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'scroll') scrollHandler = arguments[3]; return; }
@@ -496,6 +497,30 @@ scenarios:
     assertThat(depths[1]).isEqualTo(50);
     assertThat(depths[2]).isEqualTo(75);
     assertThat(depths[3]).isEqualTo(90);
+- name: Unsorted steps do not leave a lower threshold unreachable
+  code: |-
+    // F-34c (the actual consequence): with an unsorted config '50,25' and a scroll
+    // to ~40%, the higher entry must not block the lower one. Sorted to [25,50] the
+    // 25% step fires. Without the sort ([50,25]) the monotonic while-loop tests 50
+    // first (40>=50 is false) and stops immediately -> the 25% step never fires.
+    let depths = [], scrollHandler = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'scroll') scrollHandler = arguments[3]; return; }
+      if (fn === 'aGTM.f.getVal') {
+        let t = arguments[1], p = arguments[2];
+        if (t === 'w' && p === 'innerHeight') return 1000;
+        if (t === 'w' && p === 'scrollY') return 200;
+        if (t === 'b' && p === 'offsetHeight') return 3000;
+        return 0;
+      }
+      if (fn === 'aGTM.f.fire') { if (typeof arguments[1].scroll_depth === 'number') depths.push(arguments[1].scroll_depth); return; }
+    });
+    mock('copyFromWindow', function() { return false; });
+    mock('setInWindow', function() {});
+    runCode({ eventname: 'scroll', steps: '50,25', addparameter: [], noscrollevent: false, isscrollevent: false, ua_event: false });
+    scrollHandler();
+    assertThat(depths.length).isEqualTo(1);
+    assertThat(depths[0]).isEqualTo(25);
 - name: Scroll listeners are registered at most once per page
   code: |-
     // F-34b: leak guard. When aGTM.d.scrollListener_active is already set, the tag

@@ -253,7 +253,35 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Fires the configured event and marks it aGTMfired
+  code: |-
+    let fired = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ eventname: 'my_event', dlparams: [], addparameter: [] });
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('my_event');
+    assertThat(fired.aGTMfired).isEqualTo(true);
+- name: Additional parameters are merged into the event
+  code: |-
+    let fired = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ eventname: 'my_event', dlparams: [], addparameter: [{ pkey: 'foo', pvalue: 'bar' }] });
+    assertThat(fired.foo).isEqualTo('bar');
+- name: dataLayer params are pulled and merged into the event
+  code: |-
+    let fired = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    mock('copyFromDataLayer', function(key) { if (key === 'user_id') return 'u123'; });
+    runCode({ eventname: 'my_event', dlparams: [{ dlparam: 'user_id' }], addparameter: [] });
+    assertThat(fired.user_id).isEqualTo('u123');
+setup: ''
 
 
 ___NOTES___

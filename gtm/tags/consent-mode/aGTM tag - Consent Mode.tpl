@@ -1429,26 +1429,7 @@ scenarios:
     assertThat(defArg).isDefined();
     assertThat(defArg.ad_storage).isUndefined();
     assertThat(defArg.analytics_storage).isEqualTo('granted');
-setup: |-
-  const mockData = {
-    cm_update: false,
-    cm_update_after_default: false,
-    cm_attributes: [],
-    cm_wait: '0',
-    cm_regions: 'all',
-    cm_grant_outside: false,
-    url_passthrough: true,
-    ads_data_redaction: true,
-    ms_consent_mode: false,
-    cm_event: false,
-    ad_storage: 'denied',
-    ad_user_data: 'denied',
-    ad_personalization: 'denied',
-    analytics_storage: 'denied',
-    personalization_storage: 'denied',
-    functionality_storage: 'denied',
-    security_storage: 'denied',
-  };
+setup: ''
 
 
 ___NOTES___
