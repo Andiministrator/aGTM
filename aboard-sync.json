@@ -763,6 +763,12 @@
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit 19b0dd2). Auf Andis Wunsch VORHER eigener Kritiker-Sub-Agent auf Diagnose+Umsetzungsplan (nicht nur auf den Code): Verdikt JA-MIT-AENDERUNGEN. Diagnose bestaetigt — Defekt (1) ist sogar ein uncaught SyntaxError (gc('a(b'), RegExp vor try-Block), nicht nur Fehlmatch. Fix wasserdicht: 16-Fall-Batterie gruen, non-capturing (?:..) load-bearing (capturing wuerde match[1] verschieben), ES5-sauber, keine Aufrufer-Regression (nur aGTMoptout/aGTMdebug). Umsetzung: Type-Guard + Regex-Escape der Metazeichen + Links-Anchor (?:^|;\\s*). Tests: Characterization-Pin '9'->'2' geflippt, Metazeichen-Test (Altcode wirft) + Guard-Test. ./build.sh sauber, sGTM-Sync identisch (Blob re-injiziert in tpl+src), 287 Tests gruen, min.js +94 B. Findings F-45 -> behoben.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "2273072e-e03a-4ff2-8485-81ee87a5cca4",
+                "author": "Claude Opus",
+                "text": "Post-Implementation-QA (2 unabh. Sub-Agents, 2026-07-15): BEIDE JA. (A) Korrektheit am committeten Code: 13-Fall-Angriffsbatterie gruen — Escape-Charclass vollstaendig, -//# ausserhalb [] korrekt keine Metazeichen, Anchor liest nie Fremd-Cookie, defektes % -> null via try, alle 3 neuen Tests auf altem gc() rot (diskriminierend). (B) Build-Integritaet: Fix in min.js/base64/sGTM-Blob (tpl+src) byte-identisch, Terser erhaelt Escape+Anchor semantisch, Rebuild deterministisch, base64==min.js, Sync-Invariante haelt, 287 Tests gruen, min.js +94B/gzip +15B. Keine Code-Findings. 2 verifiziert-benigne P3 (leerer Wert x=->null pre-existing; \\s-Leniency harmlos) dokumentiert, kein Handlungsbedarf. 1 echter P3 -> eigenes Finding F-46 + v1.6-Karte: stale eingebettete Alt-Library (v1.3) im GTM-Workspace-Export gtm/aGTM-GTM-Workspace-Template-18.json (build.sh regeneriert sie nicht; null Risiko, liest nur Literalnamen).",
+                "created": "2026-07-15"
               }
             ]
           }
@@ -880,6 +886,18 @@
             "comments": [],
             "displayId": 8,
             "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v16-workspace-export-refresh",
+            "title": "GTM-Workspace-Export mit aktueller Library neu generieren (F-46)",
+            "description": "gtm/aGTM-GTM-Workspace-Template-18.json (413 KB, getrackt/public) bettet eine komplette minifizierte Alt-Version der Library ein (@version 1.3) inkl. des alten ungehaerteten gc() (F-45) und generell veralteter Logik. build.sh regeneriert die Datei NICHT (GTM-UI-Export, keine aus aGTM.js abgeleitete Quelle). Laufzeitrisiko = 0 (liest nur Literalnamen aGTMoptout/aGTMdebug). Fix: bei Gelegenheit aus GTM mit aktueller Library (1.5) neu exportieren. Erfordert GTM-UI-Zugang (Andi). Kein Release-Blocker.",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "Nur durch Neu-Export aus dem GTM-UI loesbar (kein Code-Task fuer Agenten). Bezug findings F-46. Betrifft die einzige getrackte aGTM.f.gc-Alt-Kopie ausserhalb aGTM.js/min.js/sgtmClient. Knowledge: projekt-konventionen.md Build-Abschnitt (Gotcha: nicht von build.sh regeneriert).",
+            "owner": "",
+            "critical": false,
+            "displayId": 35,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -963,11 +981,15 @@
         ]
       }
     ],
-    "nextDisplayId": 35,
+    "nextDisplayId": 36,
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "replace()` bei `gc(undefined)` werfen — der Guard ist zwingend;\n- das non-capturing `(?",
+      "since": "2026-07-15T07:18:27.915684+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
