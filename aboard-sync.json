@@ -1133,7 +1133,11 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "`knowledge/` ist gitignored (kein Commit). Ein Punkt gehört aber ins Memory: die **Live-Kunden-Exposition durch F-49** (nicht aus dem Repo ableitbar — das hast du mir gerade gesagt). Das speichere ich",
+      "since": "2026-07-15T18:40:09.200777+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
