@@ -419,7 +419,88 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Form submit fires the submit event with form metadata
+  code: |-
+    let fired = null, submitCb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { if (arguments[2] === 'submit') submitCb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ submitevent: 'form_submit', maxclicks: 1, addparameter: [], ua_event: false });
+    submitCb({ id: 'f1', name: 'contact', action: '/send' });
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('form_submit');
+    assertThat(fired.form_id).isEqualTo('f1');
+    assertThat(fired.form_destination).isEqualTo('/send');
+- name: clickevent config controls the form-click event name
+  code: |-
+    // F-30a: the field is named 'clickevent' (was mis-read as 'startevent', so the
+    // field was dead and the event hard-coded). Configuring it must take effect.
+    let fired = null, focusCb = null, store = {};
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { if (arguments[2] === 'focus') focusCb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTMformClicks') return store.v; });
+    mock('setInWindow', function(key, val) { if (key === 'aGTMformClicks') store.v = val; });
+    runCode({ clickevent: 'custom_click', maxclicks: 5, addparameter: [], ua_event: false });
+    focusCb({ id: 'x', form: { id: 'f1' } });
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('custom_click');
+- name: maxclicks accepts a number and caps clicks per form
+  code: |-
+    // F-30b: maxclicks is a NUMBER field. The old typeof=='string' guard ignored
+    // it and capped at 1. With maxclicks 2, the third focus on the same form is
+    // suppressed -> exactly 2 fires.
+    let fires = 0, focusCb = null, store = {};
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { if (arguments[2] === 'focus') focusCb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.fire') { fires++; return; }
+    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTMformClicks') return store.v; });
+    mock('setInWindow', function(key, val) { if (key === 'aGTMformClicks') store.v = val; });
+    runCode({ maxclicks: 2, addparameter: [], ua_event: false });
+    let field = { id: 'x', form: { id: 'f1' } };
+    focusCb(field); focusCb(field); focusCb(field);
+    assertThat(fires).isEqualTo(2);
+- name: Each form counts its clicks independently
+  code: |-
+    // F-30c: the click counter is a per-form map (was a single global number that
+    // capped across ALL forms). With maxclicks 1: form f1 fires once then caps, and
+    // form f2 still fires its own first click -> 2 fires total.
+    let fires = 0, focusCb = null, store = {};
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { if (arguments[2] === 'focus') focusCb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.fire') { fires++; return; }
+    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTMformClicks') return store.v; });
+    mock('setInWindow', function(key, val) { if (key === 'aGTMformClicks') store.v = val; });
+    runCode({ maxclicks: 1, addparameter: [], ua_event: false });
+    focusCb({ id: 'a', form: { id: 'f1' } });
+    focusCb({ id: 'b', form: { id: 'f1' } });
+    focusCb({ id: 'c', form: { id: 'f2' } });
+    assertThat(fires).isEqualTo(2);
+- name: A field with no form ancestor does not throw and still fires
+  code: |-
+    // F-30d: el.form is null when the field has no <form> ancestor. The guard
+    // falls back to an empty form object instead of dereferencing null.
+    let fired = null, focusCb = null, store = {};
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { if (arguments[2] === 'focus') focusCb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTMformClicks') return store.v; });
+    mock('setInWindow', function(key, val) { if (key === 'aGTMformClicks') store.v = val; });
+    runCode({ maxclicks: 1, addparameter: [], ua_event: false });
+    focusCb({ id: 'x', form: null });
+    assertThat(fired).isDefined();
+    assertThat(fired.form_id).isEqualTo(null);
 setup: ''
 
 

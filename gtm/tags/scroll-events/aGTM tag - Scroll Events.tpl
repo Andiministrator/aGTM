@@ -467,7 +467,92 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Steps are parsed trimmed deduped range-checked and sorted ascending
+  code: |-
+    // F-34c: an out-of-order / dup / out-of-range config must be normalised, else
+    // the monotonic while-loop stops at the first unreachable threshold and later
+    // steps never fire. Driving a full scroll must emit 25,50,75,90 in order.
+    let depths = [], scrollHandler = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'scroll') scrollHandler = arguments[3]; return; }
+      if (fn === 'aGTM.f.getVal') {
+        let t = arguments[1], p = arguments[2];
+        if (t === 'w' && p === 'innerHeight') return 1000;
+        if (t === 'w' && p === 'innerWidth') return 1000;
+        if (t === 'w' && p === 'scrollY') return 2000;
+        if (t === 'b' && p === 'offsetHeight') return 3000;
+        if (t === 'b' && p === 'offsetWidth') return 1000;
+        return 0;
+      }
+      if (fn === 'aGTM.f.fire') { if (typeof arguments[1].scroll_depth === 'number') depths.push(arguments[1].scroll_depth); return; }
+    });
+    mock('copyFromWindow', function() { return false; });
+    mock('setInWindow', function() {});
+    runCode({ eventname: 'scroll', steps: '75,25,50,50,110,0,90', addparameter: [], noscrollevent: false, isscrollevent: false, ua_event: false });
+    scrollHandler();
+    assertThat(depths.length).isEqualTo(4);
+    assertThat(depths[0]).isEqualTo(25);
+    assertThat(depths[1]).isEqualTo(50);
+    assertThat(depths[2]).isEqualTo(75);
+    assertThat(depths[3]).isEqualTo(90);
+- name: Scroll listeners are registered at most once per page
+  code: |-
+    // F-34b: leak guard. When aGTM.d.scrollListener_active is already set, the tag
+    // must NOT register the scroll/resize listeners again (else a listener leak).
+    let evLstnCalls = 0;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.evLstn') { evLstnCalls++; return; }
+      if (fn === 'aGTM.f.getVal') {
+        let t = arguments[1], p = arguments[2];
+        if (t === 'w' && p === 'innerHeight') return 1000;
+        if (t === 'b' && p === 'offsetHeight') return 3000;
+        return 0;
+      }
+      if (fn === 'aGTM.f.fire') { return; }
+    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTM.d.scrollListener_active') return true; return false; });
+    mock('setInWindow', function() {});
+    runCode({ eventname: 'scroll', steps: '25,50', addparameter: [], noscrollevent: false, isscrollevent: false, ua_event: false });
+    assertThat(evLstnCalls).isEqualTo(0);
+- name: Short page with noscrollevent fires the not-necessary event
+  code: |-
+    let fired = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.evLstn') { return; }
+      if (fn === 'aGTM.f.getVal') {
+        let t = arguments[1], p = arguments[2];
+        if (t === 'w' && p === 'innerHeight') return 1000;
+        if (t === 'b' && p === 'offsetHeight') return 1000;
+        return 0;
+      }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    mock('copyFromWindow', function() { return false; });
+    mock('setInWindow', function() {});
+    runCode({ eventname: 'scroll', steps: '25,50', addparameter: [], noscrollevent: true, isscrollevent: false, ua_event: false });
+    assertThat(fired).isDefined();
+    assertThat(fired.event_label).isEqualTo('scroll tracking not necessary');
+- name: Additional parameters are merged into the scroll event
+  code: |-
+    let fired = null, scrollHandler = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'scroll') scrollHandler = arguments[3]; return; }
+      if (fn === 'aGTM.f.getVal') {
+        let t = arguments[1], p = arguments[2];
+        if (t === 'w' && p === 'innerHeight') return 1000;
+        if (t === 'w' && p === 'scrollY') return 2000;
+        if (t === 'b' && p === 'offsetHeight') return 3000;
+        return 0;
+      }
+      if (fn === 'aGTM.f.fire') { if (typeof arguments[1].scroll_depth === 'number') fired = arguments[1]; return; }
+    });
+    mock('copyFromWindow', function() { return false; });
+    mock('setInWindow', function() {});
+    runCode({ eventname: 'scroll', steps: '25', addparameter: [{ pkey: 'foo', pvalue: 'bar' }], noscrollevent: false, isscrollevent: false, ua_event: false });
+    scrollHandler();
+    assertThat(fired).isDefined();
+    assertThat(fired.foo).isEqualTo('bar');
 setup: ''
 
 

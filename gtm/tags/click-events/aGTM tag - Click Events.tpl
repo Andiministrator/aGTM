@@ -714,7 +714,89 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Anchor click fires the configured event with a click action
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.getVal') { return 'www.example.com'; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rMatch') { return null; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ eventname: 'my_click', selector: 'a', cross_matching: 'domain', textfilter: [], addparameter: [], usecontact: false, ua_event: false, fire_double_events: false });
+    cb({ tagName: 'a', href: 'https://www.example.com/x', text: 'Home' });
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('my_click');
+    assertThat(fired.action).isEqualTo('click');
+- name: Unset cross_matching falls back to domain scope - internal subdomain is not outbound
+  code: |-
+    // F-29: an unset SELECT delivers '' (a string, so the setConf default never
+    // kicks in). The `!== 'hostname'` guard forces the safer domain scope, so a
+    // link to a subdomain of the internal domain is NOT reported as outbound.
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.getVal') { return 'www.example.com'; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rMatch') { return null; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ selector: 'a', cross_matching: '', textfilter: [], addparameter: [], usecontact: false, ua_event: false, fire_double_events: false });
+    cb({ tagName: 'a', href: 'https://sub.example.com/page', text: 'Subdomain' });
+    assertThat(fired.outbound).isEqualTo(0);
+- name: External domain link is marked outbound
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.getVal') { return 'www.example.com'; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rMatch') { return null; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ selector: 'a', cross_matching: 'domain', textfilter: [], addparameter: [], usecontact: false, ua_event: false, fire_double_events: false });
+    cb({ tagName: 'a', href: 'https://external.com/p', text: 'External' });
+    assertThat(fired.outbound).isEqualTo(1);
+- name: Download link is classified with file name and extension
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.getVal') { return 'www.example.com'; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rMatch') { return ['/file.pdf', 'file.pdf', 'file', '.pdf', 'pdf']; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ selector: 'a', downloadevent: 'file_download', cross_matching: 'domain', textfilter: [], addparameter: [], usecontact: false, ua_event: false, fire_double_events: false });
+    cb({ tagName: 'a', href: 'https://cdn.example.com/file.pdf', text: 'PDF' });
+    assertThat(fired.type).isEqualTo('download');
+    assertThat(fired.file_name).isEqualTo('file.pdf');
+    assertThat(fired.event).isEqualTo('file_download');
+- name: Additional parameters are merged into the click event
+  code: |-
+    let fired = null, cb = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.addElLst') { cb = arguments[3]; return; }
+      if (fn === 'aGTM.f.observer') { return; }
+      if (fn === 'aGTM.f.getVal') { return 'www.example.com'; }
+      if (fn === 'aGTM.f.rReplace') { return arguments[1]; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rMatch') { return null; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ selector: 'a', cross_matching: 'domain', textfilter: [], addparameter: [{ pkey: 'foo', pvalue: 'bar' }], usecontact: false, ua_event: false, fire_double_events: false });
+    cb({ tagName: 'a', href: 'https://www.example.com/x', text: 'Home' });
+    assertThat(fired.foo).isEqualTo('bar');
 setup: ''
 
 
