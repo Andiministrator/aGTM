@@ -573,7 +573,77 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Valid message from an allowed origin fires with merged params
+  code: |-
+    let fired = null, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [{ pkey: 'source', pvalue: 'iframe' }] });
+    listener({ event: 'purchase', value: 10 }, 'https://trusted.com');
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('purchase');
+    assertThat(fired.value).isEqualTo(10);
+    assertThat(fired.source).isEqualTo('iframe');
+- name: Opaque or non-http origin is rejected
+  code: |-
+    // F-33b: an opaque origin ('null' from sandboxed/srcdoc frames) resolves to an
+    // empty hostname and must be dropped fail-closed, before any allow-list check.
+    let fired = false, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'purchase' }, 'null');
+    assertThat(fired).isEqualTo(false);
+- name: Message from a non-allowlisted origin is rejected
+  code: |-
+    // F-33a: a configured allow-list is strict - a non-matching origin is dropped.
+    let fired = false, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'purchase' }, 'https://evil.com');
+    assertThat(fired).isEqualTo(false);
+- name: Event-less foreign message is dropped
+  code: |-
+    // F-33c: a message without a non-empty 'event' is dropped to prevent dataLayer
+    // injection/poisoning, even from an otherwise trusted origin.
+    let fired = false, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ foo: 'bar' }, 'https://trusted.com');
+    assertThat(fired).isEqualTo(false);
+- name: Event prefix is applied when addprefixtoall is on
+  code: |-
+    let fired = null, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ hostnamelist: [], eventprefix: 'if_', addprefixtoall: true, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'click' }, 'https://trusted.com');
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('if_click');
+setup: ''
 
 
 ___NOTES___
