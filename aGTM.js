@@ -1604,7 +1604,11 @@ aGTM.f.pageinfo = function (options) {
   if (options.countWords) {
     (function getText(node) {
       if (node.nodeType === 3) {
-        wordCount += node.textContent.trim().split(/\s+/).length;
+        // Guard empty/whitespace-only text nodes: "".split(/\s+/) yields [""]
+        // (length 1), so without this every whitespace node between tags would
+        // inflate the count by one (F-50).
+        var t = node.textContent.trim();
+        if (t) wordCount += t.split(/\s+/).length;
       } else if (
         node.nodeType === 1 &&
         !/^(script|style|noscript)$/i.test(node.tagName)

@@ -46,6 +46,16 @@ Found by the round-3 helper unit tests; verified by an independent critic
 (fail-open real + reachable, no fail-closed regression). Discovered latent,
 pre-existing (not a v1.5 regression). New `test/consent_helpers.test.js`.
 
+### Fixed — `aGTM.f.pageinfo()` word count inflated by whitespace nodes (F-50)
+
+`pageinfo`'s recursive text-node walker counted
+`textContent.trim().split(/\s+/).length` without an empty guard —
+`"".split(/\s+/)` yields `[""]` (length 1), so every whitespace-only text
+node (the indentation between tags) was counted as one word, inflating the
+word count several-fold on a typical nested page. Now guarded to skip empty
+text nodes. Feeds the Content-Counter GTM variable; metric-only, no consent
+or tracking impact. Found by the round-3 helper unit tests.
+
 ### Fixed — `aGTM.f.urlParam()` query-parameter read: escape the name (F-47)
 
 Sibling of the gc F-45 fix. `aGTM.f.urlParam(name, url)` interpolated `name`
@@ -92,7 +102,12 @@ callers pass, so there is no regression.
   (window/document/location accessor + its guards), `propset`, and `isIFrame`.
   Plus `urlParam` (`test/urlparam.test.js`) and the sc separator-encode
   round-trip cases.
-- Test suite now at **330 tests across 26 files** (`bun test`).
+- **Round-3 helper unit tests:** `chelp`/`evalCons` (the consent gate — this
+  round surfaced the F-49 fail-open), `pageinfo` (word/image counting — surfaced
+  F-50), `aGTM_event` (dataLayer event-object builder), `timerfkt` (timed-event
+  computation), `proxySupport`, `log`, and the DOM-wrapper guards
+  (`getNodeAttr`/`newNode`/`delNode`).
+- Test suite now at **346 tests across 27 files** (`bun test`).
 
 ### Added — Integrator Data Contract documentation
 
