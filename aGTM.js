@@ -787,13 +787,20 @@ aGTM.f.sc = function (n, v) {
 /**
  * Retrieves the value of a specified URL parameter from a given URL.
  * @function aGTM.f.urlParam
- * @param {string} name - The name of the URL parameter to retrieve.
+ * @param {string} name - The name of the URL parameter to retrieve. Expected to
+ *   be a literal name; it is regex-escaped before being placed into the pattern
+ *   so a name containing regex metacharacters can no longer match the wrong
+ *   parameter or crash the RegExp constructor (F-47, sibling of gc's F-45). No
+ *   anchoring is needed here — the leading "[?&]" and trailing "=" already fence
+ *   the name to a full query-parameter boundary.
  * @param {string} url - The URL string to search for the parameter.
  * @returns {string|null} - The decoded value of the parameter if it exists, otherwise null.
  * Usage: aGTM.f.urlParam('aGTMoptout', window.location.href);
  */
 aGTM.f.urlParam = function(name, url) {
-  var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)");
+  if (typeof name != "string" || !name) return null;
+  var esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  var regex = new RegExp("[?&]" + esc + "(=([^&#]*)|&|#|$)");
   var results = regex.exec(url);
   return results && results[2] ? decodeURIComponent(results[2].replace(/\+/g, " ")) : null;
 };
