@@ -791,7 +791,7 @@
             "complexity": "niedrig",
             "effort": 1,
             "agentContext": "aGTM.js aGTM.f.urlParam (~L795): new RegExp('[?&]'+name+'(=([^&#]*)|&|#|$)'). Escape: name.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&') vor RegExp. KEIN Anchor noetig (Param-Syntax [?&]..= bereits abgegrenzt). Test test/ (neue Datei oder cookie-nah). Bezug findings F-47/F-45. Library-Touch -> ES5, build, base64/sGTM-Sync.",
-            "owner": "",
+            "owner": "Claude Opus",
             "critical": false,
             "displayId": 36,
             "columnId": "col-backlog"
@@ -803,7 +803,7 @@
             "complexity": "mittel",
             "effort": 2,
             "agentContext": "Pure Helfer in aGTM.js: strclean (~L96 str.replace-Cleaner), an (~L133 assign-or-default via hasOwnProperty), vOb (validate object), getVal, propset (~objinit-Helfer), isIFrame (window.self!==window.top). Muster wie test/consent_serialize.test.js + regex_helpers.test.js. Diskriminierend schreiben (Tautologie-Falle vermeiden). Neu gefundene Bugs als Findings + ggf. Fix-Karte. resetAGTM aus test/helpers.js.",
-            "owner": "",
+            "owner": "Claude Opus",
             "critical": false,
             "displayId": 37,
             "columnId": "col-backlog"
@@ -815,7 +815,7 @@
             "complexity": "niedrig",
             "effort": 1,
             "agentContext": "aGTM.js aGTM.f.sc (~L770). Entweder encodeURIComponent auf n/v oder mind. Doku-Kommentar + Guard gegen ;/= . Symmetrie zu gc-Read. Bezug Kritiker-P3 aus F-45. ES5 + build + bun test.",
-            "owner": "",
+            "owner": "Claude Opus",
             "critical": false,
             "displayId": 38,
             "columnId": "col-backlog"
