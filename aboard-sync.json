@@ -785,42 +785,6 @@
             ]
           },
           {
-            "id": "agtm-v15-urlparam-harden",
-            "title": "urlParam härten: Namen escapen (F-45-Schwester, F-47) + Tests",
-            "description": "aGTM.f.urlParam baut new RegExp('[?&]'+name+...) mit unescaptem Namen — gleiche Bug-Klasse wie F-45 (gc). Metazeichen-Name matcht falsch/wirft. Aufrufer nur Literale (aGTMoptout/gtm_debug) -> null Risiko heute, aber latente Falle schliessen. Fix: name escapen wie gc (F-45), optional Type-Guard; Regressionstest (Metazeichen wirft im Altcode). ES5 + build.sh + bun test.",
-            "complexity": "niedrig",
-            "effort": 1,
-            "agentContext": "aGTM.js aGTM.f.urlParam (~L795): new RegExp('[?&]'+name+'(=([^&#]*)|&|#|$)'). Escape: name.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&') vor RegExp. KEIN Anchor noetig (Param-Syntax [?&]..= bereits abgegrenzt). Test test/ (neue Datei oder cookie-nah). Bezug findings F-47/F-45. Library-Touch -> ES5, build, base64/sGTM-Sync.",
-            "owner": "Claude Opus",
-            "critical": false,
-            "displayId": 36,
-            "columnId": "col-backlog"
-          },
-          {
-            "id": "agtm-v15-helper-tests-round2",
-            "title": "Runde-2 Helfer-Unit-Tests: strclean/an/vOb/getVal/propset/isIFrame",
-            "description": "Fortsetzung von #31: bun-Unit-Tests fuer weitere ungetestete pure/simple Helfer. Test-only, null Runtime-Risiko, kein Build noetig. Kandidaten: strclean (Regex-Cleaner, Unicode/Non-String-Coercion), an (assign-or-default), vOb (validate object), getVal, propset, isIFrame. Erfahrung #31/F-45: das Schreiben deckt oft latente Bugs auf. url2host existiert NICHT (nur iFrame-Tag). urlParam separat in #1.",
-            "complexity": "mittel",
-            "effort": 2,
-            "agentContext": "Pure Helfer in aGTM.js: strclean (~L96 str.replace-Cleaner), an (~L133 assign-or-default via hasOwnProperty), vOb (validate object), getVal, propset (~objinit-Helfer), isIFrame (window.self!==window.top). Muster wie test/consent_serialize.test.js + regex_helpers.test.js. Diskriminierend schreiben (Tautologie-Falle vermeiden). Neu gefundene Bugs als Findings + ggf. Fix-Karte. resetAGTM aus test/helpers.js.",
-            "owner": "Claude Opus",
-            "critical": false,
-            "displayId": 37,
-            "columnId": "col-backlog"
-          },
-          {
-            "id": "agtm-v15-sc-harden",
-            "title": "sc() Schreibseite härten: ;/= in Name/Wert (Kritiker-P3 aus F-45)",
-            "description": "aGTM.f.sc(n,v) escaped ;/= in Name/Wert nicht -> theoretisch Cookie-Corruption bei Separatoren. Aufrufer nutzen nur Literale (aGTMoptout/aGTMdebug + 0/1) -> Wert gering, rundet aber die Cookie-Helfer-Haertung symmetrisch zu gc (F-45) ab. Optional in #1 mitziehen, wenn eh an den Cookie-Helfern. Doku-Kommentar 'Namen/Werte ohne Separatoren erwartet' mind.",
-            "complexity": "niedrig",
-            "effort": 1,
-            "agentContext": "aGTM.js aGTM.f.sc (~L770). Entweder encodeURIComponent auf n/v oder mind. Doku-Kommentar + Guard gegen ;/= . Symmetrie zu gc-Read. Bezug Kritiker-P3 aus F-45. ES5 + build + bun test.",
-            "owner": "Claude Opus",
-            "critical": false,
-            "displayId": 38,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v16-workspace-export-refresh",
             "title": "GTM-Workspace-Export mit aktueller Library neu generieren (F-46)",
             "description": "gtm/aGTM-GTM-Workspace-Template-18.json (413 KB, getrackt/public) bettet eine komplette minifizierte Alt-Version der Library ein (@version 1.3) inkl. des alten ungehaerteten gc() (F-45) und generell veralteter Logik. build.sh regeneriert die Datei NICHT (GTM-UI-Export, keine aus aGTM.js abgeleitete Quelle). Laufzeitrisiko = 0 (liest nur Literalnamen aGTMoptout/aGTMdebug). Fix: bei Gelegenheit aus GTM mit aktueller Library (1.5) neu exportieren. Erfordert GTM-UI-Zugang (Andi). Kein Release-Blocker.",
@@ -837,6 +801,69 @@
                 "id": "a6176635-78d7-4c42-9c98-4fd1ab307086",
                 "author": "Claude Opus",
                 "text": "Andis Task (2026-07-15): macht er selbst, wenn fc-moto fertig getestet ist — als Teil des kompletten Web-Workspace-Updates (nicht nur die eingebettete Library). Datei: gtm/aGTM-GTM-Workspace-Template-18.json (webGTM-Vorlage GTM-NQLZMF8J, eingebettete Inline-Library aktuell v1.4.1, enthaelt altes gc/urlParam vor F-45/F-47; Praxisrisiko null, liest nur Literalnamen). BLOCKED bis fc-moto-Testabschluss. Naechster Chat NICHT anfassen/scripten.",
+                "created": "2026-07-15"
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-urlparam-harden",
+            "title": "urlParam härten: Namen escapen (F-45-Schwester, F-47) + Tests",
+            "description": "aGTM.f.urlParam baut new RegExp('[?&]'+name+...) mit unescaptem Namen — gleiche Bug-Klasse wie F-45 (gc). Metazeichen-Name matcht falsch/wirft. Aufrufer nur Literale (aGTMoptout/gtm_debug) -> null Risiko heute, aber latente Falle schliessen. Fix: name escapen wie gc (F-45), optional Type-Guard; Regressionstest (Metazeichen wirft im Altcode). ES5 + build.sh + bun test.",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "aGTM.js aGTM.f.urlParam (~L795): new RegExp('[?&]'+name+'(=([^&#]*)|&|#|$)'). Escape: name.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&') vor RegExp. KEIN Anchor noetig (Param-Syntax [?&]..= bereits abgegrenzt). Test test/ (neue Datei oder cookie-nah). Bezug findings F-47/F-45. Library-Touch -> ES5, build, base64/sGTM-Sync.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 36,
+            "columnId": "col-erledigt",
+            "qa": true,
+            "comments": [
+              {
+                "id": "b1a6dbf2-a106-4466-8cf0-0e29fa8cda06",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit 220f8db, gepusht dev). Fix spiegelt gc/F-45: String-Type-Guard (schuetzt die neue .replace-Zeile) + Regex-Escape des Param-Namens; KEIN Anchor noetig (fuehrendes [?&] + trailing = grenzt bereits ab). Aufrufer nur Literale (aGTMoptout/gtm_debug) -> null Praxisrisiko, latente Falle zu. Neuer test/urlparam.test.js (7 Faelle), 2 diskriminierend: '.'-Fehlmatch (axb=9 vs a.b=2 -> Altcode liefert 9) + '('-SyntaxError (Altcode wirft vor try). 294 Tests gruen, ./build.sh sauber, min.js +80 B. Findings F-47 -> behoben.",
+                "created": "2026-07-15"
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-helper-tests-round2",
+            "title": "Runde-2 Helfer-Unit-Tests: strclean/an/vOb/getVal/propset/isIFrame",
+            "description": "Fortsetzung von #31: bun-Unit-Tests fuer weitere ungetestete pure/simple Helfer. Test-only, null Runtime-Risiko, kein Build noetig. Kandidaten: strclean (Regex-Cleaner, Unicode/Non-String-Coercion), an (assign-or-default), vOb (validate object), getVal, propset, isIFrame. Erfahrung #31/F-45: das Schreiben deckt oft latente Bugs auf. url2host existiert NICHT (nur iFrame-Tag). urlParam separat in #1.",
+            "complexity": "mittel",
+            "effort": 2,
+            "agentContext": "Pure Helfer in aGTM.js: strclean (~L96 str.replace-Cleaner), an (~L133 assign-or-default via hasOwnProperty), vOb (validate object), getVal, propset (~objinit-Helfer), isIFrame (window.self!==window.top). Muster wie test/consent_serialize.test.js + regex_helpers.test.js. Diskriminierend schreiben (Tautologie-Falle vermeiden). Neu gefundene Bugs als Findings + ggf. Fix-Karte. resetAGTM aus test/helpers.js.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 37,
+            "columnId": "col-erledigt",
+            "qa": true,
+            "comments": [
+              {
+                "id": "d5bd7495-a19d-4deb-a7ab-a4dc21a7fa72",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit fadb5dd, gepusht dev). Neuer test/helpers_round2.test.js: 21 diskriminierende Faelle fuer strclean/an/vOb/getVal/propset/isIFrame. Kern-Diskriminatoren: an() kopiert falsy own-value (0/false/'') via hasOwnProperty statt zu defaulten; propset() ueberschreibt falsy + swallowed error bei non-writable target; vOb() false bei zirkulaerem Objekt (stringify throws->caught); getVal() vSt- + letter-match-Guard; isIFrame() true-Pfad via window.top-Override. Anders als F-45-Runde: KEIN neuer latenter Bug gefunden, die Helfer verhalten sich wie dokumentiert. Test-only, kein Build. 315 Tests gruen.",
+                "created": "2026-07-15"
+              }
+            ]
+          },
+          {
+            "id": "agtm-v15-sc-harden",
+            "title": "sc() Schreibseite härten: ;/= in Name/Wert (Kritiker-P3 aus F-45)",
+            "description": "aGTM.f.sc(n,v) escaped ;/= in Name/Wert nicht -> theoretisch Cookie-Corruption bei Separatoren. Aufrufer nutzen nur Literale (aGTMoptout/aGTMdebug + 0/1) -> Wert gering, rundet aber die Cookie-Helfer-Haertung symmetrisch zu gc (F-45) ab. Optional in #1 mitziehen, wenn eh an den Cookie-Helfern. Doku-Kommentar 'Namen/Werte ohne Separatoren erwartet' mind.",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "aGTM.js aGTM.f.sc (~L770). Entweder encodeURIComponent auf n/v oder mind. Doku-Kommentar + Guard gegen ;/= . Symmetrie zu gc-Read. Bezug Kritiker-P3 aus F-45. ES5 + build + bun test.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 38,
+            "columnId": "col-erledigt",
+            "qa": true,
+            "comments": [
+              {
+                "id": "bf6eecc6-d521-4c51-8514-52e1444612a1",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit aed603d, gepusht dev). Symmetrisch zur gc-Read-Haertung (F-45/F-47): Value via encodeURIComponent (spiegelt gc's decodeURIComponent -> ;/=/, im Wert round-trippt jetzt sauber); Name-Guard gegen ;/=/Whitespace (gc liest den Namen ROH ohne decode -> Namen-Encoding waere asymmetrisch, daher no-op statt korruptem Cookie). Alle 3 Aufrufer nutzen saubere Literale (aGTMoptout/aGTMdebug, 1/0) -> encodeURIComponent identity, KEINE Regression. cookie.test.js +4 diskriminierende Faelle (Separator-Value-Roundtrip: Altcode liefert 'a' statt 'a;b=c'; Name-mit-= no-op; Name-mit-;/Whitespace no-op; Literal-No-Regression). 319 Tests gruen, ./build.sh sauber (base64/sGTM-Blob re-injiziert), min.js +39 B. Damit Cookie-Helfer-Haertung symmetrisch abgerundet.",
                 "created": "2026-07-15"
               }
             ]
