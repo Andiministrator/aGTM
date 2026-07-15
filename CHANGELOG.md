@@ -14,6 +14,19 @@ Scroll and Pageview GTM templates now register their `scroll`/`resize`/
 interaction listeners passive + throttled. Backward compatible (the option is
 opt-in; existing 3-argument calls are unchanged).
 
+### Fixed — `aGTM.f.gc()` cookie read: escape + left-anchor the name (F-45)
+
+Reading a cookie built `new RegExp(n + "=([^;]+)")` with the name neither
+regex-escaped nor left-anchored. Two consequences: a name that is a suffix of
+another cookie name matched inside it (reading `b` returned the value of `ab=…`),
+and a name containing a regex metacharacter matched the wrong cookie or — for an
+unbalanced token like `a(b` — threw an uncaught `SyntaxError` (the RegExp was
+built before the `try`). The name is now escaped and anchored to a cookie
+boundary (`(?:^|;\s*)`, non-capturing so the value stays `match[1]`), and a
+type guard returns `null` for empty/non-string names. Found by the F-45 helper
+unit tests; verified by an independent critic (16-case battery). Discovered
+latent, pre-existing (not a v1.5 regression).
+
 ### Added — test coverage sweep (GTM templates + core library helpers)
 
 - **GTM template `___TESTS___` sweep (F-41):** every GTM template that had an
@@ -30,7 +43,7 @@ opt-in; existing 3-argument calls are unchanged).
   serialization gating the consent-store POST), the `rTest`/`rMatch`/`rReplace`
   (+`vSt`) regex helpers used by every template, `sStrf` (safe stringify incl.
   circular-reference fallback), and `gc`/`sc` (cookie get/set).
-- Test suite now at **285 tests across 23 files** (`bun test`).
+- Test suite now at **287 tests across 23 files** (`bun test`).
 
 ### Added — Integrator Data Contract documentation
 
@@ -311,7 +324,7 @@ Template audit findings on the three variable templates:
 - Build system migrated to Bun (`bunx terser`); no `npm install` required
 - `VERSION` file as single source of truth for version number; build propagates to all files
 - `sgtmClient/template.tpl` base64 payload and version auto-updated on each build
-- Test suite grown from 75 to 285 tests across 23 files (`bun test`) — final count to be confirmed at release-tag time
+- Test suite grown from 75 to 287 tests across 23 files (`bun test`) — final count to be confirmed at release-tag time
 - Debug `console.log` removed from `urlListener`
 - String obfuscation for Google identifiers unified
 
