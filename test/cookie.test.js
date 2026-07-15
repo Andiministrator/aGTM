@@ -88,4 +88,35 @@ describe('aGTM.f.gc() / aGTM.f.sc()', () => {
     aGTM.f.sc(5, 'value');
     expect(document.cookie).toBe('');
   });
+
+  test('sc() encodes a value with separators so gc() round-trips it (F-45/F-47 write side)', () => {
+    // Before the fix the raw ";"/"="  went straight into the cookie string:
+    // 'k=a;b=c; Secure…' — gc()'s [^;]+ stops at the first ";" and returns 'a'.
+    // Encoding on write + decode on read now round-trips the full value.
+    document.cookie = '';
+    aGTM.f.sc('k', 'a;b=c');
+    expect(document.cookie).toContain('k=a%3Bb%3Dc');
+    expect(aGTM.f.gc('k')).toBe('a;b=c');
+  });
+
+  test('sc() is a no-op for a name containing "=" (would corrupt the cookie)', () => {
+    document.cookie = '';
+    aGTM.f.sc('a=b', 'v');
+    expect(document.cookie).toBe('');
+  });
+
+  test('sc() is a no-op for a name containing ";" or whitespace', () => {
+    document.cookie = '';
+    aGTM.f.sc('a;b', 'v');
+    expect(document.cookie).toBe('');
+    aGTM.f.sc('a b', 'v');
+    expect(document.cookie).toBe('');
+  });
+
+  test('sc() still round-trips a plain literal value unchanged (no regression)', () => {
+    document.cookie = '';
+    aGTM.f.sc('aGTMoptout', '1');
+    expect(document.cookie).toContain('aGTMoptout=1;');
+    expect(aGTM.f.gc('aGTMoptout')).toBe('1');
+  });
 });
