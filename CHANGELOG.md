@@ -27,6 +27,25 @@ type guard returns `null` for empty/non-string names. Found by the F-45 helper
 unit tests; verified by an independent critic (16-case battery). Discovered
 latent, pre-existing (not a v1.5 regression).
 
+### Fixed — consent-gate fail-open in `aGTM.f.chelp()` (F-49, security)
+
+The core consent gate that decides `gtmConsent` (GTM loads only if every
+configured `gtmPurposes`/`gtmServices`/`gtmVendors` requirement is granted)
+could **fail open**. `chelp(need, given)` guarded its check with
+`if (need && given)`, so a configured requirement checked against an **empty**
+granted string (`""`) skipped the check entirely and returned `true` — GTM
+loaded even though the required category had not been consented. This was
+reachable with CMPs that emit a bare `""` for a fully-denied category
+(Cookiebot, Usercentrics v2/v3, CCM19), whenever an integrator uses the
+`gtm*` requirement feature. The gate is now fail-closed: a requirement set
+against an empty grant is not satisfied (aligned with the sibling `evalCons`).
+No requirement configured (`need` empty) still returns `true`, so integrators
+that do not use the feature are unaffected; the server-side `blocked`
+auto-denial signal is now honoured correctly instead of being bypassed.
+Found by the round-3 helper unit tests; verified by an independent critic
+(fail-open real + reachable, no fail-closed regression). Discovered latent,
+pre-existing (not a v1.5 regression). New `test/consent_helpers.test.js`.
+
 ### Fixed — `aGTM.f.urlParam()` query-parameter read: escape the name (F-47)
 
 Sibling of the gc F-45 fix. `aGTM.f.urlParam(name, url)` interpolated `name`
@@ -73,7 +92,7 @@ callers pass, so there is no regression.
   (window/document/location accessor + its guards), `propset`, and `isIFrame`.
   Plus `urlParam` (`test/urlparam.test.js`) and the sc separator-encode
   round-trip cases.
-- Test suite now at **319 tests across 25 files** (`bun test`).
+- Test suite now at **330 tests across 26 files** (`bun test`).
 
 ### Added — Integrator Data Contract documentation
 
