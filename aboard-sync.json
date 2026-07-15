@@ -671,30 +671,6 @@
             "qa": true
           },
           {
-            "id": "agtm-v15-release-hygiene",
-            "title": "Release-Hygiene: ROADMAP-Testzahl syncen + CHANGELOG um F-41-Test-Sweep ergaenzen (F-26)",
-            "description": "ROADMAP.md Z.21 nennt 179 Tests/15 Dateien (real 234+/19+). CHANGELOG v1.5-Sektion um den GTM-Template-___TESTS___-Sweep (F-41) ergaenzen. Das CHANGELOG-Label \"in development\" (Z.3) bleibt bis zum echten git tag v1.5. Klein, niedriger Wert, aber tag-vorbereitend.",
-            "complexity": "niedrig",
-            "effort": 1,
-            "agentContext": "ROADMAP.md Z.21 Testzahl; CHANGELOG.md Z.3 in-development-Label (erst beim Tag streichen) + v1.5-Sektion Template-Test-Sweep-Eintrag. Bezug findings F-26 (teilweise). Reale Testzahl via bun test pruefen.",
-            "owner": "Claude Opus",
-            "critical": false,
-            "displayId": 32,
-            "columnId": "col-backlog"
-          },
-          {
-            "id": "agtm-v15-sources-hardening",
-            "title": "Optionale sGTM-Client-Haertung: sources_method-Whitelist + leeres attribution gaten (F-01/F-02)",
-            "description": "P2/akzeptiert: sources_method gegen die 5-Methoden-Whitelist validieren; leeres attribution{} aus der Sources-API gaten (kein toter aGTM.d.attribution-Eintrag). Beruehrt den sGTM-Client → Source/Template-Sync-Invariante beachten. Etwas mehr Risiko als die anderen zwei → nachrangig.",
-            "complexity": "mittel",
-            "effort": 2,
-            "agentContext": "sgtmClient/src fireSources (F-01 sources_method-Whitelist, F-02 leeres attribution gaten). WICHTIG Sync-Invariante (CLAUDE.md): jede Logik-Aenderung identisch in template.tpl ___SANDBOXED_JS_FOR_SERVER___ UND src/.js + diff-check. sGTM-Server-Sandbox (kein parseInt → makeInteger). Bezug findings F-01/F-02.",
-            "owner": "Claude Opus",
-            "critical": false,
-            "displayId": 33,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-v15-lib-helper-tests",
             "title": "Library-Unit-Tests: ungetestete Kern-Helfer (consent_serialize, rReplace/rTest/rMatch, sStrf, url2host, getCookie/setCookie)",
             "description": "Bun-Unit-Tests fuer pure Library-Helfer ohne Coverage. Test-only, null Runtime-Risiko. Prio: consent_serialize (load-bearing Consent-Hash, steuert Consent-Store-POST-Gating, 0 Tests) + die Regex-Helfer, die JEDES GTM-Template nutzt und die Template-Tests nur mocken. EMPFOHLEN als naechster v1.5-Fuellpunkt waehrend Live-Tests laufen.",
@@ -710,6 +686,48 @@
                 "id": "0ab3d514-69aa-4e12-b28b-28ee7db2c7ef",
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit 84c384b): 49 bun-Unit-Tests fuer die ungetesteten Kern-Helfer. consent_serialize (12: sortierte Keys, gtmConsent/blocked-Blacklist, empty/null-Skip, 0/false bleiben, Objekt-JSON-stringify, gtmConsent-Flip != Consent-Change), rTest/rMatch/rReplace + vSt (23: Case-Sensitivity je Helfer, vSt-Guards, global replace, *->.* Wildcard aus F-05), sStrf (6: inkl. [Circular]-Fallback), gc/sc (9: Roundtrip, Multi-Cookie-Grenze, URI-decode, No-op-Guards). Test-only, kein Library-/CMP-Touch -> ES5/build.sh-Gate nicht einschlaegig. 283 Tests gruen (vorher 234). HINWEIS: url2host aus der Karten-Kandidatenliste existiert NICHT als Library-Funktion (nur als iFrame-TAG-Helfer) -> weggelassen; die uebrigen genannten Helfer alle abgedeckt.",
+                "created": "2026-07-15"
+              }
+            ],
+            "qa": true
+          },
+          {
+            "id": "agtm-v15-release-hygiene",
+            "title": "Release-Hygiene: ROADMAP-Testzahl syncen + CHANGELOG um F-41-Test-Sweep ergaenzen (F-26)",
+            "description": "ROADMAP.md Z.21 nennt 179 Tests/15 Dateien (real 234+/19+). CHANGELOG v1.5-Sektion um den GTM-Template-___TESTS___-Sweep (F-41) ergaenzen. Das CHANGELOG-Label \"in development\" (Z.3) bleibt bis zum echten git tag v1.5. Klein, niedriger Wert, aber tag-vorbereitend.",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "ROADMAP.md Z.21 Testzahl; CHANGELOG.md Z.3 in-development-Label (erst beim Tag streichen) + v1.5-Sektion Template-Test-Sweep-Eintrag. Bezug findings F-26 (teilweise). Reale Testzahl via bun test pruefen.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 32,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "b1fe4054-07ea-4a00-8e1e-555a6a2e2a87",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit 8d7862f): ROADMAP Z.21 179 Tests/15 Dateien -> 283/23 (+ ___TESTS___-Hinweis). CHANGELOG v1.5 neuer 'test coverage sweep' Added-Block (F-41 Template-___TESTS___ + #31 Core-Helper-bun-Tests) + Aggregat-Zeile Z.313 auf 283/23 gesynct. 'in development'-Label bewusst bis zum echten git tag v1.5 belassen. Doku-only.",
+                "created": "2026-07-15"
+              }
+            ],
+            "qa": true
+          },
+          {
+            "id": "agtm-v15-sources-hardening",
+            "title": "Optionale sGTM-Client-Haertung: sources_method-Whitelist + leeres attribution gaten (F-01/F-02)",
+            "description": "P2/akzeptiert: sources_method gegen die 5-Methoden-Whitelist validieren; leeres attribution{} aus der Sources-API gaten (kein toter aGTM.d.attribution-Eintrag). Beruehrt den sGTM-Client → Source/Template-Sync-Invariante beachten. Etwas mehr Risiko als die anderen zwei → nachrangig.",
+            "complexity": "mittel",
+            "effort": 2,
+            "agentContext": "sgtmClient/src fireSources (F-01 sources_method-Whitelist, F-02 leeres attribution gaten). WICHTIG Sync-Invariante (CLAUDE.md): jede Logik-Aenderung identisch in template.tpl ___SANDBOXED_JS_FOR_SERVER___ UND src/.js + diff-check. sGTM-Server-Sandbox (kein parseInt → makeInteger). Bezug findings F-01/F-02.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 33,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "35bb3b3f-d8db-4172-8f67-2d5f84cf5e3b",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit d5fd942): F-01 sources_method gegen 5-Methoden-Whitelist am CFG-Build gegatet (Objekt-Literal-Index, Fremdwert -> last_touch). F-02 leeres attribution{} nicht mehr gewrappt (for..in-Break-Guard) -> kein toter aGTM.d.attribution[method]-Eintrag; redundantes '|| last_touch' am Wrap entfernt (CFG.sourcesMethod via F-01 garantiert valide). Byte-identisch in template.tpl + src/.js; Source<->Template-Sync-Invariante per Diff verifiziert (nur base64-Blob + Marker-Leerzeile weichen ab). node --check beide OK. 283 Tests gruen. build.sh bewusst NICHT gelaufen: aGTM.js/cmp unberuehrt -> base64-Blob unveraendert, ES5/Build-Gate nicht einschlaegig. Findings F-01/F-02 auf behoben.",
                 "created": "2026-07-15"
               }
             ],
