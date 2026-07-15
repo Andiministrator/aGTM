@@ -338,50 +338,6 @@
             ]
           },
           {
-            "id": "agtm-v15-tag-consentmode",
-            "title": "Consent-Mode Tag: Fail-open-Fix + Tests (F-31)",
-            "description": "SICHERHEIT P1: consent||{} Guard (L500) + Re-Read copyFromWindow nach consent_check (L501); cm_regions ins After-Default; README Komma-Wrappung-Beispiel; TESTS (Default-Deny/granted/denied/After-Default/undefined-consent) + mockData-Feldnamen aktualisieren.",
-            "owner": "Claude Opus",
-            "complexity": "mittel",
-            "effort": 3,
-            "agentContext": "gtm/tags/consent-mode/aGTM tag - Consent Mode.tpl L500/501/528-565/1264; README; findings F-31; Web-Sandbox, Tests nur in GTM lauffaehig",
-            "critical": true,
-            "displayId": 20,
-            "columnId": "col-schreiben",
-            "comments": [
-              {
-                "id": "bcc148e0-b263-4d1e-9a35-c58e60f17c6b",
-                "author": "Claude Opus",
-                "text": "Teil-Fortschritt (eb4d945): Fail-open-Null-Deref (Z.500) mit ||{}-Guard geschlossen; Fallback laeuft jetzt in Prod (debug&&-Gate raus) + Re-Read nach consent_check; Debug-Crash Z.579 (o.d.cmd→o.d.cm); README Komma-Wrappung (,Google Ads,). OFFEN auf dieser Karte: (1) cm_regions im After-Default-Modus = Consent-Semantik-Weiche → Andi entscheidet; (2) ___TESTS___-Suite (nur in GTM lauffaehig). Bleibt in Arbeit.",
-                "created": "2026-07-13"
-              },
-              {
-                "id": "631682c3-8989-48bb-aca3-8c705eef6faf",
-                "author": "Claude Opus",
-                "text": "F-31c behoben (4fde372) nach Google-Doku-Recherche: region gehoert auf setDefaultConsentState, NICHT updateConsentState. Fix = Region auf all-denied-Default o.d.cmd; Update bleibt region-los (korrekt). Andi nutzt Update-after-Default immer → war real betroffen (Deny-Default galt global statt EWR-gescopt). Wissen gesichert in knowledge/topics/google-consent-mode-region.md. README dokumentiert Region/After-Default-Semantik. Damit alle F-31-CODE-Punkte erledigt; offen nur ___TESTS___ (GTM-only, gehoert zur systemischen Test-Welle F-41).",
-                "created": "2026-07-13"
-              },
-              {
-                "id": "a6d49cfe-72bd-407f-ad30-bf9a9d160606",
-                "author": "Claude Opus",
-                "text": "F-31 CODE komplett + 2x kritiker-verifiziert (838775b): (a) Fail-open-Guard, (b) Fallback in Prod + Re-Read, (c) Region auf all-denied-Default (F-31c, recherchiert), Debug-Crash-Fix, README-Komma-Wrappung. PLUS optionales Feld cm_grant_outside (globaler granted-Default ausserhalb Regionen) — Kritiker fand dabei selbst-eingebauten not_set-in-region-P1, gefixt + verifiziert geschlossen. Tag-Version 1.4, README-Header/Link/Defaults korrigiert. Wissen: knowledge/topics/google-consent-mode-region.md. OFFEN nur noch ___TESTS___ (GTM-only, systemisch F-41). Karte bleibt in Arbeit fuer die Test-Welle.",
-                "created": "2026-07-13"
-              },
-              {
-                "id": "cfa0e49d-be2b-4783-90aa-4902952e5841",
-                "author": "Claude Opus",
-                "text": "HANDOFF (Chat-Wechsel 2026-07-14) fuer den F-41-Web-Template-Test-Sprint: #18 (sGTM-Client-Tests) ist ERLEDIGT — dabei wurde ein vollstaendiges Playbook fuer GTM-Template-___TESTS___ erarbeitet: knowledge/topics/gtm-template-hardening-muster.md §5 (Tautologie/diskriminierend) + §6 (Sandbox-Fallen).\nEMPFOHLENER NAECHSTER SCHRITT: dieses #20 abschliessen — der Consent-Mode-Tag-CODE ist fertig (F-31, Commits eb4d945/4fde372), NUR die ___TESTS___ fehlen (systemisch F-41). Damit schliesst #20 UND startet der F-41-Web-Template-Sweep.\nWICHTIG Unterschied zu #18: das ist die GTM-WEB-Sandbox (nicht Server) — callInWindow/copyFromWindow/setInWindow, KEIN delete/setInterval. Referenz fuer Web-Sandbox-Test-Muster: der DL-Repeat-Tag (gtm/tags/dl-repeat/) hat als EINZIGES Web-Template bereits 3 echte ___TESTS___-Szenarien.\nPlaybook-Kern (aus #18, gilt auch web): Test-Namen nur ASCII ohne .; Config-Var NICHT data nennen; require noetiger Globals (JSON etc.); jeder Test MUSS ohne den Fix rot werden (Tautologie-Falle); iterativ MIT Andis Tests-Tab-Feedback (blind schreiben scheiterte 5x bei #18).\nDanach die restlichen 10 Web-Templates (click/form/copy/iframe/scroll/timer/pageview + 3 Variablen) je 3-5 Szenarien. #1 Release-Gate + v1.5-Tag bleiben Andis expliziter Zug (Smoketest + /sprint-abschluss).",
-                "created": "2026-07-14"
-              },
-              {
-                "id": "3ea6e340-3917-4954-8233-1bc3d51bb9d2",
-                "author": "Claude Opus",
-                "text": "HANDOFF-UPDATE (2026-07-14, Chat-Wechsel 2): Stand F-41 nach dieser Session praezise:\nMIT Tests (6 Web-Templates): consent-check + consent-info = im Tests-Tab GRUEN verifiziert (Andi); copy-events/timer-events/content-counter/dl-repeat = Namen import-sicher gemacht (. und () raus), gleiches Muster wie die gruenen -> niedriges Risiko, aber von Andi noch NICHT gelaufen.\nOHNE Tests (6 Tags = der eigentliche F-41-Rest): click-events, consent-mode (=DIESE Karte #20), form-events, iframe-support, pageview-events, scroll-events.\n\nANDI macht direkt nach dieser Session: alle Tags neu importieren + Tests ausfuehren. -> ERSTER Schritt naechster Chat: etwaige Fehlermeldungen aus den 4 noch-ungelaufenen Mit-Tests-Templates (copy/timer/content-counter/dl-repeat) fixen. DANACH: Tests fuer die 6 testlosen Tags schreiben, Start mit consent-mode (#20, sicherheitskritisch, schliesst die Karte).\n\nWEB-Template-Test-Muster (neu dokumentiert): knowledge/topics/gtm-template-hardening-muster.md §7 — setup: (KEINE requires, anders als Server-Sandbox), Variable=mock(callInWindow getVal-Stub)+runCode(cfg)-Rueckgabe+assertThat; Tag=mock(callInWindow fire/timer)+assertApi(callInWindow).wasCalledWith. Referenzen: consent-check (variable, gruen), copy/timer (tag). §6 = Namens-/Sandbox-Fallen (kein ., kein const data). §5 = Tautologie-Pflicht.\n\nBoard ADR-0067-migriert (Ops an Inbox). #18 erledigt/qa:true. #1 Release-Gate + v1.5-Tag bleiben Andis expliziter Zug.",
-                "created": "2026-07-14"
-              }
-            ]
-          },
-          {
             "id": "agtm-v15-tag-iframe",
             "title": "iFrame Tag: Fail-open/Origin + Library-Handshake + Tests (F-33)",
             "description": "SICHERHEIT P1: Origin fail-closed (leere/opake Origin verwerfen, L253), Fire in if(ev.event)-Guard (L263/305), o.d.e je Nachricht klonen, toten o.c.eventname-Code raus; LIBRARY aGTM.js 1211-1246 Handshake-Origin pruefen (targetOrigin, ifHSlisten e.origin) - ES5+bun test; TESTS (Allowlist, origin=null-Bypass, event-lose Msg, Filter, Cross-Msg-Isolation).",
@@ -662,6 +618,57 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "agtm-v15-tag-consentmode",
+            "title": "Consent-Mode Tag: Fail-open-Fix + Tests (F-31)",
+            "description": "SICHERHEIT P1: consent||{} Guard (L500) + Re-Read copyFromWindow nach consent_check (L501); cm_regions ins After-Default; README Komma-Wrappung-Beispiel; TESTS (Default-Deny/granted/denied/After-Default/undefined-consent) + mockData-Feldnamen aktualisieren.",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "gtm/tags/consent-mode/aGTM tag - Consent Mode.tpl L500/501/528-565/1264; README; findings F-31; Web-Sandbox, Tests nur in GTM lauffaehig",
+            "critical": true,
+            "displayId": 20,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "bcc148e0-b263-4d1e-9a35-c58e60f17c6b",
+                "author": "Claude Opus",
+                "text": "Teil-Fortschritt (eb4d945): Fail-open-Null-Deref (Z.500) mit ||{}-Guard geschlossen; Fallback laeuft jetzt in Prod (debug&&-Gate raus) + Re-Read nach consent_check; Debug-Crash Z.579 (o.d.cmd→o.d.cm); README Komma-Wrappung (,Google Ads,). OFFEN auf dieser Karte: (1) cm_regions im After-Default-Modus = Consent-Semantik-Weiche → Andi entscheidet; (2) ___TESTS___-Suite (nur in GTM lauffaehig). Bleibt in Arbeit.",
+                "created": "2026-07-13"
+              },
+              {
+                "id": "631682c3-8989-48bb-aca3-8c705eef6faf",
+                "author": "Claude Opus",
+                "text": "F-31c behoben (4fde372) nach Google-Doku-Recherche: region gehoert auf setDefaultConsentState, NICHT updateConsentState. Fix = Region auf all-denied-Default o.d.cmd; Update bleibt region-los (korrekt). Andi nutzt Update-after-Default immer → war real betroffen (Deny-Default galt global statt EWR-gescopt). Wissen gesichert in knowledge/topics/google-consent-mode-region.md. README dokumentiert Region/After-Default-Semantik. Damit alle F-31-CODE-Punkte erledigt; offen nur ___TESTS___ (GTM-only, gehoert zur systemischen Test-Welle F-41).",
+                "created": "2026-07-13"
+              },
+              {
+                "id": "a6d49cfe-72bd-407f-ad30-bf9a9d160606",
+                "author": "Claude Opus",
+                "text": "F-31 CODE komplett + 2x kritiker-verifiziert (838775b): (a) Fail-open-Guard, (b) Fallback in Prod + Re-Read, (c) Region auf all-denied-Default (F-31c, recherchiert), Debug-Crash-Fix, README-Komma-Wrappung. PLUS optionales Feld cm_grant_outside (globaler granted-Default ausserhalb Regionen) — Kritiker fand dabei selbst-eingebauten not_set-in-region-P1, gefixt + verifiziert geschlossen. Tag-Version 1.4, README-Header/Link/Defaults korrigiert. Wissen: knowledge/topics/google-consent-mode-region.md. OFFEN nur noch ___TESTS___ (GTM-only, systemisch F-41). Karte bleibt in Arbeit fuer die Test-Welle.",
+                "created": "2026-07-13"
+              },
+              {
+                "id": "cfa0e49d-be2b-4783-90aa-4902952e5841",
+                "author": "Claude Opus",
+                "text": "HANDOFF (Chat-Wechsel 2026-07-14) fuer den F-41-Web-Template-Test-Sprint: #18 (sGTM-Client-Tests) ist ERLEDIGT — dabei wurde ein vollstaendiges Playbook fuer GTM-Template-___TESTS___ erarbeitet: knowledge/topics/gtm-template-hardening-muster.md §5 (Tautologie/diskriminierend) + §6 (Sandbox-Fallen).\nEMPFOHLENER NAECHSTER SCHRITT: dieses #20 abschliessen — der Consent-Mode-Tag-CODE ist fertig (F-31, Commits eb4d945/4fde372), NUR die ___TESTS___ fehlen (systemisch F-41). Damit schliesst #20 UND startet der F-41-Web-Template-Sweep.\nWICHTIG Unterschied zu #18: das ist die GTM-WEB-Sandbox (nicht Server) — callInWindow/copyFromWindow/setInWindow, KEIN delete/setInterval. Referenz fuer Web-Sandbox-Test-Muster: der DL-Repeat-Tag (gtm/tags/dl-repeat/) hat als EINZIGES Web-Template bereits 3 echte ___TESTS___-Szenarien.\nPlaybook-Kern (aus #18, gilt auch web): Test-Namen nur ASCII ohne .; Config-Var NICHT data nennen; require noetiger Globals (JSON etc.); jeder Test MUSS ohne den Fix rot werden (Tautologie-Falle); iterativ MIT Andis Tests-Tab-Feedback (blind schreiben scheiterte 5x bei #18).\nDanach die restlichen 10 Web-Templates (click/form/copy/iframe/scroll/timer/pageview + 3 Variablen) je 3-5 Szenarien. #1 Release-Gate + v1.5-Tag bleiben Andis expliziter Zug (Smoketest + /sprint-abschluss).",
+                "created": "2026-07-14"
+              },
+              {
+                "id": "3ea6e340-3917-4954-8233-1bc3d51bb9d2",
+                "author": "Claude Opus",
+                "text": "HANDOFF-UPDATE (2026-07-14, Chat-Wechsel 2): Stand F-41 nach dieser Session praezise:\nMIT Tests (6 Web-Templates): consent-check + consent-info = im Tests-Tab GRUEN verifiziert (Andi); copy-events/timer-events/content-counter/dl-repeat = Namen import-sicher gemacht (. und () raus), gleiches Muster wie die gruenen -> niedriges Risiko, aber von Andi noch NICHT gelaufen.\nOHNE Tests (6 Tags = der eigentliche F-41-Rest): click-events, consent-mode (=DIESE Karte #20), form-events, iframe-support, pageview-events, scroll-events.\n\nANDI macht direkt nach dieser Session: alle Tags neu importieren + Tests ausfuehren. -> ERSTER Schritt naechster Chat: etwaige Fehlermeldungen aus den 4 noch-ungelaufenen Mit-Tests-Templates (copy/timer/content-counter/dl-repeat) fixen. DANACH: Tests fuer die 6 testlosen Tags schreiben, Start mit consent-mode (#20, sicherheitskritisch, schliesst die Karte).\n\nWEB-Template-Test-Muster (neu dokumentiert): knowledge/topics/gtm-template-hardening-muster.md §7 — setup: (KEINE requires, anders als Server-Sandbox), Variable=mock(callInWindow getVal-Stub)+runCode(cfg)-Rueckgabe+assertThat; Tag=mock(callInWindow fire/timer)+assertApi(callInWindow).wasCalledWith. Referenzen: consent-check (variable, gruen), copy/timer (tag). §6 = Namens-/Sandbox-Fallen (kein ., kein const data). §5 = Tautologie-Pflicht.\n\nBoard ADR-0067-migriert (Ops an Inbox). #18 erledigt/qa:true. #1 Release-Gate + v1.5-Tag bleiben Andis expliziter Zug.",
+                "created": "2026-07-14"
+              },
+              {
+                "id": "a070000b-4d7f-4418-a373-e44f7741c845",
+                "author": "Claude Opus",
+                "text": "TESTS gruen-verifiziert in Andis Tests-Tab (2026-07-15): consent-mode 6/6 gruen, inkl. der 3 diskriminierenden F-31-Fix-Tests (Fail-open-Guard, consent-check Re-Read, Region-on-Default F-31c) + Coverage (granted-Passthrough, update-vs-default, not_set-Auslassung). Commit 4ac124d. Damit F-31 vollstaendig durch: Code (eb4d945/4fde372/838775b) + Tests. Karte erledigt, qa:true, nach Erledigt. Parallel gruen-verifiziert: content-counter 3/3 (null-Return-Szenario entfernt, GTM-Harness-Grenze 77e1e8a), copy 6/6, timer 9/9, dl-repeat 3/3. F-41-Rest: 5 testlose Tags (click/form/iframe/pageview/scroll).",
+                "created": "2026-07-15"
+              }
+            ],
+            "qa": true
           }
         ]
       },
@@ -864,11 +871,7 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": {
-      "question": "Kurz verifizieren — Click-Events-Tag: hat es Tests, und habe **ich** diese Session dort etwas geändert?",
-      "since": "2026-07-14T11:02:53.038158+00:00",
-      "askedBy": "Claude Sonnet 4.6"
-    },
+    "awaitingUser": null,
     "identities": [
       {
         "id": "user-default",
