@@ -75,7 +75,10 @@ const CFG = {
   sourcesEnabled: data.sources_enabled === true,
   sourcesApiUrl: data.sources_api_url || '',
   sourcesAttribution: data.sources_attribution === true,
-  sourcesMethod: data.sources_method || 'last_touch',
+  // sources_method validated against the 5 api4sources methods; a stale or
+  // overridden config value falls back to last_touch, otherwise attribution
+  // would be requested/wrapped under an invalid method key (F-01).
+  sourcesMethod: {last_touch: 1, first_touch: 1, last_click: 1, first_click: 1, last_non_direct_click: 1}[data.sources_method] ? data.sources_method : 'last_touch',
   // Pre-aGTM Init Code: arbitrary JS prepended verbatim to the /aGTM.js
   // response. Use case: CMP loaders that must define globals before aGTM
   // starts. Must be ES5; no try/catch wrap (silent errors hide bugs).
@@ -462,10 +465,17 @@ const fireSources = function(sessionData, then) {
           if (!SOURCES_META[k] && parsed[k] !== '' && parsed[k] !== null) sessionData[k] = parsed[k];
         }
         // attribution: wrap the flat object under the requested method key so the
-        // library expects aGTM.d.session.attribution keyed by method.
+        // library expects aGTM.d.session.attribution keyed by method. Only a
+        // NON-empty object is wrapped — an empty {} would create a dead
+        // aGTM.d.attribution[method] entry (F-02); CFG.sourcesMethod is already
+        // validated (F-01) so no fallback is needed here.
+        let hasAttr = false;
         if (parsed.attribution && typeof parsed.attribution === 'object') {
+          for (const ak in parsed.attribution) { hasAttr = true; break; }
+        }
+        if (hasAttr) {
           sessionData.attribution = {};
-          sessionData.attribution[CFG.sourcesMethod || 'last_touch'] = parsed.attribution;
+          sessionData.attribution[CFG.sourcesMethod] = parsed.attribution;
         }
         if (CFG.debug) logToConsole('debug', '✓ Sources response', {status: res.statusCode, source: parsed.source, attribution: !!parsed.attribution});
       } else if (CFG.debug) {
