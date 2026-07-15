@@ -772,15 +772,23 @@ aGTM.f.gc = function (n) {
 /**
  * Sets a session cookie.
  * @property {function} aGTM.f.sc
- * @param {string} n - The name of the cookie.
- * @param {string} v - The value of the cookie.
+ * @param {string} n - The name of the cookie. Written verbatim, so it must not
+ *   contain a cookie separator (";"/"=") or whitespace — aGTM.f.gc() looks the
+ *   value up by the raw name and does not decode it, so an encoded name could
+ *   not be read back. A name with such a character is rejected (no-op).
+ * @param {string} v - The value of the cookie. URL-encoded on write so a
+ *   separator (";"/"="/",") in it cannot corrupt the cookie string; this is
+ *   symmetric with gc()'s decodeURIComponent on read (write-side of F-45/F-47).
  * Usage: aGTM.f.sc('consent','true');
  */
 aGTM.f.sc = function (n, v) {
   if (typeof n != "string" || !n || !v) return;
+  // A separator/whitespace in the name cannot be stored and read back safely
+  // (gc reads by the raw name) — fail safe rather than write a corrupt cookie.
+  if (/[;=\s]/.test(n)) return;
   try {
     var d = document;
-    d[aGTM.n.ck] = n + "=" + v + "; Secure; SameSite=Lax; path=/";
+    d[aGTM.n.ck] = n + "=" + encodeURIComponent(v) + "; Secure; SameSite=Lax; path=/";
   } catch (e) {}
 };
 
