@@ -931,6 +931,26 @@
                 "created": "2026-07-15"
               }
             ]
+          },
+          {
+            "id": "agtm-v15-cmp-comma-strip",
+            "title": "CMP-Namens-Komma-Strippen global statt nur 1. Vorkommen (F-51)",
+            "description": "CMP-Input-Pfad-Review (Begleiter zum F-49-Gate-Fix): 4 Stellen in 3 CMP-Dateien nutzten .replace mit String-Komma (nur ERSTES Vorkommen) statt global. Consent-String ist comma-delimited und comma-wrapped -> Name mit zwei+ Kommas (z.B. IAB-TCF-Vendor Amazon.com Inc. bei Sourcepoint) behaelt eingebettetes Komma -> split teilt falsch -> Consent-Fehlmatch (gtm*-Requirement matcht nicht -> GTM bleibt blockiert) bzw. verfaelschter Hash/Store. Fix: global /,/g in cc_usercentrics/cc_sourcepoint/cc_cookiefirst, angeglichen an bereits korrektes cc_ccm19.",
+            "complexity": "niedrig",
+            "effort": 1,
+            "owner": "Claude Opus",
+            "critical": false,
+            "qa": true,
+            "displayId": 41,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "6f3a4f68-d472-4ea1-b40e-30b5a83c0d27",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit ec7ab71, gepusht dev). 6 Stellen von String-Komma-replace auf global /,/g umgestellt: cc_usercentrics (name + categorySlug), cc_sourcepoint (purposes/vendors map), cc_cookiefirst (purposes/services). ccm19 war bereits global (= Intent bestaetigt; Sourcepoint-Kommentar sagt no comma in vendor string). Kein aGTM.js- oder sGTM-Blob-Impact (CMP = separate on-demand min.js). build.sh regeneriert 3 min.js, Fix drin verifiziert. 346 Tests gruen. P2 -> kein schwerer Kritiker (mechanisch, matcht Sibling-Muster). OFFENE LUECKE: CMP consent_check hat keinen bun-Unit-Harness -> Kandidat fuer eigene Test-Infra-Karte. findings F-51, CHANGELOG.",
+                "created": "2026-07-15"
+              }
+            ]
           }
         ]
       },
@@ -1129,7 +1149,7 @@
         ]
       }
     ],
-    "nextDisplayId": 41,
+    "nextDisplayId": 42,
     "attachments": [],
     "background": null,
     "templates": [],
