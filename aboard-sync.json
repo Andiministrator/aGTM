@@ -955,6 +955,12 @@
                 "author": "Claude Opus",
                 "text": "Nachtrag (Commit eeb915f): Consentmanager erweitert — pushte TCF purposesList/vendorsList .name GANZ ohne Strip (gleiche Klasse, TCF-Vendornamen mit Komma) -> Strip + Type-Guard mit id-Fallback ergaenzt. Damit F-51 auf 4 CMP-Dateien. Restliches Muster OFFEN (Andis Entscheidung): Matomo/Usercentrics3/Shopware5 pushen service.name ohne Strip -> niedrigere Praxis-Wahrscheinlichkeit (admin-Kurzlabels vs TCF). Strukturluecke bleibt: kein CMP consent_check bun-Harness.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "e9395445-8266-4419-8025-887782e904b5",
+                "author": "Claude Opus",
+                "text": "Kritiker-Runde (unabh. Sub-Agent, 2026-07-15) ueber die noch nicht geprueften Session-Aenderungen: FREIGABE JA, keine Findings >= P2. F-50 pageinfo: Fix korrekt (node-Gegenprobe 6->3), Test diskriminierend, ES5. F-51 Komma-Strip: /,/g korrekte Fix-Klasse, Intent via ccm19 bestaetigt, KEINE weitere single-comma-replace in cmp/ uebersehen (grep leer), alle 4 Dateien ES5, min.js synchron. CMP-Harness: leakage-frei (finally-restore), cookiebot-Tests diskriminierend. 351 Tests gruen, build sauber. 2 akzeptierte P3-Kosmetik (consentmanager id-Fallback ungestrippt = kommafreie TCF-IDs; cookiebot for(k in) implizit-global = pre-existing Altcode, Kandidat fuer CMP-Audit im F-52-Chat). Kein Nacharbeitsbedarf.",
+                "created": "2026-07-15"
               }
             ]
           },
