@@ -669,6 +669,42 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "agtm-v15-lib-helper-tests",
+            "title": "Library-Unit-Tests: ungetestete Kern-Helfer (consent_serialize, rReplace/rTest/rMatch, sStrf, url2host, getCookie/setCookie)",
+            "description": "Bun-Unit-Tests fuer pure Library-Helfer ohne Coverage. Test-only, null Runtime-Risiko. Prio: consent_serialize (load-bearing Consent-Hash, steuert Consent-Store-POST-Gating, 0 Tests) + die Regex-Helfer, die JEDES GTM-Template nutzt und die Template-Tests nur mocken. EMPFOHLEN als naechster v1.5-Fuellpunkt waehrend Live-Tests laufen.",
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "aGTM.js: consent_serialize (Consent-Hash, load-bearing fuer Consent-Store-Diff, 0 Unit-Tests), rReplace/rTest/rMatch (Regex-Helfer, von allen Templates genutzt+gemockt), sStrf (deep-copy), url2host, getCookie/setCookie. Neue test/*.test.js; browser-globals via test/setup.js; resetAGTM()/MockXHR in test/helpers.js. Falls ein Helfer rot wird = echter Bug jetzt gefunden. ES5 gilt fuer aGTM.js, nicht fuer Testcode.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 31,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-release-hygiene",
+            "title": "Release-Hygiene: ROADMAP-Testzahl syncen + CHANGELOG um F-41-Test-Sweep ergaenzen (F-26)",
+            "description": "ROADMAP.md Z.21 nennt 179 Tests/15 Dateien (real 234+/19+). CHANGELOG v1.5-Sektion um den GTM-Template-___TESTS___-Sweep (F-41) ergaenzen. Das CHANGELOG-Label \"in development\" (Z.3) bleibt bis zum echten git tag v1.5. Klein, niedriger Wert, aber tag-vorbereitend.",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "ROADMAP.md Z.21 Testzahl; CHANGELOG.md Z.3 in-development-Label (erst beim Tag streichen) + v1.5-Sektion Template-Test-Sweep-Eintrag. Bezug findings F-26 (teilweise). Reale Testzahl via bun test pruefen.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 32,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-v15-sources-hardening",
+            "title": "Optionale sGTM-Client-Haertung: sources_method-Whitelist + leeres attribution gaten (F-01/F-02)",
+            "description": "P2/akzeptiert: sources_method gegen die 5-Methoden-Whitelist validieren; leeres attribution{} aus der Sources-API gaten (kein toter aGTM.d.attribution-Eintrag). Beruehrt den sGTM-Client → Source/Template-Sync-Invariante beachten. Etwas mehr Risiko als die anderen zwei → nachrangig.",
+            "complexity": "mittel",
+            "effort": 2,
+            "agentContext": "sgtmClient/src fireSources (F-01 sources_method-Whitelist, F-02 leeres attribution gaten). WICHTIG Sync-Invariante (CLAUDE.md): jede Logik-Aenderung identisch in template.tpl ___SANDBOXED_JS_FOR_SERVER___ UND src/.js + diff-check. sGTM-Server-Sandbox (kein parseInt → makeInteger). Bezug findings F-01/F-02.",
+            "owner": "Claude Opus",
+            "critical": false,
+            "displayId": 33,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -867,11 +903,15 @@
         ]
       }
     ],
-    "nextDisplayId": 31,
+    "nextDisplayId": 34,
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "5-CHANGELOG-Sektion vollständig (für den späteren Tag), und welche puren Library-Helfer haben noch keine bun-Tests?",
+      "since": "2026-07-15T05:35:54.276140+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
