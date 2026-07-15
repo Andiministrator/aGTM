@@ -38,8 +38,11 @@ two entries, causing a consent mismatch (a configured `gtm*` requirement would
 not match → GTM stays blocked) or a distorted consent hash/store. Reachable
 with e.g. IAB-TCF vendor names like "Amazon.com, Inc." (Sourcepoint). Fixed to
 a global replace (`/,/g`) in `cc_usercentrics.js`, `cc_sourcepoint.js`, and
-`cc_cookiefirst.js`, matching the already-correct `cc_ccm19.js`. CMP files are
-separate on-demand scripts, so this does not affect the embedded library blob.
+`cc_cookiefirst.js`, matching the already-correct `cc_ccm19.js`.
+`cc_consentmanager.js` pushed the TCF purpose/vendor `name` with **no** comma
+stripping at all (same class) — now stripped with a type guard and `id`
+fallback. CMP files are separate on-demand scripts, so this does not affect the
+embedded library blob.
 
 ### Fixed — consent-gate fail-open in `aGTM.f.chelp()` (F-49, security)
 
