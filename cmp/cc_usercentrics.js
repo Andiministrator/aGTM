@@ -52,9 +52,9 @@ aGTM.f.consent_check = function (action) {
     serviceCtr++;
     if (aGTM.d.consent.nonEU || (typeof ci[i].isEssential=='boolean' && ci[i].isEssential)) serviceEssCtr++;
     if (sc.status) {
-      services.push( typeof ci[i].name=='string' ? ci[i].name.replace(',', '') : ci[i].id );
+      services.push( typeof ci[i].name=='string' ? ci[i].name.replace(/,/g, '') : ci[i].id );
       serviceIDs.push( ci[i].id );
-      var p = typeof ci[i].categorySlug=='string' ? ci[i].categorySlug.replace(',', '') : 'Unknown Purpose '+(purposeCtr+1).toString();
+      var p = typeof ci[i].categorySlug=='string' ? ci[i].categorySlug.replace(/,/g, '') : 'Unknown Purpose '+(purposeCtr+1).toString();
       if (purposes.indexOf(','+p+',')<0) {
         purposeCtr++;
         if (!purposes) purposes=',';
