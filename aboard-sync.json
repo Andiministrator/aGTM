@@ -687,6 +687,12 @@
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit 84c384b): 49 bun-Unit-Tests fuer die ungetesteten Kern-Helfer. consent_serialize (12: sortierte Keys, gtmConsent/blocked-Blacklist, empty/null-Skip, 0/false bleiben, Objekt-JSON-stringify, gtmConsent-Flip != Consent-Change), rTest/rMatch/rReplace + vSt (23: Case-Sensitivity je Helfer, vSt-Guards, global replace, *->.* Wildcard aus F-05), sStrf (6: inkl. [Circular]-Fallback), gc/sc (9: Roundtrip, Multi-Cookie-Grenze, URI-decode, No-op-Guards). Test-only, kein Library-/CMP-Touch -> ES5/build.sh-Gate nicht einschlaegig. 283 Tests gruen (vorher 234). HINWEIS: url2host aus der Karten-Kandidatenliste existiert NICHT als Library-Funktion (nur als iFrame-TAG-Helfer) -> weggelassen; die uebrigen genannten Helfer alle abgedeckt.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "f3508674-63b9-47b7-a08f-7bb7ad504f55",
+                "author": "Claude Opus",
+                "text": "Kritiker-Runde (unabh. Sub-Agent, 2026-07-15): alle 49 Assertions korrekt & diskriminierend, KEIN falscher Erwartungswert, kein P1/P2. 3 P3-Schaerfungen umgesetzt (Commit 58139d9): (1) rMatch-'kein-Guard'-throw-Kontrast getestet; (2) sStrf-Log-id auf 'e16' gepinnt; (3) Cookie-Multi-Test ehrlich gemacht — der Kritiker deckte dabei einen ECHTEN latenten Library-Bug auf: gc() baut new RegExp(n+'=([^;]+)') ohne Escape/Anchor -> gc('b') auf 'ab=9; b=2' liefert '9'. Als F-45 + eigene Backlog-Karte (agtm-v15-gc-name-anchor) angelegt; NICHT unter dieser Test-Karte gefixt (Produktions-Library mitten in Live-Tests). test/cookie.test.js pinnt das Ist-Verhalten als Characterization. 285 Tests gruen.",
+                "created": "2026-07-15"
               }
             ],
             "qa": true
@@ -729,9 +735,27 @@
                 "author": "Claude Opus",
                 "text": "Erledigt (Commit d5fd942): F-01 sources_method gegen 5-Methoden-Whitelist am CFG-Build gegatet (Objekt-Literal-Index, Fremdwert -> last_touch). F-02 leeres attribution{} nicht mehr gewrappt (for..in-Break-Guard) -> kein toter aGTM.d.attribution[method]-Eintrag; redundantes '|| last_touch' am Wrap entfernt (CFG.sourcesMethod via F-01 garantiert valide). Byte-identisch in template.tpl + src/.js; Source<->Template-Sync-Invariante per Diff verifiziert (nur base64-Blob + Marker-Leerzeile weichen ab). node --check beide OK. 283 Tests gruen. build.sh bewusst NICHT gelaufen: aGTM.js/cmp unberuehrt -> base64-Blob unveraendert, ES5/Build-Gate nicht einschlaegig. Findings F-01/F-02 auf behoben.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "3af2ca05-304e-4cf5-85f6-70731c82a3d9",
+                "author": "Claude Opus",
+                "text": "Kritiker-Runde (unabh. Sub-Agent, 2026-07-15): F-02-Gate + Byte-Sync + Syntax sauber. EIN echter Befund (P3): F-01-Whitelist hatte ein Prototype-Loch — {..}[key]?-Truthy-Test traf geerbte Object.prototype-Namen (constructor/toString/__proto__/hasOwnProperty) -> Whitelist umgehbar. Gefixt auf strikten === 1-Vergleich (geerbte Props nie 1). Commit 58139d9. Gegenprobe gruen (alle Magic-Names -> last_touch), Sync-Diff identisch, node --check OK. Lehre in knowledge/topics/gtm-template-hardening-muster.md §3.",
+                "created": "2026-07-15"
               }
             ],
             "qa": true
+          },
+          {
+            "id": "agtm-v15-gc-name-anchor",
+            "title": "gc() Cookie-Read: Namen escapen + links verankern (F-45)",
+            "description": "Kritiker-Fund #31 (2026-07-15): aGTM.f.gc(n) baut new RegExp(n+\"=([^;]+)\") ohne Escape/Anchor des Namens. Folge: gc(\"b\") auf \"ab=9; b=2\" liefert \"9\" statt \"2\" (Suffix-Kollision); Namen mit Regex-Metazeichen matchen falsch/werfen. Latenter Fehler-Read, geringe Praxis-Haeufigkeit (aGTM-eigene Cookie-Namen kollidieren aktuell nicht), aber echt. Fix: n regex-escapen + (?:^|;\\s*)-Anchor links. ES5-only + bun test + ./build.sh ohne Warnung. ACHTUNG: Library-Touch = base64-Blob-Rebuild → mit Andis Live-Test-Timing abstimmen. Test test/cookie.test.js pinnt aktuell das Ist-Verhalten (\"9\") als Characterization → bei Fix auf \"2\" umstellen.",
+            "complexity": "niedrig",
+            "effort": 1,
+            "agentContext": "aGTM.js aGTM.f.gc (~L752). Fix: regex-escape n (Metazeichen) + Namen links verankern. Regressionstest in test/cookie.test.js: den F-45-Characterization-Pin (erwartet \"9\") auf \"2\" umstellen + Metazeichen-Fall ergaenzen. Bezug findings F-45. Library-Aenderung → ES5, bun test, ./build.sh; base64-Blob aendert sich → Live-Test-Timing beachten.",
+            "owner": "",
+            "critical": false,
+            "displayId": 34,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -930,7 +954,7 @@
         ]
       }
     ],
-    "nextDisplayId": 34,
+    "nextDisplayId": 35,
     "attachments": [],
     "background": null,
     "templates": [],
