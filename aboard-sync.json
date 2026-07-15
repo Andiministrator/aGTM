@@ -755,7 +755,16 @@
             "owner": "",
             "critical": false,
             "displayId": 34,
-            "columnId": "col-backlog"
+            "columnId": "col-erledigt",
+            "qa": true,
+            "comments": [
+              {
+                "id": "65a5f1aa-1b2b-4035-9bd0-081501b3276a",
+                "author": "Claude Opus",
+                "text": "Erledigt (Commit 19b0dd2). Auf Andis Wunsch VORHER eigener Kritiker-Sub-Agent auf Diagnose+Umsetzungsplan (nicht nur auf den Code): Verdikt JA-MIT-AENDERUNGEN. Diagnose bestaetigt — Defekt (1) ist sogar ein uncaught SyntaxError (gc('a(b'), RegExp vor try-Block), nicht nur Fehlmatch. Fix wasserdicht: 16-Fall-Batterie gruen, non-capturing (?:..) load-bearing (capturing wuerde match[1] verschieben), ES5-sauber, keine Aufrufer-Regression (nur aGTMoptout/aGTMdebug). Umsetzung: Type-Guard + Regex-Escape der Metazeichen + Links-Anchor (?:^|;\\s*). Tests: Characterization-Pin '9'->'2' geflippt, Metazeichen-Test (Altcode wirft) + Guard-Test. ./build.sh sauber, sGTM-Sync identisch (Blob re-injiziert in tpl+src), 287 Tests gruen, min.js +94 B. Findings F-45 -> behoben.",
+                "created": "2026-07-15"
+              }
+            ]
           }
         ]
       },
