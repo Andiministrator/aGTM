@@ -467,15 +467,26 @@ aGTM.f.load_cc = function (cmp, callback) {
 };*/
 
 /**
- * Helper fuction for the consent function
+ * Helper fuction for the consent function.
+ * Returns true only if EVERY required entry in need_cons is present in the
+ * comma-wrapped given_cons. If a requirement is set but nothing was granted
+ * (given_cons empty/falsy), it returns FALSE — a configured requirement that
+ * received no matching consent is not satisfied (fail-closed, F-49). No
+ * requirement (need_cons empty/falsy) means "nothing to satisfy" → true.
  * @property {function} aGTM.f.chelp
  * @param {string} need_cons - a string with the purposes/vendors that need consent (comma-separated)
- * @param {string} given_cons - a string with the purposes/vendors that need consent (comma-separated and with a comma at the beginning and at the end)
+ * @param {string} given_cons - a string with the purposes/vendors that were granted (comma-separated and with a comma at the beginning and at the end)
+ * @returns {boolean} - true if all required entries are granted (or nothing is required), false otherwise
  * Usage: aGTM.f.chelp('Google Analytics, Google Remarketing', 'Google Analytics');
  */
 aGTM.f.chelp = function (need_cons, given_cons) {
   var c = true;
-  if (need_cons && given_cons) {
+  if (need_cons) {
+    // A requirement exists: nothing granted → not satisfied (fail-closed).
+    // Previously the whole block was skipped when given_cons was empty, so a
+    // required purpose/service/vendor against an all-denied category ("") was
+    // wrongly treated as granted → GTM loaded without the required consent.
+    if (!given_cons) return false;
     need_cons.split(",").forEach(function (consent) {
       if (given_cons.indexOf("," + consent.trim() + ",") < 0) c = false;
     });
