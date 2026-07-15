@@ -311,6 +311,12 @@
                 "author": "Claude Opus",
                 "text": "HANDOFF (Chat-Wechsel 2026-07-13): Diese Session ERLEDIGT: #24 Click (F-29, cross_matching-Falle + Least-Privilege + README/F-40) und #25 Scroll (F-34) inkl. Library-Feature aGTM.f.evLstn(el,ev,fct,{passive,throttle}) + aGTM.f.passiveSupported()/throttle() (CWV-Haertung, Weiche von Andi: zentral opt-in in evLstn). CWV-Cross-Template-Touch: Pageview resize+Human-Detektoren jetzt passiv (Andi: DRIN LASSEN, Tag 1.1->1.2 additiv). iFrame unberuehrt. 234 Tests gruen (neu test/evlstn_passive_throttle.test.js), build idempotent. Per-Karte-Kritiker + KONSOLIDIERTER QA+Kritiker-Gate (2 Sub-Agenten) gelaufen: kein P0/P1/P2 (Details im Kommentar davor). Commits: c3609d6, ffb59d8, a14e3f0, 68b98f0 (dev, gepusht). Doku/Knowledge/Memory synchron (CHANGELOG, NOTES/READMEs, knowledge/topics/cwv-event-listener-muster.md, Memory evlstn-passive-throttle). WICHTIG fuer Release: Scroll-/Pageview-Tag brauchen aGTM-Library v1.5+ (evLstn-Optionen) - muss mit ausgeliefert werden. NAECHSTER SCHRITT (Andis Wunsch, neuer Chat): restliche v1.5-P2-Karten - #26 Timer (F-35, niedrig/2), dann #27 Copy (F-32, niedrig/1), #28 Variablen (F-37/38/39, mittel/3), dann systemisch #29 READMEs (F-40), #30 Perms-Cleanup (F-42), #18 Client-Tests, GTM-Testwelle F-41 (nur in GTM lauffaehig). Muster/Fallen: knowledge/topics/gtm-template-hardening-muster.md + cwv-event-listener-muster.md. Board ADR-0067-MIGRIERT: Ops an aboard-sync.inbox/ (makeOp-Schema), NIE aboard-sync.json direktschreiben; nach Ops headless projektieren. Offen in Arbeit: dieses Release-Gate #1 (+ #20 Consent-Mode nur noch ___TESTS___=F-41). Kein Release/Tag/Main-Merge ohne Andis explizites Zeichen + volle /sprint-abschluss-Runde.",
                 "created": "2026-07-13"
+              },
+              {
+                "id": "b0990fbe-3559-4020-9c74-2e1a70644b2f",
+                "author": "Claude Opus",
+                "text": "Release-Gate-Fortschritt (2026-07-15, Andi): neuer sGTM-Client (RC, Blob==aGTM.base64 inkl. F-45, Server-Logik inkl. F-33) bei fc-moto importiert — kombinierter Smoketest GRUEN gegen Live-Infra (api4sgtm/api4sources). Client ist LIVE, Beobachtungsphase laeuft. Damit ist das operative Gate-Kriterium 'Smoketest gruen gegen Release-Build' erfuellt. OFFEN vor git tag v1.5: (1) Beobachtungsfenster (Andis Call), (2) /sprint-abschluss inkl. Kritiker, (3) Pre-Tag-Hygiene F-26 (CHANGELOG 'in development' streichen + finale Testzahl 287/23 festzurren), (4) dev->main-Merge + Tag NUR auf Andis Zeichen. Karte bleibt In Arbeit.",
+                "created": "2026-07-15"
               }
             ],
             "displayId": 1,
@@ -985,11 +991,7 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": {
-      "question": "replace()` bei `gc(undefined)` werfen — der Guard ist zwingend;\n- das non-capturing `(?",
-      "since": "2026-07-15T07:18:27.915684+00:00",
-      "askedBy": "Claude Sonnet 4.6"
-    },
+    "awaitingUser": null,
     "identities": [
       {
         "id": "user-default",
