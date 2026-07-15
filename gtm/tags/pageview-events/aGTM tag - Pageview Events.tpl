@@ -1559,7 +1559,54 @@ ___WEB_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Basic pageview fires with the configured event name
+  code: |-
+    // Coverage of the direct-fire path (use_js_check off, no js-time attribute).
+    // getVal/rTest/getNodeAttr are stubbed benignly so the device/dimension probes
+    // do not throw; the assertion is on the fired event name.
+    let fired = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') { return ''; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rMatch') { return null; }
+      if (fn === 'aGTM.f.getNodeAttr') { return ''; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+      return;
+    });
+    runCode({ eventname: 'aPageview', pv_fire: '', max_fire: '999', pv_attributes: [], use_js_check: false, vPageviews: false, useHumanTest: false, useAdBlockTest: false, useCookie: false });
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('aPageview');
+- name: pv_fire dom routes the pageview through domready
+  code: |-
+    let domEvent = null, directFire = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') { return ''; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rMatch') { return null; }
+      if (fn === 'aGTM.f.getNodeAttr') { return ''; }
+      if (fn === 'aGTM.f.domready') { domEvent = arguments[1]; return; }
+      if (fn === 'aGTM.f.fire') { directFire = arguments[1]; return; }
+      return;
+    });
+    runCode({ eventname: 'aPageview', pv_fire: 'dom', max_fire: '999', pv_attributes: [], use_js_check: false, vPageviews: false, useHumanTest: false, useAdBlockTest: false, useCookie: false });
+    assertThat(domEvent).isDefined();
+    assertThat(domEvent.event).isEqualTo('aPageview');
+    assertThat(directFire).isEqualTo(null);
+- name: A static pv_attribute is added to the pageview event
+  code: |-
+    let fired = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') { return ''; }
+      if (fn === 'aGTM.f.rTest') { return false; }
+      if (fn === 'aGTM.f.rMatch') { return null; }
+      if (fn === 'aGTM.f.getNodeAttr') { return ''; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+      return;
+    });
+    runCode({ eventname: 'aPageview', pv_fire: '', max_fire: '999', pv_attributes: [{ pv_attribute: 'my_static_value', pv_dl_name: 'my_key' }], use_js_check: false, vPageviews: false, useHumanTest: false, useAdBlockTest: false, useCookie: false });
+    assertThat(fired).isDefined();
+    assertThat(fired.my_key).isEqualTo('my_static_value');
 setup: ''
 
 
