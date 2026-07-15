@@ -830,7 +830,16 @@
             "owner": "",
             "critical": false,
             "displayId": 35,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "blocked": true,
+            "comments": [
+              {
+                "id": "a6176635-78d7-4c42-9c98-4fd1ab307086",
+                "author": "Claude Opus",
+                "text": "Andis Task (2026-07-15): macht er selbst, wenn fc-moto fertig getestet ist — als Teil des kompletten Web-Workspace-Updates (nicht nur die eingebettete Library). Datei: gtm/aGTM-GTM-Workspace-Template-18.json (webGTM-Vorlage GTM-NQLZMF8J, eingebettete Inline-Library aktuell v1.4.1, enthaelt altes gc/urlParam vor F-45/F-47; Praxisrisiko null, liest nur Literalnamen). BLOCKED bis fc-moto-Testabschluss. Naechster Chat NICHT anfassen/scripten.",
+                "created": "2026-07-15"
+              }
+            ]
           }
         ]
       },
