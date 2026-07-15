@@ -957,6 +957,26 @@
                 "created": "2026-07-15"
               }
             ]
+          },
+          {
+            "id": "agtm-v15-cmp-template-sync",
+            "title": "sGTM-Client: eingebettete CMP-consent_check-Codes syncen (F-52, P1)",
+            "description": "sgtmClient/template.tpl bettet 23 CMP consent_check-Codes als minifizierte SELECT-Werte ein (Produktions-Kopie fuer sGTM-Client-Nutzer wie fc-moto; Client injiziert den gewaehlten Code inline in /aGTM.js). build.sh syncht sie NICHT aus cmp/*.js -> Drift. Beleg: Usercentrics v2 im Template hat noch name.replace-single-comma (F-51-Bug), cmp/cc_usercentrics.js ist schon /,/g. Folge: CMP-Fixes erreichen Client-Nutzer nicht bis manuell nachgezogen. Analog F-43 (base64-Drift) aber ohne jeden Sync.",
+            "complexity": "mittel",
+            "effort": 3,
+            "owner": "Claude Opus",
+            "critical": true,
+            "agentContext": "PLAN (naechster Chat, P1): (1) Sync-Schritt in scripts/update-sgtm-template.js der die 23 SELECT-value-Strings aus cmp/cc_*.min.js regeneriert. HERAUSFORDERUNG: Mapping cmp-Dateiname <-> Template-displayValue (Template nutzt Anzeigenamen: Usercentrics v2, Usercentrics v3 and newer Cookiebot, Shopware 5 Cookie, Shopify Consent Tool, Perspective Funnel Consent Banner, Secure Privacy, ...). Ausserdem: manche Template-Optionen buendeln mehrere (z.B. \"Usercentrics v3 and newer Cookiebot\"). Erst Mapping klaeren, ggf. Mapping-Tabelle in scripts/. (2) Einmalig alle 23 aus den GEFIXTEN cmp/*.min.js resyncen (F-51 + evtl. weitere Drifts). (3) Diff verifizieren, ./build.sh sauber. (4) Client-Re-Import durch Andi -> dann sind F-49/F-50/F-51 client-seitig live. VORSICHT: Hand-Patch einzelner Blobs = Frankenstein-Teilfix; Automatisierung bevorzugt. Auch: das geplante 24-CMP-Test-Harness (test/cmp/, Cookiebot-Muster steht) parallel weiterfuehren, um Drift kuenftig per Test zu fangen.",
+            "displayId": 42,
+            "columnId": "col-backlog",
+            "comments": [
+              {
+                "id": "311173b4-a598-4744-a884-8265bcb2eb8e",
+                "author": "Claude Opus",
+                "text": "Von Andi 2026-07-15 aufgedeckt: die CMP-min-Codes sind im sGTM-Client enthalten. Verifiziert: 23 eingebettete consent_check-Codes in template.tpl SELECT-values, kein build-Sync, F-51-Drift belegt (Usercentrics v2 Template noch single-comma). KRITISCH weil dies der Produktionspfad fuer sGTM-Client-Nutzer ist -> F-49/F-50/F-51 sind fuer fc-moto & Co client-seitig NICHT live bis Sync + Re-Import. Findings F-52. Test-Harness (test/cmp/harness.js + cookiebot.test.js) als Fundament committet (3629aa7).",
+                "created": "2026-07-15"
+              }
+            ]
           }
         ]
       },
@@ -1155,15 +1175,11 @@
         ]
       }
     ],
-    "nextDisplayId": 42,
+    "nextDisplayId": 43,
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": {
-      "question": "`knowledge/` ist gitignored (kein Commit). Ein Punkt gehört aber ins Memory: die **Live-Kunden-Exposition durch F-49** (nicht aus dem Repo ableitbar — das hast du mir gerade gesagt). Das speichere ich",
-      "since": "2026-07-15T18:40:09.200777+00:00",
-      "askedBy": "Claude Sonnet 4.6"
-    },
+    "awaitingUser": null,
     "identities": [
       {
         "id": "user-default",
