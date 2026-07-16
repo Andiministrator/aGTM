@@ -987,6 +987,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-16",
                 "text": "F-52 umgesetzt + Kritiker-FREIGABE JA (nur P3-Notizen, eine direkt eingearbeitet: konsistente ERROR-Meldung bei nicht-lesbarer Quelldatei). Sync automatisiert in scripts/update-sgtm-template.js via geteilte scripts/cmp-sync-lib.js (CMP_MAP displayValue->cc_<name>, Prefix-Strip ab aGTM.f.consent_check=function, GTM-Encoder =/&/</>->u00xx). Mapping empirisch belegt: 18/23 byte-identisch vor Sync (Round-Trip-Encoder verifiziert), 5 echte Drifts resynct (Consentmanager/CookieFirst/Sourcepoint/Usercentrics v2 [F-51-Komma]/Shopify). Writer failt loud bei unmapped Option / nicht-lesbarer Datei / fehlendem Marker. Drift-Guard test/cmp/template-sync.test.js (26 Tests) asserted embedded==min.js; Negativ-Beweis gefuehrt. Build idempotent, Diff minimal (5 Value-Zeilen), Sandbox-Sync-Invariante byte-identisch, 377 Tests gruen. Commit c0edacc auf dev gepusht. REST=operativ (Andi): Client-Re-Import fuer fc-moto -> dann F-49 (falls gtm* gesetzt)/F-51 client-seitig live, danach Karte -> Erledigt. Nebenbefund F-53 (findings): Arrow-Function in cc_shopify_consent.js (ES5, P3, vorbestehend)."
+              },
+              {
+                "id": "8e94d8ad-cf76-480a-96d4-45470edfc30c",
+                "author": "Claude Opus",
+                "created": "2026-07-16",
+                "text": "Nebenbefund F-53 (waehrend F-52-Analyse gefunden) gleich mit-gefixt: Arrow-Function in cmp/cc_shopify_consent.js (ES5-Verstoss) -> function-Expression. terser (--ecma 5) transpiliert NICHT, daher lief die Arrow bis in min.js + eingebetteten Template-Value durch. ./build.sh resynchte den Shopify-Template-Wert AUTOMATISCH via F-52 (End-to-End-Beweis des Sync-Mechanismus). ES6-Sweep ueber alle cmp/*.js + aGTM.js + sGTM-Client-Source: sonst sauber. Kritiker-Sub-Agent: FREIGABE JA (verhaltensgleich, kein this/arguments; kein Befund >= P2). Commit 4b88db7 auf dev. F-53 teilt die Re-Import-Abhaengigkeit mit F-52. Knowledge aktualisiert (projekt-konventionen: terser-transpiliert-nicht; cmp-layer-test-und-drift: F-52-Sync-Mechanismus + F-53)."
               }
             ],
             "qa": true
@@ -1192,11 +1198,7 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": {
-      "question": "Ich warte auf den Kritiker-Sub-Agent, bevor ich committe. Zusammenfassung des bisherigen Stands:",
-      "since": "2026-07-16T07:44:04.134521+00:00",
-      "askedBy": "Claude Sonnet 4.6"
-    },
+    "awaitingUser": null,
     "identities": [
       {
         "id": "user-default",
