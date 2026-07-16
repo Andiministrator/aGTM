@@ -88,7 +88,8 @@ Tests live in `test/`. Browser globals are set up via `test/setup.js` (loaded au
 | `build.sh` | Orchestrates the full build: inject version → safety check → minify → base64 → update sGTM template |
 | `scripts/inject-version.js` | Reads `VERSION`, writes `@version` + `aGTM.d.version` in `aGTM.js`, updates `@lastupdate`, updates `package.json` |
 | `scripts/check-init.js` | Strips comments from `aGTM.js` and checks for an accidental uncommented `aGTM.f.init()` call |
-| `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` **and** re-syncs the same base64 blob into `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js` so the client source stays byte-identical to the template's sandboxed block (the blob is the only line that drifts across a library rebuild — see below) |
+| `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` **and** re-syncs the same base64 blob into `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js` so the client source stays byte-identical to the template's sandboxed block (the blob is the only line that drifts across a library rebuild — see below). **Also** re-syncs the embedded CMP `consent_check` codes in the template's "Used CMP" SELECT from `cmp/*.min.js` (F-52 — see "Embedded CMP consent_check sync" below) |
+| `scripts/cmp-sync-lib.js` | Shared, side-effect-free helpers for the embedded-CMP-code sync: `CMP_MAP` (displayValue → `cc_<name>` file), consent_check extraction, GTM string encoding, template parsing. Imported by both `update-sgtm-template.js` (writer) and `test/cmp/template-sync.test.js` (drift guard) so the mapping lives in one place |
 | `bunfig.toml` | Configures `bun test`: preloads `test/setup.js` before every test file |
 | `test/setup.js` | Sets up browser globals (`window`, `document`, etc.) and loads `aGTM.js` into global scope via indirect eval |
 | `test/helpers.js` | `MockXHR` class and `resetAGTM()` — used in every test file |
@@ -108,6 +109,39 @@ that line in **both** files, so the blob never drifts across a library rebuild
 (previously it did — finding F-43). After any change, verify with a `diff` of
 the extracted block against the source; only the `___TESTS___` block of the
 template has no source counterpart and may diverge freely.
+
+### Embedded CMP `consent_check` sync (F-52)
+
+The Client template's "Used CMP (Consent Tool)" SELECT field (in
+`___TEMPLATE_PARAMETERS___`) carries one **minified** `consent_check` function
+per CMP as its option `value`. This is the production copy the Client injects
+inline into `/aGTM.js` — so a CMP fix in `cmp/cc_<name>.js` only reaches Client
+users (fc-moto & co) once this embedded copy is regenerated. It used to drift
+silently (a CMP fix landed in `cmp/*` but not here — F-52, the F-51 comma-strip
+was found un-synced in Usercentrics v2).
+
+`scripts/update-sgtm-template.js` now regenerates every embedded value from the
+freshly built `cmp/*.min.js` on each `./build.sh`. Mechanics (all in
+`scripts/cmp-sync-lib.js`, shared with the drift-guard test):
+- **`CMP_MAP`** maps each SELECT `displayValue` → its `cc_<name>` file. Two CMPs
+  (`cc_jtl_consent`, `cc_jtl_eu_cookie`) are **not** offered as embedded options,
+  so 23 of the 25 `cmp/` files are embedded.
+- The embedded value is the min.js **from `aGTM.f.consent_check=function` onward**
+  — the leading namespace-bootstrap prefix (`window.aGTM=…,aGTM.n=aGTM.n||{},`)
+  is dropped because the Client has already initialised `aGTM`.
+- Values are re-escaped GTM-style (JSON escaping **plus** `\u00xx` for `=`/`&`/
+  `<`/`>`); the encoder is verified to reproduce every already-synced value
+  byte-for-byte.
+- The writer **fails loud** if a template CMP option has no `CMP_MAP` entry (a
+  new/renamed CMP added without wiring the sync) or a mapped value can't be
+  located. Adding a CMP to the SELECT ⇒ add its `CMP_MAP` entry.
+- **Template-only:** these values live solely in `___TEMPLATE_PARAMETERS___`; the
+  sandboxed server block reads the *selected* value at runtime, so the
+  client-source file has no counterpart to sync.
+- **Drift guard:** `test/cmp/template-sync.test.js` asserts every embedded value
+  equals its `cmp/*.min.js` source, so a future un-synced CMP fix fails `bun test`
+  instead of shipping stale. **A CMP fix is not done until `./build.sh` has been
+  run and the embedded copy re-synced.**
 
 ### Minification rules
 

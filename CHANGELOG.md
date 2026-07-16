@@ -2,6 +2,20 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — sGTM Client template re-syncs embedded CMP `consent_check` codes (F-52)
+
+The sGTM Client template (`sgtmClient/template.tpl`) embeds one minified
+`consent_check` function per CMP as its "Used CMP (Consent Tool)" SELECT option
+`value` — the production copy the Client injects inline into `/aGTM.js` for
+Client users. Nothing rebuilt these from `cmp/*.min.js`, so CMP fixes never
+reached Client users until manually patched (5 codes had drifted, including the
+F-51 comma-strip fix in Usercentrics v2). `scripts/update-sgtm-template.js` now
+regenerates all 23 embedded values from the freshly minified `cmp/*.min.js` on
+every `./build.sh`, and a new drift-guard test (`test/cmp/template-sync.test.js`)
+fails CI if any embedded value ever diverges from its source again. Shared
+mapping/extraction logic lives in `scripts/cmp-sync-lib.js` so the writer and the
+guard cannot disagree.
+
 ### Added — passive/throttle options for `aGTM.f.evLstn` (Core Web Vitals)
 
 `aGTM.f.evLstn(el, ev, fct, opts)` gained an optional 4th argument
