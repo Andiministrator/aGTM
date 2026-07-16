@@ -2,6 +2,18 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — comma-strip completed across remaining CMP consent checks (F-51b)
+
+Five more CMP consent checks pushed human-readable service/purpose names into
+the comma-delimited consent string without stripping embedded commas, so a name
+like "Meta Platforms, Inc." would split into phantom entries and cause a consent
+mismatch: `cc_matomo`, `cc_shopware5_cookie`, `cc_usercentrics3`,
+`cc_jtl_eu_cookie` and `cc_shopware_acris_cookie`. All now strip with `/,/g`
+behind a `typeof === 'string'` guard (same pattern as `cc_ccm19`/`cc_usercentrics`),
+closing the comma class repo-wide. `./build.sh` re-synced the four embedded
+template copies automatically via the F-52 mechanism. New discriminating harness
+tests in `test/cmp/comma_strip.test.js`.
+
 ### Fixed — ES5 compliance in `cmp/cc_shopify_consent.js` (F-53)
 
 The Shopify consent check used an ES6 arrow function in the

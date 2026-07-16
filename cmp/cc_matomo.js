@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Matomo Consent Banner
- * @version 1.0
- * @lastupdate 19.08.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 16.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -44,11 +44,13 @@ aGTM.f.consent_check = function (action) {
   var purposes_essential = [];
   for (var i=0; i<purposes_obj.categories.length; i++) {
     var purpose = purposes_obj.categories[i];
-    if (typeof purpose!='object' || !purpose || !purpose.name || !purpose.id) continue;
+    if (typeof purpose!='object' || !purpose || typeof purpose.name!='string' || !purpose.name || !purpose.id) continue;
+    // Strip commas from the name — the consent string is comma-delimited (F-51 class)
+    var purpose_name = purpose.name.replace(/,/g, '');
     purposes_count++;
-    if (purpose.required) purposes_essential.push(purpose.name);
+    if (purpose.required) purposes_essential.push(purpose_name);
     if (purpose.checked || purpose.required) {
-      purposes.push(purpose.name);
+      purposes.push(purpose_name);
       purposes_ids.push(purpose.id);
     }
   }
@@ -58,10 +60,10 @@ aGTM.f.consent_check = function (action) {
   var services_ids = [];
   for (var i=0; i<services_obj.services.length; i++) {
     var service = services_obj.services[i];
-    if (typeof service!='object' || !service || !service.name || !service.id) continue;
+    if (typeof service!='object' || !service || typeof service.name!='string' || !service.name || !service.id) continue;
     services_count++;
     if (service.hasConsent) {
-      services.push(service.name);
+      services.push(service.name.replace(/,/g, ''));
       services_ids.push(service.id);
     }
   }

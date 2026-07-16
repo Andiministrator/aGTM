@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Shopware Acris Cookie
- * @version 1.0
- * @lastupdate 19.06.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.2
+ * @lastupdate 16.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -55,7 +55,10 @@ aGTM.f.consent_check = function (action) {
     '446': 'Bing Ads'
   };
   for (var i=0; i<serviceIDs.length; i++) {
-    services.push( mapping[serviceIDs[i]] ? mapping[serviceIDs[i]] : serviceIDs[i] );
+    // Strip commas — the consent string is comma-delimited (F-51 class); the
+    // mapping is comma-free today but a future entry must not split silently.
+    var nm = mapping[serviceIDs[i]] ? mapping[serviceIDs[i]] : serviceIDs[i];
+    services.push( typeof nm === 'string' ? nm.replace(/,/g, '') : nm );
   }
 
   // Set Services from object

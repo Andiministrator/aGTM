@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether a (Consent) Cookie exists and if there is Consent
  * @usage use it together with aGTMlib and see the documentation there
  * @type: EU Cookie for JTL Shop Consent Check
- * @version 1.0
- * @lastupdate 11.11.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 16.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -36,8 +36,9 @@ aGTM.f.consent_check = function (action) {
     var cat = EuCookie.categories[i];
     if (cat.consent === true) {
       purposeIDs.push(cat.id);
+      // Strip commas from the name — the consent string is comma-delimited (F-51 class)
       var name = cat.name && (cat.name.de || cat.name.en);
-      if (name) purposes.push(name);
+      if (typeof name === 'string' && name) purposes.push(name.replace(/,/g, ''));
     }
   }
   // get services
@@ -48,7 +49,7 @@ aGTM.f.consent_check = function (action) {
     if (service.consent === true) {
       serviceIDs.push(service.id);
       var name = service.name && (service.name.de || service.name.en);
-      if (name) services.push(name);
+      if (typeof name === 'string' && name) services.push(name.replace(/,/g, ''));
     }
   }
   // Save result

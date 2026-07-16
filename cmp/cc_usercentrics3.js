@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Usercentrics3
- * @version 1.1
- * @lastupdate 04.07.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.2
+ * @lastupdate 16.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -50,7 +50,9 @@ aGTM.f.consent_check = function (action) {
       var service = servs[serviceId];
       if (service.essential && service_ids.indexOf(serviceId) === -1) service_essential_counter++;
       if (service.consent && service.consent.given) {
-        if (services.indexOf(service.name) === -1) services.push(service.name);
+        // Strip commas from the name — the consent string is comma-delimited (F-51 class)
+        var service_name = typeof service.name === 'string' ? service.name.replace(/,/g, '') : service.name;
+        if (services.indexOf(service_name) === -1) services.push(service_name);
         if (service_ids.indexOf(serviceId) === -1) service_ids.push(serviceId);
       }
       if (service.subservices) {
@@ -60,7 +62,7 @@ aGTM.f.consent_check = function (action) {
             var subservice = service.subservices[subserviceId];
             if (subservice.essential && service_ids.indexOf(subserviceId) === -1) service_essential_counter++;
             if (subservice.consent && subservice.consent.given) {
-              services.push(subservice.name);
+              services.push(typeof subservice.name === 'string' ? subservice.name.replace(/,/g, '') : subservice.name);
               service_ids.push(subserviceId);
             }
           }
