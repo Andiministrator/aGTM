@@ -2,6 +2,16 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — ES5 compliance in `cmp/cc_shopify_consent.js` (F-53)
+
+The Shopify consent check used an ES6 arrow function in the
+`Shopify.loadFeatures` callback. Since terser (`--ecma 5`) minifies but does not
+transpile, the arrow survived into `cmp/cc_shopify_consent.min.js` (and the
+embedded sGTM template value), breaking the repo's ES5-only rule and very old
+browsers (IE11). Replaced with a plain function expression (behaviourally
+identical — the callback uses neither `this` nor `arguments`). Rebuild
+re-synced the embedded template copy automatically via the F-52 mechanism.
+
 ### Fixed — sGTM Client template re-syncs embedded CMP `consent_check` codes (F-52)
 
 The sGTM Client template (`sgtmClient/template.tpl`) embeds one minified

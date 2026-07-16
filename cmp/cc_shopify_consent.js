@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Shopify Consent Banner
- * @version 1.0
- * @lastupdate 19.06.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 16.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -27,7 +27,7 @@ aGTM.f.consent_check = function (action) {
 
 
   // Load Shopify Tracking API
-  window.Shopify.loadFeatures([{name:'consent-tracking-api',version:'0.1'}],error=>{if(error){/*Rescue error*/}});
+  window.Shopify.loadFeatures([{name:'consent-tracking-api',version:'0.1'}],function(error){if(error){/*Rescue error*/}});
   // Check Consent Object
   if (typeof Shopify != 'object' || typeof Shopify.customerPrivacy != 'object' || typeof Shopify.customerPrivacy.currentVisitorConsent != 'function' || typeof Shopify.customerPrivacy.getTrackingConsent != 'function') return false;
   // Check Banner interaction
