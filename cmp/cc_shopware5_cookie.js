@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether a (Consent) Cookie exists and if there is Consent
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Shopware 5 Cookie Banner Consent Check
- * @version 1.0
- * @lastupdate 09.09.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 16.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -41,15 +41,15 @@ aGTM.f.consent_check = function (action) {
     for (var groupName in parsed.groups) {
       if (!parsed.groups.hasOwnProperty(groupName)) continue;
       var group = parsed.groups[groupName];
-      // Group active?
-      if (group && group.active === true) purposes.push(group.name);
+      // Group active? (strip commas — the consent string is comma-delimited, F-51 class)
+      if (group && group.active === true && typeof group.name === "string") purposes.push(group.name.replace(/,/g, ''));
         // Check Cookies
       if (group && group.cookies) {
         for (var cookieName in group.cookies) {
           if (!group.cookies.hasOwnProperty(cookieName)) continue;
           var cookieObj = group.cookies[cookieName];
           if (cookieObj && cookieObj.active === true && typeof cookieObj.name === "string") {
-            services.push(cookieObj.name);
+            services.push(cookieObj.name.replace(/,/g, ''));
           }
         }
       }
