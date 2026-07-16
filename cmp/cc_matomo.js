@@ -96,4 +96,4 @@ aGTM.f.consent_check = function (action) {
   aGTM.d.consent.hasResponse = true;
 };
 
-//[aGTMlib.js Consentcheck]EOF
+//[aGTMlib.js Consentcheck]EOF
