@@ -999,6 +999,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-16",
                 "text": "F-51b (Rest der Komma-Klasse) auf Andis Zeichen komplett geschlossen: /,/g-Strip + String-Guard in Matomo, Shopware5, Usercentrics3, jtl_eu_cookie, Shopware Acris (letzterer defensiv, Kritiker-P3). Damit strippen ALLE CMPs, die menschenlesbare Namen in den Consent-String schreiben (Klaro/Borlabs safe = Object-Keys). build.sh resynchte 4 eingebettete Template-Werte automatisch via F-52 (jtl nicht eingebettet). Neuer test/cmp/comma_strip.test.js (3 diskriminierende Tests). Kritiker-Sub-Agent: FREIGABE JA (throw-sicher, keine Regression, ES5). 380 Tests gruen. Commit 552719f auf dev. Teilt die Re-Import-Abhaengigkeit mit F-52/F-53. findings F-51b + knowledge/CHANGELOG aktualisiert."
+              },
+              {
+                "id": "e967a409-be20-4f7b-9f5a-b304c0b05107",
+                "author": "Claude Opus",
+                "created": "2026-07-16",
+                "text": "Holistischer Release-Kritiker ueber den kumulativen Session-Diff (F-52+F-53+F-51b): FREIGABE JA fuer den Session-Beitrag zu v1.5. Verifiziert: 380 Tests gruen, Build idempotent, alle Artefakt-Sync-Invarianten byte-identisch (Sandbox-Block==src, const-agtm-base64==aGTM.base64 in template+src, alle min.js frisch), ES5 repo-weit sauber, Doku/CHANGELOG/CLAUDE.md konsistent. EIN P1 (Hygiene, kein Funktionsdefekt): ein skriptbasierter Header-Bump hatte 3 CMP-Dateien (matomo/uc3/acris) versehentlich CRLF->LF geflippt -> Ganzdatei-Diff. BEHOBEN (Commit a46a827): CRLF wiederhergestellt (Netto-Diff vs Session-Start jetzt nur ~semantische Komma-Zeilen), ROADMAP-Testzahl 346->380 gesynct (F-26-Rest; nur CHANGELOG-in-development-Label bleibt bis Tag). Lehre in knowledge/projekt-konventionen (Zeilenenden bei Skript-Edits bewahren; .gitattributes = v1.6-Kandidat). dev jetzt clean + diff-minimal. Alle 3 Themen der Session freigegeben."
               }
             ],
             "qa": true
