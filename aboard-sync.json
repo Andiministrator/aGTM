@@ -993,6 +993,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-16",
                 "text": "Nebenbefund F-53 (waehrend F-52-Analyse gefunden) gleich mit-gefixt: Arrow-Function in cmp/cc_shopify_consent.js (ES5-Verstoss) -> function-Expression. terser (--ecma 5) transpiliert NICHT, daher lief die Arrow bis in min.js + eingebetteten Template-Value durch. ./build.sh resynchte den Shopify-Template-Wert AUTOMATISCH via F-52 (End-to-End-Beweis des Sync-Mechanismus). ES6-Sweep ueber alle cmp/*.js + aGTM.js + sGTM-Client-Source: sonst sauber. Kritiker-Sub-Agent: FREIGABE JA (verhaltensgleich, kein this/arguments; kein Befund >= P2). Commit 4b88db7 auf dev. F-53 teilt die Re-Import-Abhaengigkeit mit F-52. Knowledge aktualisiert (projekt-konventionen: terser-transpiliert-nicht; cmp-layer-test-und-drift: F-52-Sync-Mechanismus + F-53)."
+              },
+              {
+                "id": "71087773-9467-4947-947d-c8686abb3867",
+                "author": "Claude Opus",
+                "created": "2026-07-16",
+                "text": "F-51b (Rest der Komma-Klasse) auf Andis Zeichen komplett geschlossen: /,/g-Strip + String-Guard in Matomo, Shopware5, Usercentrics3, jtl_eu_cookie, Shopware Acris (letzterer defensiv, Kritiker-P3). Damit strippen ALLE CMPs, die menschenlesbare Namen in den Consent-String schreiben (Klaro/Borlabs safe = Object-Keys). build.sh resynchte 4 eingebettete Template-Werte automatisch via F-52 (jtl nicht eingebettet). Neuer test/cmp/comma_strip.test.js (3 diskriminierende Tests). Kritiker-Sub-Agent: FREIGABE JA (throw-sicher, keine Regression, ES5). 380 Tests gruen. Commit 552719f auf dev. Teilt die Re-Import-Abhaengigkeit mit F-52/F-53. findings F-51b + knowledge/CHANGELOG aktualisiert."
               }
             ],
             "qa": true
