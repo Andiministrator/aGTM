@@ -83,4 +83,4 @@ aGTM.f.consent_check = function (action) {
 //  var consent = aGTM.f.consent_fct();
 //}
 
-//[aGTMlib.js Consentcheck]EOF
+//[aGTMlib.js Consentcheck]EOF
