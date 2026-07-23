@@ -102,8 +102,9 @@ architecture, see `CLAUDE.md` (sections "CMP Files", "Build Process",
      exactly equal to the `CMP_MAP` key. Leave `value` empty — `build.sh` fills it.
    - If the CMP should **not** be embedded (like the jtl adapters): touch neither
      `CMP_MAP` nor the SELECT.
-3. **Register in the docs:** add the CMP to the "Available CMPs" list in both
-   `CLAUDE.md` and `README.md`.
+3. **Register in the docs:** add the CMP **with its exact `cmp` slug** to
+   `cmp/README-cmp.md` — the authoritative CMP → value list that integrators read —
+   and add its display name to the "Available CMPs" list in `CLAUDE.md`.
 4. **Add a test** at `test/cmp/cc_<name>.test.js` (see "Testing").
 5. Run `./build.sh` (no warnings; it minifies and fills the SELECT value), then
    `bun test` green.

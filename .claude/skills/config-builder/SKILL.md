@@ -5,8 +5,9 @@ description: >
   Use this skill when someone wants to integrate aGTM or generate/adjust an
   aGTM.f.config({…}) call: choosing the CMP, wiring GTM containers, consent-update
   events, dataLayer enrichment (dlSet), consent-store/session options, noConsent
-  containers, and the event flags. Produces a ready-to-paste snippet and checks it
-  against the common integration traps.
+  containers, and the event flags. Produces a ready-to-paste snippet and
+  sanity-checks it. To diagnose or audit an existing or live integration, use
+  integration-check instead.
 ---
 
 # aGTM — Build a configuration + init snippet
@@ -17,6 +18,7 @@ them rather than inventing options:
 
 - `README.md` (repo root) — every config option with examples (the canonical
   source; do not hardcode an option that isn't documented there).
+- `cmp/README-cmp.md` — the authoritative CMP → `cmp` value list (exact slugs).
 - `README-for-Integrators.md` — the data contract (aGTM object, dataLayer,
   session/consent/attribution) for sGTM/webGTM integrations.
 
@@ -36,9 +38,11 @@ Ask only for what you don't already know:
 
 - **GTM container(s):** one or more IDs. Any container that should load **before**
   consent (rare) gets `noConsent: true`.
-- **CMP:** which consent tool? (lower-case name from the "Available CMPs" list in
-  `CLAUDE.md`/`README.md`, e.g. `cookiebot`.) Special values: `none` = no consent
-  gate, load GTM immediately; `''`/unset = no CMP wired.
+- **CMP:** which consent tool? Use the **exact `cmp` slug** from `cmp/README-cmp.md`
+  (the authoritative CMP → value list) — it is the `cc_<slug>.js` filename part
+  (e.g. `cookiebot`, `usercentrics3`, `onetrust_cookiepro`), **not** a lower-cased
+  display name. Special values: `none` = no consent gate, load GTM immediately;
+  `''`/unset = no CMP wired.
 - **Consent-update signal:** does the CMP fire a dataLayer **event** on
   change? → `consent_events: 'evName1,evName2'` (optionally
   `evName[attr:value]`). Does it instead push consent updates **directly** to the
@@ -58,17 +62,28 @@ Ask only for what you don't already know:
 
 ## Step 2 — produce the snippet
 
-Follow the shape documented in `README.md` (do not deviate from documented
-option names). Minimal example:
+Use only **documented option names** (cross-check `README.md`). README.md's
+featured integration is a **self-bootstrapping loader** — an IIFE that injects
+`aGTM(.min).js` and calls `aGTM.f.init()` on load — driven by a single config
+object; prefer that shape and copy the loader from `README.md`. Its config core:
+
+```js
+{
+   path: '/js/'                 /* path to the directory where aGTM is located */
+  ,min: true                    /* load the .min.js library + .min CMP files */
+  ,cmp: 'cookiebot'             /* exact slug from cmp/README-cmp.md; 'none' = no gate */
+  ,gtm: { 'GTM-XXXXXXXX': {} }  /* GTM container ID as key, options as value */
+  ,consent_events: 'cmpEvent,cmpUpdate'
+}
+```
+
+Equivalent **manual** form (two script tags) if the loader isn't wanted — note
+`config()` must precede `init()`:
 
 ```html
 <script type="text/javascript" src="/aGTM.min.js"></script>
 <script type="text/javascript" nonce="…">
-  aGTM.f.config({
-     gtm: { 'GTM-XXXXXXXX': {} }   /* GTM container ID as key, options as value */
-    ,cmp: 'cookiebot'              /* consent tool, lower-case; 'none' = no gate */
-    ,consent_events: 'cmpEvent,cmpUpdate'
-  });
+  aGTM.f.config({ gtm: { 'GTM-XXXXXXXX': {} }, cmp: 'cookiebot', consent_events: 'cmpEvent,cmpUpdate' });
   aGTM.f.init();
 </script>
 ```
@@ -81,10 +96,11 @@ option names). Minimal example:
 
 ## Step 3 — validate against the common traps
 
-Before handing it over, check (this is the audit half of `integration-check`):
+Before handing it over, run these quick self-checks (for a full diagnosis of an
+existing or live integration, hand off to `integration-check`):
 
 - `config()` is present **and precedes** `init()`; `init()` is actually called.
-- CMP name is spelled correctly and lower-case; it exists in the CMP list.
+- The `cmp` value is an exact slug from `cmp/README-cmp.md` (not a display name).
 - If the CMP signals via an event → `consent_events` matches the **exact** event
   name(s) the CMP emits. If it pushes directly → poll is viable only with
   `consent_store_url` set.

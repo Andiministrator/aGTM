@@ -23,13 +23,19 @@ live integration's state. Two viable paths:
 1. **Guided console (default):** ask the user to open the page, open DevTools →
    Console, and paste back the output of the snippets below.
 2. **Connected browser tool:** if a browser-automation MCP/extension is connected
-   to this session (Playwright, a browser-devtools MCP, etc.), use it to read the
-   same `window.aGTM.*` values directly. Check your available tools first; if none
-   is present, fall back to path 1 and say so plainly.
+   to this session, use it to read the same `window.aGTM.*` values directly instead
+   of copy-paste. The **Chrome DevTools MCP** (its `evaluate_script`) or the
+   "Claude for Chrome" extension can evaluate the expressions below in the live page
+   and return the result; Playwright MCP works too but is less direct for reading
+   page globals. Check your available tools first; if none is present, fall back to
+   path 1 and say so plainly.
 
 ### Console snippets (user pastes the results)
 
 ```js
+// 0. Did aGTM itself load?  'MISSING' = the library never ran (wrong src/path,
+//    404, blocked, or wrong script order) — fix that before anything else.
+typeof window.aGTM === 'undefined' ? 'MISSING' : 'loaded'
 // 1. Consent state — the gate that decides whether GTM loads
 JSON.stringify(aGTM.d.consent, null, 2)
 // 2. Did GTM inject?  true once a container was inserted
@@ -41,11 +47,13 @@ aGTM.d.dl
 // 5. Events queued before consent (waiting for replay)
 aGTM.d.f
 // 6. Session / consent-store status (v1.5)
-aGTM.d.session_status, JSON.stringify(aGTM.d.session)
+JSON.stringify({ status: aGTM.d.session_status, session: aGTM.d.session })
 // 7. The real dataLayer (use aGTM.c.gdl's value if custom, default 'dataLayer')
 window.dataLayer
-// 8. Is a GTM script tag actually in the DOM?
-document.querySelectorAll('script[src*="googletagmanager.com/gtm.js"]').length
+// 8. Is a GTM script tag actually in the DOM?  NOTE: matches any *.gtm.js load;
+//    still, sGTM/custom-domain setups vary — trust snippet #2 (aGTM.d.init) as the
+//    authoritative "did GTM inject?" signal, not this DOM probe.
+document.querySelectorAll('script[src*="/gtm.js"]').length
 ```
 
 The encoded log `aGTM.l` is decoded by loading `aGTM_debug.js` in the console
@@ -54,6 +62,12 @@ did and when.
 
 ## Failure modes → what to check
 
+**aGTM itself never loaded (`typeof window.aGTM === 'undefined'`):** check this
+first — every `aGTM.d.*` snippet throws `ReferenceError` in this state. The library
+script 404'd, was blocked (CSP / ad-blocker), the `src`/`path` is wrong, or the tag
+order is broken (`config()`/`init()` ran before `aGTM.js`). Fix loading before
+anything else applies.
+
 **GTM never loads (`aGTM.d.init` stays `false` / no gtm.js in DOM):**
 - `aGTM.d.consent.gtmConsent` is `false` → the gate is closed. Then:
   - No consent decision yet — the CMP hasn't resolved (check the CMP's own state /
@@ -61,8 +75,9 @@ did and when.
     `sgtmClient/README.md`).
   - A requirement is configured (`gtmServices`/`gtmPurposes`/`gtmVendors`) but the
     granted categories don't satisfy it → gate correctly stays closed (fail-closed).
-  - `cmp` name is wrong/misspelled → the consent adapter never loads →
-    `hasResponse` never becomes `true`.
+  - `cmp` value is wrong (must be an exact slug from `cmp/README-cmp.md`, not a
+    display name) → the consent adapter never loads → `hasResponse` never becomes
+    `true`.
 - An opt-out cookie/param is set (`aGTM.f.optout` aborted init).
 - `config()`/`init()` missing or in the wrong order (see `config-builder`).
 
@@ -93,10 +108,12 @@ did and when.
 
 ## Static audit (no live page)
 
-Given just a pasted `aGTM.f.config({…})` / integration snippet, run the checklist
-from `config-builder` Step 3 plus the failure-mode checks above, and report each
-finding with the concrete fix. Reference `README.md` for the authoritative option
-semantics rather than asserting from memory.
+Given just a pasted `aGTM.f.config({…})` / integration snippet, audit it against the
+failure modes above plus: `config()` precedes `init()` and `init()` is actually
+called; the `cmp` value is an exact slug from `cmp/README-cmp.md`; `consent_events`
+matches the CMP's real event name(s); no deprecated `vPageview`. Report each finding
+with its concrete fix. Reference `README.md` for authoritative option semantics
+rather than asserting from memory.
 
 ## Output
 

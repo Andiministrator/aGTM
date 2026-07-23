@@ -30,8 +30,24 @@ aGTM/
 ├── ext/                 # Extensions (e.g. Stape.io integration)
 ├── assets/              # Images, Excel event overview
 ├── tmp/                 # Temporary files / backups (not production-relevant)
+├── .claude/skills/      # Claude Code skills (see below); only these are tracked under .claude/
 └── CLAUDE.md            # This file
 ```
+
+### Claude Code skills
+
+The repo ships [Claude Code](https://claude.com/claude-code) **skills** under
+`.claude/skills/` (Apache 2.0, available automatically on clone). Each is a
+`SKILL.md` that Claude loads on demand when a task matches; see
+`.claude/skills/README.md` for install & usage:
+
+- **`cmp-integration`** — add, fix, or test a CMP `consent_check` adapter.
+- **`config-builder`** — generate an `aGTM.f.config({…})` + init snippet and
+  sanity-check it.
+- **`integration-check`** — diagnose & audit a live or configured integration.
+
+Only these skill files are git-tracked under `.claude/`; the rest of `.claude/`
+(local settings, worktrees) stays ignored via targeted `.gitignore` negations.
 
 ---
 
