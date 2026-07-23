@@ -53,6 +53,22 @@ function pretty(x) {
   try { return JSON.stringify(x, null, 2); } catch (e) { return String(x); }
 }
 function truthy(v) { return v === true || v === "true"; }
+function hostOf(u) { try { return new URL(u).host; } catch (e) { return ""; } }
+
+/**
+ * Repaint guard: only replace a section's innerHTML when it actually changed.
+ * The poll re-renders every POLL_MS; without this, replacing innerHTML on every
+ * tick resets scroll position (painful on the Config <pre>). Returns true if it
+ * repainted (so callers can re-attach event listeners only when needed).
+ */
+function paint(sectionId, html) {
+  var node = el(sectionId);
+  if (!node) return false;
+  if (node.__lastHTML === html) return false;
+  node.__lastHTML = html;
+  node.innerHTML = html;
+  return true;
+}
 
 /* ---------- reader / poll ---------- */
 function loadReader(cb) {
@@ -106,7 +122,7 @@ function render() {
       : '<div class="empty">Auf dieser Seite ist <code>window.aGTM</code> (noch) nicht vorhanden.<br>' +
         "Seite laden, auf der aGTM eingebunden ist — die Ansicht aktualisiert sich automatisch.</div>";
     // network tab still useful without aGTM loaded
-    ["consent", "events", "gtm", "session", "config"].forEach(function (t) { el("tab-" + t).innerHTML = msg; });
+    ["consent", "events", "gtm", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
     renderNetwork();
     return;
   }
@@ -158,7 +174,7 @@ function renderConsent() {
       "<span class=\"muted\">gtmConsent=false → die aGTM-Injection wartet auf eine (Pflicht-)Consent-Entscheidung. " +
       "Events werden bis dahin in der Queue gehalten (siehe Tab <em>Events</em>).</span></div>";
   }
-  el("tab-consent").innerHTML = html;
+  paint("tab-consent", html);
 }
 function chip(v) {
   if (v === true || v === "true") return '<span class="chip ok">true</span>';
@@ -221,7 +237,7 @@ function renderEvents() {
   }
   html += "</div>";
 
-  el("tab-events").innerHTML = html;
+  paint("tab-events", html);
 }
 function eventTable(list) {
   var h = '<table><thead><tr><th>event</th><th>Flags</th><th>Zeit</th></tr></thead><tbody>';
@@ -264,7 +280,7 @@ function renderGTM() {
       '<div class="muted" style="margin-top:8px">noConsent-Container werden via initGTM(true) <em>vor</em> der Consent-Entscheidung geladen.</div>';
   }
   html += "</div>";
-  el("tab-gtm").innerHTML = html;
+  paint("tab-gtm", html);
 }
 
 /* ---------- Session / Attribution ---------- */
@@ -298,7 +314,7 @@ function renderSession() {
   if (!isEmpty(se.raw)) {
     html += '<div class="card"><h2>Roh — aGTM.d.session</h2><pre>' + esc(pretty(se.raw)) + "</pre></div>";
   }
-  el("tab-session").innerHTML = html;
+  paint("tab-session", html);
 }
 
 /* ---------- Config ---------- */
@@ -326,11 +342,46 @@ function renderConfig() {
     html += '<div class="card"><span class="chip ok">keine bekannten Konfig-Fallen erkannt</span></div>';
   }
   html += '<div class="card"><h2>aGTM.c (vollständig)</h2><pre>' + esc(pretty(c)) + "</pre></div>";
-  el("tab-config").innerHTML = html;
+  paint("tab-config", html);
 }
 
 /* ---------- Network ---------- */
-function classify(url) {
+/**
+ * Learn the sGTM/Client scope (host + path-prefix) so that event/collect POSTs to
+ * the sGTM — i.e. the aEvents pipeline traffic — get recognised, without flooding
+ * the whole first-party domain in reverse-proxy setups (aGTM.js served under e.g.
+ * /rp/tp/). Scope sources: any /aGTM.js|/aGTMconsent|/aGTMsources hit seen on the
+ * wire, plus consent_store_url / transport_url from the live config.
+ * Returns { "host": { "/prefix/": true, ... }, ... } (dirname prefixes only).
+ */
+function sgtmScope(entries, cfg) {
+  var scope = {};
+  function add(u) {
+    if (!u) return;
+    try {
+      var x = new URL(u);
+      var dir = x.pathname.replace(/[^\/]*$/, ""); // dirname incl. trailing slash
+      if (!scope[x.host]) scope[x.host] = {};
+      scope[x.host][dir] = true;
+    } catch (e) { /* ignore */ }
+  }
+  entries.forEach(function (e) { if (/\/aGTM(\.js|consent|sources)(\?|$)/.test(e.url)) add(e.url); });
+  if (cfg) { add(cfg.consent_store_url); add(cfg.transport_url); }
+  return scope;
+}
+function inSgtmScope(url, scope) {
+  try {
+    var x = new URL(url);
+    var byHost = scope[x.host];
+    if (!byHost) return false;
+    for (var pre in byHost) {
+      // require a non-root shared prefix so same-host first-party traffic is not swept in
+      if (pre && pre !== "/" && x.pathname.indexOf(pre) === 0) return true;
+    }
+    return false;
+  } catch (e) { return false; }
+}
+function classify(url, scope) {
   if (/\/aGTMconsent(\b|\/|\?|$)/.test(url)) return { key: "consent-store", cls: "acc" };
   if (/\/aGTMsources(\b|\/|\?|$)/.test(url)) return { key: "sources", cls: "acc" };
   if (/\/aGTM\.js(\?|$)/.test(url)) return { key: "aGTM.js", cls: "acc" };
@@ -338,6 +389,7 @@ function classify(url) {
   if (/googletagmanager\.com\/gtm\.js|\/gtm\.js(\?|$)/.test(url)) return { key: "gtm.js", cls: "ok" };
   if (/googletagmanager\.com\/gtag\/js|\/gtag\/js(\?|$)/.test(url)) return { key: "gtag.js", cls: "ok" };
   if (/google-analytics\.com|\/g\/collect|\/mp\/collect|\/collect(\?|$)/.test(url)) return { key: "ga-collect", cls: "warn" };
+  if (scope && inSgtmScope(url, scope)) return { key: "sGTM/aEvents", cls: "acc" }; // events posted to the sGTM/Client
   return null;
 }
 function initNetwork() {
@@ -346,12 +398,10 @@ function initNetwork() {
       try {
         var url = req.request && req.request.url;
         if (!url) return;
-        var cl = classify(url);
         state.net.unshift({
           url: url,
           method: (req.request && req.request.method) || "",
           status: (req.response && req.response.status) || 0,
-          cls: cl,
           ts: (new Date()).getTime(),
           time: req.time || 0
         });
@@ -368,7 +418,13 @@ function initNetwork() {
   }
 }
 function renderNetwork() {
-  var list = state.netOnlyAGTM ? state.net.filter(function (e) { return e.cls; }) : state.net;
+  var cfg = state.snap && state.snap.config;
+  var scope = sgtmScope(state.net, cfg);
+  var rows = state.net.map(function (e) {
+    return { e: e, cls: classify(e.url, scope) };
+  });
+  var list = state.netOnlyAGTM ? rows.filter(function (r) { return r.cls; }) : rows;
+
   var html = '<div class="toolbar">' +
     '<label><input type="checkbox" id="net-filter"' + (state.netOnlyAGTM ? " checked" : "") + "> nur aGTM-relevant</label>" +
     '<button class="small" id="net-clear">Leeren</button>' +
@@ -376,12 +432,13 @@ function renderNetwork() {
 
   if (isEmpty(list)) {
     html += '<div class="empty">Noch keine' + (state.netOnlyAGTM ? " aGTM-relevanten" : "") +
-      " Requests aufgezeichnet.<br>Seite (neu) laden oder Consent erteilen — gtm.js / aGTMconsent / aGTM.js erscheinen hier.</div>";
+      " Requests aufgezeichnet.<br>Seite (neu) laden oder Consent erteilen — gtm.js / aGTMconsent / aGTM.js / sGTM-Events erscheinen hier.</div>";
   } else {
     html += '<table><thead><tr><th>Typ</th><th>Status</th><th>Methode</th><th>URL</th><th>Zeit</th></tr></thead><tbody>';
-    list.forEach(function (e) {
-      var typeCell = e.cls
-        ? '<span class="chip ' + e.cls.cls + '">' + esc(e.cls.key) + "</span>"
+    list.forEach(function (r) {
+      var e = r.e;
+      var typeCell = r.cls
+        ? '<span class="chip ' + r.cls.cls + '">' + esc(r.cls.key) + "</span>"
         : '<span class="muted">—</span>';
       var stCls = e.status >= 200 && e.status < 300 ? "ok" : (e.status >= 400 || e.status === 0 ? "err" : "warn");
       html += '<tr class="evt">' +
@@ -393,12 +450,13 @@ function renderNetwork() {
     });
     html += "</tbody></table>";
   }
-  el("tab-network").innerHTML = html;
 
-  var f = el("net-filter");
-  if (f) f.addEventListener("change", function () { state.netOnlyAGTM = f.checked; renderNetwork(); });
-  var cl = el("net-clear");
-  if (cl) cl.addEventListener("click", function () { state.net = []; renderNetwork(); });
+  if (paint("tab-network", html)) {
+    var f = el("net-filter");
+    if (f) f.addEventListener("change", function () { state.netOnlyAGTM = f.checked; renderNetwork(); });
+    var cl = el("net-clear");
+    if (cl) cl.addEventListener("click", function () { state.net = []; renderNetwork(); });
+  }
 }
 
 /* ---------- boot ---------- */
