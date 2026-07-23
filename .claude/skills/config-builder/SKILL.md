@@ -38,11 +38,11 @@ Ask only for what you don't already know:
 
 - **GTM container(s):** one or more IDs. Any container that should load **before**
   consent (rare) gets `noConsent: true`.
-- **CMP:** which consent tool? Use the **exact `cmp` slug** from `cmp/README-cmp.md`
-  (the authoritative CMP → value list) — it is the `cc_<slug>.js` filename part
-  (e.g. `cookiebot`, `usercentrics3`, `onetrust_cookiepro`), **not** a lower-cased
-  display name. Special values: `none` = no consent gate, load GTM immediately;
-  `''`/unset = no CMP wired.
+- **CMP:** which consent tool? Use the **exact `cmp` value** listed in
+  `cmp/README-cmp.md` (labelled "value" there) — it is the `cc_<slug>.js` filename
+  part (e.g. `cookiebot`, `usercentrics3`, `onetrust_cookiepro`), **not** a
+  lower-cased display name. Special values: `none` = no consent gate, load GTM
+  immediately; `''`/unset = no CMP wired.
 - **Consent-update signal:** does the CMP fire a dataLayer **event** on
   change? → `consent_events: 'evName1,evName2'` (optionally
   `evName[attr:value]`). Does it instead push consent updates **directly** to the
