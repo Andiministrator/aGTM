@@ -24,6 +24,7 @@ Desktop.ini
 !.claude/skills/cmp-integration/
 !.claude/skills/config-builder/
 !.claude/skills/integration-check/
+!.claude/skills/live-inspector/
 .settings/
 *.sublime-project
 *.sublime-workspace

@@ -4,12 +4,14 @@
 
 ### Added — Claude Code skills for contributors & integrators
 
-The repo now ships three [Claude Code](https://claude.com/claude-code) skills
+The repo now ships four [Claude Code](https://claude.com/claude-code) skills
 under `.claude/skills/` (Apache 2.0, available automatically on clone):
 `cmp-integration` (add/fix/test a CMP `consent_check`), `config-builder` (generate
 a correct `aGTM.f.config({…})` + init snippet and check it against the common
-traps), and `integration-check` (diagnose & audit a live or configured
-integration). See `.claude/skills/README.md` for install & usage.
+traps), `integration-check` (diagnose & audit a configured integration), and
+`live-inspector` (drive a real browser to run a live end-to-end consent-flow check
+via the Claude-in-Chrome extension or the Chrome DevTools MCP). See
+`.claude/skills/README.md` for install & usage.
 
 ### Fixed — comma-strip completed across remaining CMP consent checks (F-51b)
 

@@ -12,7 +12,10 @@ description: >
 # aGTM — Diagnose & audit an integration
 
 Two modes; use whichever the situation allows. Prefer runtime state when a live
-page is available — it turns guesses into facts.
+page is available — it turns guesses into facts. To actively **drive** a real
+browser through the consent flow (click accept/deny, assert the transitions,
+capture a CMP's runtime shape), use `live-inspector` instead — this skill focuses
+on diagnosing from provided or read state.
 
 ## Collecting the live runtime state
 

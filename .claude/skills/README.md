@@ -13,6 +13,7 @@ can also invoke it explicitly with `/<name>`.
 | **cmp-integration** | `/cmp-integration` | Add, fix, or test a CMP `consent_check` adapter (`cmp/cc_<name>.js`) — ES5 rules, comma-strip, both delivery paths, build/test/sync invariants. |
 | **config-builder** | `/config-builder` | Build a correct `aGTM.f.config({…})` + init snippet for a site (CMP, GTM containers, consent events, dlSet, session/consent-store, event flags) and check it against the common traps. |
 | **integration-check** | `/integration-check` | Diagnose & audit an integration — why GTM isn't loading, consent isn't recognised, or an event never reaches the dataLayer. Works from a pasted config or from runtime state collected on the live page. |
+| **live-inspector** | `/live-inspector` | Drive a real browser to run a live end-to-end check — walk the consent flow (accept/deny), prove GTM injects only after consent, verify replay/network, capture a CMP's runtime shape. Needs a connected browser tool (`claude --chrome` or Chrome DevTools MCP). |
 
 ## Install
 
