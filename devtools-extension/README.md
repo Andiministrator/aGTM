@@ -52,7 +52,7 @@ panel.html      panel UI + styles (light/dark aware)
 panel.js        poll loop, six renderers, network capture
 reader.js       page-context snapshot expression (eval'd, read-only, ES5-safe)
 logmap.js       aGTM.l decode table (copy of aGTM_debug.js's logmap)
-icons/          16 / 48 / 128 px placeholder icons
+icons/          the aGTM brand icon (16 / 48 / 128, resized from assets/aGTM.png)
 ```
 
 ## Caveats
