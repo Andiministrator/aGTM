@@ -2,6 +2,26 @@
 
 ## Version 1.5 — *in development*
 
+### Added — aGTM Inspector (Chrome DevTools extension)
+
+A new read-only DevTools panel under `devtools-extension/` (MVP, Apache 2.0) for
+the people who build, validate, and debug a tracking integration. It surfaces
+aGTM's internal state live in six tabs: **Consent** (`aGTM.d.consent`,
+`session_status`, consent hashes, active CMP — "does GTM load, and why not?"),
+**Events** (the `aGTM.d.f` queue, dispatched `aGTM.d.dl`, and the decoded `aGTM.l`
+log, with `_noConsent`/`_noDLPush`/`_post` flags per event), **GTM** (container
+injection status from `aGTM.c.gtm` + `aGTM.d.gtmLoaded`), **Session** (session
+source + `aGTM.d.attribution`), **Config** (`aGTM.c` with highlighted config
+traps), and **Netzwerk** (gtm.js / `/aGTMconsent` / `/aGTM.js` / sources / GA hits
+via `chrome.devtools.network`).
+
+It reads the page only through `chrome.devtools.inspectedWindow.eval()` (running
+`reader.js` in page context, read-only) and `chrome.devtools.network` — so
+`manifest.json` declares **no** `permissions` and **no** `host_permissions`.
+Distribution is "load unpacked" from the repo (no Chrome Web Store review needed);
+a store listing is an optional later step. It is the human-facing companion to the
+`live-inspector` skill. See `devtools-extension/README.md`.
+
 ### Added — Claude Code skills for contributors & integrators
 
 The repo now ships four [Claude Code](https://claude.com/claude-code) skills
