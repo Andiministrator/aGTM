@@ -7,7 +7,9 @@ aGTM-relevant network calls.
 
 It is the human-facing companion to the `live-inspector` Claude Code skill.
 
-> **Status:** MVP (v0.1.0). Part of aGTM v1.5. Read-only — it never writes to the page.
+> **Status:** MVP. The extension version is **coupled to the aGTM library version**
+> (currently 1.5) — `scripts/inject-version.js` writes `manifest.json` from `VERSION`
+> on every build. Read-only — it never writes to the page.
 
 ## What it shows
 
