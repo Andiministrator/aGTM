@@ -647,7 +647,12 @@ if (botCheckEnabled && botCheckUrl) {
     returnResponse();
   } else {
     const plObj = {UserAgent: userAgent, ClientIP: clientIP};
-    sendHttpGet(botCheckUrl + '/' + toBase64(JSON.stringify(plObj)), {timeout: 5000}).then(function(r) {
+    // URL-safe Base64 (base64url): the payload is placed in the URL PATH, so raw
+    // Base64 '+' and '/' would corrupt it ('/' spawns extra path segments). Map
+    // + -> - and / -> _ (single-line: the server sandbox can choke on multi-line
+    // method chains). The bot-check service MUST decode base64url accordingly.
+    const b64Payload = toBase64(JSON.stringify(plObj)).split('+').join('-').split('/').join('_');
+    sendHttpGet(botCheckUrl + '/' + b64Payload, {timeout: 5000}).then(function(r) {
       let bot = false;
       if (r.statusCode >= 200 && r.statusCode < 300 && r.body) { const o = JSON.parse(r.body); if (o && o.isBot) bot = true; }
       afterBotCheck(bot);
