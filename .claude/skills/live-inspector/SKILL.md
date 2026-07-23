@@ -36,10 +36,16 @@ the snippets below are the JS you pass to whichever `evaluate_script`-equivalent
 
 - Only run against **trusted / staging / your own** pages. Driving a real browser
   shares your logged-in sessions; a hostile page is a prompt-injection surface.
-- Keep every `evaluate_script` **read-only** — read `aGTM.d.*`/`window.dataLayer`;
-  do **not** call functions that mutate state or fire test conversions on production.
-- `evaluate_script` counts as a state-changing call, so in plan mode it prompts for
-  approval — expected.
+- **This governs browser *actions*, not just script evaluation.** Never click a
+  control that submits an order, lead, or payment or fires a conversion pixel, and
+  never run JS that mutates business state — on production these are irreversible.
+  Prefer **read-only** `evaluate_script` (read `aGTM.d.*`/`window.dataLayer`), and
+  exercise the event path with a **synthetic, unmapped** test event rather than real
+  UI (see Playbook B).
+- Do the accept/deny **consent** clicks only where a mis-click is harmless (the CMP
+  banner itself); when unsure, use **staging**.
+- `evaluate_script` and any click/navigation count as state-changing calls, so in
+  plan mode they prompt for approval — expected.
 
 ## The ground-truth probe (one read-only expression)
 
@@ -63,9 +69,15 @@ JSON.stringify({
 
 1. **Navigate** to the URL (use a fresh/incognito-like state so the CMP prompt shows).
 2. **Pre-consent snapshot** (probe above). Assert for a consent-gated setup:
-   `present:true`, `init:false`, `gtmConsent:false`, `gtmInDom:0`. Any queued
-   events sit in `queued > 0`. **GTM must not be loaded before consent** — if it is,
-   that's the finding.
+   `present:true`, `init:false`, `gtmConsent:false`. **Consent-gated GTM must not be
+   loaded before consent.** Two caveats before flagging `gtmInDom`:
+   - A container configured `noConsent:true` **is loaded on purpose before consent**
+     (a documented pattern — `initGTM(true)` runs at startup). Check `aGTM.c.gtm` for
+     `noConsent` entries; then `gtmInDom ≥ 1` is expected and is **not** a finding.
+     `init` stays `false` and `gtmConsent` stays `false` regardless, so trust those.
+   - For sGTM / custom `gtmURL` domains the DOM probe may not match the load — trust
+     `init` and the network tab over the `gtmInDom` count.
+   Events fired pre-consent sit in `queued > 0` (replayed after consent).
 3. **Accept path:** click the CMP's *accept* control (locate it via a DOM snapshot /
    `find`). Re-probe. Assert: `hasResponse:true`, `gtmConsent:true`, `init:true`,
    `gtmInDom ≥ 1`, and the previously queued events now appear in `window.dataLayer`
@@ -79,10 +91,16 @@ JSON.stringify({
 
 ## Playbook B — event / dataLayer verification
 
-After consent, trigger a tracked interaction (click a tracked button, submit a
-form) and re-read `window.dataLayer` and `aGTM.d.dl`. Confirm the expected event
-fired **with the right parameters**. This validates the GTM tag templates
-(click/form/scroll/timer/pageview) against a real page, not just unit tests.
+Verify the event → dataLayer path **without side effects**: after consent, fire a
+**synthetic, unmapped** test event via `evaluate_script` —
+`aGTM.f.fire({ event: 'aGTM_livecheck' })` — then read `window.dataLayer` and
+`aGTM.d.dl` and confirm it arrived (for a `_noDLPush` event, confirm it lands in
+`aGTM.d.dl` but **not** the dataLayer). The event name is wired to no GTM tag, so
+nothing real fires.
+
+To validate a **specific** tracked interaction (a real click/form handler), do it
+**only on staging with test data** — never trigger controls that submit an order,
+lead, or payment or fire a conversion pixel; those are irreversible on production.
 
 ## Playbook C — capture a CMP's runtime shape (feeds `cmp-integration`)
 

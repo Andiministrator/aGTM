@@ -5,8 +5,8 @@ description: >
   isn't recognised, why an event never reaches the dataLayer — and check a setup
   against the known traps. Use this skill for any "it's not working" / "is my aGTM
   setup correct?" question. Works from a pasted config (static audit) or from
-  runtime state collected on the live page (console snippets, or a browser tool if
-  one is connected).
+  runtime state you read/paste back (console snippets). Not for actively driving a
+  browser through the flow — that's live-inspector.
 ---
 
 # aGTM — Diagnose & audit an integration
