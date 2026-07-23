@@ -1207,6 +1207,18 @@
             "comments": [],
             "displayId": 8,
             "columnId": "col-backlog"
+          },
+          {
+            "id": "003982e3-0cfe-4af7-b817-679da97da964",
+            "title": "aGTM Inspector: Chrome Web Store Listing",
+            "columnId": "col-backlog",
+            "owner": "",
+            "complexity": "mittel",
+            "effort": 3,
+            "created": "2026-07-23",
+            "description": "Die aGTM-Inspector-DevTools-Extension (devtools-extension/, MVP in v1.5, bisher nur „load unpacked“) im Chrome Web Store veroeffentlichen, damit Tracking-Implementierer sie per Ein-Klick installieren koennen. Umfasst: Store-Developer-Account, Listing (Name/Beschreibung/Kategorie), Screenshots + ggf. Promo-Bilder, Datenschutzerklaerung (auch wenn keine Daten erhoben werden — read-only, keine Permissions), Einreichung + Review-Handling. Danach: Auto-Update-Fluss statt manuellem Reload. Voraussetzung erfuellt: Manifest ohne permissions/host_permissions (minimale Review-Flaeche).",
+            "agentContext": "PFADE: devtools-extension/ (manifest.json MV3, KEINE permissions -> geringe Review-Reibung; README.md hat Feature-/Datei-Uebersicht). GOTCHAS: (1) Web-Store-Review + MV-Churn = laufende Kosten (jedes Update wird geprueft; Google erzwingt periodisch API-Migrationen) — bewusst als spaeterer Schritt nach MVP gewaehlt. (2) Store verlangt oft Datenschutzerklaerung + Permission-Begruendung; hier trivial, da read-only + 0 Permissions (nur devtools-inhaerente APIs inspectedWindow.eval/devtools.network). (3) Extension-Version ist an aGTM-VERSION gekoppelt (scripts/inject-version.js) — Store-Versionen muessen monoton steigen, passt. (4) Icons liegen (aGTM-Marken-Icon 16/48/128). ENTSCHEIDUNG offen: unter welchem Developer-Account/Publisher. Kein Code-Change noetig, primaer Listing-/Prozess-Arbeit.",
+            "displayId": 46
           }
         ]
       },
@@ -1290,7 +1302,7 @@
         ]
       }
     ],
-    "nextDisplayId": 46,
+    "nextDisplayId": 47,
     "attachments": [],
     "background": null,
     "templates": [],
