@@ -33,6 +33,13 @@ Distribution is "load unpacked" from the repo (no Chrome Web Store review needed
 a store listing is an optional later step. It is the human-facing companion to the
 `live-inspector` skill. See `devtools-extension/README.md`.
 
+The panel is strictly read-only and reviewed for panel-context XSS (every
+page-derived value is HTML-escaped). The network classifier lives in a separate,
+unit-tested module (`netclassify.js`, `test/devtools/netclassify.test.js`) and
+recognises both reverse-proxy (`/rp/tp/…`) and dedicated/root-hosted sGTM domains
+without sweeping in first-party traffic. The reader snapshot is hardened so a
+single non-serialisable logged object can't fail the whole snapshot.
+
 ### Added — Claude Code skills for contributors & integrators
 
 The repo now ships four [Claude Code](https://claude.com/claude-code) skills

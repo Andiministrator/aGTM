@@ -53,7 +53,6 @@ function pretty(x) {
   try { return JSON.stringify(x, null, 2); } catch (e) { return String(x); }
 }
 function truthy(v) { return v === true || v === "true"; }
-function hostOf(u) { try { return new URL(u).host; } catch (e) { return ""; } }
 
 /**
  * Repaint guard: only replace a section's innerHTML when it actually changed.
@@ -82,7 +81,10 @@ function poll() {
   if (!state.readerCode) return;
   chrome.devtools.inspectedWindow.eval(state.readerCode, function (result, err) {
     if (err && (err.isError || err.isException)) {
-      setLive(false, "eval-Fehler");
+      // Transient eval failure (e.g. mid-navigation context swap): keep the last
+      // good tab contents on screen but flip the live dot red so the staleness is
+      // visible. The next successful poll re-renders.
+      setLive(false, "eval-Fehler (letzter Stand)");
       return;
     }
     state.snap = result || { loaded: false };
@@ -140,13 +142,18 @@ function render() {
 function renderConsent() {
   var s = state.snap, c = s.consent || {};
   var gtm = truthy(c.gtmConsent);
-  var statusChip = {
+  var statusMap = {
     "": ['muted', 'kein Preset'],
     "preset": ['warn', 'preset'],
     "preset_with_consent": ['acc', 'preset_with_consent'],
     "synced": ['ok', 'synced'],
     "confirmed": ['ok', 'confirmed']
-  }[s.session_status] || ['muted', s.session_status || "—"];
+  };
+  // hasOwnProperty-guarded so a hostile session_status like "__proto__"/"constructor"
+  // can't resolve to an inherited prototype value and break the chip.
+  var statusChip = Object.prototype.hasOwnProperty.call(statusMap, s.session_status)
+    ? statusMap[s.session_status]
+    : ['muted', s.session_status || "—"];
 
   var rows = [
     ["GTM lädt (gtmConsent)", gtm ? '<span class="chip ok">true</span>' : '<span class="chip err">false</span>'],
@@ -210,7 +217,8 @@ function renderEvents() {
   var html = "";
 
   // Queue (waiting for consent)
-  html += '<div class="card"><h2>Queue — aGTM.d.f (wartet auf Consent) · ' + s.queueLen + '</h2>';
+  var qTrunc = queue.length < s.queueLen ? ' — Tabelle zeigt die letzten ' + queue.length : '';
+  html += '<div class="card"><h2>Queue — aGTM.d.f (wartet auf Consent) · ' + s.queueLen + qTrunc + '</h2>';
   if (isEmpty(queue)) {
     html += '<div class="muted">leer — keine zurückgehaltenen Events.</div>';
   } else {
@@ -355,52 +363,9 @@ function renderConfig() {
 }
 
 /* ---------- Network ---------- */
-/**
- * Learn the sGTM/Client scope (host + path-prefix) so that event/collect POSTs to
- * the sGTM — i.e. the aEvents pipeline traffic — get recognised, without flooding
- * the whole first-party domain in reverse-proxy setups (aGTM.js served under e.g.
- * /rp/tp/). Scope sources: any /aGTM.js|/aGTMconsent|/aGTMsources hit seen on the
- * wire, plus consent_store_url / transport_url from the live config.
- * Returns { "host": { "/prefix/": true, ... }, ... } (dirname prefixes only).
- */
-function sgtmScope(entries, cfg) {
-  var scope = {};
-  function add(u) {
-    if (!u) return;
-    try {
-      var x = new URL(u);
-      var dir = x.pathname.replace(/[^\/]*$/, ""); // dirname incl. trailing slash
-      if (!scope[x.host]) scope[x.host] = {};
-      scope[x.host][dir] = true;
-    } catch (e) { /* ignore */ }
-  }
-  entries.forEach(function (e) { if (/\/aGTM(\.js|consent|sources)(\?|$)/.test(e.url)) add(e.url); });
-  if (cfg) { add(cfg.consent_store_url); add(cfg.transport_url); }
-  return scope;
-}
-function inSgtmScope(url, scope) {
-  try {
-    var x = new URL(url);
-    var byHost = scope[x.host];
-    if (!byHost) return false;
-    for (var pre in byHost) {
-      // require a non-root shared prefix so same-host first-party traffic is not swept in
-      if (pre && pre !== "/" && x.pathname.indexOf(pre) === 0) return true;
-    }
-    return false;
-  } catch (e) { return false; }
-}
-function classify(url, scope) {
-  if (/\/aGTMconsent(\b|\/|\?|$)/.test(url)) return { key: "consent-store", cls: "acc" };
-  if (/\/aGTMsources(\b|\/|\?|$)/.test(url)) return { key: "sources", cls: "acc" };
-  if (/\/aGTM\.js(\?|$)/.test(url)) return { key: "aGTM.js", cls: "acc" };
-  if (/\/tp\/sources|[?&]attribution=/.test(url)) return { key: "sources-api", cls: "acc" };
-  if (/googletagmanager\.com\/gtm\.js|\/gtm\.js(\?|$)/.test(url)) return { key: "gtm.js", cls: "ok" };
-  if (/googletagmanager\.com\/gtag\/js|\/gtag\/js(\?|$)/.test(url)) return { key: "gtag.js", cls: "ok" };
-  if (/google-analytics\.com|\/g\/collect|\/mp\/collect|\/collect(\?|$)/.test(url)) return { key: "ga-collect", cls: "warn" };
-  if (scope && inSgtmScope(url, scope)) return { key: "sGTM/aEvents", cls: "acc" }; // events posted to the sGTM/Client
-  return null;
-}
+// Classification logic lives in netclassify.js (loaded before this file, and
+// unit-tested in test/devtools/netclassify.test.js).
+var NET = window.aGTMInspectorNet;
 function initNetwork() {
   try {
     chrome.devtools.network.onRequestFinished.addListener(function (req) {
@@ -428,9 +393,10 @@ function initNetwork() {
 }
 function renderNetwork() {
   var cfg = state.snap && state.snap.config;
-  var scope = sgtmScope(state.net, cfg);
+  var pageHost = (state.snap && state.snap.pageHost) || "";
+  var scope = NET.sgtmScope(state.net, cfg);
   var rows = state.net.map(function (e) {
-    return { e: e, cls: classify(e.url, scope) };
+    return { e: e, cls: NET.classify(e.url, scope, pageHost) };
   });
   var list = state.netOnlyAGTM ? rows.filter(function (r) { return r.cls; }) : rows;
 

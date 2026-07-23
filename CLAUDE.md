@@ -50,6 +50,20 @@ The repo ships [Claude Code](https://claude.com/claude-code) **skills** under
 Only these skill files are git-tracked under `.claude/`; the rest of `.claude/`
 (local settings, worktrees) stays ignored via targeted `.gitignore` negations.
 
+### aGTM Inspector (Chrome DevTools extension)
+
+`devtools-extension/` ships a **read-only** MV3 DevTools panel ("aGTM Inspector")
+for people who build/validate/debug an integration — the human-facing companion
+to the `live-inspector` skill. It reflects `window.aGTM` live (Consent lifecycle,
+event queue/replay, GTM injection, session/attribution, config traps, and
+aGTM-relevant network calls). It reads the page **only** via
+`chrome.devtools.inspectedWindow.eval()` (running `reader.js`, read-only) and
+`chrome.devtools.network`, so `manifest.json` declares **no** `permissions`/
+`host_permissions`. It is ES6+ (own browser context — **not** on the ES5/`build.sh`
+path), and its version is coupled to the library version (see the build table).
+Distribution is "load unpacked"; the network classifier is unit-tested
+(`test/devtools/netclassify.test.js`). See `devtools-extension/README.md`.
+
 ---
 
 ## Build Process
