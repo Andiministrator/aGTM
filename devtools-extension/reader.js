@@ -48,6 +48,13 @@
       ts: (new Date()).getTime(),
       init: !!d.init,
       cmp: typeof c.cmp === "string" ? c.cmp : "",
+      // The sGTM Client wires a CMP by injecting aGTM.f.consent_check INLINE (the
+      // embedded code from its "Used CMP" SELECT) and leaves aGTM.c.cmp empty — the
+      // library then uses that pre-injected check via consent_listener(). So an empty
+      // cmp with a present consent_check is normal, not a misconfiguration.
+      hasConsentCheck: !!(A.f && typeof A.f.consent_check === "function"),
+      consentEvents: (c.consent_events && typeof c.consent_events === "string") ? c.consent_events : "",
+      useListener: !!c.useListener,
       gdl: c.gdl || "",
       gtmID: c.gtmID || "",
       consent: d.consent || {},

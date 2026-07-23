@@ -152,7 +152,8 @@ function renderConsent() {
     ["GTM lädt (gtmConsent)", gtm ? '<span class="chip ok">true</span>' : '<span class="chip err">false</span>'],
     ["hasResponse", chip(c.hasResponse)],
     ["blocked", typeof c.blocked === "undefined" ? '<span class="muted">—</span>' : chip(c.blocked)],
-    ["CMP", s.cmp ? '<span class="chip acc">' + esc(s.cmp) + "</span>" : '<span class="muted">— (keiner konfiguriert)</span>'],
+    ["CMP", cmpCell(s)],
+    ["consent_events", s.consentEvents ? '<span class="mono">' + esc(s.consentEvents) + "</span>" : '<span class="muted">—</span>'],
     ["session_status", '<span class="chip ' + statusChip[0] + '">' + esc(statusChip[1]) + "</span>"],
     ["services", longStr(c.services)],
     ["purposes", longStr(c.purposes)],
@@ -180,6 +181,14 @@ function chip(v) {
   if (v === true || v === "true") return '<span class="chip ok">true</span>';
   if (v === false || v === "false") return '<span class="chip err">false</span>';
   return '<span class="muted">—</span>';
+}
+function cmpCell(s) {
+  if (s.cmp) return '<span class="chip acc">' + esc(s.cmp) + "</span>";
+  if (s.hasConsentCheck) {
+    return '<span class="chip acc">inline consent_check</span> ' +
+      '<span class="muted">(kein aGTM.c.cmp — z. B. vom sGTM-Client / manuell injiziert; ist normal)</span>';
+  }
+  return '<span class="chip err">— kein consent_check</span>';
 }
 function longStr(v) {
   if (!v) return '<span class="muted">—</span>';
@@ -319,8 +328,8 @@ function renderSession() {
 
 /* ---------- Config ---------- */
 var CONFIG_TRAPS = [
-  { key: "cmp", test: function (c) { return typeof c.cmp === "undefined" || c.cmp === ""; },
-    msg: "Kein cmp konfiguriert — ohne CMP-Adapter wird Consent nie erkannt (außer cmp:'none' erzwingt Laden)." },
+  { key: "cmp", test: function (c, s) { return (typeof c.cmp === "undefined" || c.cmp === "") && !s.hasConsentCheck; },
+    msg: "Weder aGTM.c.cmp gesetzt noch ein aGTM.f.consent_check vorhanden — ohne beides wird Consent nie erkannt (außer cmp:'none' erzwingt Laden)." },
   { key: "gtm", test: function (c) { return isEmpty(c.gtm); },
     msg: "Keine GTM-Container in aGTM.c.gtm — es wird nichts injiziert." },
   { key: "gdl", test: function (c) { return !c.gdl; },
@@ -332,7 +341,7 @@ var CONFIG_TRAPS = [
 ];
 function renderConfig() {
   var s = state.snap, c = s.config || {};
-  var traps = CONFIG_TRAPS.filter(function (t) { try { return t.test(c); } catch (e) { return false; } });
+  var traps = CONFIG_TRAPS.filter(function (t) { try { return t.test(c, s); } catch (e) { return false; } });
   var html = "";
   if (traps.length) {
     html += '<div class="card warnbox"><h2>Mögliche Konfig-Fallen</h2><ul style="margin:4px 0 0;padding-left:18px">';
