@@ -2,6 +2,15 @@
 
 ## Version 1.5 — *in development*
 
+### Added — Claude Code skills for contributors & integrators
+
+The repo now ships three [Claude Code](https://claude.com/claude-code) skills
+under `.claude/skills/` (Apache 2.0, available automatically on clone):
+`cmp-integration` (add/fix/test a CMP `consent_check`), `config-builder` (generate
+a correct `aGTM.f.config({…})` + init snippet and check it against the common
+traps), and `integration-check` (diagnose & audit a live or configured
+integration). See `.claude/skills/README.md` for install & usage.
+
 ### Fixed — comma-strip completed across remaining CMP consent checks (F-51b)
 
 Five more CMP consent checks pushed human-readable service/purpose names into
