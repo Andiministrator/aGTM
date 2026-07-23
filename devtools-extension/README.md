@@ -18,7 +18,7 @@ It is the human-facing companion to the `live-inspector` Claude Code skill.
 | **GTM** | `aGTM.d.init`, `aGTM.c.gtm`, `aGTM.d.gtmLoaded` | Container injection status & order |
 | **Session** | `aGTM.d.session.source`, `aGTM.d.attribution.<method>.*` | Session source & attribution |
 | **Config** | `aGTM.c` + highlighted config traps | Static setup audit |
-| **Netzwerk** | `chrome.devtools.network` | gtm.js / `/aGTMconsent` / `/aGTM.js` / sources / GA hits |
+| **Netzwerk** | `chrome.devtools.network` | gtm.js / `/aGTMconsent` / `/aGTM.js` / sources / GA hits, **plus** event/collect POSTs to the sGTM (aEvents pipeline) — matched by host + learned path-prefix so first-party traffic isn't swept in under reverse-proxy setups |
 
 ## How it works (and why it needs no permissions)
 
