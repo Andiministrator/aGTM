@@ -28,6 +28,7 @@ aGTM/
 │   └── variables/       # Variable templates
 ├── sgtmClient/          # Server-side GTM client template
 ├── ext/                 # Extensions (e.g. Stape.io integration)
+├── devtools-extension/  # "aGTM Inspector" Chrome DevTools panel (read-only; ES6+, NOT on the ES5/build.sh path)
 ├── assets/              # Images, Excel event overview
 ├── tmp/                 # Temporary files / backups (not production-relevant)
 ├── .claude/skills/      # Claude Code skills (see below); only these are tracked under .claude/
