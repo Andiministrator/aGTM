@@ -1008,6 +1008,51 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "agtm-v15-konfigurator-inbiz",
+            "title": "Konfigurator v2.1.3 (InBiz/Marco) mit v1.5 releasen — ZIP-Klaerung + v1.5-Feature-Gap",
+            "description": "Marco Brenn (InBiz) liefert den aGTM-Konfigurator (Single-File-HTML-Wizard, sea-suite.de-Branding) und will ihn mit v1.5 released haben. ZIP tmp/agtm-konfigurator-v2_1_3.zip geprueft (2026-07-16). BEFUND: (1) Der ZIP ist NICHTS Neues — byte-identisch zur bereits auf dev liegenden configurator/index.html MINUS 5 Fixes aus Commit e43ac8f (agtmv 1.4.2 statt 1.5, <title> v2.1.2 statt v2.1.3, 3x basis.kunde-Dateinamen-Bug statt kundenname, README 1.4.x). => ZIP ist Marcos Vor-Patch-Original (08.04.), dev-Stand (16.04.) ist strikt besser. ZIP NICHT importieren (Regression). Andi fragt bei Marco nach, ob evtl. falsche/alte Datei verwechselt. (2) FEATURE-GAP: der Konfigurator exponiert KEINE echten v1.5-Config-Optionen (0 Treffer fuer transport_url/consent_store_url/user_id/_noConsent/_post/_noDLPush/session_salt/consent_poll_ms/session) — er laedt die v1.5-Library, erzeugt aber nur v1.4-Feature-Configs. e43ac8f vermerkte das als Gap fuer Konfigurator v2.2. Andi entscheidet: so mit v1.5 mitgehen oder v2.2-Karte fuer die v1.5-Felder. (3) Live/main haelt noch die alte v1.x (395 Zeilen, aGTM One-File Konfig-Generator) — der v2.1.3-dev-Stand geht mit dem v1.5-dev->main-Merge automatisch live.",
+            "status": "todo",
+            "priority": "P2",
+            "owner": "Claude Opus",
+            "qa": false,
+            "critical": false,
+            "blocked": true,
+            "complexity": "mittel",
+            "effort": 3,
+            "agentContext": "Konfigurator = externes Artefakt von Marco Brenn/InBiz (proprietaer, sea-suite.de-Branding), Single-File-HTML in configurator/. NICHT aus aGTM.js abgeleitet, build.sh generiert es NICHT. Staende: main=alt-v1.x (395 Z.); dev=v2.1.3 gepatcht (e43ac8f, 6748 Z., agtmv 1.5); ZIP tmp/=v2.1.3 vor-Patch (Regression, nicht importieren). Vergleich per: diff ZIP-HTML vs configurator/index.html = genau 5 Zeilen (die e43ac8f-Fixes). v1.5-Feature-Gap: grep der 9 v1.5-Optionen = 0 Treffer. BLOCKIERT auf Marcos Klaerung (falsche Datei?).",
+            "links": [],
+            "columnId": "col-schreiben",
+            "comments": [
+              {
+                "id": "9e799594-0f83-4bc9-a5e5-bd06d0f4e219",
+                "author": "Claude Opus",
+                "created": "2026-07-16",
+                "text": "3-Versionen-Analyse (2026-07-16): main=alt-v1.x live; dev=Marcos v2.1.3 + 5 Fixes (e43ac8f); Marcos neuer ZIP=v2.1.3 OHNE die 5 Fixes (agtmv 1.4.2, title v2.1.2, 3x basis.kunde-Dateinamenbug, README 1.4.x) = reine Regression, sonst 0 neue Inhalte (CHANGELOG-diff leer). Empfehlung: ZIP nicht importieren; dev-Stand geht mit v1.5-Release live. Zweiter Punkt: Konfigurator konfiguriert keine echten v1.5-Features (0/9 Optionen) = Gap fuer v2.2. Andi fragt bei Marco nach (Dateiverwechslung?), Karte offen gehalten."
+              }
+            ],
+            "displayId": 43
+          },
+          {
+            "id": "8329e178-966d-4a6b-a7e2-8ca0cbed0a51",
+            "title": "Public Claude Code Skills für aGTM (cmp-integration, config-builder, integration-check, live-inspector)",
+            "columnId": "col-erledigt",
+            "owner": "Claude Opus",
+            "qa": true,
+            "complexity": "mittel",
+            "effort": 3,
+            "created": "2026-07-23",
+            "description": "Vier öffentliche Claude-Code-Skills unter .claude/skills/ (Apache-2.0), getrackt via selektive .gitignore-Negation (Rest von .claude/ bleibt privat). cmp-integration (CMP consent_check anlegen/fixen/testen), config-builder (aGTM.f.config + Init-Snippet bauen/prüfen), integration-check (Integration aus bereitgestelltem State diagnostizieren), live-inspector (echten Browser durch die Consent-Strecke fahren via Claude-in-Chrome / Chrome-DevTools-MCP evaluate_script). Plus CLAUDE.md-Pointer, CHANGELOG-Eintrag (v1.5), internes knowledge/topics/claude-skills-und-browser-debug.md.",
+            "comments": [
+              {
+                "id": "622c77e2-10ea-4279-9b02-456983c9c1d7",
+                "author": "Claude Opus",
+                "created": "2026-07-23",
+                "text": "Erledigt 2026-07-23. Zwei unabhängige QA+Kritiker-Runden (Sub-Agents): Leakage/Tone clean. Runde 1: P1 CMP-Wert = Slug aus cmp/README-cmp.md (nicht Display-Name) + DOM-Selector/Trigger/aGTM-not-loaded/Snippet-Fixes. Runde 2 (live-inspector): P1 Safety (Browser-Aktionen — synthetisches ungemapptes Event statt echter UI/Formular), P2 noConsent-gtmInDom-Ausnahme (initGTM(true) lädt vor Consent), P2 Trigger-Overlap in der description entkoppelt. 380 bun-Tests grün. Commits e710a00 (Skills) → 20becab/16a9ded/cff0d2a/70cfb2a → e90bc12 (finale Fixes), alle auf dev, in v1.5. v1.5 bleibt offen — kein Tag/Merge; Release nur auf Andis Zeichen."
+              }
+            ],
+            "displayId": 44
           }
         ]
       },
@@ -1206,7 +1251,7 @@
         ]
       }
     ],
-    "nextDisplayId": 43,
+    "nextDisplayId": 45,
     "attachments": [],
     "background": null,
     "templates": [],
