@@ -15,7 +15,15 @@ Desktop.ini
 *.swo
 *~
 .project
-.claude/
+# Ignore local Claude Code state (settings, worktrees, private skills) …
+.claude/*
+!.claude/skills/
+.claude/skills/*
+# … except the skills we deliberately share publicly with contributors:
+!.claude/skills/README.md
+!.claude/skills/cmp-integration/
+!.claude/skills/config-builder/
+!.claude/skills/integration-check/
 .settings/
 *.sublime-project
 *.sublime-workspace
