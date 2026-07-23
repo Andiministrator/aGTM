@@ -22,14 +22,14 @@ live integration's state. Two viable paths:
 
 1. **Guided console (default):** ask the user to open the page, open DevTools →
    Console, and paste back the output of the snippets below.
-2. **Connected browser tool:** if a browser-automation MCP/extension is connected
-   to this session, use it instead of copy-paste. For evaluating the `window.aGTM.*`
-   expressions below directly and reading the result, the **Chrome DevTools MCP**
-   (`evaluate_script`) is the surest fit. The official **Claude-in-Chrome** extension
-   (`claude --chrome`) drives a real Chrome and reads DOM/console/network — great for
-   "did GTM inject / any console errors", though it is oriented to page/console reads
-   rather than arbitrary JS evaluation. Check your available tools first; if none is
-   present, fall back to path 1 and say so plainly.
+2. **Connected browser tool:** if a browser-automation tool is connected — the
+   official **Claude-in-Chrome** extension (`claude --chrome`) or the **Chrome
+   DevTools MCP** — use its JavaScript-evaluation tool (`evaluate_script`) to run the
+   expressions below in the live page and read the result back directly, instead of
+   copy-paste. Both also expose DOM/console/network reads and page actions, so they
+   double for "did GTM inject / any console errors". Confirm the exact tool names in
+   a session with `/mcp` → the browser server → View tools. If nothing is connected,
+   fall back to path 1 and say so plainly.
 
 ### Console snippets (user pastes the results)
 
