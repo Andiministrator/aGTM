@@ -5,11 +5,12 @@
 //   aGTM.js     — @version header comment and aGTM.d.version string
 //   package.json — version field
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 
 const VERSION_PATH     = 'VERSION';
 const AGTM_JS_PATH     = 'aGTM.js';
 const PACKAGE_JSON_PATH = 'package.json';
+const EXT_MANIFEST_PATH = 'devtools-extension/manifest.json';
 
 // ── Read version ───────────────────────────────────────────────────────────
 
@@ -53,6 +54,21 @@ const pkg = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8'));
 pkg.version = version;
 writeFileSync(PACKAGE_JSON_PATH, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
 
+// ── Update devtools-extension/manifest.json (aGTM Inspector) ─────────────────
+// The Chrome DevTools extension version is coupled to the aGTM library version.
+// Chrome manifest versions must be 1–4 dot-separated integers, so strip any
+// pre-release suffix (e.g. "1.6-pre" → "1.6").
+
+let extVersion = '(skipped)';
+if (existsSync(EXT_MANIFEST_PATH)) {
+  const chromeVersion = version.replace(/-.*$/, '');
+  const manifest = JSON.parse(readFileSync(EXT_MANIFEST_PATH, 'utf8'));
+  extVersion = manifest.version + ' → ' + chromeVersion;
+  manifest.version = chromeVersion;
+  writeFileSync(EXT_MANIFEST_PATH, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+}
+
 // ── Report ─────────────────────────────────────────────────────────────────
 
 process.stdout.write('  Version: ' + prevVersion + ' → ' + version + '\n');
+process.stdout.write('  Extension manifest: ' + extVersion + '\n');
