@@ -2,6 +2,17 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — bot-check payload now uses URL-safe Base64 (base64url)
+
+The sGTM Client's optional bot check appends a Base64-encoded `{UserAgent,
+ClientIP}` JSON object to the configured bot-check URL as a **path segment**.
+Standard Base64 can contain `+` and `/`; the `/` spawns spurious path segments
+(and `+` decodes to a space), corrupting the request. The payload is now encoded
+as **base64url** (`+` → `-`, `/` → `_`) via a single-line `.split().join()` chain
+(sandbox-safe). Applied identically to `sgtmClient/template.tpl` and
+`sgtmClient/src/…`; the field help documents the encoding. **The bot-check
+service must decode base64url accordingly.**
+
 ### Added — aGTM Inspector (Chrome DevTools extension)
 
 A new read-only DevTools panel under `devtools-extension/` (MVP, Apache 2.0) for
