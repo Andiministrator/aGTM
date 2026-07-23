@@ -45,6 +45,10 @@
     return clone({
       loaded: true,
       version: typeof d.version !== "undefined" ? d.version : null,
+      // Host of the inspected page — lets the panel tell a dedicated sGTM domain
+      // (host !== pageHost, any path is relevant) from a same-host reverse-proxy
+      // (require a sub-path prefix, so first-party traffic isn't swept in).
+      pageHost: (typeof location !== "undefined" && location && location.host) ? location.host : "",
       ts: (new Date()).getTime(),
       init: !!d.init,
       cmp: typeof c.cmp === "string" ? c.cmp : "",
@@ -67,7 +71,10 @@
       dl: tail(d.dl || [], 50),
       queue: tail(d.f || [], 50),
       queueLen: (d.f || []).length,
-      log: tail(l || [], 100),
+      // Only {id, timestamp} — the panel never renders log[].obj, and cloning the
+      // full entries would let one non-serialisable logged object (cycle / DOM node)
+      // fail the whole-snapshot JSON clone → {loaded:false}. Keep the snapshot robust.
+      log: tail(l || [], 100).map(function (e) { e = e || {}; return { id: e.id, timestamp: e.timestamp }; }),
       session: {
         source: session.source || "",
         sid: session.sid || "",

@@ -62,7 +62,13 @@ writeFileSync(PACKAGE_JSON_PATH, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
 let extVersion = '(skipped)';
 if (existsSync(EXT_MANIFEST_PATH)) {
   const chromeVersion = version.replace(/-.*$/, '');
-  const manifest = JSON.parse(readFileSync(EXT_MANIFEST_PATH, 'utf8'));
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(EXT_MANIFEST_PATH, 'utf8'));
+  } catch (e) {
+    process.stderr.write('ERROR: Cannot parse ' + EXT_MANIFEST_PATH + ': ' + e.message + '\n');
+    process.exit(1);
+  }
   extVersion = manifest.version + ' → ' + chromeVersion;
   manifest.version = chromeVersion;
   writeFileSync(EXT_MANIFEST_PATH, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
