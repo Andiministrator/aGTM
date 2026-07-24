@@ -45,8 +45,14 @@ describe("reverse-proxy same-host sGTM (aGTM.js under /rp/tp/ on the page host)"
   const cfg = { consent_store_url: "https://www.fc-moto.de/rp/tp/aGTMconsent", transport_url: "" };
   const s = scopeFor(entries, cfg);
 
-  test("aEvents/collect POST under the learned prefix is relevant", () => {
-    expect(classify("https://www.fc-moto.de/rp/tp/ae?en=purchase", s, pageHost).key).toBe("sGTM/aEvents");
+  test("aEvents endpoint under the learned prefix is classified as aEvents", () => {
+    expect(classify("https://www.fc-moto.de/rp/tp/ae?en=purchase", s, pageHost).key).toBe("aEvents");
+  });
+  test("Stape service-worker bootstrap under the prefix is classified as sGTM SW", () => {
+    expect(classify("https://www.fc-moto.de/rp/tp/_/service_worker/66u0/sw_iframe.html", s, pageHost).key).toBe("sGTM SW");
+  });
+  test("other sGTM traffic under the prefix is generic sGTM", () => {
+    expect(classify("https://www.fc-moto.de/rp/tp/something", s, pageHost).key).toBe("sGTM");
   });
   test("first-party image is NOT swept in", () => {
     expect(classify("https://www.fc-moto.de/media/logo.png", s, pageHost)).toBeNull();
@@ -65,10 +71,10 @@ describe("dedicated sGTM host (P2 fix: root-hosted, host != pageHost)", () => {
     // dirname prefix is "/", which the same-host rule would exclude — but a
     // dedicated host (differs from pageHost) matches any path. (A generic
     // /collect path would match the ga-collect rule first; use the aEvents path.)
-    expect(classify("https://sgtm.example.com/ae?en=view", s, pageHost).key).toBe("sGTM/aEvents");
+    expect(classify("https://sgtm.example.com/ae?en=view", s, pageHost).key).toBe("aEvents");
   });
-  test("any path on the dedicated sGTM host is relevant", () => {
-    expect(classify("https://sgtm.example.com/g/anything", s, pageHost).key).toBe("sGTM/aEvents");
+  test("any path on the dedicated sGTM host is relevant (generic sGTM)", () => {
+    expect(classify("https://sgtm.example.com/g/anything", s, pageHost).key).toBe("sGTM");
   });
   test("a different third-party host is not relevant", () => {
     expect(classify("https://cdn.other.com/x.js", s, pageHost)).toBeNull();

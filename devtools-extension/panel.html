@@ -68,6 +68,62 @@
   th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
   td.mono, .mono { font-family: ui-monospace, monospace; }
   tr.evt:hover { background: var(--panel); }
+  tr.row-toggle { cursor: pointer; }
+  th.caret-h { width: 18px; padding-left: 8px; }
+  td.caret { width: 18px; color: var(--muted); text-align: center; user-select: none; }
+  tr.detail td { border-bottom: 1px solid var(--border); }
+  pre.jsonview { max-height: 42vh; margin: 4px 0; }
+  .json-key { color: var(--accent); }
+  .json-string { color: var(--ok); }
+  .json-number { color: var(--warn); }
+  .json-bool { color: var(--err); font-weight: 600; }
+  .json-null { color: var(--muted); }
+  table.compact th, table.compact td { padding: 2px 8px; }
+  table.compact td.caret { padding: 2px 4px; }
+  .nowrap { white-space: nowrap; }
+  .tag-msg { color: var(--accent); font-style: italic; }
+  /* fit = shrink to content (columns cluster tight on the left); one col-grow/col-url
+     column takes the remaining width. */
+  td.fit, th.fit { width: 1%; white-space: nowrap; }
+  td.col-grow { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.col-url { width: 100%; }
+  .preview { color: var(--muted); font-family: ui-monospace, monospace; font-size: 11px; }
+  .preview .pk { color: var(--accent); }
+  .u-host { color: var(--muted); }
+  .u-path { color: var(--fg); font-weight: 600; }
+  .u-params { margin-top: 2px; }
+  .chip.qp { font-size: 10px; padding: 0 5px; }
+  .net-en { margin-top: 2px; font-family: ui-monospace, monospace; font-size: 10px; color: var(--accent); }
+  .net-id { margin-top: 1px; font-family: ui-monospace, monospace; font-size: 10px; color: var(--muted); }
+  .net-search { flex: 1; min-width: 120px; max-width: 320px; background: var(--bg); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font: inherit; }
+  .net-search:focus { outline: none; border-color: var(--accent); }
+  .net-hosts { flex-wrap: wrap; gap: 4px 12px; margin-top: -4px; margin-bottom: 8px; font-size: 11px; }
+  .net-hosts label { gap: 3px; }
+  .net-detail .grid { grid-template-columns: max-content 1fr max-content 1fr; gap: 2px 10px; }
+  .net-sub { cursor: pointer; padding: 4px 0 2px; font-weight: 600; font-size: 11px; color: var(--fg); border-top: 1px solid var(--border); margin-top: 4px; user-select: none; }
+  .net-sub:hover { color: var(--accent); }
+  .net-detail pre.jsonview { max-height: 30vh; }
+  /* dataLayer event categories */
+  .ev-tag { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 10px; font-weight: 600;
+    background: var(--chip); color: var(--muted); vertical-align: 1px; }
+  .ev-gtm    { color: var(--muted); }
+  .ev-agtm   { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .ev-ecom   { color: var(--ok);     background: color-mix(in srgb, var(--ok) 16%, transparent); }
+  .ev-pv     { color: #ae3ec9;        background: color-mix(in srgb, #ae3ec9 16%, transparent); }
+  .ev-consent{ color: var(--warn);   background: color-mix(in srgb, var(--warn) 16%, transparent); }
+  .ev-user   { color: var(--fg); }
+  .ev-gtag   { color: #1098ad;        background: color-mix(in srgb, #1098ad 16%, transparent); }
+  .ev-consent-cmd { color: var(--warn); background: color-mix(in srgb, var(--warn) 20%, transparent); font-weight: 700; }
+  .ev-msg    { color: var(--muted); font-style: italic; }
+  tr.dl-consent td { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+  tr.dl-consent td.caret { box-shadow: inset 2px 0 0 var(--warn); }
+  span.mono.ev-agtm, span.mono.ev-ecom, span.mono.ev-pv, span.mono.ev-consent, span.mono.ev-gtag { background: none; }
+  /* consent-mode step labels */
+  .chip.cm-declare  { background: color-mix(in srgb, #7048e8 20%, transparent); color: #7048e8; }
+  .chip.cm-implicit { background: var(--chip); color: var(--muted); }
+  .chip.cm-default  { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .chip.cm-update   { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
   .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; color: var(--muted); }
   .toolbar label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
   pre {
@@ -93,6 +149,7 @@
     <button data-tab="consent" class="active">Consent</button>
     <button data-tab="events">Events</button>
     <button data-tab="gtm">GTM</button>
+    <button data-tab="datalayer">dataLayer</button>
     <button data-tab="session">Session</button>
     <button data-tab="config">Config</button>
     <button data-tab="network">Netzwerk</button>
@@ -101,12 +158,14 @@
     <section id="tab-consent" class="active"></section>
     <section id="tab-events"></section>
     <section id="tab-gtm"></section>
+    <section id="tab-datalayer"></section>
     <section id="tab-session"></section>
     <section id="tab-config"></section>
     <section id="tab-network"></section>
   </main>
   <script src="logmap.js"></script>
   <script src="netclassify.js"></script>
+  <script src="jsonview.js"></script>
   <script src="panel.js"></script>
 </body>
 </html>

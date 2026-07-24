@@ -59,7 +59,14 @@
     if (/googletagmanager\.com\/gtm\.js|\/gtm\.js(\?|$)/.test(url)) return { key: "gtm.js", cls: "ok" };
     if (/googletagmanager\.com\/gtag\/js|\/gtag\/js(\?|$)/.test(url)) return { key: "gtag.js", cls: "ok" };
     if (/google-analytics\.com|\/g\/collect|\/mp\/collect|\/collect(\?|$)/.test(url)) return { key: "ga-collect", cls: "warn" };
-    if (inSgtmScope(url, scope, pageHost)) return { key: "sGTM/aEvents", cls: "acc" };
+    // Within the learned sGTM scope, sub-classify: the aEvents endpoint (…/ae), the sGTM
+    // first-party service-worker bootstrap (/_/service_worker/…, reverse-proxied by the
+    // customer), and everything else as generic sGTM traffic.
+    if (inSgtmScope(url, scope, pageHost)) {
+      if (/\/_\/service_worker\//.test(url)) return { key: "sGTM SW", cls: "ok" };
+      if (/\/ae(vents)?(\?|$)/.test(url)) return { key: "aEvents", cls: "acc" };
+      return { key: "sGTM", cls: "acc" };
+    }
     return null;
   }
 

@@ -40,6 +40,193 @@ recognises both reverse-proxy (`/rp/tp/…`) and dedicated/root-hosted sGTM doma
 without sweeping in first-party traffic. The reader snapshot is hardened so a
 single non-serialisable logged object can't fail the whole snapshot.
 
+### Changed — aGTM Inspector: finer network classification within the sGTM scope
+
+The generic "sGTM/aEvents" label is split: the real **aEvents** endpoint (`…/ae`) is labelled
+`aEvents`, the sGTM first-party **service-worker** bootstrap (`/_/service_worker/…/sw_iframe.html`,
+reverse-proxied by the customer) `sGTM SW`, and everything else on the learned sGTM path stays
+generic `sGTM` — so the service-worker iframe is no longer mislabelled as an event.
+
+### Fixed — aGTM Inspector: aEvents false positives, gzip garbage, payload decoding
+
+- **No more aEvents false positives**: a decoded payload is only treated as aEvents when it
+  is a plain object carrying a known aEvents field (`event`/`event_name`/`ae_timestamp`/
+  `page_location`) — a Clarity `collect` JSON array (`[…]` / `{0:…,1:…}`) no longer gets an
+  `aEvents ✓` badge.
+- **No more gzip mojibake**: the HAR body string can be a *lossy* UTF-8 decode of the real
+  bytes, so a "successful" inflate can still be garbage. The decompressed output is now
+  validated as text — if it isn't, the panel shows a clean note instead of control-char
+  soup.
+- **Payload section decodes in place**: the separate "aEvents (entschlüsselt)" section is
+  gone; the **Payload** section itself now shows the decoded aEvents event (so expanding
+  the payload always shows plaintext, not the raw `{"q":…}`).
+
+### Added — aGTM Inspector: scroll anchoring + persisted settings
+
+- **No more scroll jumps**: the streaming tabs (Events / dataLayer / Network) prepend new
+  rows at the top on each poll; the panel now anchors the scroll position so the view only
+  jumps when you're at the very top — scroll down and it stays put as new rows arrive.
+  Switching tabs resets to the top.
+- **Settings persist across sessions** via `localStorage` (no extra manifest permission):
+  the Network "nur aGTM-relevant" toggle and hidden hosts (e.g. Clarity ticked off) are
+  restored next time you open the panel.
+
+### Added — aGTM Inspector: aEvents payload decoding
+
+The Network tab now **decodes aEvents payloads**. The aEvents webGTM tag sends events as
+`?e=<JSON>` (plain) or `?q=<enc>` (obfuscated: Base64 → Caesar shift over a URL-safe
+alphabet, `~` at position 3 encoding the stripped padding, `shift = salt%63+1`). The panel
+decodes both — for the obfuscated form it **brute-forces all 63 possible shifts** and keeps
+the one that yields valid JSON, so **no salt is needed**. Handles both transports: the
+URL-query GET pixel **and** the XHR/POST body (`{"q":…}` / `{"e":…}`, used by the
+reverse-proxied `…/ae` endpoint). The decoded event object is shown as its own collapsible
+"aEvents (entschlüsselt)" detail section, its event name appears under the type badge, and a
+preview surfaces the event + consent signal + custom params inline (badge `aEvents ✓`).
+Verified against the real `enc()` scheme (all padding cases + UTF-8) and a live fc-moto payload.
+
+### Added — aGTM Inspector: network filtering, property IDs, gzip-decoded previews
+
+Sixth polish round on the DevTools panel:
+- **Network filtering**: a search box (free-text over URL/type/event/ID; prefix `-` to
+  exclude, e.g. `-clarity` to hide Microsoft Clarity) plus per-host checkboxes to toggle
+  whole hosts on/off. The search field keeps focus/caret across the live re-render.
+- **Property / measurement / stream ID** (`id` for GTM/gtag, `tid` for GA4/Ads collect)
+  is printed under the type badge next to the event name.
+- **Decoded payload in the preview line**: gzip `collect` bodies are now decompressed
+  eagerly so the row preview shows the real body (marked `gunzip`), not just a note.
+
+### Added/Fixed — aGTM Inspector: sent consent payloads, vendor state, gzip-safe network
+
+Fifth polish round on the DevTools panel (all UI/reader; still read-only):
+- **Sent consent payloads**: each `default`/`update`/`declare` row in the Consent-Mode
+  sequence is now **click-to-expand** into the full object that was actually pushed
+  (not just the per-category chips).
+- **Vendor consent state** (where synchronously readable, read-only): the vendor box
+  now shows GPC (`navigator.globalPrivacyControl`), the TCF string (cookie
+  `euconsent-v2`), US-Privacy (`usprivacy`), and Amazon ACS (`amzn_consent`) — with a
+  clear note that live TCF/GPP values need async APIs a read-only reader must not drive.
+- **dataLayer consent markers**: `gtag('consent', default|update|declare, …)` pushes are
+  called out inline in the dataLayer timeline as highlighted `⚑ consent …` markers (full
+  object expandable), so you see *when* each consent command was sent relative to events.
+- **Fixed — gzip/binary POST bodies no longer render as mojibake**: GA4/sGTM `collect`
+  bodies are frequently gzip-compressed (magic `1f 8b`); the panel now detects binary/gzip
+  payloads and shows a `binär / gzip · N Bytes` note (in both the inline preview and the
+  expanded detail) instead of garbled text, and skips `en`-extraction on such bodies.
+- **GET-parameter fallback**: when a request has no readable body, the full decoded query
+  string is shown as the payload substitute (so a gzip'd `collect` POST still surfaces its
+  `v`/`tid`/`cid`/`gcs`/`gcd`/`en`… query signals).
+- **Consent tab: restored the per-category state table** (Kategorie · aktuell · default ·
+  update · implicit) as the "Gesamtzustand" view — the earlier, clearer layout — columns
+  now cluster tight next to the category — kept alongside the sequence flow above it.
+- **Consent sequence works for GTM-template CMPs**: when consent is set via the sandboxed
+  GTM Consent API (`setDefault/updateConsentState`) instead of `gtag('consent',…)`, there
+  are no dataLayer commands — the flow is now reconstructed from `google_tag_data.ics`
+  (declare/implicit/default/update per category) so it's no longer empty.
+- **Network detail split into separate collapsible sub-sections** (General, Query-String,
+  Request-/Response-Header, Payload) instead of one JSON blob; the Payload section
+  JSON-highlights when parseable and falls back to the GET params when there's no body.
+- **Vendor activity state**: vendors without a readable consent API (Meta, TikTok,
+  Pinterest, Criteo, UET, LinkedIn, Snap, X) now show `aktiv (Cookie)` when their tracking
+  cookie is set (pixel fired → post-consent) as a pragmatic state proxy.
+- **gzip/binary payloads are now decompressed** — the panel reconstructs the request
+  body bytes and runs them through the native `DecompressionStream('gzip')`, so a GA4/sGTM
+  `collect` POST shows its real decoded body (falls back to the note if decoding fails).
+- **Microsoft UET readable consent state** — reads `uetq.uetConfig.consent.adStorageAllowed`
+  so UET shows real `ad_storage granted/denied` (the only non-Google vendor with a JS getter).
+- **Consent commands surfaced even when above the dataLayer tail window**, and
+  `gtm.init_consent` (GTM-template consent init) is marked inline; the vendor rows expand
+  into richer per-vendor detail (signal, reads-TCF, DACH gating note); the GCM table columns
+  cluster tight next to the category.
+
+### Added — aGTM Inspector: consent-mode sequence, vendor detection, dataLayer categories
+
+Fourth polish round on the DevTools panel (all UI/reader; still read-only):
+- **Google Consent Mode sequence** on the Consent tab: reads the `gtag('consent',…)`
+  commands from the dataLayer and lays out the flow — **declare / implicit (Google
+  default)** → **default** → **update**, each in order (numbered when repeated), with
+  per-category granted/denied chips — then the **final per-category state** (`update >
+  default > declare/implicit`) with the last-changed timestamp and detected region.
+- **Non-Google vendor/framework detection**: a box that flags which consent frameworks
+  and vendor pixels are present on the page (TCF `__tcfapi`, GPP `__gpp`, USP, GPC, and
+  Meta/Microsoft-UET/TikTok/LinkedIn/Pinterest/Amazon/Criteo/Snap/X) and the consent
+  signal each expects — sourced from `knowledge/consent/12-…`.
+- **Coloured dataLayer categories**: each push is tagged and colour-coded — aGTM, GTM,
+  E-Commerce (GA4 ecommerce events / `ecommerce` key), Pageview, Consent, gtag command,
+  or Message.
+- **Network event name + payload**: the request's event name (`en`, from query or POST
+  body) is printed under the type badge, and a compact payload preview is shown inline
+  under the URL (full body still in the expand view).
+
+### Added — aGTM Inspector: Google Consent Mode box, smart URLs, inline previews
+
+Third polish round on the DevTools panel (all UI/reader; still read-only):
+- **Google Consent Mode box** on the Consent tab: reads GTM's internal
+  `google_tag_data.ics.entries` and shows the effective per-category status
+  (`ad_storage`, `analytics_storage`, `ad_user_data`, … derived as
+  `update > default > implicit`) with granted/denied chips + the detected region.
+- **Smart, colourful network URLs**: dimmed host, emphasised path, and the meaningful
+  GTM/GA4/consent query params (`id`, `en`, `gcs`, `gcd`, `dma`, …) surfaced as chips
+  with a "+N Param" overflow count.
+- **Inline object previews**: event rows (dispatched/queue/dataLayer) show a compact,
+  dimmed preview of the object's notable fields to the right of the event name, using
+  the remaining row width (full object still one click away).
+- **Config runtime-diff**: the Config tab now shows what aGTM derived/changed at
+  runtime (first snapshot → current) as a `neu`/`geändert`/`entfernt` table, so you can
+  see e.g. a browser-derived `consent_store_url` or container `hasLoaded` flip.
+  (A precise integrator-input-vs-effective diff would need a small `aGTM.f.config`
+  hook — deliberately not added so the sGTM base64 blob stays untouched.)
+- **Tighter tables** (narrow columns cluster left, the event/URL column takes the
+  rest), internal-log column order reworked (Zeit · Event · Meldung · ID · ×), and the
+  dataLayer relationship column relabelled `(a)GTM` right after the index.
+
+### Added — aGTM Inspector: dataLayer tab, log bundling, se_data fallback, expandable network
+
+Second polish round on the DevTools panel (all UI/reader; still read-only):
+- **New dataLayer tab.** Shows the real `window[gdl]` contents (click-to-expand),
+  each push badged by its aGTM relationship: *via aGTM* (`aGTMts` → came through
+  `aGTM.f.fire()`), *repeated* (DL-Repeat tag), `_noConsent`/`_post`, and
+  GTM-/aGTM-internal events.
+- **Internal log is bundled with counts.** `aGTM.l` entries are grouped by id+event,
+  so the ~2s consent poll's repeated `m2`/`m3` collapse into one counted row
+  (`×N`, latest-first) instead of flooding the table; the id chip is coloured by type
+  and the *which event* column now surfaces (`m7`/`m9` carry the event, `m2`/`m3`
+  carry the consent object).
+- **Session `window.se_data` fallback.** When `aGTM.d.session` is empty the panel
+  looks for a site session object (`window.se_data`, as on victors.de) and shows it.
+- **Expandable network rows.** Each captured request expands into full request/
+  response detail (headers, mime, timing, server IP, capped POST body) — useful for
+  eyeballing an sGTM event POST.
+- **Colourful JSON everywhere.** Session, Config, and every expanded object now use
+  the syntax highlighter; the Config tab is relabelled as the *effective* config.
+- **Compact tables** and a clearer "Message" label for event-less pushes.
+- **Coverage:** an integration smoke test (`test/devtools/panel-smoke.test.js`) evals
+  the four panel scripts against a fake DOM/chrome and renders every tab, guarding
+  against renderer regressions.
+
+### Added — aGTM Inspector: downloadable ZIP, expandable objects, richer GTM tab
+
+Follow-up polish for the DevTools panel:
+- **Downloadable ZIP.** `./scripts/pack-devtools-extension.sh` bundles the extension
+  into `aGTM-Inspector.zip` (extracts to a clean `aGTM-Inspector/` folder) so it can
+  be grabbed and "load unpacked" without cloning. It is a derived artifact — rerun
+  the script after any change (not wired into `build.sh`; the panel is off the
+  ES5/build path).
+- **Click-to-expand objects.** Event-Log (`aGTM.d.dl`) and queue rows expand into a
+  syntax-highlighted full event object; the decoded internal log (`aGTM.l`) now shows
+  *which event* (`obj.event`) each entry belongs to and expands into the full logged
+  object. The highlighter is a pure, unit-tested module (`jsonview.js`,
+  `test/devtools/jsonview.test.js`) — every token is HTML-escaped (no panel XSS).
+  The reader re-attaches `aGTM.l[].obj` but clones each entry **individually** so one
+  non-serialisable logged object degrades to a sentinel instead of failing the whole
+  snapshot (keeps the F-55 robustness guarantee).
+- **Queue is no longer misleading after consent.** Once consent is present / GTM is
+  injected, the "waiting for consent" queue is relabelled as **history** (its events
+  were already replayed as `hastyEvents`; `aGTM.d.f` is not cleared after inject).
+- **Richer GTM tab.** Adds live `dataLayer` length, per-container load mode
+  (Google / custom-sGTM / inline base64 + env), and a DOM-level list of the actually
+  injected `<script id="aGTM_tm_…">` tags with their load host — proof of what really
+  loaded and from where.
+
 ### Added — Claude Code skills for contributors & integrators
 
 The repo now ships four [Claude Code](https://claude.com/claude-code) skills
