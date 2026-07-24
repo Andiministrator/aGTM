@@ -1087,6 +1087,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-23",
                 "text": "-> QA. Andi bestaetigt Live-Smoke-Test: laeuft (2026-07-23). Kritiker-Gate durch, 398 Tests gruen. Offen bleibt nur operativ (Web-Store-Listing optional/spaeter; sGTM-Client-Re-Import). v1.5 weiter offen."
+              },
+              {
+                "id": "7904049a-5ebe-46eb-936c-9c46964d604a",
+                "author": "Claude Opus",
+                "created": "2026-07-24",
+                "text": "Extension-Feature-Ausbau (2026-07-24) committet+gepusht auf dev (9a00291), v1.5 bleibt offen. Neu: Google Consent Mode (Ablauf+Zustand aus google_tag_data.ics/dataLayer-Commands), Nicht-Google-Vendor-Detection+Zustand (TCF/GPP/USP/GPC/Meta/UET/…), farbiger dataLayer-Tab, Netzwerk-Filter (Suche+Host-Checkboxen)+Property/Event-ID, getrennte Detail-Sektionen, gzip-Dekompression (DecompressionStream) + aEvents-Decoder (Base64+Caesar, salt-frei via 63-Shift-Brute-Force, URL+POST-Body), feinere Netzwerk-Klassifikation (aEvents/sGTM SW/sGTM), Scroll-Anker, localStorage-Settings, jsonview.js, Pack-Skript (ZIP gitignored/reproduzierbar). 454 Tests gruen. Kritiker-Runde (2 Sub-Agents Security+UI): KEIN P0/P1 (XSS/read-only/Manifest/colspan sauber); 11 offene Findings F-56..F-66 (3xP2, 8xP3) in docs/findings.md -> naechster Chat beseitigt + generelle Extension-Review + weitere Verbesserungsvorschlaege. Offene Entscheidungen fuer Andi: Config-Library-Hook (Input-vs-Effektiv) ja/nein; ZIP im Repo committen oder nur Skript."
               }
             ],
             "agentContext": "PFADE: aGTM_debug.js (Log-Decode-Logik fuer aGTM.l wiederverwenden); aGTM.js (Datenspeicher-Formen aGTM.d/aGTM.c/aGTM.l); CLAUDE.md §„Data stores“ + „Session Feature“ (aGTM.d.consent/session/attribution/session_status-Semantik); .claude/skills/integration-check (Konfig-Fallen-Liste) + .claude/skills/live-inspector (was live aus aGTM.d gelesen wird). NEU: Ordner devtools-extension/ (manifest.json MV3, devtools_page + panel, content-/injected-Bridge). GOTCHAS: (1) window.aGTM lebt im MAIN world -> DevTools-Panel liest via chrome.devtools.inspectedWindow.eval ODER content-script world:MAIN + postMessage-Bridge (vermeidet breite <all_urls>-Host-Rechte -> weniger Store-Scrutiny). (2) Extension-Code ist NICHT ES5-gebunden (eigener Browser-Kontext, nicht GTM-Sandbox) -> ES6+ ok; NICHT an build.sh/terser haengen. (3) Public Repo -> keine Secrets. (4) Gegen aGTM.d.version version-gaten + defensiv lesen (aGTM.d-Form kann sich aendern). (5) Read-only: nichts in die Seite schreiben. REIHENFOLGE: Entwurf -> Andi-Freigabe -> Bau.",
@@ -1306,7 +1312,11 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "Was genau willst du an der Chrome Extension (aGTM Inspector) machen?",
+      "since": "2026-07-24T11:37:09.265819+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
