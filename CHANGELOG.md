@@ -13,6 +13,32 @@ as **base64url** (`+` → `-`, `/` → `_`) via a single-line `.split().join()` 
 `sgtmClient/src/…`; the field help documents the encoding. **The bot-check
 service must decode base64url accordingly.**
 
+### Added — aGTM Inspector: pre-consent leak detector + gcs/gcd decode (＋ critic-round fixes F-56…F-66)
+
+- **Pre-consent leak detector** (Network tab): every captured request is stamped with whether
+  aGTM had consent (`gtmConsent`) *at capture time*. A tracking/marketing hit — Google tags
+  (gtm.js/gtag.js/GA collect) **or** a known third-party pixel (Meta, TikTok, Microsoft UET,
+  Clarity, LinkedIn, Pinterest, Criteo, Snap, X/Twitter, DoubleClick, …) — that fired while
+  consent was still `false` raises a red **Pre-Consent-Leak** banner (grouped by vendor) plus a
+  per-row `⚠ pre-consent` badge. aGTM's own infra (`/aGTM.js`, `/aGTMconsent`, sources, sGTM SW)
+  is never flagged. The classifier lives in `netclassify.js` (`trackerInfo`/`trackingHit`) and is
+  unit-tested.
+- **Google Consent Mode signal decode (gcs/gcd)**: the network detail now decodes the `gcs`
+  (classic `G1<ad_storage><analytics_storage>`) and `gcd` (Consent Mode v2, four signals
+  ad_storage/analytics_storage/ad_user_data/ad_personalization) parameters into per-category
+  granted/denied chips, with the raw code shown for verification. Unknown gcd letters are
+  surfaced raw (never a fabricated state). Decoder lives in a new pure module `consentsignals.js`
+  (unit-tested); spec verified against public Consent-Mode-v2 documentation.
+- **Critic-round hardening (F-56…F-66)**: reader clones `config`/`consent`/`session.raw`/
+  `attribution` **per field** via `safeObj` (one non-serialisable value no longer fails the whole
+  snapshot → `{loaded:false}`); dataLayer row `#`/expand-key uses the **absolute** index (stable
+  when the 150-tail window slides); base64-encoded POST bodies are recognised as binary and
+  gunzipped; `aeBrute` gets a memo-guard in the detail path; the network classifier no longer
+  mislabels a foreign `/gtm.js` or bare `/collect`; internal-log `hasObj` tracks the shown object;
+  an event-less `{ecommerce:…}` push is categorised E-Commerce; a consent-/attribution-only preset
+  session is no longer shown "empty"; event-table expand keys include the list index; the network
+  search caret is preserved mid-string; and dead code + a GCM `declare` column were cleaned up.
+
 ### Added — aGTM Inspector (Chrome DevTools extension)
 
 A new read-only DevTools panel under `devtools-extension/` (MVP, Apache 2.0) for

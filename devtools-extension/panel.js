@@ -214,7 +214,7 @@ function renderConsent() {
     ["vendors", longStr(c.vendors)],
     ["consent_id", c.consent_id ? '<span class="mono">' + esc(c.consent_id) + "</span>" : '<span class="muted">—</span>'],
     ["feedback", c.feedback ? esc(c.feedback) : '<span class="muted">—</span>'],
-    ["consent_hash", '<span class="mono">' + esc(c && s.consent_hash || "—") + "</span>"],
+    ["consent_hash", '<span class="mono">' + esc(s.consent_hash || "—") + "</span>"],
     ["last_consent_hash", '<span class="mono">' + esc(s.last_consent_hash || "—") + "</span>"]
   ];
 
@@ -240,7 +240,10 @@ var GCM_ORDER = ["ad_storage", "analytics_storage", "ad_user_data", "ad_personal
 function gcmCurrent(en) {
   if (en.update !== null && typeof en.update !== "undefined") return en.update;
   if (en["default"] !== null && typeof en["default"] !== "undefined") return en["default"];
-  return (en.implicit !== null && typeof en.implicit !== "undefined") ? en.implicit : null;
+  if (en.implicit !== null && typeof en.implicit !== "undefined") return en.implicit;
+  // F-66: fall back to `declare` (the earliest/weakest ics signal) so a category that only
+  // ever declared a value still shows a state instead of "—".
+  return (en["declare"] !== null && typeof en["declare"] !== "undefined") ? en["declare"] : null;
 }
 function gcmChip(v) {
   if (v === true) return '<span class="chip ok">granted</span>';
@@ -377,13 +380,16 @@ function renderConsentMode(s) {
     (region ? ' <span class="chip">Region ' + esc(region) + "</span>" : "") + "</div>";
   if (gcm && !isEmpty(gcm)) {
     // Restored per-category table (aktuell + default/update/implicit breakdown from ics).
-    html += '<table class="compact" style="margin-top:6px"><thead><tr><th class="fit">Kategorie</th><th class="fit">aktuell</th><th class="fit">default</th><th class="fit">update</th><th class="fit">implicit</th><th></th></tr></thead><tbody>';
+    // F-66: `declare` column added — the reader captures it per category, but it was only
+    // visible in the ics-reconstruction step rows, never in this breakdown.
+    html += '<table class="compact" style="margin-top:6px"><thead><tr><th class="fit">Kategorie</th><th class="fit">aktuell</th><th class="fit">declare</th><th class="fit">default</th><th class="fit">update</th><th class="fit">implicit</th><th></th></tr></thead><tbody>';
     var seen = {};
     GCM_ORDER.concat(objKeys(gcm)).forEach(function (cat) {
       if (seen[cat] || !gcm[cat]) return;
       seen[cat] = 1;
       var en = gcm[cat];
       html += '<tr><td class="fit mono">' + esc(cat) + "</td><td class=\"fit\">" + gcmChip(gcmCurrent(en)) + "</td>" +
+        '<td class="fit mono">' + gcmMini(en["declare"]) + "</td>" +
         '<td class="fit mono">' + gcmMini(en["default"]) + "</td>" +
         '<td class="fit mono">' + gcmMini(en.update) + "</td>" +
         '<td class="fit mono">' + gcmMini(en.implicit) + "</td><td></td></tr>";
@@ -447,10 +453,10 @@ function renderVendors(v, st) {
   v = v || {};
   var present = VENDOR_INFO.filter(function (x) { return v[x.key]; });
   var absent = VENDOR_INFO.filter(function (x) { return !v[x.key]; });
-  // GPC is a browser signal — surface it even if no matching pixel is "present".
-  var showGpc = st && st.gpc === true && present.map(function (x) { return x.key; }).indexOf("gpc") === -1;
+  // F-66: GPC is already a VENDOR_INFO entry and v.gpc mirrors navigator.globalPrivacyControl,
+  // so an active GPC always appears in `present` — no separate showGpc shortcut needed.
   var html = '<div class="card"><h2>Andere Vendoren &amp; Frameworks (Nicht-Google)</h2>';
-  if (!present.length && !showGpc) {
+  if (!present.length) {
     html += '<div class="muted">Keine weiteren Consent-Frameworks/Vendor-Pixel auf der Seite erkannt.</div></div>';
     return html;
   }
@@ -548,8 +554,13 @@ function renderEvents() {
       if (!groups[gkey]) { groups[gkey] = { id: e.id, event: evn, count: 0, last: 0, obj: null, hasObj: false }; order.push(gkey); }
       var g = groups[gkey];
       g.count++;
-      if ((e.timestamp || 0) >= g.last) { g.last = e.timestamp || 0; g.obj = e.obj; }
-      if (e.obj !== null && typeof e.obj !== "undefined") g.hasObj = true;
+      // F-61: hasObj must track the obj we actually SHOW (the latest by timestamp), not
+      // "any entry in the group had one". Otherwise the newest entry's obj:null still gets
+      // a caret that expands to a bare "null" because an older sibling carried an object.
+      if ((e.timestamp || 0) >= g.last) {
+        g.last = e.timestamp || 0; g.obj = e.obj;
+        g.hasObj = e.obj !== null && typeof e.obj !== "undefined";
+      }
     });
     var groupArr = order.map(function (k) { return groups[k]; }).sort(function (a, b) { return b.last - a.last; });
     html += '<table class="compact"><thead><tr><th class="caret-h"></th><th class="fit">Zeit</th><th class="fit">Event</th><th>Meldung</th><th class="fit">ID</th><th class="fit">×</th></tr></thead><tbody>';
@@ -607,9 +618,12 @@ function eventNameCell(ev) {
 }
 function eventTable(list, prefix) {
   var h = '<table class="compact"><thead><tr><th class="caret-h"></th><th class="fit">Flags</th><th class="fit">Zeit</th><th>event</th></tr></thead><tbody>';
-  list.forEach(function (ev) {
+  list.forEach(function (ev, i) {
     ev = ev || {};
-    var key = prefix + "|" + (ev.aGTMts || "0") + "|" + (ev.event || "");
+    // F-64: include the list index — two events in the same ms with the same name (or
+    // several message pushes with neither aGTMts nor event → "q|0|") would otherwise share
+    // a key and expand/collapse together.
+    var key = prefix + "|" + i + "|" + (ev.aGTMts || "0") + "|" + (ev.event || "");
     var open = !!state.expanded[key];
     h += '<tr class="evt row-toggle" data-expand="' + esc(key) + '">' +
       '<td class="caret">' + (open ? "▾" : "▸") + "</td>" +
@@ -710,6 +724,9 @@ function dlEventClass(ev) {
     if (cmd === "consent") return { label: "⚑ consent " + (ev["1"] || ""), cls: "ev-consent-cmd" };
     if (cmd === "config" || cmd === "set" || cmd === "event" || cmd === "get" || cmd === "js")
       return { label: "gtag " + String(ev["0"]), cls: "ev-gtag" };
+    // F-62: an event-less GA4 ecommerce datablock ({ecommerce:{items:[…]}}, pushed before
+    // the trigger event) is still commerce data, not a plain "Message".
+    if (ev && ev.ecommerce) return { label: "E-Commerce", cls: "ev-ecom" };
     return { label: "Message", cls: "ev-msg" };
   }
   if (e === "gtm.init_consent") return { label: "⚑ consent init (default)", cls: "ev-consent-cmd" };
@@ -756,7 +773,10 @@ function renderDataLayer() {
     });
     dl.slice().reverse().forEach(function (ev, ri) {
       ev = ev || {};
-      var idx = dl.length - 1 - ri;
+      // F-57: absolute dataLayer index (window-base + in-window offset) — so the shown #
+      // matches the out-of-window consent markers above AND the expand key stays stable
+      // when the 150-entry tail window slides (a new push must not renumber open rows).
+      var idx = base + (dl.length - 1 - ri);
       var key = "gdl|" + idx + "|" + (ev.event || "");
       var open = !!state.expanded[key];
       var cat = dlEventClass(ev);
@@ -781,7 +801,10 @@ function renderDataLayer() {
 function renderSession() {
   var s = state.snap, se = s.session || {};
   var raw = se.raw || {};
-  var sessionEmpty = isEmpty(raw) || (!se.sid && !se.uid && !se.source && keyCount(raw) <= 1);
+  // F-63: a preset that carries ONLY consent or attribution (no sid/uid/source, keyCount 1)
+  // is a valid session per the v1.5 redesign — don't suppress its preview as "empty".
+  var hasPreset = !!(raw.consent || raw.attribution) || (s.session_status && s.session_status !== "");
+  var sessionEmpty = isEmpty(raw) || (!hasPreset && !se.sid && !se.uid && !se.source && keyCount(raw) <= 1);
 
   // Colourful summary of the most useful identifiers.
   var html = '<div class="card"><h2>Session — aGTM.d.session</h2>';
@@ -911,6 +934,7 @@ function renderConfig() {
 // Classification logic lives in netclassify.js (loaded before this file, and
 // unit-tested in test/devtools/netclassify.test.js).
 var NET = window.aGTMInspectorNet;
+var SIG = window.aGTMInspectorSignals || { decodeSignals: function () { return null; } };
 var netSeq = 0;
 // Notable query params to surface as chips in the URL cell — GTM/GA4/consent signals.
 var URL_KEYPARAMS = ["id", "tid", "en", "ep.event", "gcs", "gcd", "dma", "dma_cps", "npa", "v", "cid", "gtm"];
@@ -1051,8 +1075,20 @@ function initNetwork() {
         if (!url) return;
         var rq = req.request || {}, rs = req.response || {};
         var content = rs.content || {};
+        // Pre-consent leak detection: snapshot whether aGTM had consent AT CAPTURE TIME. Only
+        // meaningful once aGTM is loaded and reports gtmConsent — otherwise "unknown" (we don't
+        // flag pages without aGTM). A tracking hit stamped preConsent=true is a leak even after
+        // consent is later granted (it already fired).
+        var snapNow = state.snap;
+        var consentKnown = !!(snapNow && snapNow.loaded);
+        var gtmConsentNow = !!(snapNow && snapNow.consent && truthy(snapNow.consent.gtmConsent));
         var post = rq.postData && typeof rq.postData.text === "string" ? rq.postData.text : "";
-        var binary = looksBinary(post);
+        // F-58: Chrome may hand a binary/gzip body as a base64 string (HAR postData.encoding).
+        // Then `post` is base64 text → looksBinary() sees no gzip magic and returns false,
+        // so treat encoding==="base64" as binary too. decodePayload()→bytesFromPayload()
+        // then base64-decodes and gunzips (or recovers plain text) instead of showing gibberish.
+        var b64Encoded = !!(rq.postData && rq.postData.encoding === "base64" && post);
+        var binary = looksBinary(post) || b64Encoded;
         // Human-readable postData for the expand view — a note (not mojibake) when the
         // body is gzip/binary; capped otherwise.
         var postShown = post
@@ -1090,6 +1126,7 @@ function initNetwork() {
           // Keep the raw body (capped) + HAR encoding so the panel can gunzip on demand.
           payloadRaw: post ? post.slice(0, 262144) : "",
           payloadEncoding: (rq.postData && rq.postData.encoding) || "",
+          preConsent: consentKnown && !gtmConsentNow,
           detail: detail
         });
         if (state.net.length > 500) state.net.length = 500;
@@ -1207,6 +1244,36 @@ function aePreview(o) {
   return '<span class="preview">' + parts.join("  ") + "</span>";
 }
 function netKV(label, val) { return '<div class="k">' + esc(label) + '</div><div class="v mono">' + esc(val) + "</div>"; }
+// One decoded consent signal → a granted/denied/unset chip with the raw code + note.
+function sigChip(sig) {
+  var v = sig.value || {}, cls = v.state === "granted" ? "ok" : (v.state === "denied" ? "err" : "");
+  var mark = v.state === "granted" ? "✓" : (v.state === "denied" ? "✗" : "·");
+  var title = (v.note ? v.note + " · " : "") + "Code: " + (v.raw || "?");
+  return '<span class="chip ' + cls + '" title="' + esc(title) + '">' + esc(sig.name.replace(/_storage$/, "")) + " " + mark +
+    (v.state === "unknown" ? " <span class=\"muted\">(" + esc(v.raw || "?") + "?)</span>" : "") + "</span>";
+}
+// gcs/gcd sub-section — Google's per-request consent signals, decoded (see consentsignals.js).
+function netSubSignals(key, e) {
+  var dec = e.sig;
+  if (typeof dec === "undefined") { dec = SIG.decodeSignals(e.url) || null; e.sig = dec; }
+  if (!dec) return "";
+  var open = !!state.expanded[key];
+  var h = '<div class="net-sub" data-expand="' + esc(key) + '">' + (open ? "▾" : "▸") +
+    ' Consent-Signale (gcs/gcd) <span class="muted">— entschlüsselt</span></div>';
+  if (!open) return h;
+  h += '<div style="padding:4px 0">';
+  if (dec.gcs) {
+    h += '<div class="muted" style="font-size:11px">gcs <span class="mono">' + esc(dec.gcs.raw) + "</span> — klassischer Consent Mode</div>" +
+      "<div>" + (dec.gcs.signals.length ? dec.gcs.signals.map(sigChip).join(" ") : '<span class="muted">— (kein Zustand, nur G1)</span>') + "</div>";
+  }
+  if (dec.gcd) {
+    h += '<div class="muted" style="font-size:11px;margin-top:4px">gcd <span class="mono">' + esc(dec.gcd.raw) + "</span> — Consent Mode v2</div>" +
+      "<div>" + dec.gcd.signals.map(sigChip).join(" ") + "</div>";
+  }
+  h += '<div class="muted" style="margin-top:4px;font-size:10px">✓ granted · ✗ denied · · nicht gesetzt. gcs: G1&lt;ad_storage&gt;&lt;analytics_storage&gt;. gcd (v2): ad_storage, analytics_storage, ad_user_data, ad_personalization.</div>';
+  h += "</div>";
+  return h;
+}
 function netDetailHtml(e) {
   var d = e.detail || {};
   var h = '<div class="net-detail"><div class="grid" style="margin-bottom:6px">' +
@@ -1218,7 +1285,12 @@ function netDetailHtml(e) {
     netKV("Zeit", (d.timeMs || 0) + " ms") +
     (d.serverIP ? netKV("Server-IP", d.serverIP) : "") +
     "</div>";
-  if (!e.ae) e.ae = decodeAEvents(e.url, e.payload || e.decodedPayload || "") || null;
+  // F-59: same __aeBody memo-guard as the list loop — without it a payload that never
+  // decodes as aEvents (e.ae stays null) would re-run aeBrute()'s 63 shift iterations on
+  // every renderNetwork() (fires per incoming request) while this row is expanded.
+  var aeBody = e.payload || e.decodedPayload || "";
+  if (!e.ae && e.__aeBody !== aeBody) { e.__aeBody = aeBody; e.ae = decodeAEvents(e.url, aeBody) || null; }
+  h += netSubSignals("n|" + e.id + "|sig", e);
   h += netSub("n|" + e.id + "|q", "Query-String", d.queryString);
   h += netSub("n|" + e.id + "|rq", "Request-Header", d.requestHeaders);
   h += netSub("n|" + e.id + "|rs", "Response-Header", d.responseHeaders);
@@ -1227,13 +1299,23 @@ function netDetailHtml(e) {
   return h;
 }
 function renderNetwork() {
+  // F-65: capture the search caret BEFORE the repaint replaces the input element, so we can
+  // restore the exact position instead of forcing it to the end (which broke mid-string edits).
+  var caret = null;
+  if (state.netSearchActive) {
+    var sPrev = el("net-search");
+    if (sPrev && typeof sPrev.selectionStart === "number") caret = { start: sPrev.selectionStart, end: sPrev.selectionEnd };
+  }
   var cfg = state.snap && state.snap.config;
   var pageHost = (state.snap && state.snap.pageHost) || "";
   var scope = NET.sgtmScope(state.net, cfg);
-  var rows = state.net.map(function (e) {
-    return { e: e, cls: NET.classify(e.url, scope, pageHost) };
+  var mapped = state.net.map(function (e) {
+    var cls = NET.classify(e.url, scope, pageHost);
+    var hit = (e.preConsent && NET.trackingHit) ? NET.trackingHit(e.url, cls) : null;
+    return { e: e, cls: cls, leak: hit }; // leak = tracking request that fired before consent
   });
-  if (state.netOnlyAGTM) rows = rows.filter(function (r) { return r.cls; });
+  var leaks = mapped.filter(function (r) { return r.leak; });
+  var rows = state.netOnlyAGTM ? mapped.filter(function (r) { return r.cls; }) : mapped;
 
   // Distinct hosts (for the host checkboxes) over the aGTM-filtered rows.
   var hostSet = {};
@@ -1252,7 +1334,22 @@ function renderNetwork() {
     return neg ? !hit : hit;
   });
 
-  var html = '<div class="toolbar">' +
+  var html = "";
+  // Pre-consent leak banner — tracking/marketing requests that fired while gtmConsent was
+  // still false. The core promise of aGTM is that nothing tracking-related loads before the
+  // consent decision, so any hit here is a compliance red flag.
+  if (leaks.length) {
+    var byVendor = {};
+    leaks.forEach(function (r) { var v = r.leak.vendor || "?"; byVendor[v] = (byVendor[v] || 0) + 1; });
+    var vparts = objKeys(byVendor).map(function (v) { return esc(v) + " ×" + byVendor[v]; });
+    html += '<div class="card leakbox"><h2>⚠ Pre-Consent-Leak erkannt</h2>' +
+      "<strong>" + leaks.length + " Tracking-Request" + (leaks.length > 1 ? "s" : "") + "</strong> " +
+      "vor der Consent-Entscheidung (gtmConsent=false) gefeuert. " +
+      '<span class="muted">Das untergräbt den Zweck von aGTM — Tracking darf erst nach Consent laden. ' +
+      "Ausnahme: bewusst konfigurierte <code>noConsent</code>-Container.</span>" +
+      '<div style="margin-top:6px">' + vparts.map(function (p) { return '<span class="chip err">' + p + "</span>"; }).join(" ") + "</div></div>";
+  }
+  html += '<div class="toolbar">' +
     '<label><input type="checkbox" id="net-filter"' + (state.netOnlyAGTM ? " checked" : "") + "> nur aGTM-relevant</label>" +
     '<input type="text" id="net-search" class="net-search" placeholder="Filtern…  ( -clarity blendet aus )" value="' + esc(state.netSearch) + '">' +
     '<button class="small" id="net-clear">Leeren</button>' +
@@ -1276,6 +1373,7 @@ function renderNetwork() {
       var typeCell = r.cls
         ? '<span class="chip ' + r.cls.cls + '">' + esc(r.cls.key) + "</span>"
         : '<span class="muted">—</span>';
+      if (r.leak) typeCell += ' <span class="chip err" title="Tracking-Request vor Consent (gtmConsent=false) — ' + esc(r.leak.vendor || "") + '">⚠ pre-consent</span>';
       var stCls = e.status >= 200 && e.status < 300 ? "ok" : (e.status >= 400 || e.status === 0 ? "err" : "warn");
       var key = "n|" + e.id;
       var open = !!state.expanded[key];
@@ -1335,10 +1433,17 @@ function renderNetwork() {
         renderNetwork();
       });
     });
-    // Keep the search field focused/caret-at-end across the repaint it just triggered.
+    // Keep the search field focused across the repaint it just triggered, restoring the
+    // caret to where the user actually was (F-65) — fall back to end only if unknown.
     if (state.netSearchActive) {
       var s2 = el("net-search");
-      if (s2 && s2.focus) { s2.focus(); if (s2.setSelectionRange) { var L = (s2.value || "").length; s2.setSelectionRange(L, L); } }
+      if (s2 && s2.focus) {
+        s2.focus();
+        if (s2.setSelectionRange) {
+          if (caret) s2.setSelectionRange(caret.start, caret.end);
+          else { var L = (s2.value || "").length; s2.setSelectionRange(L, L); }
+        }
+      }
     }
   }
 }

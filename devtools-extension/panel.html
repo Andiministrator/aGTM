@@ -133,6 +133,8 @@
   .empty { color: var(--muted); padding: 24px; text-align: center; }
   .muted { color: var(--muted); }
   .warnbox { border-left: 3px solid var(--warn); padding-left: 10px; }
+  .leakbox { border-left: 3px solid var(--err); padding-left: 10px; }
+  .leakbox h2 { color: var(--err); }
   button.small { background: var(--panel); border: 1px solid var(--border); color: var(--fg); border-radius: 6px; padding: 3px 9px; cursor: pointer; font: inherit; }
   button.small:hover { border-color: var(--accent); color: var(--accent); }
   code { font-family: ui-monospace, monospace; }
@@ -165,6 +167,7 @@
   </main>
   <script src="logmap.js"></script>
   <script src="netclassify.js"></script>
+  <script src="consentsignals.js"></script>
   <script src="jsonview.js"></script>
   <script src="panel.js"></script>
 </body>

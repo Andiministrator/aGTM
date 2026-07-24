@@ -48,8 +48,7 @@
             // inline = GTM code base64-embedded (g.gtmJS) instead of a src URL.
             url: typeof g.gtmURL === "string" ? g.gtmURL : "",
             env: typeof g.env === "string" ? g.env : "",
-            inline: !!g.gtmJS,
-            idParam: typeof g.idParam === "string" ? g.idParam : ""
+            inline: !!g.gtmJS
           });
         }
       }
@@ -199,7 +198,6 @@
       // (host !== pageHost, any path is relevant) from a same-host reverse-proxy
       // (require a sub-path prefix, so first-party traffic isn't swept in).
       pageHost: (typeof location !== "undefined" && location && location.host) ? location.host : "",
-      ts: (new Date()).getTime(),
       init: !!d.init,
       cmp: typeof c.cmp === "string" ? c.cmp : "",
       // The sGTM Client wires a CMP by injecting aGTM.f.consent_check INLINE (the
@@ -208,10 +206,13 @@
       // cmp with a present consent_check is normal, not a misconfiguration.
       hasConsentCheck: !!(A.f && typeof A.f.consent_check === "function"),
       consentEvents: (c.consent_events && typeof c.consent_events === "string") ? c.consent_events : "",
-      useListener: !!c.useListener,
       gdl: c.gdl || "",
       gtmID: c.gtmID || "",
-      consent: d.consent || {},
+      // F-56: cloned PER FIELD via safeObj() — a single non-serialisable value (cycle /
+      // throwing toJSON / BigInt) inside consent/config/session.raw/attribution would
+      // otherwise fail the whole-snapshot clone() below → {loaded:false} despite aGTM
+      // being live. Each degrades to {__unserializable:true} on its own instead.
+      consent: safeObj(d.consent) || {},
       session_status: d.session_status || "",
       consent_hash: d.consent_hash || "",
       last_consent_hash: d.last_consent_hash || "",
@@ -221,7 +222,7 @@
       dataLayerSample: dataLayerSample,
       dataLayerBase: hasDL ? Math.max(0, dlArr.length - 150) : 0,
       gtmScripts: gtmScripts,
-      config: c,
+      config: safeObj(c) || {},
       dl: tail(d.dl || [], 50),
       queue: tail(d.f || [], 50),
       queueLen: (d.f || []).length,
@@ -237,7 +238,7 @@
         source: session.source || "",
         sid: session.sid || "",
         uid: session.uid || "",
-        raw: session
+        raw: safeObj(session) || {}
       },
       seData: seData,
       gcm: gcm,
@@ -245,7 +246,7 @@
       consentTs: consentTs,
       vendors: vendors,
       vendorState: vendorState,
-      attribution: d.attribution || {}
+      attribution: safeObj(d.attribution) || {}
     }) || { loaded: false, error: "clone failed" };
   } catch (e) {
     return { loaded: false, error: String(e) };

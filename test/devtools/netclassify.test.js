@@ -7,7 +7,7 @@
 //   • reverse-proxy same-host setups don't sweep in first-party traffic
 
 import { test, expect, describe } from "bun:test";
-import { classify, sgtmScope, inSgtmScope } from "../../devtools-extension/netclassify.js";
+import { classify, sgtmScope, inSgtmScope, trackerInfo, trackingHit } from "../../devtools-extension/netclassify.js";
 
 // entries[].url are the requests seen on the wire; cfg carries live aGTM.c URLs.
 function scopeFor(entries, cfg) {
@@ -36,6 +36,52 @@ describe("classify — standard patterns", () => {
   });
   test("unrelated URL is not classified", () => {
     expect(classify("https://example.com/style.css", s, "")).toBeNull();
+  });
+});
+
+describe("F-60: over-broad top-level regex tightened", () => {
+  const s = scopeFor([], null);
+  test("foreign /gtm.js on a random host is NOT mislabelled as gtm.js", () => {
+    expect(classify("https://cdn.foreign.com/gtm.js?x=1", s, "")).toBeNull();
+  });
+  test("foreign bare /collect on a random host is NOT mislabelled as ga-collect", () => {
+    expect(classify("https://api.foreign.com/collect?x=1", s, "")).toBeNull();
+  });
+  test("google-analytics bare /collect IS ga-collect (legacy UA)", () => {
+    expect(classify("https://www.google-analytics.com/collect?v=1", s, "").key).toBe("ga-collect");
+  });
+  test("/g/collect and /mp/collect are ga-collect by path anywhere Google", () => {
+    expect(classify("https://region1.google-analytics.com/g/collect?v=2", s, "").key).toBe("ga-collect");
+    expect(classify("https://www.google-analytics.com/mp/collect", s, "").key).toBe("ga-collect");
+  });
+  test("reverse-proxied gtm.js/collect within sGTM scope is still classified", () => {
+    const pageHost = "www.fc-moto.de";
+    const sc = scopeFor([{ url: "https://www.fc-moto.de/rp/tp/aGTM.js" }], null);
+    expect(classify("https://www.fc-moto.de/rp/tp/gtm.js?id=GTM-X", sc, pageHost).key).toBe("gtm.js");
+    expect(classify("https://www.fc-moto.de/rp/tp/g/collect?v=2", sc, pageHost).key).toBe("ga-collect");
+  });
+});
+
+describe("trackerInfo / trackingHit — pre-consent leak detection", () => {
+  const s = scopeFor([], null);
+  test("known third-party pixels are recognised", () => {
+    expect(trackerInfo("https://connect.facebook.net/en_US/fbevents.js").vendor).toContain("Meta");
+    expect(trackerInfo("https://analytics.tiktok.com/i18n/pixel/events.js").vendor).toContain("TikTok");
+    expect(trackerInfo("https://bat.bing.com/action/0").vendor).toContain("UET");
+    expect(trackerInfo("https://www.googletagmanager.com/gtm.js")).toBeNull(); // Google handled by classify
+    expect(trackerInfo("https://example.com/app.js")).toBeNull();
+  });
+  test("trackingHit counts Google tags + third-party pixels, never aGTM infra", () => {
+    // Google tag via classify
+    expect(trackingHit("https://www.googletagmanager.com/gtm.js", classify("https://www.googletagmanager.com/gtm.js", s, "")).vendor).toContain("Tag Manager");
+    expect(trackingHit("https://www.google-analytics.com/g/collect", classify("https://www.google-analytics.com/g/collect", s, "")).vendor).toContain("Analytics");
+    // aGTM infra is never a leak
+    expect(trackingHit("https://x.example.com/rp/tp/aGTM.js", classify("https://x.example.com/rp/tp/aGTM.js", s, ""))).toBeNull();
+    expect(trackingHit("https://x.example.com/rp/tp/aGTMconsent", classify("https://x.example.com/rp/tp/aGTMconsent", s, ""))).toBeNull();
+    // third-party pixel with no classify hit
+    expect(trackingHit("https://connect.facebook.net/tr", null).vendor).toContain("Meta");
+    // plain asset → not a hit
+    expect(trackingHit("https://example.com/logo.png", null)).toBeNull();
   });
 });
 

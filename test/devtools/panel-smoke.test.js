@@ -61,7 +61,7 @@ beforeAll(() => {
   // `state`/`render` from the SAME eval scope (var/function don't leak to globalThis
   // under bun's ESM indirect eval, so we expose handles explicitly).
   var base = "./devtools-extension/";
-  var src = ["logmap.js", "netclassify.js", "jsonview.js", "panel.js"]
+  var src = ["logmap.js", "netclassify.js", "consentsignals.js", "jsonview.js", "panel.js"]
     .map(function (f) { return readFileSync(base + f, "utf8"); })
     .join("\n;\n");
   src += "\n;globalThis.__panel = {" +
@@ -195,7 +195,8 @@ describe("feedback fixes", () => {
     expect(html).toContain("json-");
   });
   test("expanded event row renders a highlighted object", () => {
-    globalThis.__panel.setExpanded({ "d|111|page_view": true });
+    // key format is prefix|index|aGTMts|event (F-64); page_view is index 1 in the reversed dl
+    globalThis.__panel.setExpanded({ "d|1|111|page_view": true });
     const html = renderTab("events");
     expect(html).toContain("jsonview");
     expect(html).toContain("json-key");
@@ -461,5 +462,63 @@ describe("feedback fixes", () => {
     expect(html).toContain("geändert");
     expect(html).toContain("neu");
     globalThis.__panel.setBaseline(null);
+  });
+  // ── F-62: event-less ecommerce datablock ───────────────────────────────────
+  test("F-62: event-less {ecommerce:{…}} push is classified as E-Commerce, not Message", () => {
+    const snap = sampleSnap();
+    snap.dataLayerSample = [{ ecommerce: { items: [{ id: "SKU1" }] } }];
+    snap.dataLayerLen = 1; snap.dataLayerBase = 0;
+    const html = renderTab("datalayer", snap);
+    expect(html).toContain("E-Commerce");
+  });
+  // ── F-63: consent-only preset session is not "empty" ───────────────────────
+  test("F-63: a consent-only preset session shows its preview, not 'keine Daten'", () => {
+    const snap = sampleSnap();
+    snap.session = { source: "", sid: "", uid: "", raw: { consent: { hasResponse: true, services: "a,b" } } };
+    snap.session_status = "preset_with_consent";
+    const html = renderTab("session", snap);
+    expect(html).not.toContain("Keine (nennenswerten)");
+    expect(html).toContain("json-"); // the raw preview is rendered
+  });
+  // ── new feature: pre-consent leak detector ─────────────────────────────────
+  test("pre-consent leak: a tracker fired before consent raises the banner + row badge", () => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setNet([
+      { id: 1, url: "https://connect.facebook.net/tr?id=1", host: "connect.facebook.net", method: "GET", status: 200, ts: 1, propId: "", evName: "", preConsent: true },
+      { id: 2, url: "https://www.google-analytics.com/g/collect?v=2", host: "www.google-analytics.com", method: "POST", status: 204, ts: 2, propId: "", evName: "", preConsent: true }
+    ]);
+    P.netSet("netOnlyAGTM", false);
+    P.netSet("netSearch", ""); P.netSet("netHidden", {});
+    P.setTab("network"); P.render();
+    const html = globalThis.document.getElementById("tab-network")._html;
+    expect(html).toContain("Pre-Consent-Leak");
+    expect(html).toContain("pre-consent");   // row badge
+    expect(html).toContain("Meta Pixel");
+    P.setNet([]);
+  });
+  test("no leak banner when the same trackers fired WITH consent", () => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setNet([{ id: 3, url: "https://connect.facebook.net/tr?id=1", host: "connect.facebook.net", method: "GET", status: 200, ts: 1, propId: "", evName: "", preConsent: false }]);
+    P.netSet("netOnlyAGTM", false);
+    P.setTab("network"); P.render();
+    const html = globalThis.document.getElementById("tab-network")._html;
+    expect(html).not.toContain("Pre-Consent-Leak");
+    P.setNet([]);
+  });
+  // ── new feature: gcs/gcd consent-signal decode ─────────────────────────────
+  test("network detail decodes gcs/gcd consent signals when expanded", () => {
+    const e = {
+      id: 8, url: "https://region1.google-analytics.com/g/collect?v=2&gcs=G101&gcd=11t1t1p1p5&tid=G-X",
+      payload: "", payloadNote: "", detail: { method: "POST", status: 204 }
+    };
+    globalThis.__panel.setExpanded({ "n|8|sig": true });
+    const h = globalThis.__panel.netDetailHtml(e);
+    expect(h).toContain("Consent-Signale");
+    expect(h).toContain("G101");        // raw gcs
+    expect(h).toContain("11t1t1p1p5");  // raw gcd
+    expect(h).toContain("ad_user_data"); // gcd v2 signal label (via chip text)...
+    globalThis.__panel.setExpanded({});
   });
 });
