@@ -15,12 +15,13 @@ It is the human-facing companion to the `live-inspector` Claude Code skill.
 
 | Tab | Source in `window.aGTM` | Purpose |
 |---|---|---|
-| **Consent** | `aGTM.d.consent`, `aGTM.d.session_status`, `consent_hash`/`last_consent_hash`, `aGTM.c.cmp` | Does GTM load, and why / why not? |
-| **Events** | `aGTM.d.f` (queue), `aGTM.d.dl` (dispatched), `aGTM.l` (decoded log) | Event stream, queued-until-consent, `_noConsent`/`_noDLPush`/`_post` flags |
-| **GTM** | `aGTM.d.init`, `aGTM.c.gtm`, `aGTM.d.gtmLoaded` | Container injection status & order |
-| **Session** | `aGTM.d.session.source`, `aGTM.d.attribution.<method>.*` | Session source & attribution |
-| **Config** | `aGTM.c` + highlighted config traps | Static setup audit |
-| **Netzwerk** | `chrome.devtools.network` | gtm.js / `/aGTMconsent` / `/aGTM.js` / sources / GA hits, **plus** event/collect POSTs to the sGTM (aEvents pipeline) — matched by host + learned path-prefix so first-party traffic isn't swept in under reverse-proxy setups |
+| **Consent** | `aGTM.d.consent`, `aGTM.d.session_status`, `consent_hash`/`last_consent_hash`, `aGTM.c.cmp`, `google_tag_data.ics`, dataLayer `consent` commands, vendor globals | Does GTM load, and why / why not? Plus a **Google Consent Mode sequence** (declare/implicit → default → update in order, with the final per-category state + timestamp, `update > default > declare/implicit`) and a **non-Google vendor box** detecting TCF/GPP/USP/GPC + Meta/UET/TikTok/LinkedIn/Pinterest/Amazon/Criteo, the consent signal each expects, and the state that's synchronously readable (GPC, `euconsent-v2`/`usprivacy`/`amzn_consent` cookies). Consent-command rows expand into the full sent payload |
+| **Events** | `aGTM.d.f` (queue), `aGTM.d.dl` (dispatched), `aGTM.l` (decoded log) | Event stream, queued-until-consent, `_noConsent`/`_noDLPush`/`_post` flags. Rows are **click-to-expand** into a syntax-highlighted full object. The decoded log is **bundled by id+event with a count** (so the ~2s consent poll's repeated `m2`/`m3` collapse into one counted row) and shows *which event* (`obj.event`) each entry belongs to. Once consent is present the queue is relabelled as **history** (its events were already replayed as `hastyEvents`). |
+| **GTM** | `aGTM.d.init`, `aGTM.c.gtm`, `aGTM.d.gtmLoaded` | Container injection status & order, live `dataLayer` length, per-container load mode (Google / custom-sGTM / inline base64 + env), and the **actual injected `<script>` tags** (DOM-level proof + load domain) |
+| **dataLayer** | `window[gdl]` | The **real GTM dataLayer** contents (click-to-expand), each push **colour-categorised** (aGTM / GTM / E-Commerce / Pageview / Consent / gtag / Message) and badged by its aGTM relationship: **via aGTM** (`aGTMts` → came through `aGTM.f.fire()`), **repeated** (DL-Repeat tag), `_noConsent`/`_post` |
+| **Session** | `aGTM.d.session`, `aGTM.d.attribution.<method>.*`, `window.se_data` | Session source & attribution, syntax-highlighted. Falls back to a site's `window.se_data` object when `aGTM.d.session` is empty |
+| **Config** | `aGTM.c` + highlighted config traps | The **effective** config in effect after `config()` (defaults + integrator + sGTM-Client injection), syntax-highlighted, plus known config-trap warnings and a **runtime-diff** (first snapshot → current) showing what aGTM derived/changed at runtime |
+| **Netzwerk** | `chrome.devtools.network` | gtm.js / `/aGTMconsent` / `/aGTM.js` / sources / GA hits, **plus** event/collect POSTs to the sGTM (aEvents pipeline) — matched by host + learned path-prefix so first-party traffic isn't swept in under reverse-proxy setups. a **search box** (prefix `-` to exclude, e.g. `-clarity`) + per-host checkboxes to filter, **smart URL** (dimmed host, emphasised path, key params as chips), the request's **event name** (`en`) and **property/measurement/stream ID** (`id`/`tid`) under the type badge, a **payload preview** (gzip bodies auto-decompressed via `DecompressionStream`; **aEvents** `?e=`/`?q=` payloads decoded — obfuscated ones by brute-forcing the 63 Caesar shifts, no salt needed), and rows **click-to-expand** into separate collapsible sub-sections (General · Query-String · Request-/Response-Header · Payload · aEvents entschlüsselt) |
 
 ## How it works (and why it needs no permissions)
 
@@ -45,14 +46,20 @@ panel shows a hint instead of throwing.
 No Chrome Web Store account needed. Updating = edit files → **Reload** on the
 extensions page → reopen DevTools.
 
+**Prefer a ZIP?** A packaged `aGTM-Inspector.zip` lives at the repo root — download
+it, unzip, and **Load unpacked** the extracted `aGTM-Inspector/` folder. Regenerate
+it after any change with `./scripts/pack-devtools-extension.sh` (the ZIP is a derived
+artifact and must be rebuilt so it doesn't drift from source).
+
 ## Files
 
 ```
 manifest.json   MV3, no permissions, registers a devtools_page
 devtools.js     registers the "aGTM" panel
 panel.html      panel UI + styles (light/dark aware)
-panel.js        poll loop, six renderers, network capture
+panel.js        poll loop, six renderers, network capture, row expand/collapse
 reader.js       page-context snapshot expression (eval'd, read-only, ES5-safe)
+jsonview.js     pure JSON syntax highlighter (browser global + node-require, unit-tested)
 logmap.js       aGTM.l decode table (copy of aGTM_debug.js's logmap)
 icons/          the aGTM brand icon (16 / 48 / 128, resized from assets/aGTM.png)
 ```

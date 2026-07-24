@@ -71,3 +71,6 @@ aboard-sync.base.*.json
 aboard-sync.inbox/
 aboard-sync.chat-tail.*
 aboard.html.bak-*
+
+# aGTM Inspector: derived ZIP artifact (reproduce with scripts/pack-devtools-extension.sh)
+/aGTM-Inspector.zip
