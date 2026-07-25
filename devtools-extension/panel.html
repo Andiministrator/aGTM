@@ -93,6 +93,14 @@
   .u-path { color: var(--fg); font-weight: 600; }
   .u-params { margin-top: 2px; }
   .chip.qp { font-size: 10px; padding: 0 5px; }
+  /* consent fingerprint — compact per-category granted/denied pills for the list view */
+  .cfp-row { display: inline-flex; gap: 2px; vertical-align: 1px; }
+  .cfp { font-family: ui-monospace, monospace; font-size: 9px; line-height: 14px;
+    padding: 0 4px; border-radius: 3px; background: var(--chip); color: var(--muted); }
+  .cfp-g { background: color-mix(in srgb, var(--ok) 26%, transparent); color: var(--ok); }
+  .cfp-d { background: color-mix(in srgb, var(--err) 26%, transparent); color: var(--err); }
+  .cfp-u { background: var(--chip); color: var(--muted); }
+  .cfp-x { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
   .net-en { margin-top: 2px; font-family: ui-monospace, monospace; font-size: 10px; color: var(--accent); }
   .net-id { margin-top: 1px; font-family: ui-monospace, monospace; font-size: 10px; color: var(--muted); }
   .net-search { flex: 1; min-width: 120px; max-width: 320px; background: var(--bg); color: var(--fg);

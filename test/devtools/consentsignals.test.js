@@ -76,6 +76,18 @@ describe("decodeGcd — Consent Mode v2", () => {
     expect(stateOf(d, "ad_storage")).toBe("unknown");
     expect(d.signals[0].value.raw).toBe("z");
   });
+  test("v = granted-by-default-and-confirmed → granted; q = denied-declined → denied", () => {
+    const d = decodeGcd("11v1q1v1q5");
+    expect(stateOf(d, "ad_storage")).toBe("granted");        // v
+    expect(stateOf(d, "analytics_storage")).toBe("denied");  // q
+    expect(d.signals[0].value.raw).toBe("v");
+    expect(d.signals[1].value.raw).toBe("q");
+  });
+  test("truncated gcd (<4 groups) decodes only the present signals, no crash", () => {
+    const d = decodeGcd("11t1t5"); // only ad_storage + analytics_storage
+    expect(d.signals.map((s) => s.name)).toEqual(["ad_storage", "analytics_storage"]);
+    expect(stateOf(d, "ad_user_data")).toBeUndefined();
+  });
   test("non-gcd string → null", () => {
     expect(decodeGcd("G111")).toBeNull();
     expect(decodeGcd("")).toBeNull();
@@ -90,6 +102,12 @@ describe("decodeSignals — from a URL", () => {
     expect(dec.gcd).not.toBeNull();
     expect(stateOf(dec.gcs, "analytics_storage")).toBe("granted");
     expect(stateOf(dec.gcd, "ad_user_data")).toBe("granted");
+  });
+  test("gcs-only URL → gcd is null, gcs present", () => {
+    const dec = decodeSignals("https://www.google-analytics.com/collect?v=1&gcs=G100");
+    expect(dec.gcd).toBeNull();
+    expect(dec.gcs).not.toBeNull();
+    expect(stateOf(dec.gcs, "ad_storage")).toBe("denied");
   });
   test("URL without consent signals → null", () => {
     expect(decodeSignals("https://x.example.com/img.png")).toBeNull();

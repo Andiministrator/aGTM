@@ -536,7 +536,7 @@ function renderEvents() {
   if (isEmpty(dl)) {
     html += '<div class="muted">noch keine Events durch aGTM.f.fire() gelaufen.</div>';
   } else {
-    html += eventTable(dl.slice().reverse(), "d");
+    html += eventTable(dl.slice().reverse(), "d", true);
   }
   html += "</div>";
 
@@ -616,14 +616,16 @@ function eventNameCell(ev) {
   var name = ev.event ? '<span class="mono">' + esc(ev.event) + "</span>" : '<span class="tag-msg">Message</span>';
   return name + previewObj(ev);
 }
-function eventTable(list, prefix) {
+function eventTable(list, prefix, reversed) {
   var h = '<table class="compact"><thead><tr><th class="caret-h"></th><th class="fit">Flags</th><th class="fit">Zeit</th><th>event</th></tr></thead><tbody>';
   list.forEach(function (ev, i) {
     ev = ev || {};
-    // F-64: include the list index — two events in the same ms with the same name (or
-    // several message pushes with neither aGTMts nor event → "q|0|") would otherwise share
-    // a key and expand/collapse together.
-    var key = prefix + "|" + i + "|" + (ev.aGTMts || "0") + "|" + (ev.event || "");
+    // F-64 + Kritiker Runde 2: disambiguate identical (ts,event) rows by ordinal, but use a
+    // NATURAL-ORDER ordinal — for the dl table the list is passed reversed, so the display
+    // index shifts on every new event and would collapse open rows. length-1-i maps the
+    // reversed index back to the append-stable natural position (like renderDataLayer/F-57).
+    var ord = reversed ? (list.length - 1 - i) : i;
+    var key = prefix + "|" + ord + "|" + (ev.aGTMts || "0") + "|" + (ev.event || "");
     var open = !!state.expanded[key];
     h += '<tr class="evt row-toggle" data-expand="' + esc(key) + '">' +
       '<td class="caret">' + (open ? "▾" : "▸") + "</td>" +
@@ -768,7 +770,7 @@ function renderDataLayer() {
         '<td class="caret">' + (open ? "▾" : "▸") + "</td>" +
         '<td class="fit mono muted">#' + c.index + "</td>" +
         '<td class="fit"><span class="ev-tag ev-consent-cmd">⚑ vor Ausschnitt</span></td>' +
-        '<td class="col-grow"><span class="ev-tag ev-consent-cmd">⚑ consent ' + esc(c.type) + "</span> " + previewObj(c.payload || {}) + "</td></tr>";
+        '<td class="col-grow"><span class="ev-tag ev-consent-cmd">⚑ consent ' + esc(c.type) + "</span> " + payloadFingerprint(c.payload) + " " + previewObj(c.payload || {}) + "</td></tr>";
       if (open) html += '<tr class="detail"><td></td><td colspan="3"><pre class="jsonview">' + JV.highlight(c.payload) + "</pre></td></tr>";
     });
     dl.slice().reverse().forEach(function (ev, ri) {
@@ -783,7 +785,9 @@ function renderDataLayer() {
       var catTag = '<span class="ev-tag ' + cat.cls + '">' + esc(cat.label) + "</span> ";
       var nameHtml = ev.event ? '<span class="mono ' + cat.cls + '">' + esc(ev.event) + "</span>"
         : (cat.cls === "ev-msg" ? '<span class="tag-msg">Message</span>' : "");
-      var evName = catTag + nameHtml + previewObj(ev);
+      // Inline consent fingerprint for a gtag('consent',…) command push (payload at ev["2"]).
+      var cfp = (ev && ev["0"] === "consent") ? payloadFingerprint(ev["2"]) : "";
+      var evName = catTag + nameHtml + (cfp ? " " + cfp : "") + previewObj(ev);
       html += '<tr class="evt row-toggle' + (cat.cls === "ev-consent-cmd" ? " dl-consent" : "") + '" data-expand="' + esc(key) + '">' +
         '<td class="caret">' + (open ? "▾" : "▸") + "</td>" +
         '<td class="fit mono muted">' + idx + "</td>" +
@@ -1252,6 +1256,38 @@ function sigChip(sig) {
   return '<span class="chip ' + cls + '" title="' + esc(title) + '">' + esc(sig.name.replace(/_storage$/, "")) + " " + mark +
     (v.state === "unknown" ? " <span class=\"muted\">(" + esc(v.raw || "?") + "?)</span>" : "") + "</span>";
 }
+// Compact per-category consent "fingerprint" for the LIST view: one tiny colour-coded
+// pill per Consent-Mode signal (green=granted, red=denied, grey=unset) so you can scan a
+// whole request/dataLayer list and see at a glance what each hit was allowed to do —
+// without expanding anything. gcd (4 signals) preferred over gcs (2) when both are present.
+var CFP_SHORT = { ad_storage: "ad", analytics_storage: "an", ad_user_data: "aud", ad_personalization: "aps" };
+function cfpPill(sig) {
+  var st = (sig.value || {}).state;
+  var cls = st === "granted" ? "cfp-g" : (st === "denied" ? "cfp-d" : (st === "unknown" ? "cfp-x" : "cfp-u"));
+  var lbl = CFP_SHORT[sig.name] || sig.name;
+  var raw = (sig.value && sig.value.raw) ? " (" + sig.value.raw + ")" : "";
+  return '<span class="cfp ' + cls + '" title="' + esc(sig.name + ": " + (st || "?") + raw) + '">' + esc(lbl) + "</span>";
+}
+// From a decoded {gcs,gcd} object (consentsignals.js).
+function consentFingerprint(dec) {
+  if (!dec) return "";
+  var sigs = (dec.gcd && dec.gcd.signals && dec.gcd.signals.length) ? dec.gcd.signals
+    : (dec.gcs && dec.gcs.signals ? dec.gcs.signals : []);
+  if (!sigs.length) return "";
+  var src = (dec.gcd && dec.gcd.signals && dec.gcd.signals.length) ? "gcd" : "gcs";
+  return '<span class="cfp-row" title="Consent-Signale (' + src + ') — grün granted · rot denied · grau nicht gesetzt">' + sigs.map(cfpPill).join("") + "</span>";
+}
+// Build fingerprint signals from a gtag('consent',…) command / dataLayer consent payload.
+function payloadFingerprint(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  var sigs = [];
+  GCM_ORDER.forEach(function (cat) {
+    if (typeof payload[cat] === "undefined") return;
+    var tri = payloadTri(payload, cat);
+    sigs.push({ name: cat, value: { state: tri === true ? "granted" : (tri === false ? "denied" : "unset") } });
+  });
+  return sigs.length ? '<span class="cfp-row" title="Consent-Signale (command) — grün granted · rot denied · grau nicht gesetzt">' + sigs.map(cfpPill).join("") + "</span>" : "";
+}
 // gcs/gcd sub-section — Google's per-request consent signals, decoded (see consentsignals.js).
 function netSubSignals(key, e) {
   var dec = e.sig;
@@ -1309,9 +1345,22 @@ function renderNetwork() {
   var cfg = state.snap && state.snap.config;
   var pageHost = (state.snap && state.snap.pageHost) || "";
   var scope = NET.sgtmScope(state.net, cfg);
+  // Reconcile the capture-time preConsent stamp against the current consent timestamp:
+  // the stamp is read from a snapshot up to POLL_MS stale, so a tracker that legitimately
+  // fired right after "Accept" (before the next poll flips gtmConsent) would otherwise stay
+  // flagged forever. If consent is NOW granted and the request happened at/after the grant
+  // moment (consentTs), it is post-consent — not a leak. If consent is still absent/denied,
+  // the stamp stands (a tracker firing then IS a leak). (Kritiker Runde 2, P2.)
+  var snap = state.snap || {};
+  var consentGranted = !!(snap.consent && truthy(snap.consent.gtmConsent));
+  var consentTs = snap.consentTs || 0;
   var mapped = state.net.map(function (e) {
     var cls = NET.classify(e.url, scope, pageHost);
-    var hit = (e.preConsent && NET.trackingHit) ? NET.trackingHit(e.url, cls) : null;
+    var hit = null;
+    if (e.preConsent && NET.trackingHit) {
+      var reconciledLegit = consentGranted && consentTs && e.ts >= consentTs;
+      if (!reconciledLegit) hit = NET.trackingHit(e.url, cls);
+    }
     return { e: e, cls: cls, leak: hit }; // leak = tracking request that fired before consent
   });
   var leaks = mapped.filter(function (r) { return r.leak; });
@@ -1344,7 +1393,8 @@ function renderNetwork() {
     var vparts = objKeys(byVendor).map(function (v) { return esc(v) + " ×" + byVendor[v]; });
     html += '<div class="card leakbox"><h2>⚠ Pre-Consent-Leak erkannt</h2>' +
       "<strong>" + leaks.length + " Tracking-Request" + (leaks.length > 1 ? "s" : "") + "</strong> " +
-      "vor der Consent-Entscheidung (gtmConsent=false) gefeuert. " +
+      "vor der Consent-Entscheidung (gtmConsent=false) gefeuert " +
+      '<span class="muted">(über alle erfassten Requests — unabhängig vom aktiven Filter)</span>. ' +
       '<span class="muted">Das untergräbt den Zweck von aGTM — Tracking darf erst nach Consent laden. ' +
       "Ausnahme: bewusst konfigurierte <code>noConsent</code>-Container.</span>" +
       '<div style="margin-top:6px">' + vparts.map(function (p) { return '<span class="chip err">' + p + "</span>"; }).join(" ") + "</div></div>";
@@ -1399,6 +1449,10 @@ function renderNetwork() {
         var qp = allParamsPreview(e.url);
         if (qp) urlCell += '<div class="u-params">' + qp + "</div>";
       }
+      // Consent fingerprint (gcs/gcd) inline in the list — decode once + cache on the entry.
+      if (typeof e.sig === "undefined") e.sig = SIG.decodeSignals(e.url) || null;
+      var fp = consentFingerprint(e.sig);
+      if (fp) urlCell += '<div class="u-params"><span class="muted" style="font-size:9px">consent</span> ' + fp + "</div>";
       html += '<tr class="evt row-toggle" data-expand="' + esc(key) + '">' +
         '<td class="caret">' + (open ? "▾" : "▸") + "</td>" +
         '<td class="fit">' + typeStack + "</td>" +
