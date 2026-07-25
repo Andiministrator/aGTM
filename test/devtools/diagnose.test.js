@@ -55,8 +55,15 @@ describe("healthChecks", () => {
     const checks = healthChecks(okSnap(), [{ vendor: "TikTok", url: "https://analytics.tiktok.com/i" }], [], true);
     expect(byKey(checks, "leaks").status).toBe("fail");
   });
-  test("no network captured yet → leaks N/A, not a false pass", () => {
+  test("a captured leak is fail even when the window was not observed (F-1)", () => {
+    const checks = healthChecks(okSnap(), [{ vendor: "TikTok", url: "https://analytics.tiktok.com/i" }], [], false);
+    expect(byKey(checks, "leaks").status).toBe("fail");
+  });
+  test("window not observed + no leaks → N/A, not a false pass (F-1)", () => {
     expect(byKey(healthChecks(okSnap(), [], [], false), "leaks").status).toBe("na");
+  });
+  test("window observed + no leaks → pass", () => {
+    expect(byKey(healthChecks(okSnap(), [], [], true), "leaks").status).toBe("pass");
   });
   test("config traps present → warn", () => {
     const checks = healthChecks(okSnap(), [], [{ key: "gdl", msg: "no gdl" }], true);
@@ -92,6 +99,7 @@ describe("buildTimeline", () => {
     expect(tl.rows[tl.rows.length - 1].rel).toBe(4500);
     // sorted ascending by rel
     for (let i = 1; i < tl.rows.length; i++) expect(tl.rows[i].rel).toBeGreaterThanOrEqual(tl.rows[i - 1].rel);
+    expect(tl.anchored).toBe(true); // navStart present & earliest → zero point is the page load
   });
   test("absent (0/undefined) markers are dropped", () => {
     const tl = buildTimeline({ navStart: 1000, config: 0, consent: 3000 });
@@ -102,10 +110,11 @@ describe("buildTimeline", () => {
     expect(buildTimeline({}).ok).toBe(false);
     expect(buildTimeline({ navStart: 0 }).ok).toBe(false);
   });
-  test("t0 is the earliest even if navStart is missing", () => {
+  test("t0 is the earliest even if navStart is missing (not anchored)", () => {
     const tl = buildTimeline({ consent: 5000, inject: 4000 });
     expect(tl.t0).toBe(4000);
     expect(tl.rows[0].key).toBe("inject");
+    expect(tl.anchored).toBe(false); // navStart absent → zero point is NOT the page load
   });
 });
 
@@ -128,12 +137,20 @@ describe("buildReportMarkdown / buildReportJSON", () => {
     expect(md).toContain("**Gesamtstatus:** FAIL");
     expect(md).toContain("## Health-Check");
     expect(md).toContain("## Consent-Timeline");
+    expect(md).toContain("Δ ab Seitenaufruf");     // navStart present → anchored
     expect(md).toContain("+0 ms");                 // navStart t0
     expect(md).toContain("## Pre-Consent-Leaks");
     expect(md).toContain("TikTok");
     expect(md).toContain("## Konfig-Fallen");
     expect(md).toContain("GTM-Container");
     expect(md).toContain("sgtm.fc-moto.com");      // container host derived from url
+  });
+  test("markdown timeline header says 'erstem Marker' when navStart is missing (F-2)", () => {
+    const c = ctx();
+    c.timeline = buildTimeline({ consent: 3000, inject: 3200 }); // no navStart → not anchored
+    const md = buildReportMarkdown(c);
+    expect(md).toContain("Δ ab erstem Marker");
+    expect(md).not.toContain("Δ ab Seitenaufruf");
   });
   test("markdown handles an empty/degraded snapshot without throwing", () => {
     const md = buildReportMarkdown({ snap: {}, checks: [], timeline: { ok: false, rows: [] }, leaks: [], traps: [] });

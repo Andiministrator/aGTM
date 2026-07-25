@@ -605,6 +605,28 @@ describe("Diagnose tab", () => {
     expect(html).toContain("ci-na");
     P.setNet([]);
   });
+  test("leaks check stays N/A when the window was not observed, even with later traffic (F-1)", () => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap()); // navStart 900
+    // a request long after navStart (window not covered) + no navigation witnessed
+    P.setNet([{ id: 1, url: "https://sgtm.fc-moto.com/aGTMconsent", host: "sgtm.fc-moto.com", method: "POST", status: 200, ts: 99000, time: 0, propId: "", evName: "", preConsent: false }]);
+    P.setTab("diagnose"); P.render();
+    const html = globalThis.document.getElementById("tab-diagnose")._html;
+    expect(html).toContain("ci-na");                 // leaks check is N/A, not a false pass
+    expect(html).toContain("Vor-Consent-Fenster nicht erfasst");
+    P.setNet([]);
+  });
+  test("leaks check passes when the capture began at page load (earliest ≈ navStart)", () => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap()); // navStart 900
+    // earliest request within 1500ms of navStart → window observed; no leaks → pass
+    P.setNet([{ id: 1, url: "https://sgtm.fc-moto.com/aGTM.js", host: "sgtm.fc-moto.com", method: "GET", status: 200, ts: 1200, time: 0, propId: "", evName: "", preConsent: false }]);
+    P.setTab("diagnose"); P.render();
+    const html = globalThis.document.getElementById("tab-diagnose")._html;
+    expect(html).toContain("score-pass");
+    expect(html).toContain("keine vor Consent gefeuerten Tracker");
+    P.setNet([]);
+  });
   test("a pre-consent leak flips the overall score to FAIL", () => {
     const P = globalThis.__panel;
     P.setSnap(sampleSnap());
@@ -636,5 +658,44 @@ describe("Diagnose tab", () => {
     expect(html).toContain('id="diag-md"');
     expect(html).toContain('id="diag-json"');
     expect(html).toContain('id="diag-dl"');
+  });
+  test("timeline resolves markers from log ids + network (config/pending/inject/firstTag)", () => {
+    const P = globalThis.__panel;
+    const snap = sampleSnap();
+    snap.navStart = 900;
+    snap.log = [
+      { id: "m1", timestamp: 1000, obj: {} },   // config
+      { id: "m8", timestamp: 1100, obj: {} },   // pending
+      { id: "m3", timestamp: 1500, obj: {} },   // consent (first completion)
+      { id: "m6", timestamp: 1800, obj: {} }    // GTM injected
+    ];
+    P.setSnap(snap);
+    P.setNet([
+      { id: 1, url: "https://www.googletagmanager.com/gtm.js?id=GTM-X", host: "www.googletagmanager.com", method: "GET", status: 200, ts: 2000, time: 0, propId: "", evName: "", preConsent: false },
+      { id: 2, url: "https://region1.google-analytics.com/g/collect?v=2&tid=G-X", host: "region1.google-analytics.com", method: "POST", status: 204, ts: 2500, time: 0, propId: "", evName: "", preConsent: false }
+    ]);
+    P.setTab("diagnose"); P.render();
+    const html = globalThis.document.getElementById("tab-diagnose")._html;
+    expect(html).toContain("aGTM config()");     // m1
+    expect(html).toContain("Consent ausstehend"); // m8
+    expect(html).toContain("CMP-Entscheidung");   // m3 (first, not the later consentTs=5000)
+    expect(html).toContain("GTM injiziert");      // m6
+    expect(html).toContain("Erster Tag-Fire");    // GA collect
+    expect(html).toContain("+0 ms");              // navStart is t0
+    P.setNet([]);
+  });
+  test("net-derived markers use request START (finished ts − duration), not the finish time (F-3)", () => {
+    const P = globalThis.__panel;
+    const snap = sampleSnap();
+    snap.navStart = 1000;
+    snap.log = []; snap.dl = []; snap.consentTs = 0; // force inject to fall back to the network gtm.js
+    P.setSnap(snap);
+    // gtm.js finished at ts=3000 after a 800ms request → start ≈ 2200 → rel = 1200 (not 2000)
+    P.setNet([{ id: 1, url: "https://www.googletagmanager.com/gtm.js?id=GTM-X", host: "www.googletagmanager.com", method: "GET", status: 200, ts: 3000, time: 800, propId: "", evName: "", preConsent: false }]);
+    P.setTab("diagnose"); P.render();
+    const html = globalThis.document.getElementById("tab-diagnose")._html;
+    expect(html).toContain("+1200 ms"); // 2200 − 1000, i.e. start-based not finish-based (+2000)
+    expect(html).not.toContain("+2000 ms");
+    P.setNet([]);
   });
 });

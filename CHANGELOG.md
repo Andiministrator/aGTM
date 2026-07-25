@@ -35,6 +35,16 @@ like `netclassify.js`) and is unit-tested (`test/devtools/diagnose.test.js` +
 panel smoke coverage). The config-trap and pre-consent-leak logic is now shared
 between the Config/Network tabs and the Diagnose tab (no duplication).
 
+**Critic round (F-70…F-73):** the leak health-check no longer reports a false
+green when the pre-consent window was not observed — a clean "pass" now requires
+that a navigation was witnessed or the capture began at page load, otherwise it
+stays N/A (a captured leak is always a fail). The Consent-Timeline anchors its
+"CMP decision" marker to the *first* consent completion (log `m3`/`m2`) so a later
+re-consent can't sort it behind "GTM injected"; network-derived markers use the
+request start (finished ts − duration) instead of the finish time; and the
+"since page load" label/anchor is now conditional (falls back to "first marker"
+when `navStart` is unavailable).
+
 ### Added — aGTM Inspector: consent fingerprint in the list view · library size-budget guard (＋ critic round 2)
 
 - **Consent fingerprint in the list view**: gcs/gcd requests now show a compact per-category
