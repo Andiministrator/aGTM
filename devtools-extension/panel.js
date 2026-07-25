@@ -28,7 +28,9 @@ var state = {
   // POLL_MS repaint (paint() only swaps innerHTML when the HTML string changes).
   expanded: {},
   configBaseline: null,  // first config snapshot seen, for the Config runtime-diff
-  diag: null             // latest Diagnose-tab inputs, for the report export buttons
+  diag: null,            // latest Diagnose-tab inputs, for the report export buttons
+  navObserved: false     // true once a page navigation was witnessed (network capture
+                         // then covers the pre-consent window — gates the leak health-check)
 };
 
 /* ---------- theme ---------- */
@@ -1177,6 +1179,9 @@ function initNetwork() {
     });
     chrome.devtools.network.onNavigated.addListener(function () {
       state.net = [];
+      // We witnessed this navigation, so the capture now covers the page from load —
+      // the pre-consent window is observed and a clean leak result is trustworthy (F-1).
+      state.navObserved = true;
       if (state.activeTab === "network") renderNetwork();
     });
   } catch (e) {
@@ -1553,20 +1558,27 @@ function timelineSignals() {
   }
   // Network-derived: earliest gtm.js/gtag.js load, and the first actual tag/collect hit
   // (excluding the container load itself — that's the "inject" marker, not a tag fire).
+  // e.ts is the request-FINISHED time; subtract its duration (HAR e.time) so the marker
+  // sits at the request START, not overstated by the round-trip (F-3).
   var scope = NET.sgtmScope(state.net, s.config), pageHost = s.pageHost || "";
   var netGtm = 0, firstTag = 0;
   for (var i = 0; i < state.net.length; i++) {
     var e = state.net[i], cls = NET.classify(e.url, scope, pageHost);
     if (!cls) continue;
-    if (cls.key === "gtm.js" || cls.key === "gtag.js") { if (!netGtm || e.ts < netGtm) netGtm = e.ts; }
-    else if (NET.trackingHit && NET.trackingHit(e.url, cls)) { if (!firstTag || e.ts < firstTag) firstTag = e.ts; }
+    var startTs = e.ts - Math.round(e.time || 0);
+    if (cls.key === "gtm.js" || cls.key === "gtag.js") { if (!netGtm || startTs < netGtm) netGtm = startTs; }
+    else if (NET.trackingHit && NET.trackingHit(e.url, cls)) { if (!firstTag || startTs < firstTag) firstTag = startTs; }
   }
   return {
     navStart: s.navStart || 0,
     config: logTs("m1"),
     pending: logTs("m8"),
+    // Prefer the FIRST consent completion (m3 setup-complete / m2 consent-available) so the
+    // marker anchors the CMP decision that triggered injection. consentTs is only a fallback:
+    // it's the LAST consent event (reader takes it from the tail), which on a later re-consent
+    // could otherwise sort AFTER "GTM injiziert" and invert the waterfall (Kritiker UX-P2).
+    consent: logTs("m3") || logTs("m2") || s.consentTs,
     // m6 = GTM injected, m5 = GTAG injected (log); else the aGTM_ready / gtm.js DL event; else the wire.
-    consent: s.consentTs || logTs("m3") || logTs("m2"),
     inject: logTs("m6") || logTs("m5") || dlTs("aGTM_ready") || dlTs("gtm.js") || netGtm,
     firstTag: firstTag
   };
@@ -1620,8 +1632,13 @@ function renderDiagnose() {
   var s = state.snap, c = s.config || {};
   var traps = activeConfigTraps(c, s);
   var leaks = computeNetLeaks();
-  var netCaptured = state.net.length > 0;
-  var checks = DIAG.healthChecks(s, leaks, traps, netCaptured);
+  // Was the pre-consent window actually captured? True if we witnessed a navigation, or the
+  // earliest captured request lines up with navStart (capture began at/around page load).
+  // Otherwise a clean leak result is N/A, not a false green (F-1).
+  var earliestNet = 0;
+  for (var ni = 0; ni < state.net.length; ni++) { var t = state.net[ni].ts; if (t && (!earliestNet || t < earliestNet)) earliestNet = t; }
+  var windowObserved = state.navObserved || (!!earliestNet && !!s.navStart && earliestNet <= s.navStart + 1500);
+  var checks = DIAG.healthChecks(s, leaks, traps, windowObserved);
   var overall = DIAG.overallLevel(checks);
   var timeline = DIAG.buildTimeline(timelineSignals());
   // Keep inputs so the export buttons build the report from exactly what's shown.
@@ -1647,7 +1664,8 @@ function renderDiagnose() {
     html += '<div class="muted">Keine Timeline-Marker verfügbar. Seite mit geöffnetem Inspector neu laden, damit Seitenaufruf, CMP-Entscheidung und GTM-Injection zeitlich erfasst werden.</div>';
   } else {
     var span = timeline.span || 0;
-    html += '<div class="muted" style="margin-bottom:6px">Relativ ab Seitenaufruf (ms)' + (span ? (" · Spanne " + span + " ms") : "") + ".</div><div class=\"tl\">";
+    var anchorLbl = timeline.anchored ? "Seitenaufruf" : "erstem Marker";
+    html += '<div class="muted" style="margin-bottom:6px">Balken = Zeit ab ' + anchorLbl + ' (ms, keine Phasendauer)' + (span ? (" · Spanne " + span + " ms") : "") + ".</div><div class=\"tl\">";
     timeline.rows.forEach(function (r) {
       var pct = span ? Math.max(2, Math.round((r.rel / span) * 100)) : 2;
       html += '<div class="tl-row"><span class="tl-lab">' + esc(r.label) + "</span>" +

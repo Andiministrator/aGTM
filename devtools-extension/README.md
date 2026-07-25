@@ -76,6 +76,13 @@ icons/          the aGTM brand icon (16 / 48 / 128, resized from assets/aGTM.png
   version-gates on `aGTM.d.version`, but a future internal rename may need a tweak here.
 - Decoded log (`aGTM.l`) is only populated when logging is active / `aGTM_debug.js`
   is loaded on the page.
+- The Diagnose **pre-consent-leak** health-check only reports a green *pass* when the
+  pre-consent window was actually observed (a navigation was witnessed, or the capture
+  began at page load). Open the panel and **reload** the page for a trustworthy result;
+  otherwise the check stays **N/A** rather than a false green. A *captured* leak is always
+  flagged regardless. The **Consent-Timeline** likewise needs the reload to time the page
+  load → CMP-decision → inject sequence (its markers come from `aGTM.l`/`aGTM.d.dl`
+  timestamps + the network capture, which only records from when the panel opened).
 
 ## License
 

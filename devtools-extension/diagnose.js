@@ -24,15 +24,19 @@
 
   /**
    * Aggregate the known aGTM failure modes into a list of checks.
-   * @param snap        reader snapshot (window.aGTM view)
-   * @param leaks       array of pre-consent leak objects [{vendor,url,ts}]
-   * @param traps       array of active config traps [{key,msg}]
-   * @param netCaptured true once the Network capture has seen at least one request
-   *                    (the leak check is only trustworthy then — the DevTools
-   *                    network hook only records from the moment the panel opened).
+   * @param snap           reader snapshot (window.aGTM view)
+   * @param leaks          array of pre-consent leak objects [{vendor,url,ts}]
+   * @param traps          array of active config traps [{key,msg}]
+   * @param windowObserved true only when the pre-consent window was actually
+   *                       captured (panel attached during the page load, i.e. a
+   *                       navigation was witnessed or the earliest captured request
+   *                       lines up with navStart). A "no leaks → pass" is only
+   *                       trustworthy then; otherwise it degrades to N/A instead of
+   *                       a false green (F-1: the green ends up in a customer report).
+   *                       A captured leak is always reported (fail), observed or not.
    * Returns [{ key, label, status: 'pass'|'warn'|'fail'|'na', detail }].
    */
-  function healthChecks(snap, leaks, traps, netCaptured) {
+  function healthChecks(snap, leaks, traps, windowObserved) {
     snap = snap || {}; leaks = arr(leaks); traps = arr(traps);
     var c = snap.consent || {};
     var checks = [];
@@ -68,17 +72,19 @@
         detail: "Wartet auf Consent (gtmConsent=false)." });
     }
 
-    // 4) Pre-consent leaks — the compliance red flag. Only trustworthy once the
-    //    network capture has data; otherwise report N/A instead of a false pass.
-    if (!netCaptured) {
-      checks.push({ key: "leaks", label: "Pre-Consent-Leaks", status: "na",
-        detail: "Netzwerk wird erst ab Öffnen des Inspectors erfasst — Seite neu laden für die volle Prüfung." });
-    } else if (leaks.length) {
+    // 4) Pre-consent leaks — the compliance red flag. A captured leak is always a
+    //    fail. But "no leaks → pass" is only trustworthy when the pre-consent window
+    //    was actually observed; if the panel opened after load (window not covered)
+    //    a clean result is N/A, not a false green (F-1).
+    if (leaks.length) {
       checks.push({ key: "leaks", label: "Pre-Consent-Leaks", status: "fail",
         detail: leaks.length + " Tracking-Request(s) vor der Consent-Entscheidung gefeuert" });
-    } else {
+    } else if (windowObserved) {
       checks.push({ key: "leaks", label: "Pre-Consent-Leaks", status: "pass",
         detail: "keine vor Consent gefeuerten Tracker erfasst" });
+    } else {
+      checks.push({ key: "leaks", label: "Pre-Consent-Leaks", status: "na",
+        detail: "Vor-Consent-Fenster nicht erfasst — Seite mit geöffnetem Inspector neu laden für die volle Prüfung." });
     }
 
     // 5) Config traps — soft warnings from CONFIG_TRAPS.
@@ -135,7 +141,10 @@
     }
     var rows = present.map(function (p) { return { key: p.key, label: p.label, ts: p.ts, rel: p.ts - t0 }; });
     rows.sort(function (a, b) { return a.rel - b.rel || a.ts - b.ts; });
-    return { ok: true, rows: rows, t0: t0, span: tEnd - t0 };
+    // anchored = the zero point really is the page load (navStart present & earliest).
+    // When navStart is missing t0 falls back to the earliest other marker, so the UI/
+    // report must not claim "ab Seitenaufruf" then (F-2).
+    return { ok: true, rows: rows, t0: t0, span: tEnd - t0, anchored: rows[0].key === "navStart" };
   }
 
   var STATUS_ICON = { pass: "✓", warn: "⚠", fail: "✗", na: "–" };
@@ -188,7 +197,8 @@
     out.push("## Consent-Timeline");
     out.push("");
     if (tl.ok && tl.rows.length) {
-      out.push("| Zeitpunkt | Δ ab Seitenaufruf |");
+      var anchor = tl.anchored ? "Seitenaufruf" : "erstem Marker";
+      out.push("| Zeitpunkt | Δ ab " + anchor + " |");
       out.push("| --- | --- |");
       for (var t = 0; t < tl.rows.length; t++) {
         out.push("| " + longVal(tl.rows[t].label) + " | +" + tl.rows[t].rel + " ms |");
