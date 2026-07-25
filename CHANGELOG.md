@@ -13,6 +13,28 @@ as **base64url** (`+` → `-`, `/` → `_`) via a single-line `.split().join()` 
 `sgtmClient/src/…`; the field help documents the encoding. **The bot-check
 service must decode base64url accordingly.**
 
+### Added — aGTM Inspector: Diagnose tab (Health-Score · Consent-Timeline · Compliance-Report)
+
+A new **read-only Diagnose tab** (now the default tab) bundles three at-a-glance
+diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
+
+- **Health-Score** — a pass/warn/fail traffic-light aggregating the known failure
+  modes (consent mechanism present, consent recognised, GTM injected, pre-consent
+  leaks, config traps) into one readout plus a per-check list. Missing consent
+  mechanism or a pre-consent leak turns the overall score red.
+- **Consent-Timeline** — a ms-stamped waterfall (page load → `config()` → CMP
+  decision → GTM inject → first tag fire) resolved from `aGTM.l` log ids,
+  `aGTM.d.dl` event timestamps and the network capture, anchored to a new
+  read-only `navStart` (`performance.timing.navigationStart`) in `reader.js`.
+- **Compliance-Report** — a one-click shareable snapshot (Markdown/JSON to
+  clipboard, or `.md` download) from leaks + consent flow + config traps +
+  `consent_check` status, for the consulting/hand-off scenario.
+
+The aggregation lives in a new pure `diagnose.js` (browser global + node-require,
+like `netclassify.js`) and is unit-tested (`test/devtools/diagnose.test.js` +
+panel smoke coverage). The config-trap and pre-consent-leak logic is now shared
+between the Config/Network tabs and the Diagnose tab (no duplication).
+
 ### Added — aGTM Inspector: consent fingerprint in the list view · library size-budget guard (＋ critic round 2)
 
 - **Consent fingerprint in the list view**: gcs/gcd requests now show a compact per-category

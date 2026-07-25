@@ -194,6 +194,17 @@
     return clone({
       loaded: true,
       version: typeof d.version !== "undefined" ? d.version : null,
+      // Epoch-ms page-load anchor for the Consent-Timeline (Diagnose tab). Same clock
+      // basis as aGTM.l/aGTM.d.dl timestamps (all Date.getTime()) and the panel's
+      // network capture, so relative offsets line up. Best-effort, read-only.
+      navStart: (function () {
+        try {
+          var p = w.performance;
+          if (p && p.timing && p.timing.navigationStart) return p.timing.navigationStart;
+          if (p && typeof p.timeOrigin === "number") return Math.round(p.timeOrigin);
+        } catch (eNav) { /* ignore */ }
+        return 0;
+      })(),
       // Host of the inspected page — lets the panel tell a dedicated sGTM domain
       // (host !== pageHost, any path is relevant) from a same-host reverse-proxy
       // (require a sub-path prefix, so first-party traffic isn't swept in).

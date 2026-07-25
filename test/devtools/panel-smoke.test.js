@@ -61,7 +61,7 @@ beforeAll(() => {
   // `state`/`render` from the SAME eval scope (var/function don't leak to globalThis
   // under bun's ESM indirect eval, so we expose handles explicitly).
   var base = "./devtools-extension/";
-  var src = ["logmap.js", "netclassify.js", "consentsignals.js", "jsonview.js", "panel.js"]
+  var src = ["logmap.js", "netclassify.js", "consentsignals.js", "diagnose.js", "jsonview.js", "panel.js"]
     .map(function (f) { return readFileSync(base + f, "utf8"); })
     .join("\n;\n");
   src += "\n;globalThis.__panel = {" +
@@ -94,7 +94,7 @@ afterAll(() => {
 
 function sampleSnap() {
   return {
-    loaded: true, version: "1.5", pageHost: "fc-moto.com",
+    loaded: true, version: "1.5", pageHost: "fc-moto.com", navStart: 900,
     init: true, cmp: "", hasConsentCheck: true, consentEvents: "cmp_update",
     gdl: "dataLayer", gtmID: "GTM-XXX",
     consent: { hasResponse: true, gtmConsent: true, services: "a,b", purposes: "1,2", vendors: "" },
@@ -155,7 +155,7 @@ describe("panel boot", () => {
 });
 
 describe("every tab renders without throwing", () => {
-  ["consent", "events", "gtm", "datalayer", "session", "config", "network"].forEach((tab) => {
+  ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config", "network"].forEach((tab) => {
     test(tab + " renders non-empty HTML", () => {
       const html = renderTab(tab);
       expect(typeof html).toBe("string");
@@ -586,5 +586,55 @@ describe("feedback fixes", () => {
     expect(h).toContain("11t1t1p1p5");  // raw gcd
     expect(h).toContain("ad_user_data"); // gcd v2 signal label (via chip text)...
     globalThis.__panel.setExpanded({});
+  });
+});
+
+// ── card #47: Diagnose tab (Health-Score, Consent-Timeline, Compliance-Report) ──
+describe("Diagnose tab", () => {
+  test("health-score badge + per-check list render; sample snapshot is a pass", () => {
+    const P = globalThis.__panel;
+    P.setNet([]);
+    const html = renderTab("diagnose");
+    expect(html).toContain("Health-Score");
+    expect(html).toContain("score-badge");
+    expect(html).toContain("Consent-Mechanismus");
+    expect(html).toContain("GTM injiziert");
+    // sample: cmp pass (hasConsentCheck), consent pass, inject pass, no traps → no fail
+    expect(html).toContain("score-pass");
+    // leaks check is N/A with no network captured yet
+    expect(html).toContain("ci-na");
+    P.setNet([]);
+  });
+  test("a pre-consent leak flips the overall score to FAIL", () => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setNet([{ id: 1, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 4000, propId: "", evName: "", preConsent: true }]);
+    P.setTab("diagnose"); P.render();
+    const html = globalThis.document.getElementById("tab-diagnose")._html;
+    expect(html).toContain("score-fail");
+    expect(html).toContain("Pre-Consent-Leaks");
+    P.setNet([]);
+  });
+  test("a missing consent mechanism flips the score to FAIL", () => {
+    const snap = sampleSnap();
+    snap.cmp = ""; snap.hasConsentCheck = false;
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("score-fail");
+    expect(html).toContain("Consent wird nie erkannt");
+  });
+  test("consent timeline builds a waterfall from navStart + consentTs", () => {
+    // sample: navStart 900, log m1 1000, consentTs 5000 → ≥3 markers, relative to navStart
+    const html = renderTab("diagnose");
+    expect(html).toContain("Consent-Timeline");
+    expect(html).toContain("Seitenaufruf");
+    expect(html).toContain("CMP-Entscheidung");
+    expect(html).toContain("tl-bar");
+    expect(html).toContain("+0 ms"); // navStart is t0
+  });
+  test("report export buttons are present", () => {
+    const html = renderTab("diagnose");
+    expect(html).toContain('id="diag-md"');
+    expect(html).toContain('id="diag-json"');
+    expect(html).toContain('id="diag-dl"');
   });
 });

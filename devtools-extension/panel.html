@@ -146,6 +146,38 @@
   button.small { background: var(--panel); border: 1px solid var(--border); color: var(--fg); border-radius: 6px; padding: 3px 9px; cursor: pointer; font: inherit; }
   button.small:hover { border-color: var(--accent); color: var(--accent); }
   code { font-family: ui-monospace, monospace; }
+  /* ── Diagnose tab ────────────────────────────────────────────────── */
+  /* Health-Score ampel banner */
+  .score { display: flex; align-items: center; gap: 12px; }
+  .score-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px;
+    padding: 6px 14px; border-radius: 10px; letter-spacing: .3px; }
+  .score-badge .lamp { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .score-pass { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .score-pass .lamp { background: var(--ok); }
+  .score-warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+  .score-warn .lamp { background: var(--warn); }
+  .score-fail { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
+  .score-fail .lamp { background: var(--err); }
+  .score-counts { color: var(--muted); font-size: 11px; }
+  /* per-check rows */
+  .checks { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+  .check { display: grid; grid-template-columns: 18px max-content 1fr; gap: 8px; align-items: baseline; padding: 3px 0; border-top: 1px solid var(--border); }
+  .check:first-child { border-top: none; }
+  .check .ci { text-align: center; font-weight: 700; }
+  .check .cl { font-weight: 600; white-space: nowrap; }
+  .check .cd { color: var(--muted); }
+  .ci-pass { color: var(--ok); } .ci-warn { color: var(--warn); } .ci-fail { color: var(--err); } .ci-na { color: var(--muted); }
+  /* consent timeline waterfall */
+  .tl { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+  .tl-row { display: grid; grid-template-columns: 130px 66px 1fr; gap: 8px; align-items: center; }
+  .tl-lab { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-rel { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); text-align: right; }
+  .tl-bar-wrap { background: var(--chip); border-radius: 4px; height: 12px; overflow: hidden; }
+  .tl-bar { height: 100%; background: var(--accent); border-radius: 4px; min-width: 2px; }
+  .tl-dot { background: var(--accent); }
+  .report-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .copied { color: var(--ok); font-size: 11px; align-self: center; }
+  pre.report { max-height: 46vh; white-space: pre-wrap; word-break: break-word; }
 </style>
 </head>
 <body>
@@ -156,7 +188,8 @@
     <span class="ver" id="ver"></span>
   </header>
   <nav id="tabs">
-    <button data-tab="consent" class="active">Consent</button>
+    <button data-tab="diagnose" class="active">Diagnose</button>
+    <button data-tab="consent">Consent</button>
     <button data-tab="events">Events</button>
     <button data-tab="gtm">GTM</button>
     <button data-tab="datalayer">dataLayer</button>
@@ -165,7 +198,8 @@
     <button data-tab="network">Netzwerk</button>
   </nav>
   <main>
-    <section id="tab-consent" class="active"></section>
+    <section id="tab-diagnose" class="active"></section>
+    <section id="tab-consent"></section>
     <section id="tab-events"></section>
     <section id="tab-gtm"></section>
     <section id="tab-datalayer"></section>
@@ -176,6 +210,7 @@
   <script src="logmap.js"></script>
   <script src="netclassify.js"></script>
   <script src="consentsignals.js"></script>
+  <script src="diagnose.js"></script>
   <script src="jsonview.js"></script>
   <script src="panel.js"></script>
 </body>
