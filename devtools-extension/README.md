@@ -15,6 +15,7 @@ It is the human-facing companion to the `live-inspector` Claude Code skill.
 
 | Tab | Source in `window.aGTM` | Purpose |
 |---|---|---|
+| **Diagnose** | aggregates the other tabs (config traps + pre-consent leaks + consent presence + GTM injection) plus `reader` timestamps (`navStart`, `aGTM.l`, `aGTM.d.dl`, network capture) | At-a-glance overview instead of clicking through every tab. **(1) Health-Score** — a pass/warn/fail traffic-light aggregating the known failure modes (consent mechanism, consent recognised, GTM injected, pre-consent leaks, config traps) into one readout with a per-check list. **(2) Consent-Timeline** — a ms-stamped waterfall (page load → `config()` → CMP decision → GTM inject → first tag fire) that answers *"why did X fire before consent"* visually. **(3) Compliance-Report** — a one-click shareable snapshot (**Markdown/JSON** to clipboard, or `.md` download) built from leaks + consent flow + config traps + `consent_check` status, for the consulting/hand-off scenario |
 | **Consent** | `aGTM.d.consent`, `aGTM.d.session_status`, `consent_hash`/`last_consent_hash`, `aGTM.c.cmp`, `google_tag_data.ics`, dataLayer `consent` commands, vendor globals | Does GTM load, and why / why not? Plus a **Google Consent Mode sequence** (declare/implicit → default → update in order, with the final per-category state + timestamp, `update > default > declare/implicit`) and a **non-Google vendor box** detecting TCF/GPP/USP/GPC + Meta/UET/TikTok/LinkedIn/Pinterest/Amazon/Criteo, the consent signal each expects, and the state that's synchronously readable (GPC, `euconsent-v2`/`usprivacy`/`amzn_consent` cookies). Consent-command rows expand into the full sent payload |
 | **Events** | `aGTM.d.f` (queue), `aGTM.d.dl` (dispatched), `aGTM.l` (decoded log) | Event stream, queued-until-consent, `_noConsent`/`_noDLPush`/`_post` flags. Rows are **click-to-expand** into a syntax-highlighted full object. The decoded log is **bundled by id+event with a count** (so the ~2s consent poll's repeated `m2`/`m3` collapse into one counted row) and shows *which event* (`obj.event`) each entry belongs to. Once consent is present the queue is relabelled as **history** (its events were already replayed as `hastyEvents`). |
 | **GTM** | `aGTM.d.init`, `aGTM.c.gtm`, `aGTM.d.gtmLoaded` | Container injection status & order, live `dataLayer` length, per-container load mode (Google / custom-sGTM / inline base64 + env), and the **actual injected `<script>` tags** (DOM-level proof + load domain) |
@@ -57,10 +58,11 @@ artifact and must be rebuilt so it doesn't drift from source).
 manifest.json   MV3, no permissions, registers a devtools_page
 devtools.js     registers the "aGTM" panel
 panel.html      panel UI + styles (light/dark aware)
-panel.js        poll loop, six renderers, network capture, row expand/collapse
+panel.js        poll loop, seven renderers, network capture, row expand/collapse
 reader.js       page-context snapshot expression (eval'd, read-only, ES5-safe)
 netclassify.js  network classification + tracker/leak detection (browser global + node-require, unit-tested)
 consentsignals.js  gcs/gcd Consent-Mode signal decoders (browser global + node-require, unit-tested)
+diagnose.js     Diagnose-tab aggregation: health-score, consent-timeline, compliance-report (browser global + node-require, unit-tested)
 jsonview.js     pure JSON syntax highlighter (browser global + node-require, unit-tested)
 logmap.js       aGTM.l decode table (copy of aGTM_debug.js's logmap)
 icons/          the aGTM brand icon (16 / 48 / 128, resized from assets/aGTM.png)

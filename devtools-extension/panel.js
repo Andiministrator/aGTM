@@ -18,7 +18,7 @@ var JV = window.aGTMInspectorJsonView || { highlight: function (x) { return esc(
 var state = {
   snap: null,          // latest reader snapshot
   readerCode: null,    // text of reader.js
-  activeTab: "consent",
+  activeTab: "diagnose",
   net: [],             // captured network entries (newest first)
   netOnlyAGTM: true,
   netSearch: "",       // network free-text filter (prefix - to exclude)
@@ -27,7 +27,8 @@ var state = {
   // (type|timestamp|name). Encoded into the rendered HTML so it survives the
   // POLL_MS repaint (paint() only swaps innerHTML when the HTML string changes).
   expanded: {},
-  configBaseline: null   // first config snapshot seen, for the Config runtime-diff
+  configBaseline: null,  // first config snapshot seen, for the Config runtime-diff
+  diag: null             // latest Diagnose-tab inputs, for the report export buttons
 };
 
 /* ---------- theme ---------- */
@@ -170,11 +171,12 @@ function render() {
       : '<div class="empty">Auf dieser Seite ist <code>window.aGTM</code> (noch) nicht vorhanden.<br>' +
         "Seite laden, auf der aGTM eingebunden ist — die Ansicht aktualisiert sich automatisch.</div>";
     // network tab still useful without aGTM loaded
-    ["consent", "events", "gtm", "datalayer", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
+    ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
     renderNetwork();
     return;
   }
   switch (state.activeTab) {
+    case "diagnose": renderDiagnose(); break;
     case "consent": renderConsent(); break;
     case "events": renderEvents(); break;
     case "gtm": renderGTM(); break;
@@ -872,6 +874,12 @@ var CONFIG_TRAPS = [
   { key: "consent_store_enc", test: function (c) { return truthy(c.consent_store_enc); },
     msg: "consent_store_enc=true — der Server-Endpoint muss die XOR/Caesar-Payload entschlüsseln können (aktuell nicht implementiert, /aGTMconsent → 501)." }
 ];
+// Active config traps as plain {key,msg} data — shared by the Config tab and the
+// Diagnose health-score / compliance report.
+function activeConfigTraps(c, s) {
+  return CONFIG_TRAPS.filter(function (t) { try { return t.test(c, s); } catch (e) { return false; } })
+    .map(function (t) { return { key: t.key, msg: t.msg }; });
+}
 function jstr(v) { try { return JSON.stringify(v); } catch (e) { return String(v); } }
 // Top-level key diff of the config against the first snapshot seen this session —
 // surfaces what aGTM changed/added at runtime ("verändert / tatsächlich verwendet").
@@ -896,7 +904,7 @@ function shortVal(v) {
 function renderConfig() {
   var s = state.snap, c = s.config || {};
   if (!state.configBaseline && !isEmpty(c)) state.configBaseline = jstr(c);
-  var traps = CONFIG_TRAPS.filter(function (t) { try { return t.test(c, s); } catch (e) { return false; } });
+  var traps = activeConfigTraps(c, s);
   var html = "";
   if (traps.length) {
     html += '<div class="card warnbox"><h2>Mögliche Konfig-Fallen</h2><ul style="margin:4px 0 0;padding-left:18px">';
@@ -939,7 +947,37 @@ function renderConfig() {
 // unit-tested in test/devtools/netclassify.test.js).
 var NET = window.aGTMInspectorNet;
 var SIG = window.aGTMInspectorSignals || { decodeSignals: function () { return null; } };
+var DIAG = window.aGTMInspectorDiag || {
+  healthChecks: function () { return []; }, overallLevel: function () { return { level: "pass", counts: {} }; },
+  buildTimeline: function () { return { ok: false, rows: [] }; },
+  buildReportMarkdown: function () { return ""; }, buildReportJSON: function () { return "{}"; },
+  STATUS_ICON: {}
+};
 var netSeq = 0;
+
+// Decide whether a captured request is a pre-consent leak: a tracking hit stamped
+// preConsent at capture time, reconciled against the CURRENT consent timestamp (a
+// tracker that fired at/after the grant moment is legit, see Kritiker Runde 2, P2).
+// Returns the trackingHit ({vendor}) or null. Shared by renderNetwork + computeNetLeaks.
+function leakHitFor(e, cls, consentGranted, consentTs) {
+  if (!(e.preConsent && NET.trackingHit)) return null;
+  var reconciledLegit = consentGranted && consentTs && e.ts >= consentTs;
+  if (reconciledLegit) return null;
+  return NET.trackingHit(e.url, cls);
+}
+// All current pre-consent leaks as plain data — for the Diagnose health-score + report.
+function computeNetLeaks() {
+  var s = state.snap || {};
+  var scope = NET.sgtmScope(state.net, s.config), pageHost = s.pageHost || "";
+  var consentGranted = !!(s.consent && truthy(s.consent.gtmConsent));
+  var consentTs = s.consentTs || 0;
+  var out = [];
+  state.net.forEach(function (e) {
+    var hit = leakHitFor(e, NET.classify(e.url, scope, pageHost), consentGranted, consentTs);
+    if (hit) out.push({ vendor: hit.vendor, url: e.url, ts: e.ts, host: e.host });
+  });
+  return out;
+}
 // Notable query params to surface as chips in the URL cell — GTM/GA4/consent signals.
 var URL_KEYPARAMS = ["id", "tid", "en", "ep.event", "gcs", "gcd", "dma", "dma_cps", "npa", "v", "cid", "gtm"];
 function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + "…" : s; }
@@ -1356,12 +1394,7 @@ function renderNetwork() {
   var consentTs = snap.consentTs || 0;
   var mapped = state.net.map(function (e) {
     var cls = NET.classify(e.url, scope, pageHost);
-    var hit = null;
-    if (e.preConsent && NET.trackingHit) {
-      var reconciledLegit = consentGranted && consentTs && e.ts >= consentTs;
-      if (!reconciledLegit) hit = NET.trackingHit(e.url, cls);
-    }
-    return { e: e, cls: cls, leak: hit }; // leak = tracking request that fired before consent
+    return { e: e, cls: cls, leak: leakHitFor(e, cls, consentGranted, consentTs) }; // leak = tracking request that fired before consent
   });
   var leaks = mapped.filter(function (r) { return r.leak; });
   var rows = state.netOnlyAGTM ? mapped.filter(function (r) { return r.cls; }) : mapped;
@@ -1499,6 +1532,145 @@ function renderNetwork() {
         }
       }
     }
+  }
+}
+
+/* ---------- Diagnose (card #47: Health-Score, Consent-Timeline, Compliance-Report) ---------- */
+// Resolve the lifecycle-milestone timestamps for the Consent-Timeline from the sources
+// that carry them (all epoch ms, same clock basis): aGTM.l log ids, aGTM.d.dl event
+// aGTMts, and the panel's own network capture (which knows classify()).
+function timelineSignals() {
+  var s = state.snap || {};
+  function logTs(id) {
+    var best = 0, L = s.log || [];
+    for (var i = 0; i < L.length; i++) { var e = L[i]; if (e && e.id === id && e.timestamp && (!best || e.timestamp < best)) best = e.timestamp; }
+    return best;
+  }
+  function dlTs(name) {
+    var best = 0, D = s.dl || [];
+    for (var i = 0; i < D.length; i++) { var e = D[i]; if (e && e.event === name && e.aGTMts && (!best || e.aGTMts < best)) best = e.aGTMts; }
+    return best;
+  }
+  // Network-derived: earliest gtm.js/gtag.js load, and the first actual tag/collect hit
+  // (excluding the container load itself — that's the "inject" marker, not a tag fire).
+  var scope = NET.sgtmScope(state.net, s.config), pageHost = s.pageHost || "";
+  var netGtm = 0, firstTag = 0;
+  for (var i = 0; i < state.net.length; i++) {
+    var e = state.net[i], cls = NET.classify(e.url, scope, pageHost);
+    if (!cls) continue;
+    if (cls.key === "gtm.js" || cls.key === "gtag.js") { if (!netGtm || e.ts < netGtm) netGtm = e.ts; }
+    else if (NET.trackingHit && NET.trackingHit(e.url, cls)) { if (!firstTag || e.ts < firstTag) firstTag = e.ts; }
+  }
+  return {
+    navStart: s.navStart || 0,
+    config: logTs("m1"),
+    pending: logTs("m8"),
+    // m6 = GTM injected, m5 = GTAG injected (log); else the aGTM_ready / gtm.js DL event; else the wire.
+    consent: s.consentTs || logTs("m3") || logTs("m2"),
+    inject: logTs("m6") || logTs("m5") || dlTs("aGTM_ready") || dlTs("gtm.js") || netGtm,
+    firstTag: firstTag
+  };
+}
+
+// Copy helper — Clipboard API with a textarea/execCommand fallback (DevTools panel context).
+function flashCopied(msg) {
+  var note = el("diag-copied"); if (!note) return;
+  note.textContent = msg || "kopiert ✓";
+  try { setTimeout(function () { var n = el("diag-copied"); if (n) n.textContent = ""; }, 1800); } catch (e) { /* ignore */ }
+}
+function copyText(text) {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { flashCopied(); }, function () { fallbackCopy(text); });
+      return;
+    }
+  } catch (e) { /* fall through */ }
+  fallbackCopy(text);
+}
+function fallbackCopy(text) {
+  try {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+    flashCopied();
+  } catch (e) { flashCopied("Kopieren nicht möglich"); }
+}
+function downloadText(text, filename) {
+  try {
+    var blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 2000);
+    flashCopied("heruntergeladen ✓");
+  } catch (e) { flashCopied("Download nicht möglich"); }
+}
+// Assemble the report context from the last-rendered Diagnose inputs (kept in state.diag,
+// which renderDiagnose refreshes every poll). generatedAt is stamped fresh per click.
+function diagReportCtx() {
+  var d = state.diag || {};
+  return {
+    snap: state.snap, checks: d.checks, level: d.level, timeline: d.timeline,
+    leaks: d.leaks, traps: d.traps, generatedAt: (new Date()).toISOString()
+  };
+}
+
+function renderDiagnose() {
+  var s = state.snap, c = s.config || {};
+  var traps = activeConfigTraps(c, s);
+  var leaks = computeNetLeaks();
+  var netCaptured = state.net.length > 0;
+  var checks = DIAG.healthChecks(s, leaks, traps, netCaptured);
+  var overall = DIAG.overallLevel(checks);
+  var timeline = DIAG.buildTimeline(timelineSignals());
+  // Keep inputs so the export buttons build the report from exactly what's shown.
+  state.diag = { checks: checks, level: overall.level, timeline: timeline, leaks: leaks, traps: traps };
+
+  var lvlLabel = { pass: "Alles im grünen Bereich", warn: "Mit Warnungen", fail: "Kritische Probleme" }[overall.level] || "—";
+  var ct = overall.counts || {};
+  var countsStr = (ct.pass || 0) + "× ✓ · " + (ct.warn || 0) + "× ⚠ · " + (ct.fail || 0) + "× ✗" + (ct.na ? (" · " + ct.na + "× –") : "");
+
+  var html = '<div class="card"><h2>Health-Score</h2>' +
+    '<div class="score"><span class="score-badge score-' + overall.level + '"><span class="lamp"></span>' + esc(lvlLabel) + "</span>" +
+    '<span class="score-counts">' + esc(countsStr) + "</span></div>" +
+    '<div class="checks">';
+  checks.forEach(function (ch) {
+    html += '<div class="check"><span class="ci ci-' + ch.status + '">' + (DIAG.STATUS_ICON[ch.status] || "?") + "</span>" +
+      '<span class="cl">' + esc(ch.label) + '</span><span class="cd">' + esc(ch.detail) + "</span></div>";
+  });
+  html += "</div></div>";
+
+  // Consent timeline waterfall
+  html += '<div class="card"><h2>Consent-Timeline</h2>';
+  if (!timeline.ok) {
+    html += '<div class="muted">Keine Timeline-Marker verfügbar. Seite mit geöffnetem Inspector neu laden, damit Seitenaufruf, CMP-Entscheidung und GTM-Injection zeitlich erfasst werden.</div>';
+  } else {
+    var span = timeline.span || 0;
+    html += '<div class="muted" style="margin-bottom:6px">Relativ ab Seitenaufruf (ms)' + (span ? (" · Spanne " + span + " ms") : "") + ".</div><div class=\"tl\">";
+    timeline.rows.forEach(function (r) {
+      var pct = span ? Math.max(2, Math.round((r.rel / span) * 100)) : 2;
+      html += '<div class="tl-row"><span class="tl-lab">' + esc(r.label) + "</span>" +
+        '<span class="tl-rel">+' + r.rel + ' ms</span>' +
+        '<span class="tl-bar-wrap"><span class="tl-bar' + (span ? "" : " tl-dot") + '" style="width:' + pct + '%"></span></span></div>';
+    });
+    html += "</div>";
+  }
+  html += "</div>";
+
+  // Compliance report export
+  html += '<div class="card"><h2>Compliance-Report</h2>' +
+    '<div class="muted" style="margin-bottom:8px">Ein-Klick-Momentaufnahme aus Health-Check, Consent-Flow, Timeline, Leaks &amp; Konfig-Fallen — teilbar mit Kunden.</div>' +
+    '<div class="report-actions">' +
+    '<button class="small" id="diag-md">Markdown kopieren</button>' +
+    '<button class="small" id="diag-json">JSON kopieren</button>' +
+    '<button class="small" id="diag-dl">Report herunterladen (.md)</button>' +
+    '<span class="copied" id="diag-copied"></span></div></div>';
+
+  if (paint("tab-diagnose", html)) {
+    var bMd = el("diag-md"); if (bMd) bMd.addEventListener("click", function () { copyText(DIAG.buildReportMarkdown(diagReportCtx())); });
+    var bJson = el("diag-json"); if (bJson) bJson.addEventListener("click", function () { copyText(DIAG.buildReportJSON(diagReportCtx())); });
+    var bDl = el("diag-dl"); if (bDl) bDl.addEventListener("click", function () { downloadText(DIAG.buildReportMarkdown(diagReportCtx()), "aGTM-report.md"); });
   }
 }
 
