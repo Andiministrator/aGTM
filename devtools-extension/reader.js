@@ -223,8 +223,12 @@
       dataLayerBase: hasDL ? Math.max(0, dlArr.length - 150) : 0,
       gtmScripts: gtmScripts,
       config: safeObj(c) || {},
-      dl: tail(d.dl || [], 50),
-      queue: tail(d.f || [], 50),
+      // F-56 (Kritiker Runde 2): dl/queue are aGTM.f.fire() event objects — the "dirtiest"
+      // source (a page can fire({event:'x', el: domNode}) or a cyclic object). Clone each
+      // PER ENTRY so one such event degrades to a sentinel instead of failing the whole
+      // outer clone() → {loaded:false} while aGTM is actually live.
+      dl: tail(d.dl || [], 50).map(safeObj),
+      queue: tail(d.f || [], 50).map(safeObj),
       queueLen: (d.f || []).length,
       // {id, timestamp, obj} — obj is cloned PER ENTRY via safeObj() so one
       // non-serialisable logged object (cycle / DOM node) degrades to a sentinel

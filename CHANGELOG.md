@@ -13,6 +13,25 @@ as **base64url** (`+` → `-`, `/` → `_`) via a single-line `.split().join()` 
 `sgtmClient/src/…`; the field help documents the encoding. **The bot-check
 service must decode base64url accordingly.**
 
+### Added — aGTM Inspector: consent fingerprint in the list view · library size-budget guard (＋ critic round 2)
+
+- **Consent fingerprint in the list view**: gcs/gcd requests now show a compact per-category
+  granted/denied/unset pill cluster (green/red/grey) inline in the Network list — scan a whole
+  request list and see what each hit was allowed to do without expanding. The same fingerprint
+  appears on dataLayer `gtag('consent',…)` command rows. gcd (4 signals) is preferred over gcs
+  (2) when both are present.
+- **Library size-budget guard** (`test/size-budget.test.js`): `bun test` now fails if
+  `aGTM.min.js` exceeds a deliberate raw/gzip ceiling — enforcing aGTM's "stay lean, not a
+  monster like GTM" goal automatically. A real increase requires a conscious budget bump (the
+  paper trail). Current: raw 35 932 B / gzip 10 815 B; budget 37 000 / 11 300.
+- **Critic round 2 fixes**: the F-64 event-table expand key used the *display* index, which for
+  the reverse-ordered dispatched-events list shifted on every new event and collapsed open rows
+  — now a stable natural-order ordinal. Reader clones `dl`/`queue` per entry via `safeObj` (a
+  fired event carrying a DOM ref no longer fails the whole snapshot). The pre-consent leak stamp
+  is reconciled at render time against `consentTs`, so a tracker that legitimately fired right
+  after "Accept" (before the next 700 ms poll) is no longer flagged. Leak banner notes its count
+  is filter-independent.
+
 ### Added — aGTM Inspector: pre-consent leak detector + gcs/gcd decode (＋ critic-round fixes F-56…F-66)
 
 - **Pre-consent leak detector** (Network tab): every captured request is stamped with whether

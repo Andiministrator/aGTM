@@ -195,8 +195,8 @@ describe("feedback fixes", () => {
     expect(html).toContain("json-");
   });
   test("expanded event row renders a highlighted object", () => {
-    // key format is prefix|index|aGTMts|event (F-64); page_view is index 1 in the reversed dl
-    globalThis.__panel.setExpanded({ "d|1|111|page_view": true });
+    // key = prefix|naturalOrdinal|aGTMts|event (F-64 + Kritiker R2); page_view is natural index 0
+    globalThis.__panel.setExpanded({ "d|0|111|page_view": true });
     const html = renderTab("events");
     expect(html).toContain("jsonview");
     expect(html).toContain("json-key");
@@ -505,6 +505,72 @@ describe("feedback fixes", () => {
     P.setTab("network"); P.render();
     const html = globalThis.document.getElementById("tab-network")._html;
     expect(html).not.toContain("Pre-Consent-Leak");
+    P.setNet([]);
+  });
+  // ── Kritiker R2 P1: dl expand key stable across a streaming append ──────────
+  test("dl expand key stays stable when a new event streams in", () => {
+    const P = globalThis.__panel;
+    P.setExpanded({ "d|0|111|page_view": true }); // page_view is natural index 0 in sample dl
+    let html = renderTab("events");               // 2-event dl
+    expect(html).toContain("page_title");         // page_view detail is open
+    const grown = sampleSnap();
+    grown.dl = grown.dl.concat([{ event: "add_to_cart", aGTMts: 444 }]); // a new event arrives
+    html = renderTab("events", grown);
+    expect(html).toContain("page_title");         // STILL open — key did not shift with the append
+    P.setExpanded({});
+  });
+  // ── Kritiker R2 P2: leak stamp reconciled against consentTs ────────────────
+  test("a tracker that fired at/after the consent grant is NOT a leak (snapshot-lag reconcile)", () => {
+    const P = globalThis.__panel;
+    const snap = sampleSnap(); // consent.gtmConsent=true, consentTs=5000
+    P.setSnap(snap);
+    P.setNet([
+      { id: 21, url: "https://connect.facebook.net/tr?id=1", host: "connect.facebook.net", method: "GET", status: 200, ts: 6000, propId: "", evName: "", preConsent: true }, // after grant → legit
+      { id: 22, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 4000, propId: "", evName: "", preConsent: true }  // before grant → leak
+    ]);
+    P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
+    P.setTab("network"); P.render();
+    const html = globalThis.document.getElementById("tab-network")._html;
+    expect(html).toContain("Pre-Consent-Leak"); // the ts=4000 tiktok hit
+    expect(html).toContain("TikTok");
+    expect(html).not.toContain("Meta Pixel");   // the ts=6000 fb hit was reconciled as legit
+    P.setNet([]);
+  });
+  // ── new feature: consent fingerprint in the list view ──────────────────────
+  test("network list shows a per-category consent fingerprint for gcs/gcd requests", () => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setNet([{
+      id: 11, url: "https://region1.google-analytics.com/g/collect?v=2&gcs=G101&gcd=11t1t1p1p5&tid=G-X",
+      host: "region1.google-analytics.com", method: "POST", status: 204, ts: 1, propId: "G-X", evName: "page_view", preConsent: false
+    }]);
+    P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
+    P.setTab("network"); P.render();
+    const html = globalThis.document.getElementById("tab-network")._html;
+    expect(html).toContain("cfp-row");
+    expect(html).toContain("cfp-g"); // ad_storage granted (gcd t)
+    expect(html).toContain("cfp-d"); // ad_personalization denied (gcd p)
+    expect(html).toContain(">aud<"); // ad_user_data pill label
+    P.setNet([]);
+  });
+  test("dataLayer consent command row shows a consent fingerprint inline", () => {
+    const html = renderTab("datalayer");
+    // sample dataLayerSample has {0:'consent',1:'update',2:{ad_storage:'granted'}}
+    expect(html).toContain("cfp-row");
+    expect(html).toContain("cfp-g");
+  });
+  test("fingerprint prefers gcd (4 signals) over gcs, and renders unset pills for gcd 'l'", () => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setNet([{
+      id: 12, url: "https://region1.google-analytics.com/g/collect?v=2&gcs=G11&gcd=11l1l1t1t5&tid=G-X",
+      host: "region1.google-analytics.com", method: "POST", status: 204, ts: 1, propId: "G-X", evName: "", preConsent: false
+    }]);
+    P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
+    P.setTab("network"); P.render();
+    const html = globalThis.document.getElementById("tab-network")._html;
+    expect(html).toContain(">aud<"); // ad_user_data pill → gcd (4 signals) was chosen, not gcs (2)
+    expect(html).toContain("cfp-u"); // gcd 'l' → unset pill
     P.setNet([]);
   });
   // ── new feature: gcs/gcd consent-signal decode ─────────────────────────────
