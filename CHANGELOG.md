@@ -2,6 +2,31 @@
 
 ## Version 1.5 — *in development*
 
+### Added — aGTM Inspector: Simulation tab (opt-in write channel)
+
+A new **Simulation tab** turns the otherwise read-only Inspector into a flow driver
+— for testing an integration without clicking a real cookie banner. It can:
+
+- **Simulate a consent decision** with granular control: toggle exactly which
+  **purposes / services (+IDs) / vendors (+IDs)** are granted (pre-filled from
+  `gtmPurposes`/`gtmServices`/`gtmVendors` so you see what GTM actually requires),
+  **persisted per host** and saveable as **named presets**. Grant installs a
+  temporary `aGTM.f.consent_check` and calls `aGTM.f.run_cc('update')`, so the
+  genuine reset → check → `chelp` → `gtmConsent` → `inject` → replay path runs.
+- **Deny / reset**, **mock the CMP** (persistent `consent_check` stub, restorable
+  via a backup under `aGTM.f.__inspOrigCC`), **fire an event** (`aGTM.f.fire` with
+  editable JSON + `_noConsent`/`_noDLPush`/`_post` flags + recent-event history),
+  and **force GTM injection**. A live effect panel shows the resulting
+  `gtmConsent` / injection / dataLayer state.
+
+**Posture:** this is the one write-enabled tab. It uses the **same**
+`inspectedWindow.eval` bridge as the read-only reader (so **no new manifest
+permission**), but writes only through a separate `sim.js` channel — and only
+after a per-session **Write-Modus** toggle is switched on (**default off**, never
+persisted). `reader.js` stays a pure reader. The mutating code builders are ES5-safe
+and unit-tested (`test/devtools/sim.test.js`). See
+`devtools-extension/README.md` → *Simulation & the write channel*.
+
 ### Fixed — bot-check payload now uses URL-safe Base64 (base64url)
 
 The sGTM Client's optional bot check appends a Base64-encoded `{UserAgent,

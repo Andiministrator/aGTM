@@ -61,7 +61,7 @@ beforeAll(() => {
   // `state`/`render` from the SAME eval scope (var/function don't leak to globalThis
   // under bun's ESM indirect eval, so we expose handles explicitly).
   var base = "./devtools-extension/";
-  var src = ["logmap.js", "netclassify.js", "consentsignals.js", "diagnose.js", "jsonview.js", "panel.js"]
+  var src = ["logmap.js", "netclassify.js", "consentsignals.js", "diagnose.js", "jsonview.js", "panel.js", "sim.js"]
     .map(function (f) { return readFileSync(base + f, "utf8"); })
     .join("\n;\n");
   src += "\n;globalThis.__panel = {" +
@@ -158,7 +158,7 @@ describe("panel boot", () => {
 });
 
 describe("every tab renders without throwing", () => {
-  ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config", "network"].forEach((tab) => {
+  ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config", "network", "sim"].forEach((tab) => {
     test(tab + " renders non-empty HTML", () => {
       const html = renderTab(tab);
       expect(typeof html).toBe("string");

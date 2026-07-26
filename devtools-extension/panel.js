@@ -225,7 +225,7 @@ function render() {
       : '<div class="empty">Auf dieser Seite ist <code>window.aGTM</code> (noch) nicht vorhanden.<br>' +
         "Seite laden, auf der aGTM eingebunden ist — die Ansicht aktualisiert sich automatisch.</div>";
     // network tab still useful without aGTM loaded
-    ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
+    ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config", "sim"].forEach(function (t) { paint("tab-" + t, msg); });
     renderNetwork();
     return;
   }
@@ -238,6 +238,7 @@ function render() {
     case "session": renderSession(); break;
     case "config": renderConfig(); break;
     case "network": renderNetwork(); break;
+    case "sim": renderSim(); break;
   }
 }
 

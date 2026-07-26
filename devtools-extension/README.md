@@ -9,7 +9,10 @@ It is the human-facing companion to the `live-inspector` Claude Code skill.
 
 > **Status:** MVP. The extension version is **coupled to the aGTM library version**
 > (currently 1.5) — `scripts/inject-version.js` writes `manifest.json` from `VERSION`
-> on every build. Read-only — it never writes to the page.
+> on every build. **Read-only by default** — every tab except **Simulation** only
+> reads the page. The Simulation tab is an explicit, opt-in exception (a per-session
+> "Write-Modus" toggle, off by default) that drives the page for testing; see
+> [Simulation & the write channel](#simulation--the-write-channel) below.
 
 ## What it shows
 
@@ -23,6 +26,7 @@ It is the human-facing companion to the `live-inspector` Claude Code skill.
 | **Session** | `aGTM.d.session`, `aGTM.d.attribution.<method>.*`, `window.se_data` | Session source & attribution, syntax-highlighted. Falls back to a site's `window.se_data` object when `aGTM.d.session` is empty |
 | **Config** | `aGTM.c` + highlighted config traps | The **effective** config in effect after `config()` (defaults + integrator + sGTM-Client injection), syntax-highlighted, plus known config-trap warnings and a **runtime-diff** (first snapshot → current) showing what aGTM derived/changed at runtime |
 | **Netzwerk** | `chrome.devtools.network` | gtm.js / `/aGTMconsent` / `/aGTM.js` / sources / GA hits, **plus** event/collect POSTs to the sGTM (aEvents pipeline) — matched by host + learned path-prefix so first-party traffic isn't swept in under reverse-proxy setups. A **pre-consent leak banner** flags any tracking/marketing request (Google tags + Meta/TikTok/UET/LinkedIn/Pinterest/Criteo/Snap/X/Clarity/… pixels) that fired while `gtmConsent` was still false, with a per-row `⚠ pre-consent` badge (reconciled against the consent timestamp so a hit right after "Accept" isn't false-flagged). A **consent fingerprint** — a compact per-category granted/denied/unset pill cluster decoded from the request's `gcs`/`gcd` params — is shown inline in the list (also on dataLayer consent-command rows). A **search box** (prefix `-` to exclude, e.g. `-clarity`) + per-host checkboxes to filter, **smart URL** (dimmed host, emphasised path, key params as chips), the request's **event name** (`en`) and **property/measurement/stream ID** (`id`/`tid`) under the type badge, a **payload preview** (gzip bodies auto-decompressed via `DecompressionStream`; **aEvents** `?e=`/`?q=` payloads decoded — obfuscated ones by brute-forcing the 63 Caesar shifts, no salt needed), and rows **click-to-expand** into separate collapsible sub-sections (General · **Consent-Signale gcs/gcd decoded** · Query-String · Request-/Response-Header · Payload · aEvents entschlüsselt) |
+| **Simulation** | **writes** `window.aGTM` via `inspectedWindow.eval` (opt-in) | **The one write-enabled tab.** Drive the page to exercise the flow instead of clicking a real banner: **simulate a consent decision** with granular control (toggle exactly which **purposes / services (+IDs) / vendors (+IDs)** are granted — pre-filled from `gtmPurposes`/`gtmServices`/`gtmVendors` so you see what GTM actually requires — persisted per host, saveable as **named presets**), **deny/reset**, **mock the CMP** (install a persistent `consent_check` stub, restorable), **fire an event** (`aGTM.f.fire` with editable JSON + `_noConsent`/`_noDLPush`/`_post` flags + recent-event history), and **force GTM injection**. A live effect panel shows the resulting `gtmConsent`/injection/dataLayer state. Everything is gated behind a per-session **Write-Modus** toggle (default **off**, never persisted). See below. |
 
 ## How it works (and why it needs no permissions)
 
@@ -36,6 +40,30 @@ the Chrome Web Store.
 The panel polls the reader every ~700 ms and re-renders. `reader.js` is defensive:
 if `window.aGTM` is absent or half-initialised it returns `{loaded:false}` and the
 panel shows a hint instead of throwing.
+
+## Simulation & the write channel
+
+Every tab except **Simulation** is strictly read-only. The Simulation tab is the one
+deliberate exception: it *drives* the inspected page (sets consent, fires events,
+forces GTM injection, mocks the CMP). It does so through the **same**
+`chrome.devtools.inspectedWindow.eval()` bridge — which can already mutate the page,
+so **no new Chrome permission is required** and `manifest.json` still declares none.
+What changes is the *posture*, and that is handled deliberately, not silently:
+
+- **`reader.js` stays a pure reader.** All writes live in `sim.js`, in their own
+  `eval` calls, cleanly separated from the read-only snapshot poll.
+- **Nothing writes until you opt in.** A per-session **Write-Modus** toggle gates
+  every action; it defaults to **off** and is **never persisted**, so each time you
+  open the panel the tab is as read-only as the rest until you flip it.
+- **The mechanism mirrors the real library path.** A simulated consent decision
+  installs a temporary `aGTM.f.consent_check` (backed up under `aGTM.f.__inspOrigCC`,
+  restorable) and calls `aGTM.f.run_cc('update')` — so the genuine
+  reset → check → `chelp` → `gtmConsent` → `inject` → replay path runs, exactly as a
+  real CMP decision would. The consent selection (which purposes/services/vendors)
+  is stored per host in `localStorage`, with named presets.
+- **Honesty caveat surfaced in-UI:** simulation cannot *un-inject* an already-loaded
+  GTM (the `<script>` is in the DOM). A true first-visit re-test needs a consent-cookie
+  clear + reload; the tab says so.
 
 ## Install (load unpacked)
 
@@ -58,8 +86,9 @@ artifact and must be rebuilt so it doesn't drift from source).
 manifest.json   MV3, no permissions, registers a devtools_page
 devtools.js     registers the "aGTM" panel
 panel.html      panel UI + styles (light/dark aware)
-panel.js        poll loop, seven renderers, network capture, row expand/collapse
+panel.js        poll loop, eight renderers, network capture, row expand/collapse
 reader.js       page-context snapshot expression (eval'd, read-only, ES5-safe)
+sim.js          Simulation tab — opt-in WRITE channel (mutating eval builders + UI; ES5-safe injected code; builders unit-tested)
 netclassify.js  network classification + tracker/leak detection (browser global + node-require, unit-tested)
 consentsignals.js  gcs/gcd Consent-Mode signal decoders (browser global + node-require, unit-tested)
 diagnose.js     Diagnose-tab aggregation: health-score, consent-timeline, compliance-report (browser global + node-require, unit-tested)
