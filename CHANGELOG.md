@@ -32,6 +32,11 @@ diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
 - **Compliance-Report** — a one-click shareable snapshot (Markdown/JSON to
   clipboard, or `.md` download) from leaks + consent flow + config traps +
   `consent_check` status, for the consulting/hand-off scenario.
+- **Session & IDs** — the current session-id / user-id / CRM `user_id` with a
+  first-observed timestamp, **plus a live change history**: the panel diffs the ids
+  on every poll and logs each change (from → to, timestamped), so the v1.5 F→C
+  user-id promote (fingerprint `F.…` → stable cookie `C.…` after consent) is
+  visible as it happens. In-memory (survives page reloads while DevTools stays open).
 
 The aggregation lives in a new pure `diagnose.js` (browser global + node-require,
 like `netclassify.js`) and is unit-tested (`test/devtools/diagnose.test.js` +

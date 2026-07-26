@@ -83,6 +83,8 @@ beforeAll(() => {
     "  decodeAEvents: decodeAEvents," +
     "  saveSettings: saveSettings," +
     "  loadSettings: loadSettings," +
+    "  trackIds: trackIds," +
+    "  clearIds: function(){ state.idTrack = {}; state.idHistory = []; }," +
     "  withScrollAnchor: withScrollAnchor" +
     "};";
   (0, eval)(src);
@@ -701,6 +703,52 @@ describe("Diagnose tab", () => {
     expect(html).toContain("Erster Tag-Fire");    // GA collect
     expect(html).toContain("+0 ms");              // navStart is t0
     P.setNet([]);
+  });
+  test("Session & IDs: current sid/uid shown with a 'since' timestamp", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    P.trackIds({ loaded: true, session: { sid: "s1", uid: "C.1.abc" }, config: { user_id: "crm-42" } });
+    const html = renderTab("diagnose");
+    expect(html).toContain("Session &amp; IDs");
+    expect(html).toContain("Session-ID");
+    expect(html).toContain("C.1.abc");
+    expect(html).toContain("crm-42");
+    expect(html).toContain("seit");
+    P.clearIds();
+  });
+  test("Session & IDs: the F→C user-id promote is recorded as a change (from → to)", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    P.trackIds({ loaded: true, session: { sid: "s1", uid: "F.1.fingerprint" }, config: {} }); // pre-consent fingerprint
+    P.trackIds({ loaded: true, session: { sid: "s1", uid: "C.1.stable" }, config: {} });       // promote after consent
+    const html = renderTab("diagnose");
+    expect(html).toContain("Änderungen");
+    expect(html).toContain("F.1.fingerprint"); // from
+    expect(html).toContain("C.1.stable");      // to
+    expect(html).toContain("gesetzt");         // the initial sid/uid set entries
+    P.clearIds();
+  });
+  test("Session & IDs: a mid-navigation {loaded:false} does not record a spurious clear", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    P.trackIds({ loaded: true, session: { sid: "s1", uid: "C.1.abc" }, config: {} });
+    P.trackIds({ loaded: false }); // navigation blip — must be ignored
+    P.trackIds({ loaded: true, session: { sid: "s1", uid: "C.1.abc" }, config: {} });
+    const html = renderTab("diagnose");
+    // only the two initial 'gesetzt' entries (sid + uid), no clear/change from the blip
+    expect(html).not.toContain("→"); // no change arrow rendered
+    P.clearIds();
+  });
+  test("Session & IDs: empty session shows the promote hint, no history", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    const snap = sampleSnap();
+    snap.session = { source: "", sid: "", uid: "", raw: {} };
+    snap.config = { cmp: "", gtm: { "G": {} }, gdl: "dataLayer" };
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("Noch keine ID-Änderung");
+    expect(html).toContain("F→C-User-ID-Promote");
+    P.clearIds();
   });
   test("net-derived markers use request START (finished ts − duration), not the finish time (F-3)", () => {
     const P = globalThis.__panel;
