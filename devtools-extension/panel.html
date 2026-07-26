@@ -172,9 +172,18 @@
   .tl-row { display: grid; grid-template-columns: 130px 66px 1fr; gap: 8px; align-items: center; }
   .tl-lab { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tl-rel { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); text-align: right; }
-  .tl-bar-wrap { background: var(--chip); border-radius: 4px; height: 12px; overflow: hidden; }
+  .tl-track { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .tl-bar-wrap { flex: 1; background: var(--chip); border-radius: 4px; height: 12px; overflow: hidden; }
   .tl-bar { height: 100%; background: var(--accent); border-radius: 4px; min-width: 2px; }
-  .tl-dot { background: var(--accent); }
+  /* per-milestone bar colours (reuse the panel palette so it reads in light + dark) */
+  .tl-bar.b-navStart { background: var(--muted); }
+  .tl-bar.b-config   { background: var(--accent); }
+  .tl-bar.b-pending  { background: var(--warn); }
+  .tl-bar.b-consent  { background: var(--ok); }
+  .tl-bar.b-inject   { background: #ae3ec9; }
+  .tl-bar.b-firstTag { background: #1098ad; }
+  .tl-bar.b-leak     { background: var(--err); }
+  .tl-leak { color: var(--err); font-size: 10px; margin-left: 6px; }
   .report-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   .copied { color: var(--ok); font-size: 11px; align-self: center; }
 </style>
