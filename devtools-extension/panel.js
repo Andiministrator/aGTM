@@ -1766,16 +1766,27 @@ function renderDiagnose() {
   // smart derivations. IMPORTANT: the counters are a SNAPSHOT at page load — they do NOT
   // advance during the page (the reader keeps reading the same aGTM.d.session). Only the
   // Session-Alter is live (derived from the authentic `created` timestamp).
-  var num = function (k) { return typeof raw[k] === "number" ? raw[k] : null; };
-  var sc = num("sessionCount"), pv = num("pvCount"), ec = num("eventCount"), cnt = num("counter");
-  var hasCreated = typeof raw.created === "number" && raw.created > 0;
+  // Prefer aGTM.d.session; fall back to window.se_data (some sites — e.g. fc-moto — expose the
+  // Session-API counters there but NOT yet in aGTM.d.session; the sGTM Client should pass them
+  // through — Andi 2026-07-26). Track whether any value came from the se_data backup.
+  var se = s.seData || {};
+  var fromSe = false;
+  var metric = function (k) {
+    if (typeof raw[k] === "number") return raw[k];
+    if (typeof se[k] === "number") { fromSe = true; return se[k]; }
+    return null;
+  };
+  var sc = metric("sessionCount"), pv = metric("pvCount"), ec = metric("eventCount"), cnt = metric("counter");
+  var createdVal = 0;
+  if (typeof raw.created === "number" && raw.created > 0) createdVal = raw.created;
+  else if (typeof se.created === "number" && se.created > 0) { createdVal = se.created; fromSe = true; }
   var tiles = [];
   if (sc !== null) tiles.push({ num: "#" + sc, lab: "Sitzung", sub: sc > 1 ? "Wiederkehrer" : "Erstbesuch" });
   if (pv !== null) tiles.push({ num: String(pv), lab: "Seitenaufrufe", sub: "diese Session" });
   if (ec !== null) tiles.push({ num: String(ec), lab: "Events", sub: "diese Session" });
   if (ec !== null && pv) tiles.push({ num: (ec / pv).toFixed(1).replace(/\.0$/, ""), lab: "Events / Aufruf", sub: "Engagement" });
   else if (cnt !== null) tiles.push({ num: String(cnt), lab: "Counter", sub: "aGTM-intern" });
-  if (hasCreated) tiles.push({ num: humanAge((new Date()).getTime() - raw.created * 1000), lab: "Session-Alter", sub: "seit " + fmtStamp(raw.created * 1000) });
+  if (createdVal > 0) tiles.push({ num: humanAge((new Date()).getTime() - createdVal * 1000), lab: "Session-Alter", sub: "seit " + fmtStamp(createdVal * 1000) });
   if (tiles.length) {
     html += '<div class="stats">';
     tiles.forEach(function (t) {
@@ -1783,7 +1794,8 @@ function renderDiagnose() {
         (t.sub ? '<div class="sub">' + esc(t.sub) + "</div>" : "") + "</div>";
     });
     html += "</div>" +
-      '<div class="muted" style="margin-top:6px;font-size:11px">Die Zähler sind ein <strong>Server-Stand vom Seitenaufruf</strong> (<code>/aGTM.js</code>) und laufen während der Seite <strong>nicht</strong> weiter. Nur das Session-Alter aktualisiert sich live.</div>';
+      '<div class="muted" style="margin-top:6px;font-size:11px">Die Zähler sind ein <strong>Server-Stand vom Seitenaufruf</strong> (<code>/aGTM.js</code>) und laufen während der Seite <strong>nicht</strong> weiter. Nur das Session-Alter aktualisiert sich live.' +
+      (fromSe ? ' <br>Quelle: <code>window.se_data</code> (Fallback — <code>aGTM.d.session</code> liefert diese Zähler noch nicht).' : "") + "</div>";
   } else {
     // Discovery aid: no known counters found → show which numeric fields DO exist in
     // aGTM.d.session, so a differently-named Session-API payload is immediately visible.

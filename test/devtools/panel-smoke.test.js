@@ -776,6 +776,20 @@ describe("Diagnose tab", () => {
     expect(html).toContain("Server-Stand vom Seitenaufruf"); // the mandatory snapshot caveat
     P.clearIds();
   });
+  test("Session & IDs: counters fall back to window.se_data when aGTM.d.session lacks them (fc-moto)", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    const snap = sampleSnap();
+    // fc-moto shape: aGTM.d.session has ids/vct but NOT the counters; se_data carries them
+    snap.session = { source: "none", sid: "e49a", uid: "C.1.fcm", raw: { uid: "C.1.fcm", sid: "e49a", ret: true, vct: 49 } };
+    snap.seData = { created: 1785059324, counter: 50, pvCount: 8, eventCount: 50, sessionCount: 56 };
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("#56");                    // sessionCount from se_data
+    expect(html).toContain("Wiederkehrer");
+    expect(html).toContain("Session-Alter");          // created from se_data
+    expect(html).toContain("window.se_data");         // source note (transparency)
+    P.clearIds();
+  });
   test("Session & IDs: first visit (sessionCount 1) is labelled Erstbesuch", () => {
     const P = globalThis.__panel;
     P.clearIds();

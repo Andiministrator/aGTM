@@ -43,6 +43,10 @@ diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
   events-per-pageview engagement, and a **live session age** from the authentic
   server `created` timestamp — with a clear caveat that the counters are a
   **page-load snapshot** (they don't advance during the page; only the age is live).
+  The counters are read from `aGTM.d.session`, **falling back to `window.se_data`**
+  (some sites — e.g. fc-moto — currently expose them only there; a source note flags
+  the fallback). When neither carries the known fields, the card lists the numeric
+  fields that *do* exist in `aGTM.d.session`, so a differently-named payload is visible.
 
 The aggregation lives in a new pure `diagnose.js` (browser global + node-require,
 like `netclassify.js`) and is unit-tested (`test/devtools/diagnose.test.js` +
