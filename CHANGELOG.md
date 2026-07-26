@@ -26,6 +26,9 @@ diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
   decision → GTM inject → first tag fire) resolved from `aGTM.l` log ids,
   `aGTM.d.dl` event timestamps and the network capture, anchored to a new
   read-only `navStart` (`performance.timing.navigationStart`) in `reader.js`.
+  Bars are **colour-coded per milestone** (reusing the panel palette); a first
+  tag fire landing **before** the CMP-decision marker is painted **red** with a
+  "⚠ vor Consent" flag — a pre-consent leak surfaced right on the timeline.
 - **Compliance-Report** — a one-click shareable snapshot (Markdown/JSON to
   clipboard, or `.md` download) from leaks + consent flow + config traps +
   `consent_check` status, for the consulting/hand-off scenario.

@@ -652,6 +652,24 @@ describe("Diagnose tab", () => {
     expect(html).toContain("CMP-Entscheidung");
     expect(html).toContain("tl-bar");
     expect(html).toContain("+0 ms"); // navStart is t0
+    // per-milestone colours (not one flat accent)
+    expect(html).toContain("tl-bar b-navStart");
+    expect(html).toContain("b-consent");
+  });
+  test("a tag fire before the CMP decision paints the bar red + flags it in the timeline", () => {
+    const P = globalThis.__panel;
+    const snap = sampleSnap();
+    snap.navStart = 1000;
+    snap.log = [{ id: "m3", timestamp: 3000, obj: {} }]; // CMP decision at +2000
+    snap.dl = []; snap.consentTs = 0;
+    P.setSnap(snap);
+    // a GA collect fires at ts=1500 (start) → +500, i.e. BEFORE the +2000 consent marker
+    P.setNet([{ id: 1, url: "https://region1.google-analytics.com/g/collect?v=2&tid=G-X", host: "region1.google-analytics.com", method: "POST", status: 204, ts: 1500, time: 0, propId: "", evName: "", preConsent: false }]);
+    P.setTab("diagnose"); P.render();
+    const html = globalThis.document.getElementById("tab-diagnose")._html;
+    expect(html).toContain("b-leak");        // firstTag bar painted red
+    expect(html).toContain("vor Consent");   // inline warning on the row
+    P.setNet([]);
   });
   test("report export buttons are present", () => {
     const html = renderTab("diagnose");

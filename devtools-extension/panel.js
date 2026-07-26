@@ -1665,12 +1665,21 @@ function renderDiagnose() {
   } else {
     var span = timeline.span || 0;
     var anchorLbl = timeline.anchored ? "Seitenaufruf" : "erstem Marker";
+    // Position of the CMP decision on the axis — a tag fire (firstTag) before it is a
+    // pre-consent leak, so we paint that bar red right in the timeline (the card's core
+    // question: "why did X fire before consent").
+    var consentRel = null;
+    for (var ci = 0; ci < timeline.rows.length; ci++) { if (timeline.rows[ci].key === "consent") { consentRel = timeline.rows[ci].rel; break; } }
     html += '<div class="muted" style="margin-bottom:6px">Balken = Zeit ab ' + anchorLbl + ' (ms, keine Phasendauer)' + (span ? (" · Spanne " + span + " ms") : "") + ".</div><div class=\"tl\">";
     timeline.rows.forEach(function (r) {
       var pct = span ? Math.max(2, Math.round((r.rel / span) * 100)) : 2;
+      var preConsent = r.key === "firstTag" && consentRel !== null && r.rel < consentRel;
+      var barCls = preConsent ? "b-leak" : ("b-" + r.key); // r.key is a controlled enum → safe in class
       html += '<div class="tl-row"><span class="tl-lab">' + esc(r.label) + "</span>" +
         '<span class="tl-rel">+' + r.rel + ' ms</span>' +
-        '<span class="tl-bar-wrap"><span class="tl-bar' + (span ? "" : " tl-dot") + '" style="width:' + pct + '%"></span></span></div>';
+        '<span class="tl-track"><span class="tl-bar-wrap"><span class="tl-bar ' + barCls + (span ? "" : " tl-dot") + '" style="width:' + pct + '%"></span></span>' +
+        (preConsent ? '<span class="tl-leak" title="Tag feuerte vor der CMP-Entscheidung">⚠ vor Consent</span>' : "") +
+        "</span></div>";
     });
     html += "</div>";
   }
