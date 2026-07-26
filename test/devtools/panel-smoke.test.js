@@ -136,6 +136,7 @@ function sampleSnap() {
       { type: "update", payload: { ad_storage: "granted", analytics_storage: "granted" } }
     ],
     consentTs: 5000, consentFirstTs: 1800,
+    logMilestones: { config: 1000, pending: 0, consent: 2000, inject: 0 },
     vendors: { tcf: true, gpp: false, usp: false, gpc: false, meta: true, uet: false, tiktok: false, linkedin: false, pinterest: false, amazon: false, criteo: false, snap: false, twitter: false },
     attribution: { last_touch: { sou: "google", med: "cpc" } }
   };
@@ -662,8 +663,9 @@ describe("Diagnose tab", () => {
     const P = globalThis.__panel;
     const snap = sampleSnap();
     snap.navStart = 1000;
-    snap.log = []; snap.dl = [];                 // no m3/m2 → fall back to the reader timestamps
-    snap.consentFirstTs = 1500;                  // first consent decision
+    snap.logMilestones = {};                     // no m3/m2 logged → fall back to the dl-derived first consent
+    snap.dl = [];
+    snap.consentFirstTs = 1500;                  // first consent event (reader, full dl)
     snap.consentTs = 70000;                      // last consent event (2s poll kept advancing it)
     const html = renderTab("diagnose", snap);
     expect(html).toContain("+500 ms");           // 1500 − 1000 → stable CMP marker
@@ -674,8 +676,8 @@ describe("Diagnose tab", () => {
     const P = globalThis.__panel;
     const snap = sampleSnap();
     snap.navStart = 1000;
-    snap.log = [{ id: "m3", timestamp: 3000, obj: {} }]; // CMP decision at +2000
-    snap.dl = []; snap.consentTs = 0;
+    snap.logMilestones = { consent: 3000 }; // CMP decision at +2000
+    snap.dl = []; snap.consentTs = 0; snap.consentFirstTs = 0;
     P.setSnap(snap);
     // a GA collect fires at ts=1500 (start) → +500, i.e. BEFORE the +2000 consent marker
     P.setNet([{ id: 1, url: "https://region1.google-analytics.com/g/collect?v=2&tid=G-X", host: "region1.google-analytics.com", method: "POST", status: 204, ts: 1500, time: 0, propId: "", evName: "", preConsent: false }]);
@@ -695,12 +697,9 @@ describe("Diagnose tab", () => {
     const P = globalThis.__panel;
     const snap = sampleSnap();
     snap.navStart = 900;
-    snap.log = [
-      { id: "m1", timestamp: 1000, obj: {} },   // config
-      { id: "m8", timestamp: 1100, obj: {} },   // pending
-      { id: "m3", timestamp: 1500, obj: {} },   // consent (first completion)
-      { id: "m6", timestamp: 1800, obj: {} }    // GTM injected
-    ];
+    // reader computes these over the FULL (uncapped) aGTM.l → first m1/m8/m3/m6
+    snap.logMilestones = { config: 1000, pending: 1100, consent: 1500, inject: 1800 };
+    snap.consentFirstTs = 0;
     P.setSnap(snap);
     P.setNet([
       { id: 1, url: "https://www.googletagmanager.com/gtm.js?id=GTM-X", host: "www.googletagmanager.com", method: "GET", status: 200, ts: 2000, time: 0, propId: "", evName: "", preConsent: false },
@@ -813,7 +812,7 @@ describe("Diagnose tab", () => {
     const P = globalThis.__panel;
     const snap = sampleSnap();
     snap.navStart = 1000;
-    snap.log = []; snap.dl = []; snap.consentTs = 0; // force inject to fall back to the network gtm.js
+    snap.logMilestones = {}; snap.dl = []; snap.consentTs = 0; snap.consentFirstTs = 0; // force inject to fall back to the network gtm.js
     P.setSnap(snap);
     // gtm.js finished at ts=3000 after a 800ms request → start ≈ 2200 → rel = 1200 (not 2000)
     P.setNet([{ id: 1, url: "https://www.googletagmanager.com/gtm.js?id=GTM-X", host: "www.googletagmanager.com", method: "GET", status: 200, ts: 3000, time: 800, propId: "", evName: "", preConsent: false }]);

@@ -1598,11 +1598,11 @@ function renderNetwork() {
 // aGTMts, and the panel's own network capture (which knows classify()).
 function timelineSignals() {
   var s = state.snap || {};
-  function logTs(id) {
-    var best = 0, L = s.log || [];
-    for (var i = 0; i < L.length; i++) { var e = L[i]; if (e && e.id === id && e.timestamp && (!best || e.timestamp < best)) best = e.timestamp; }
-    return best;
-  }
+  // Milestone timestamps come from the reader, computed over the FULL (uncapped) aGTM.l —
+  // NOT the tail(l,100) shipped for display. Reading "first m3 in the tail" from the panel
+  // wandered forward once the 2s consent poll grew the log past 100 entries (esp. with the
+  // tab backgrounded), stretching the bar to tens of seconds (Andi 2026-07-26).
+  var lm = s.logMilestones || {};
   function dlTs(name) {
     var best = 0, D = s.dl || [];
     for (var i = 0; i < D.length; i++) { var e = D[i]; if (e && e.event === name && e.aGTMts && (!best || e.aGTMts < best)) best = e.aGTMts; }
@@ -1623,16 +1623,14 @@ function timelineSignals() {
   }
   return {
     navStart: s.navStart || 0,
-    config: logTs("m1"),
-    pending: logTs("m8"),
-    // Prefer the FIRST consent completion (m3 setup-complete / m2 consent-available) so the
-    // marker anchors the CMP decision that triggered injection. Fallback is consentFirstTs
-    // (the FIRST consent event) — NOT consentTs (the LAST one), which wanders forward as the
-    // 2s poll / CMP re-pushes emit more consent events and would keep stretching the bar
-    // (Andi 2026-07-26) or invert the waterfall on a later re-consent (Kritiker UX-P2).
-    consent: logTs("m3") || logTs("m2") || s.consentFirstTs,
-    // m6 = GTM injected, m5 = GTAG injected (log); else the aGTM_ready / gtm.js DL event; else the wire.
-    inject: logTs("m6") || logTs("m5") || dlTs("aGTM_ready") || dlTs("gtm.js") || netGtm,
+    config: lm.config || 0,
+    pending: lm.pending || 0,
+    // m3 setup-complete / m2 consent-available (first occurrence, full log). Fallback:
+    // consentFirstTs (first consent event in aGTM.d.dl, also reader-computed over the full
+    // dl). Never consentTs (the LAST event) — that is what kept the marker wandering.
+    consent: lm.consent || s.consentFirstTs || 0,
+    // m6 = GTM injected, m5 = GTAG injected; else the aGTM_ready / gtm.js DL event; else the wire.
+    inject: lm.inject || dlTs("aGTM_ready") || dlTs("gtm.js") || netGtm,
     firstTag: firstTag
   };
 }
@@ -1786,6 +1784,18 @@ function renderDiagnose() {
     });
     html += "</div>" +
       '<div class="muted" style="margin-top:6px;font-size:11px">Die Zähler sind ein <strong>Server-Stand vom Seitenaufruf</strong> (<code>/aGTM.js</code>) und laufen während der Seite <strong>nicht</strong> weiter. Nur das Session-Alter aktualisiert sich live.</div>';
+  } else {
+    // Discovery aid: no known counters found → show which numeric fields DO exist in
+    // aGTM.d.session, so a differently-named Session-API payload is immediately visible.
+    var numFields = [];
+    for (var rk in raw) {
+      if (Object.prototype.hasOwnProperty.call(raw, rk) && typeof raw[rk] === "number") numFields.push(esc(rk) + "=" + esc(String(raw[rk])));
+    }
+    if (numFields.length) {
+      html += '<div class="muted" style="margin-top:8px;font-size:11px">Keine bekannten Session-API-Zähler (<code>sessionCount</code>/<code>pvCount</code>/<code>eventCount</code>/<code>created</code>) erkannt. Numerische Felder in <code>aGTM.d.session</code>: ' + numFields.join(", ") + ". Abweichende Feldnamen? Sag Bescheid.</div>";
+    } else {
+      html += '<div class="muted" style="margin-top:8px;font-size:11px">Keine Session-API-Zähler in <code>aGTM.d.session</code> gefunden (Session-API aktiv? Payload nur beim <code>/aGTM.js</code>-Request).</div>';
+    }
   }
   if (state.idHistory.length) {
     html += '<div class="muted" style="margin-top:8px">Änderungen (in dieser Inspector-Sitzung beobachtet):</div>' +

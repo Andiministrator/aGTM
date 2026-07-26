@@ -57,10 +57,13 @@ stays N/A (a captured leak is always a fail). The Consent-Timeline anchors its
 re-consent can't sort it behind "GTM injected"; network-derived markers use the
 request start (finished ts − duration) instead of the finish time; and the
 "since page load" label/anchor is now conditional (falls back to "first marker"
-when `navStart` is unavailable). When the debug log is inactive, the marker falls
-back to a new read-only `consentFirstTs` (the **first** consent event) rather than
-`consentTs` (the last one), which the 2s consent poll / CMP re-pushes keep advancing
-— that was stretching the timeline bar to tens of seconds (Andi 2026-07-26).
+when `navStart` is unavailable). The lifecycle-milestone timestamps (config / CMP
+decision / GTM inject / pending) are now taken from a new read-only `logMilestones`
+the reader computes over the **full, uncapped `aGTM.l`** (first occurrence) — not the
+panel's `tail(l,100)`, whose "first m3" wandered forward once the 2s consent poll grew
+the log past 100 entries (especially with the tab backgrounded), stretching the bar to
+tens of seconds. Fallback for a decision with no log entry is `consentFirstTs` (first
+consent event in `aGTM.d.dl`), never `consentTs` (the last one). Andi 2026-07-26.
 
 ### Added — aGTM Inspector: consent fingerprint in the list view · library size-budget guard (＋ critic round 2)
 
