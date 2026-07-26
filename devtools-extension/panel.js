@@ -1791,7 +1791,12 @@ function renderDiagnose() {
   if (ec !== null) tiles.push({ num: String(ec), lab: "Events", sub: "diese Session" });
   if (ec !== null && pv) tiles.push({ num: (ec / pv).toFixed(1).replace(/\.0$/, ""), lab: "Events / Aufruf", sub: "Engagement" });
   else if (cnt !== null) tiles.push({ num: String(cnt), lab: "Counter", sub: "aGTM-intern" });
-  if (createdVal > 0) tiles.push({ num: humanAge((new Date()).getTime() - createdVal * 1000), lab: "Session-Alter", sub: "seit " + fmtStamp(createdVal * 1000) });
+  if (createdVal > 0) {
+    // `created` is Unix seconds per the Session-API contract; accept ms defensively too
+    // (a >1e12 value is already ms) so a future data source can't show a nonsense age.
+    var createdMs = createdVal > 1e12 ? createdVal : createdVal * 1000;
+    tiles.push({ num: humanAge((new Date()).getTime() - createdMs), lab: "Session-Alter", sub: "gestartet " + fmtStamp(createdMs) });
+  }
   if (tiles.length) {
     html += '<div class="stats">';
     tiles.forEach(function (t) {

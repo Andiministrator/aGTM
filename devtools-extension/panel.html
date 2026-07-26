@@ -177,7 +177,8 @@
   /* display:block is load-bearing — a <span> is inline, where width/height are ignored,
      so the fill had no visible area (only the track showed). */
   .tl-bar { display: block; height: 100%; background: var(--accent); border-radius: 4px; min-width: 2px; }
-  /* per-milestone bar colours (reuse the panel palette so it reads in light + dark) */
+  /* per-milestone bar colours: mostly panel palette vars (theme-aware), plus two
+     dedicated mid-tone hues for inject/firstTag that read on both light + dark tracks. */
   .tl-bar.b-navStart { background: var(--muted); }
   .tl-bar.b-config   { background: var(--accent); }
   .tl-bar.b-pending  { background: var(--warn); }
@@ -191,6 +192,7 @@
   .tl-wait { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; flex-wrap: wrap; }
   .tl-wait-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); align-self: center; flex: 0 0 auto; animation: tl-pulse 1.4s ease-in-out infinite; }
   @keyframes tl-pulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .tl-wait-dot { animation: none; opacity: .8; } }
   .tl-wait-lab { font-weight: 600; color: var(--warn); white-space: nowrap; }
   .tl-wait-detail { color: var(--muted); font-size: 11px; }
   .tl-wait-detail .mono { color: var(--fg); }

@@ -26,14 +26,16 @@ diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
   decision → GTM inject → first tag fire) resolved from `aGTM.l` log ids,
   `aGTM.d.dl` event timestamps and the network capture, anchored to a new
   read-only `navStart` (`performance.timing.navigationStart`) in `reader.js`.
-  Bars are **colour-coded per milestone** (reusing the panel palette); a first
+  Bars are **colour-coded per milestone** (mostly panel-palette vars, plus two
+  dedicated mid-tone hues for inject/firstTag that read on both themes); a first
   tag fire landing **before** the CMP-decision marker is painted **red** with a
   "⚠ vor Consent" flag — a pre-consent leak surfaced right on the timeline. Below
-  the waterfall a **"Wartet aktuell auf"** block (pulsing indicator) shows the
-  lifecycle milestones aGTM is still blocked on and the events that will unblock
-  them: the CMP decision with its expected `consent_events` triggers, the queued
-  events waiting to replay after consent, and a still-polling DL-Repeat gate
-  (now with the concrete awaited gate spec — see the library note below).
+  the waterfall a **"Wartet aktuell auf"** block (pulsing indicator, honoured by
+  `prefers-reduced-motion`) shows the lifecycle milestones aGTM is still blocked on
+  and the events that will unblock them: the CMP decision with its expected
+  `consent_events` triggers, GTM injection (consent granted but no container in the
+  DOM yet), the queued events waiting to replay after consent, and a still-polling
+  DL-Repeat gate (now with the concrete awaited gate spec — see the library note below).
 
 ### Added — DL-Repeat exposes its awaited gate spec (`aGTM.d.dlrepeatGate`)
 
