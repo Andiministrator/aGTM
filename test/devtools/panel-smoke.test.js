@@ -592,6 +592,34 @@ describe("feedback fixes", () => {
   });
 });
 
+// ── card #49: Simulation tab (opt-in write channel) ──
+describe("Simulation tab", () => {
+  test("loaded: renders consent sim + CMP mock + fire + block + inject boxes", () => {
+    const html = renderTab("sim");
+    expect(html).toContain("Write-Modus");
+    expect(html).toContain("Consent simulieren");
+    expect(html).toContain("CMP-Antwort mocken");
+    expect(html).toContain("Event feuern");
+    expect(html).toContain("blockieren");        // block-existing box
+    expect(html).toContain("Integration injizieren"); // inject box
+    expect(html).toContain("sim-useid");         // per-group name/ID toggle
+    expect(html).toContain('id="sim-root"');
+  });
+  test("not loaded: still offers the integration-inject box (for un-integrated pages)", () => {
+    const P = globalThis.__panel;
+    P.setSnap({ loaded: false });
+    P.setTab("sim");
+    P.render();
+    const html = globalThis.document.getElementById("tab-sim")._html;
+    expect(html).toContain("nicht geladen");
+    expect(html).toContain("Integration injizieren");
+    expect(html).toContain("Write-Modus");
+    // consent-simulation controls are hidden when aGTM is absent
+    expect(html).not.toContain("CMP-Antwort mocken");
+    P.setSnap(sampleSnap());
+  });
+});
+
 // ── card #47: Diagnose tab (Health-Score, Consent-Timeline, Compliance-Report) ──
 describe("Diagnose tab", () => {
   test("health-score badge + per-check list render; sample snapshot is a pass", () => {

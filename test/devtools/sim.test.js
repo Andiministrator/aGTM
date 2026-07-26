@@ -9,7 +9,8 @@ import { test, expect, describe } from "bun:test";
 import {
   commaWrap, splitTokens, stubBody,
   buildConsentCode, buildDenyCode, buildCmpMockCode,
-  buildResetCode, buildRestoreCode, buildFireCode, buildInjectCode, buildProbeCode
+  buildResetCode, buildRestoreCode, buildFireCode, buildInjectCode, buildProbeCode,
+  buildBlockCode, buildUnblockCode, buildInjectIntegrationCode, simSelection
 } from "../../devtools-extension/sim.js";
 
 // Run a builder's self-invoking expression against a supplied fake window and
@@ -222,5 +223,120 @@ describe("buildInjectCode / buildProbeCode / missing aGTM", () => {
 describe("stubBody — backup guard string", () => {
   test("backs up via __inspOrigCC=__inspOrigCC||consent_check (once)", () => {
     expect(stubBody({}).indexOf("A.f.__inspOrigCC=A.f.__inspOrigCC||A.f.consent_check")).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("simSelection — per-group name/ID toggle", () => {
+  function model() {
+    return {
+      purposes: [{ name: "statistics", id: "p1", on: true }, { name: "off", id: "p9", on: false }],
+      services: [{ name: "Google Analytics", id: "s1", on: true }, { name: "Meta", id: "s2", on: true }],
+      vendors: [{ name: "Google Inc", id: "v1", on: true }],
+      useId: { purposes: false, services: false, vendors: false }
+    };
+  }
+  test("useId OFF → names are the matched tokens; IDs still collected", () => {
+    var sel = simSelection(model());
+    expect(sel.services).toEqual(["Google Analytics", "Meta"]);
+    expect(sel.serviceIDs).toEqual(["s1", "s2"]);
+    expect(sel.purposes).toEqual(["statistics"]); // 'off' row excluded
+    expect(sel.purposeIDs).toEqual(["p1"]);
+  });
+  test("useId ON for a group → its IDs become the matched tokens", () => {
+    var m = model(); m.useId.services = true;
+    var sel = simSelection(m);
+    expect(sel.services).toEqual(["s1", "s2"]); // IDs now the match string
+    expect(sel.serviceIDs).toEqual(["s1", "s2"]);
+    expect(sel.purposes).toEqual(["statistics"]); // purposes group still by name
+  });
+  test("only ON rows contribute", () => {
+    var m = model(); m.services[1].on = false;
+    var sel = simSelection(m);
+    expect(sel.services).toEqual(["Google Analytics"]);
+    expect(sel.serviceIDs).toEqual(["s1"]);
+  });
+});
+
+describe("buildBlockCode / buildUnblockCode", () => {
+  test("block neutralises the loaders + consent check and flags the page", () => {
+    var w = fakeAGTM();
+    var origInject = w.aGTM.f.inject, origCC = w.aGTM.f.consent_check;
+    var res = run(buildBlockCode(), w);
+    expect(res.ok).toBe(true);
+    expect(res.blocked).toBe(true);
+    expect(w.aGTM.f.inject).not.toBe(origInject); // now a no-op
+    expect(w.aGTM.f.consent_check()).toBe(false);  // never grants
+    expect(w.aGTM.d.__inspBlocked).toBe(true);
+    expect(w.aGTM.f.__inspBlockBak.inject).toBe(origInject); // original backed up
+    expect(w.aGTM.f.__inspBlockBak.consent_check).toBe(origCC);
+    // no-op'd inject really does nothing
+    w.aGTM.d.init = false; w.aGTM.f.inject();
+    expect(w.aGTM.d.init).toBe(false);
+  });
+  test("unblock restores the originals and clears the flag", () => {
+    var w = fakeAGTM();
+    var origInject = w.aGTM.f.inject, origCC = w.aGTM.f.consent_check;
+    run(buildBlockCode(), w);
+    var res = run(buildUnblockCode(), w);
+    expect(res.ok).toBe(true);
+    expect(res.blocked).toBe(false);
+    expect(w.aGTM.f.inject).toBe(origInject);
+    expect(w.aGTM.f.consent_check).toBe(origCC);
+    expect(w.aGTM.f.__inspBlockBak).toBeUndefined();
+    expect(w.aGTM.d.__inspBlocked).toBeFalsy();
+  });
+  test("block backup is taken ONCE (a second block keeps the true originals)", () => {
+    var w = fakeAGTM();
+    var origInject = w.aGTM.f.inject;
+    run(buildBlockCode(), w);
+    run(buildBlockCode(), w); // second block must not back up the no-op
+    expect(w.aGTM.f.__inspBlockBak.inject).toBe(origInject);
+  });
+  test("probe reports the blocked flag", () => {
+    var w = fakeAGTM();
+    expect(run(buildProbeCode(), w).blocked).toBe(false);
+    run(buildBlockCode(), w);
+    expect(run(buildProbeCode(), w).blocked).toBe(true);
+  });
+});
+
+describe("buildInjectIntegrationCode — runs a pasted snippet at global scope", () => {
+  function runDoc(code, w, doc) {
+    // eslint-disable-next-line no-new-func
+    return new Function("window", "document", "return (" + code + ");")(w, doc);
+  }
+  function fakeDoc() {
+    var appended = [];
+    return {
+      createElement: function (tag) {
+        return { tag: tag, type: "", _text: "", set text(v) { this._text = v; }, get text() { return this._text; } };
+      },
+      head: { appendChild: function (el) { appended.push(el); } },
+      documentElement: { appendChild: function (el) { appended.push(el); } },
+      __appended: appended
+    };
+  }
+  test("creates a <script> element carrying the snippet and appends it", () => {
+    var doc = fakeDoc();
+    var res = runDoc(buildInjectIntegrationCode("window.aGTM=window.aGTM||{};aGTM.f&&aGTM.f.init&&aGTM.f.init();"), { aGTM: { d: {} } }, doc);
+    expect(res.ok).toBe(true);
+    expect(res.injected).toBe(true);
+    expect(doc.__appended.length).toBe(1);
+    expect(doc.__appended[0].tag).toBe("script");
+    expect(doc.__appended[0]._text).toContain("aGTM.f.init");
+    expect(res.loaded).toBe(true); // window.aGTM present in this fake
+  });
+  test("reports loaded:false when the page still has no aGTM", () => {
+    var doc = fakeDoc();
+    var res = runDoc(buildInjectIntegrationCode("var x=1;"), {}, doc);
+    expect(res.ok).toBe(true);
+    expect(res.loaded).toBe(false);
+  });
+  test("a snippet containing </script> or quotes is embedded safely", () => {
+    var doc = fakeDoc();
+    var snippet = 'var s="a\\"b</script>";';
+    var res = runDoc(buildInjectIntegrationCode(snippet), { aGTM: null }, doc);
+    expect(res.ok).toBe(true);
+    expect(doc.__appended[0]._text).toBe(snippet);
   });
 });
