@@ -8,16 +8,21 @@ A new **Simulation tab** turns the otherwise read-only Inspector into a flow dri
 — for testing an integration without clicking a real cookie banner. It can:
 
 - **Simulate a consent decision** with granular control: toggle exactly which
-  **purposes / services (+IDs) / vendors (+IDs)** are granted (pre-filled from
-  `gtmPurposes`/`gtmServices`/`gtmVendors` so you see what GTM actually requires),
-  **persisted per host** and saveable as **named presets**. Grant installs a
-  temporary `aGTM.f.consent_check` and calls `aGTM.f.run_cc('update')`, so the
-  genuine reset → check → `chelp` → `gtmConsent` → `inject` → replay path runs.
+  **purposes / services / vendors** are granted, each with an **ID field** and a
+  per-group **"IDs" toggle** to express consent by ID instead of name (pre-filled
+  from `gtmPurposes`/`gtmServices`/`gtmVendors` so you see what GTM actually
+  requires), **persisted per host** and saveable as **named presets**. Grant
+  installs a temporary `aGTM.f.consent_check` and calls `aGTM.f.run_cc('update')`,
+  so the genuine reset → check → `chelp` → `gtmConsent` → `inject` → replay path runs.
 - **Deny / reset**, **mock the CMP** (persistent `consent_check` stub, restorable
   via a backup under `aGTM.f.__inspOrigCC`), **fire an event** (`aGTM.f.fire` with
   editable JSON + `_noConsent`/`_noDLPush`/`_post` flags + recent-event history),
   and **force GTM injection**. A live effect panel shows the resulting
   `gtmConsent` / injection / dataLayer state.
+- **Integration management** for demo/prospect work: **block** an existing aGTM
+  integration (neutralise its loaders + `consent_check`, reversibly) and **inject**
+  a pasted aGTM integration snippet into a page that has no aGTM yet (runs at global
+  scope via a `<script>` element; the box renders even when `window.aGTM` is absent).
 
 **Posture:** this is the one write-enabled tab. It uses the **same**
 `inspectedWindow.eval` bridge as the read-only reader (so **no new manifest

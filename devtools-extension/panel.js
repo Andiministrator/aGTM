@@ -225,8 +225,11 @@ function render() {
       : '<div class="empty">Auf dieser Seite ist <code>window.aGTM</code> (noch) nicht vorhanden.<br>' +
         "Seite laden, auf der aGTM eingebunden ist — die Ansicht aktualisiert sich automatisch.</div>";
     // network tab still useful without aGTM loaded
-    ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config", "sim"].forEach(function (t) { paint("tab-" + t, msg); });
+    ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
     renderNetwork();
+    // The Simulation tab renders its OWN not-loaded UI (it can inject an aGTM
+    // integration into a page that has none yet), so it is not painted over here.
+    if (state.activeTab === "sim") renderSim();
     return;
   }
   switch (state.activeTab) {

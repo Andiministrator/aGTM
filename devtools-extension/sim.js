@@ -65,8 +65,10 @@
       "var c=A.d.consent||{};" +
       "return{ok:true,gtmConsent:!!c.gtmConsent,hasResponse:!!c.hasResponse,init:!!A.d.init," +
       "services:c.services||'',purposes:c.purposes||'',vendors:c.vendors||''," +
+      "serviceIDs:c.serviceIDs||'',vendorIDs:c.vendorIDs||'',purposeIDs:c.purposeIDs||''," +
       "feedback:c.feedback||''," +
       "simActive:typeof A.f.__inspOrigCC==='function'," +
+      "blocked:!!A.d.__inspBlocked," +
       "dataLayerLen:((w[(A.c&&A.c.gdl)||'dataLayer']||[]).length)||0};" +
       "}catch(e){return{ok:false,error:String(e)};}})()";
   }
@@ -156,11 +158,50 @@
   }
   SIM.buildInjectCode = buildInjectCode;
 
-  // Read-only probe: is a simulation stub currently installed on the page?
+  // Read-only probe: is a simulation stub / block currently installed on the page?
   function buildProbeCode() {
-    return "(function(){try{var A=window.aGTM;return{simActive:!!(A&&A.f&&typeof A.f.__inspOrigCC==='function')};}catch(e){return{simActive:false};}})()";
+    return "(function(){try{var A=window.aGTM;return{simActive:!!(A&&A.f&&typeof A.f.__inspOrigCC==='function'),blocked:!!(A&&A.d&&A.d.__inspBlocked)};}catch(e){return{simActive:false,blocked:false};}})()";
   }
   SIM.buildProbeCode = buildProbeCode;
+
+  // Block an existing aGTM integration: neutralise its loaders and consent check so
+  // it can't (further) inject GTM, then a fresh integration can be tested in
+  // isolation. Originals are backed up under aGTM.f.__inspBlockBak (restorable via
+  // buildUnblockCode). NOTE: cannot un-inject a GTM that already loaded — the caveat
+  // is surfaced in the tab.
+  function buildBlockCode() {
+    return wrap(
+      "A.f.__inspBlockBak=A.f.__inspBlockBak||{inject:A.f.inject,initGTM:A.f.initGTM,gtm_load:A.f.gtm_load,consent_check:A.f.consent_check};" +
+      "var noop=function(){};A.f.inject=noop;A.f.initGTM=noop;A.f.gtm_load=noop;" +
+      "A.f.consent_check=function(){return false;};" +
+      "A.d.__inspBlocked=true;"
+    );
+  }
+  SIM.buildBlockCode = buildBlockCode;
+
+  // Undo buildBlockCode: restore the neutralised functions.
+  function buildUnblockCode() {
+    return wrap(
+      "if(A.f.__inspBlockBak){var b=A.f.__inspBlockBak;A.f.inject=b.inject;A.f.initGTM=b.initGTM;A.f.gtm_load=b.gtm_load;A.f.consent_check=b.consent_check;try{delete A.f.__inspBlockBak;}catch(e){A.f.__inspBlockBak=undefined;}}" +
+      "try{delete A.d.__inspBlocked;}catch(e2){A.d.__inspBlocked=false;}"
+    );
+  }
+  SIM.buildUnblockCode = buildUnblockCode;
+
+  // Inject a pasted aGTM integration snippet into a page that has no aGTM yet (for
+  // prospect demos). Runs the code at GLOBAL scope via a <script> element (so a bare
+  // `var aGTM = …` / `aGTM.f.init()` behaves exactly as in a real integration —
+  // wrapping it in a function would scope those away). Does NOT use aGTM, so it also
+  // works when window.aGTM is absent.
+  function buildInjectIntegrationCode(code) {
+    return "(function(){try{" +
+      "var d=(typeof document!=='undefined')?document:null;if(!d)return{ok:false,error:'no document'};" +
+      "var s=d.createElement('script');s.type='text/javascript';s.text=" + J(String(code == null ? "" : code)) + ";" +
+      "(d.head||d.documentElement).appendChild(s);" +
+      "return{ok:true,injected:true,loaded:!!(window.aGTM&&window.aGTM.d)};" +
+      "}catch(e){return{ok:false,error:String(e)};}})()";
+  }
+  SIM.buildInjectIntegrationCode = buildInjectIntegrationCode;
 
   // Split a comma list (plain "a, b" from config OR comma-wrapped ",a,b," from
   // consent) into trimmed non-empty tokens.
@@ -191,7 +232,7 @@ var SIM_LS = "aGTMInspector.sim";
 var SIM_LAST = null; // last write action result {ok,...} for the effect panel
 
 function simState() {
-  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, active: false, host: null };
+  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", active: false, blocked: false, host: null };
   return state.sim;
 }
 
@@ -199,7 +240,7 @@ function simState() {
 function simLoad(host) {
   var st = simState();
   st.host = host;
-  st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {};
+  st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {}; st.injectCode = "";
   try {
     if (typeof localStorage === "undefined") return;
     var all = JSON.parse(localStorage.getItem(SIM_LS) || "{}");
@@ -210,6 +251,7 @@ function simLoad(host) {
       if (Object.prototype.toString.call(e.events) === "[object Array]") st.events = e.events;
       if (typeof e.fireText === "string") st.fireText = e.fireText;
       if (e.flags && typeof e.flags === "object") st.flags = e.flags;
+      if (typeof e.injectCode === "string") st.injectCode = e.injectCode;
     }
   } catch (er) { /* corrupt/unavailable → in-memory defaults */ }
 }
@@ -224,7 +266,8 @@ function simSave() {
       presets: (st.presets || []).slice(0, 30),
       events: (st.events || []).slice(0, 10),
       fireText: st.fireText || "",
-      flags: st.flags || {}
+      flags: st.flags || {},
+      injectCode: st.injectCode || ""
     };
     localStorage.setItem(SIM_LS, JSON.stringify(all));
   } catch (er) { /* ignore */ }
@@ -241,37 +284,46 @@ function simConsentModel(snap) {
   var SIM = window.aGTMInspectorSim;
   var cfg = (snap && snap.config) || {};
   var cur = (snap && snap.consent) || {};
-  function rows(reqStr, curStr, withId) {
+  function rows(reqStr, curStr, curIdStr) {
     var req = SIM.splitTokens(reqStr);
     var have = SIM.splitTokens(curStr);
+    var ids = SIM.splitTokens(curIdStr);
     var seen = {}, list = [];
-    req.concat(have).forEach(function (name) {
+    req.concat(have).forEach(function (name, i) {
       if (seen[name]) return; seen[name] = 1;
-      var r = { name: name, on: true };
-      if (withId) r.id = "";
-      list.push(r);
+      list.push({ name: name, id: "", on: true });
     });
+    // Seed IDs positionally from the live consent's *IDs string when present.
+    for (var k = 0; k < list.length && k < ids.length; k++) list[k].id = ids[k];
     return list;
   }
   st.consent = {
-    purposes: rows(cfg.gtmPurposes, cur.purposes, false),
-    services: rows(cfg.gtmServices, cur.services, true),
-    vendors: rows(cfg.gtmVendors, cur.vendors, true)
+    purposes: rows(cfg.gtmPurposes, cur.purposes, cur.purposeIDs),
+    services: rows(cfg.gtmServices, cur.services, cur.serviceIDs),
+    vendors: rows(cfg.gtmVendors, cur.vendors, cur.vendorIDs),
+    // Per-group toggle: express consent by ID (→ the *IDs go into the GTM-matched
+    // string) instead of by name. Off = names, the common case.
+    useId: { purposes: false, services: false, vendors: false }
   };
   return st.consent;
 }
 
-// Collect the {purposes,services,vendors,serviceIDs,vendorIDs,purposeIDs} arrays
-// of the currently-ON rows — the input to the code builders.
+// Collect the {purposes,services,vendors,serviceIDs,vendorIDs,purposeIDs} arrays of
+// the currently-ON rows — the input to the code builders. Honors the per-group
+// useId toggle: when a group uses IDs, its IDs become the token GTM's chelp matches
+// on (written to .services/.purposes/.vendors); otherwise the names are. The *IDs
+// fields are always populated from the id column (real CMPs fill both).
 function simSelection(model) {
+  var u = model.useId || {};
   function on(list) { return (list || []).filter(function (r) { return r.on; }); }
-  function names(list) { return on(list).map(function (r) { return r.name; }); }
-  function ids(list) { return on(list).map(function (r) { return r.id; }).filter(function (x) { return x; }); }
+  function names(list) { return on(list).map(function (r) { return r.name; }).filter(Boolean); }
+  function ids(list) { return on(list).map(function (r) { return r.id; }).filter(Boolean); }
+  function matchTok(list, useId) { return useId ? ids(list) : names(list); }
   return {
-    purposes: names(model.purposes),
-    services: names(model.services),
-    vendors: names(model.vendors),
-    purposeIDs: [],
+    purposes: matchTok(model.purposes, u.purposes),
+    services: matchTok(model.services, u.services),
+    vendors: matchTok(model.vendors, u.vendors),
+    purposeIDs: ids(model.purposes),
     serviceIDs: ids(model.services),
     vendorIDs: ids(model.vendors)
   };
@@ -288,6 +340,7 @@ function simRun(code, label) {
         SIM_LAST = result || { ok: false, error: "no result" };
         SIM_LAST.label = label; SIM_LAST.ts = nowMs();
         if (typeof SIM_LAST.simActive === "boolean") simState().active = SIM_LAST.simActive;
+        if (typeof SIM_LAST.blocked === "boolean") simState().blocked = SIM_LAST.blocked;
       }
       updateSimLive();
       poll(); // pull a fresh snapshot so the other tabs reflect the effect too
@@ -315,12 +368,21 @@ function renderSim() {
   // test's fake DOM (which auto-creates any queried node).
   var sec = el("tab-sim");
   if (!sec) return;
-  if ((sec.innerHTML || "").indexOf('id="sim-root"') < 0) {
+  var loadedNow = !!(snap && snap.loaded);
+  // Rebuild when the scaffold is absent (first activation / painted over) OR when the
+  // loaded-state flipped (the loaded and not-loaded scaffolds differ — the latter
+  // only offers the integration-inject box).
+  if ((sec.innerHTML || "").indexOf('id="sim-root"') < 0 || sec.__simLoaded !== loadedNow) {
     buildSimScaffold();
+    sec.__simLoaded = loadedNow;
     // One read-only probe to learn whether a stub is already installed on the page.
     try {
       chrome.devtools.inspectedWindow.eval(window.aGTMInspectorSim.buildProbeCode(), function (r) {
-        if (r && typeof r.simActive === "boolean") { simState().active = r.simActive; updateSimLive(); }
+        if (r && typeof r.simActive === "boolean") {
+          simState().active = r.simActive;
+          if (typeof r.blocked === "boolean") simState().blocked = r.blocked;
+          updateSimLive();
+        }
       });
     } catch (e) { /* ignore */ }
   }
@@ -330,7 +392,10 @@ function renderSim() {
 function buildSimScaffold() {
   var snap = state.snap || {};
   var st = simState();
-  var model = simConsentModel(snap);
+  var loaded = !!snap.loaded;
+  // Build (and cache) the consent model only when aGTM is loaded — otherwise config
+  // is empty and caching an empty model would poison the later loaded render.
+  var model = loaded ? simConsentModel(snap) : null;
 
   var h = '<div id="sim-root">';
 
@@ -350,46 +415,66 @@ function buildSimScaffold() {
   // ── Live effect panel (repainted per poll) ────────────────────
   h += '<div class="card"><h2>Live-Zustand &amp; Effekt</h2><div id="sim-live"></div></div>';
 
-  // ── Consent simulation ────────────────────────────────────────
-  h += '<div class="card"><h2>Consent simulieren</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Wähle Kategorien / Services / Vendoren, für die Consent erteilt wird. Vorbelegt aus <code>gtmPurposes/gtmServices/gtmVendors</code> (was GTM benötigt) + aktuellem Consent. Grant installiert einen temporären <code>consent_check</code> und ruft <code>run_cc(\'update\')</code> — der echte Library-Pfad (reset→check→chelp→gtmConsent→inject→replay).</div>' +
-    simConsentGroups(model) +
-    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
-    simBtn("sim-grant", "Consent erteilen (run_cc)", "acc") +
-    simBtn("sim-deny", "Alles ablehnen", "") +
-    simBtn("sim-reset", "Reset (Consent leeren + CMP restore)", "") +
-    "</div>" +
-    '<div class="muted" style="margin-top:6px;font-size:11px">Hinweis: Ein bereits injiziertes GTM lässt sich nicht „zurück-laden“. Für einen echten Erstbesuch-Test: Consent-Cookies löschen + Seite neu laden.</div>' +
-    simPresets(st) +
-    "</div>";
+  if (loaded) {
+    // ── Consent simulation ──────────────────────────────────────
+    h += '<div class="card"><h2>Consent simulieren</h2>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Wähle Kategorien / Services / Vendoren, für die Consent erteilt wird. Vorbelegt aus <code>gtmPurposes/gtmServices/gtmVendors</code> (was GTM benötigt) + aktuellem Consent. Pro Gruppe lässt sich per <b>IDs</b> umschalten, ob per <b>ID</b> statt Name konsentiert wird (die IDs landen dann im GTM-geprüften String + in <code>serviceIDs/vendorIDs/purposeIDs</code>). Grant installiert einen temporären <code>consent_check</code> und ruft <code>run_cc(\'update\')</code> — der echte Library-Pfad (reset→check→chelp→gtmConsent→inject→replay).</div>' +
+      simConsentGroups(model) +
+      '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
+      simBtn("sim-grant", "Consent erteilen (run_cc)", "acc") +
+      simBtn("sim-deny", "Alles ablehnen", "") +
+      simBtn("sim-reset", "Reset (Consent leeren + CMP restore)", "") +
+      "</div>" +
+      '<div class="muted" style="margin-top:6px;font-size:11px">Hinweis: Ein bereits injiziertes GTM lässt sich nicht „zurück-laden“. Für einen echten Erstbesuch-Test: Consent-Cookies löschen + Seite neu laden.</div>' +
+      simPresets(st) +
+      "</div>";
 
-  // ── CMP mock ──────────────────────────────────────────────────
-  h += '<div class="card"><h2>CMP-Antwort mocken</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Installiert die obige Consent-Auswahl als <b>persistenten</b> <code>consent_check</code>-Stub — auch der periodische CMP-Poll (2s) sieht dann die simulierte Entscheidung. Das Original wird gesichert und ist per Restore wiederherstellbar.</div>' +
+    // ── CMP mock ────────────────────────────────────────────────
+    h += '<div class="card"><h2>CMP-Antwort mocken</h2>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Installiert die obige Consent-Auswahl als <b>persistenten</b> <code>consent_check</code>-Stub — auch der periodische CMP-Poll (2s) sieht dann die simulierte Entscheidung. Das Original wird gesichert und ist per Restore wiederherstellbar.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      simBtn("sim-mock", "CMP-Mock installieren", "warn") +
+      simBtn("sim-restore", "Original consent_check wiederherstellen", "") +
+      "</div></div>";
+
+    // ── Fire event ──────────────────────────────────────────────
+    h += '<div class="card"><h2>Event feuern</h2>' +
+      '<textarea id="sim-fire" spellcheck="false" style="width:100%;min-height:70px;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px">' +
+      esc(st.fireText || '{\n  "event": "test_event"\n}') + "</textarea>" +
+      '<div class="toolbar" style="margin-top:8px">' +
+      simFlag("sim-f-noconsent", "_noConsent", st.flags._noConsent) +
+      simFlag("sim-f-nodl", "_noDLPush", st.flags._noDLPush) +
+      simFlag("sim-f-post", "_post", st.flags._post) +
+      '<span class="spacer" style="flex:1"></span>' +
+      simBtn("sim-fire-btn", "fire()", "acc") + "</div>" +
+      '<div id="sim-fire-err" class="muted" style="font-size:11px"></div>' +
+      simEventHistory(st) +
+      "</div>";
+
+    // ── Force inject ────────────────────────────────────────────
+    h += '<div class="card"><h2>GTM-Injection erzwingen</h2>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Ruft <code>aGTM.f.inject()</code> direkt — unabhängig vom Consent. Nützlich, um Container-Load isoliert zu testen.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      simBtn("sim-inject", "aGTM.f.inject() erzwingen", "warn") + "</div></div>";
+  } else {
+    h += '<div class="card"><div class="muted">Auf dieser Seite ist <code>window.aGTM</code> nicht geladen — Consent-/Event-Simulation braucht ein aktives aGTM. Du kannst unten eine Integration <b>injizieren</b> (für noch nicht integrierte Seiten).</div></div>';
+  }
+
+  // ── Block an existing aGTM integration ────────────────────────
+  h += '<div class="card"><h2>Vorhandene aGTM-Integration blockieren</h2>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Neutralisiert die geladene aGTM-Integration (<code>inject/initGTM/gtm_load</code> → no-op, <code>consent_check</code> → false), um z. B. eine eigene Integration isoliert zu testen. Reversibel per Entsperren. Ein <b>bereits</b> geladenes GTM lässt sich damit nicht zurückholen.</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-    simBtn("sim-mock", "CMP-Mock installieren", "warn") +
-    simBtn("sim-restore", "Original consent_check wiederherstellen", "") +
+    simBtn("sim-block", "aGTM blockieren", "err", !loaded) +
+    simBtn("sim-unblock", "Entsperren", "", !loaded) +
     "</div></div>";
 
-  // ── Fire event ────────────────────────────────────────────────
-  h += '<div class="card"><h2>Event feuern</h2>' +
-    '<textarea id="sim-fire" spellcheck="false" style="width:100%;min-height:70px;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px">' +
-    esc(st.fireText || '{\n  "event": "test_event"\n}') + "</textarea>" +
-    '<div class="toolbar" style="margin-top:8px">' +
-    simFlag("sim-f-noconsent", "_noConsent", st.flags._noConsent) +
-    simFlag("sim-f-nodl", "_noDLPush", st.flags._noDLPush) +
-    simFlag("sim-f-post", "_post", st.flags._post) +
-    '<span class="spacer" style="flex:1"></span>' +
-    simBtn("sim-fire-btn", "fire()", "acc") + "</div>" +
-    '<div id="sim-fire-err" class="muted" style="font-size:11px"></div>' +
-    simEventHistory(st) +
-    "</div>";
-
-  // ── Force inject ──────────────────────────────────────────────
-  h += '<div class="card"><h2>GTM-Injection erzwingen</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Ruft <code>aGTM.f.inject()</code> direkt — unabhängig vom Consent. Nützlich, um Container-Load isoliert zu testen.</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-    simBtn("sim-inject", "aGTM.f.inject() erzwingen", "warn") + "</div></div>";
+  // ── Inject an aGTM integration snippet (for un-integrated pages) ──
+  h += '<div class="card"><h2>aGTM-Integration injizieren</h2>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Für Seiten ohne aGTM: Integrationscode (Loader / <code>config</code> / <code>consent_check</code> / <code>init</code>) einfügen und injizieren — läuft im globalen Seitenkontext wie eine echte Einbindung. Pro Host gespeichert.</div>' +
+    '<textarea id="sim-integration" spellcheck="false" placeholder="// aGTM-Integrationscode hier einfügen…" style="width:100%;min-height:90px;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px">' +
+    esc(st.injectCode || "") + "</textarea>" +
+    '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">' +
+    simBtn("sim-inject-int", "Integration injizieren", "acc") + "</div></div>";
 
   h += "</div>";
 
@@ -399,37 +484,44 @@ function buildSimScaffold() {
   attachSimListeners();
 }
 
-function simBtn(id, label, cls) {
+function simBtn(id, label, cls, forceDisabled) {
   var extra = cls ? (" " + cls) : "";
-  return '<button class="small sim-act' + extra + '" id="' + id + '"' + (SIM_WRITE ? "" : " disabled") + '>' + esc(label) + "</button>";
+  var dis = (!SIM_WRITE || forceDisabled) ? " disabled" : "";
+  return '<button class="small sim-act' + extra + '" id="' + id + '"' + dis + '>' + esc(label) + "</button>";
 }
 function simFlag(id, label, on) {
   return '<label><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + "> " + esc(label) + "</label>";
 }
 
 function simConsentGroups(model) {
+  var u = model.useId || {};
   return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">' +
-    simGroup("Kategorien (purposes)", "purposes", model.purposes, false) +
-    simGroup("Services", "services", model.services, true) +
-    simGroup("Vendoren", "vendors", model.vendors, true) +
+    simGroup("Kategorien (purposes)", "purposes", model.purposes, !!u.purposes) +
+    simGroup("Services", "services", model.services, !!u.services) +
+    simGroup("Vendoren", "vendors", model.vendors, !!u.vendors) +
     "</div>";
 }
-function simGroup(title, key, rows, withId) {
-  var h = '<div><div class="muted" style="font-weight:600;margin-bottom:4px">' + esc(title) + "</div>";
+// Every group has an "IDs" toggle (express consent by ID instead of name) and a
+// per-row ID field. The ID field is emphasised when the group's toggle is on
+// (that's the token GTM will actually match against).
+function simGroup(title, key, rows, useId) {
+  var h = '<div><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">' +
+    '<span class="muted" style="font-weight:600;flex:1;min-width:0">' + esc(title) + "</span>" +
+    '<label class="muted" style="font-size:10px;display:flex;align-items:center;gap:3px;cursor:pointer" title="Consent per ID statt Name ausdrücken">' +
+    '<input type="checkbox" class="sim-useid" data-grp="' + key + '"' + (useId ? " checked" : "") + "> IDs</label></div>";
   if (!rows || !rows.length) {
     h += '<div class="muted" style="font-size:11px">— keine —</div>';
   } else {
+    var idBorder = useId ? "var(--accent)" : "var(--border)";
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       h += '<div class="sim-cr" style="display:flex;align-items:center;gap:5px;margin:2px 0">' +
         '<label style="display:flex;align-items:center;gap:5px;flex:1;min-width:0;cursor:pointer">' +
         '<input type="checkbox" class="sim-tok" data-grp="' + key + '" data-i="' + i + '"' + (r.on ? " checked" : "") + ">" +
-        '<span class="mono" style="overflow:hidden;text-overflow:ellipsis">' + esc(r.name) + "</span></label>";
-      if (withId) {
-        h += '<input type="text" class="sim-id" data-grp="' + key + '" data-i="' + i + '" placeholder="ID" value="' + esc(r.id || "") +
-          '" style="width:64px;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:4px;padding:1px 4px">';
-      }
-      h += "</div>";
+        '<span class="mono" style="overflow:hidden;text-overflow:ellipsis' + (useId ? ";color:var(--muted)" : "") + '">' + esc(r.name) + "</span></label>" +
+        '<input type="text" class="sim-id" data-grp="' + key + '" data-i="' + i + '" placeholder="ID" value="' + esc(r.id || "") +
+        '" style="width:64px;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid ' + idBorder + ';border-radius:4px;padding:1px 4px">' +
+        "</div>";
     }
   }
   h += '<div style="margin-top:4px"><input type="text" class="sim-add" data-grp="' + key +
@@ -477,18 +569,28 @@ function updateSimLive() {
     return '<span class="chip ' + cls + '">' + esc(label) + (txt ? ": " + esc(txt) : "") + "</span>";
   }
   var h = "";
-  h += pill("gtmConsent", !!c.gtmConsent, c.gtmConsent ? "true" : "false");
-  h += pill("hasResponse", !!c.hasResponse, c.hasResponse ? "true" : "false");
-  h += pill("GTM injiziert", !!snap.init, snap.init ? "ja" : "nein");
-  if (typeof snap.dataLayerLen === "number") h += '<span class="chip">dataLayer: ' + snap.dataLayerLen + "</span>";
-  if (st.active) h += '<span class="chip warn">⚠ consent_check simuliert</span>';
+  if (!snap.loaded) {
+    h += '<span class="chip err">aGTM nicht geladen</span>';
+    if (st.blocked) h += '<span class="chip err">⊘ blockiert</span>';
+  } else {
+    h += pill("gtmConsent", !!c.gtmConsent, c.gtmConsent ? "true" : "false");
+    h += pill("hasResponse", !!c.hasResponse, c.hasResponse ? "true" : "false");
+    h += pill("GTM injiziert", !!snap.init, snap.init ? "ja" : "nein");
+    if (typeof snap.dataLayerLen === "number") h += '<span class="chip">dataLayer: ' + snap.dataLayerLen + "</span>";
+    if (st.active) h += '<span class="chip warn">⚠ consent_check simuliert</span>';
+    if (st.blocked) h += '<span class="chip err">⊘ aGTM blockiert</span>';
 
-  if (c.services || c.purposes || c.vendors) {
-    h += '<div class="grid" style="margin-top:8px">';
-    if (c.purposes) h += '<div class="k">purposes</div><div class="v">' + esc(c.purposes) + "</div>";
-    if (c.services) h += '<div class="k">services</div><div class="v">' + esc(c.services) + "</div>";
-    if (c.vendors) h += '<div class="k">vendors</div><div class="v">' + esc(c.vendors) + "</div>";
-    h += "</div>";
+    var idRow = c.serviceIDs || c.vendorIDs || c.purposeIDs;
+    if (c.services || c.purposes || c.vendors || idRow) {
+      h += '<div class="grid" style="margin-top:8px">';
+      if (c.purposes) h += '<div class="k">purposes</div><div class="v">' + esc(c.purposes) + "</div>";
+      if (c.services) h += '<div class="k">services</div><div class="v">' + esc(c.services) + "</div>";
+      if (c.vendors) h += '<div class="k">vendors</div><div class="v">' + esc(c.vendors) + "</div>";
+      if (c.purposeIDs) h += '<div class="k">purposeIDs</div><div class="v">' + esc(c.purposeIDs) + "</div>";
+      if (c.serviceIDs) h += '<div class="k">serviceIDs</div><div class="v">' + esc(c.serviceIDs) + "</div>";
+      if (c.vendorIDs) h += '<div class="k">vendorIDs</div><div class="v">' + esc(c.vendorIDs) + "</div>";
+      h += "</div>";
+    }
   }
   if (SIM_LAST) {
     var okc = SIM_LAST.ok ? "ok" : "err";
@@ -513,16 +615,24 @@ function attachSimDelegatedOnce() {
   if (!root || root.__simDelegated) return;
   root.__simDelegated = true;
 
-  // consent token checkboxes
+  // consent token checkboxes + per-group useId toggle
   root.addEventListener("change", function (e) {
     var t = e.target;
-    if (t && t.className && String(t.className).indexOf("sim-tok") >= 0) {
+    if (!t || !t.className) return;
+    var cn = String(t.className);
+    if (cn.indexOf("sim-tok") >= 0) {
       var m = simConsentModel(state.snap || {});
       var g = t.getAttribute("data-grp"), i = +t.getAttribute("data-i");
       if (m[g] && m[g][i]) { m[g][i].on = t.checked; simSave(); }
+    } else if (cn.indexOf("sim-useid") >= 0) {
+      var m2 = simConsentModel(state.snap || {});
+      if (!m2.useId) m2.useId = {};
+      m2.useId[t.getAttribute("data-grp")] = t.checked;
+      simSave();
+      buildSimScaffold(); // re-render so the ID field emphasis + name dimming update
     }
   });
-  // id fields + fire textarea
+  // id fields + fire textarea + integration textarea
   root.addEventListener("input", function (e) {
     var t = e.target;
     if (t && t.className && String(t.className).indexOf("sim-id") >= 0) {
@@ -531,6 +641,8 @@ function attachSimDelegatedOnce() {
       if (m[g] && m[g][i]) { m[g][i].id = t.value; simSave(); }
     } else if (t && t.id === "sim-fire") {
       simState().fireText = t.value; simSave();
+    } else if (t && t.id === "sim-integration") {
+      simState().injectCode = t.value; simSave();
     }
   });
   // add a token on Enter in a .sim-add field
@@ -604,6 +716,19 @@ function attachSimListeners() {
   bindClick("sim-inject", function () {
     simRun(window.aGTMInspectorSim.buildInjectCode(), "inject() erzwungen");
   });
+  bindClick("sim-block", function () {
+    simRun(window.aGTMInspectorSim.buildBlockCode(), "aGTM blockiert");
+  });
+  bindClick("sim-unblock", function () {
+    simRun(window.aGTMInspectorSim.buildUnblockCode(), "aGTM entsperrt");
+  });
+  bindClick("sim-inject-int", function () {
+    var ta = el("sim-integration");
+    var code = ta ? ta.value : "";
+    if (!code || !String(code).replace(/^\s+|\s+$/g, "")) return;
+    simState().injectCode = code; simSave();
+    simRun(window.aGTMInspectorSim.buildInjectIntegrationCode(code), "Integration injiziert");
+  });
   bindClick("sim-fire-btn", function () {
     var ta = el("sim-fire"); var errEl = el("sim-fire-err");
     var obj;
@@ -639,3 +764,8 @@ function bindClick(id, fn) {
   var b = el(id);
   if (b) b.addEventListener("click", fn);
 }
+
+// Expose the pure consent-selection mapping (name↔ID resolution per group) on the
+// same namespace/exports as the code builders so it can be unit-tested.
+if (typeof window !== "undefined" && window.aGTMInspectorSim) window.aGTMInspectorSim.simSelection = simSelection;
+if (typeof module !== "undefined" && module.exports) module.exports.simSelection = simSelection;
