@@ -225,7 +225,7 @@ function render() {
       : '<div class="empty">Auf dieser Seite ist <code>window.aGTM</code> (noch) nicht vorhanden.<br>' +
         "Seite laden, auf der aGTM eingebunden ist — die Ansicht aktualisiert sich automatisch.</div>";
     // network tab still useful without aGTM loaded
-    ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
+    ["diagnose", "consent", "events", "datalayer", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
     renderNetwork();
     // The Simulation tab renders its OWN not-loaded UI (it can inject an aGTM
     // integration into a page that has none yet), so it is not painted over here.
@@ -234,9 +234,9 @@ function render() {
   }
   switch (state.activeTab) {
     case "diagnose": renderDiagnose(); break;
+    // (GTM has no own tab anymore — its cards render at the bottom of Diagnose)
     case "consent": renderConsent(); break;
     case "events": renderEvents(); break;
-    case "gtm": renderGTM(); break;
     case "datalayer": renderDataLayer(); break;
     case "session": renderSession(); break;
     case "config": renderConfig(); break;
@@ -702,7 +702,9 @@ function eventTable(list, prefix, reversed) {
 }
 
 /* ---------- GTM ---------- */
-function renderGTM() {
+// GTM injection status/containers/script-tags as HTML. Formerly its own tab; now
+// appended at the bottom of the Diagnose tab (a dedicated tab wasn't worth it).
+function gtmCardsHtml() {
   var s = state.snap;
   var containers = s.containers || [];
   var loaded = s.gtmLoaded || [];
@@ -768,7 +770,7 @@ function renderGTM() {
     });
     html += "</tbody></table></div>";
   }
-  paint("tab-gtm", html);
+  return html;
 }
 
 /* ---------- dataLayer ---------- */
@@ -1906,6 +1908,9 @@ function renderDiagnose() {
     '<button class="small" id="diag-json">JSON kopieren</button>' +
     '<button class="small" id="diag-dl">Report herunterladen (.md)</button>' +
     '<span class="copied" id="diag-copied"></span></div></div>';
+
+  // GTM injection status (former GTM tab) — appended at the very bottom.
+  html += '<h2 style="margin-top:14px">GTM-Injektion</h2>' + gtmCardsHtml();
 
   if (paint("tab-diagnose", html)) {
     var bMd = el("diag-md"); if (bMd) bMd.addEventListener("click", function () { copyText(DIAG.buildReportMarkdown(diagReportCtx())); });

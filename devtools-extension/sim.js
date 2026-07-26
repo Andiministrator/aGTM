@@ -232,7 +232,7 @@ var SIM_LS = "aGTMInspector.sim";
 var SIM_LAST = null; // last write action result {ok,...} for the effect panel
 
 function simState() {
-  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", active: false, blocked: false, host: null };
+  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false };
   return state.sim;
 }
 
@@ -240,7 +240,7 @@ function simState() {
 function simLoad(host) {
   var st = simState();
   st.host = host;
-  st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {}; st.injectCode = "";
+  st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {}; st.injectCode = ""; st.blockIntent = false;
   try {
     if (typeof localStorage === "undefined") return;
     var all = JSON.parse(localStorage.getItem(SIM_LS) || "{}");
@@ -252,6 +252,7 @@ function simLoad(host) {
       if (typeof e.fireText === "string") st.fireText = e.fireText;
       if (e.flags && typeof e.flags === "object") st.flags = e.flags;
       if (typeof e.injectCode === "string") st.injectCode = e.injectCode;
+      if (typeof e.blockIntent === "boolean") st.blockIntent = e.blockIntent;
     }
   } catch (er) { /* corrupt/unavailable → in-memory defaults */ }
 }
@@ -267,7 +268,8 @@ function simSave() {
       events: (st.events || []).slice(0, 10),
       fireText: st.fireText || "",
       flags: st.flags || {},
-      injectCode: st.injectCode || ""
+      injectCode: st.injectCode || "",
+      blockIntent: !!st.blockIntent
     };
     localStorage.setItem(SIM_LS, JSON.stringify(all));
   } catch (er) { /* ignore */ }
@@ -318,7 +320,13 @@ function simSelection(model) {
   function on(list) { return (list || []).filter(function (r) { return r.on; }); }
   function names(list) { return on(list).map(function (r) { return r.name; }).filter(Boolean); }
   function ids(list) { return on(list).map(function (r) { return r.id; }).filter(Boolean); }
-  function matchTok(list, useId) { return useId ? ids(list) : names(list); }
+  // In ID-mode, the matched token is the row's ID — but fall back to its NAME per row
+  // when the ID field is empty (F-1: a CMP may not expose IDs, so an ID-mode grant with
+  // blank IDs would otherwise silently contribute nothing → gtmConsent stays false).
+  function matchTok(list, useId) {
+    if (!useId) return names(list);
+    return on(list).map(function (r) { return r.id || r.name; }).filter(Boolean);
+  }
   return {
     purposes: matchTok(model.purposes, u.purposes),
     services: matchTok(model.services, u.services),
@@ -340,7 +348,7 @@ function simRun(code, label) {
         SIM_LAST = result || { ok: false, error: "no result" };
         SIM_LAST.label = label; SIM_LAST.ts = nowMs();
         if (typeof SIM_LAST.simActive === "boolean") simState().active = SIM_LAST.simActive;
-        if (typeof SIM_LAST.blocked === "boolean") simState().blocked = SIM_LAST.blocked;
+        // snap.blocked (from reader.js) is authoritative for the block state.
       }
       updateSimLive();
       poll(); // pull a fresh snapshot so the other tabs reflect the effect too
@@ -378,15 +386,27 @@ function renderSim() {
     // One read-only probe to learn whether a stub is already installed on the page.
     try {
       chrome.devtools.inspectedWindow.eval(window.aGTMInspectorSim.buildProbeCode(), function (r) {
-        if (r && typeof r.simActive === "boolean") {
-          simState().active = r.simActive;
-          if (typeof r.blocked === "boolean") simState().blocked = r.blocked;
-          updateSimLive();
-        }
+        if (r && typeof r.simActive === "boolean") { simState().active = r.simActive; updateSimLive(); }
       });
     } catch (e) { /* ignore */ }
   }
   updateSimLive();
+  maybeAutoBlock();
+}
+
+// Re-apply a persisted block when write-mode is on and the page reports itself
+// un-blocked (e.g. after a reload) — so the demo/prospect block survives reloads.
+// Guarded against re-entry while an apply is in flight; buildBlockCode is idempotent
+// anyway (its backup is taken once).
+function maybeAutoBlock() {
+  var st = simState();
+  var snap = state.snap || {};
+  if (!SIM_WRITE || !st.blockIntent || !snap.loaded || snap.blocked || st._blockApplying) return;
+  st._blockApplying = true;
+  simRun(window.aGTMInspectorSim.buildBlockCode(), "aGTM blockiert (nach Reload)");
+  // Release the in-flight guard after the poll settles (snap.blocked then true).
+  try { if (typeof setTimeout === "function") setTimeout(function () { st._blockApplying = false; }, POLL_MS); }
+  catch (e) { st._blockApplying = false; }
 }
 
 function buildSimScaffold() {
@@ -418,7 +438,7 @@ function buildSimScaffold() {
   if (loaded) {
     // ── Consent simulation ──────────────────────────────────────
     h += '<div class="card"><h2>Consent simulieren</h2>' +
-      '<div class="muted" style="margin-bottom:8px;font-size:11px">Wähle Kategorien / Services / Vendoren, für die Consent erteilt wird. Vorbelegt aus <code>gtmPurposes/gtmServices/gtmVendors</code> (was GTM benötigt) + aktuellem Consent. Pro Gruppe lässt sich per <b>IDs</b> umschalten, ob per <b>ID</b> statt Name konsentiert wird (die IDs landen dann im GTM-geprüften String + in <code>serviceIDs/vendorIDs/purposeIDs</code>). Grant installiert einen temporären <code>consent_check</code> und ruft <code>run_cc(\'update\')</code> — der echte Library-Pfad (reset→check→chelp→gtmConsent→inject→replay).</div>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Wähle Kategorien / Services / Vendoren, für die Consent erteilt wird. Vorbelegt aus <code>gtmPurposes/gtmServices/gtmVendors</code> (was GTM benötigt) + aktuellem Consent. Pro Gruppe lässt sich per <b>IDs</b> umschalten, ob per <b>ID</b> statt Name konsentiert wird (die IDs landen dann im GTM-geprüften String + in <code>serviceIDs/vendorIDs/purposeIDs</code>; fehlt bei einer Zeile die ID, greift ihr Name). Grant installiert einen temporären <code>consent_check</code> und ruft <code>run_cc(\'update\')</code> — der echte Library-Pfad (reset→check→chelp→gtmConsent→inject→replay).</div>' +
       simConsentGroups(model) +
       '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
       simBtn("sim-grant", "Consent erteilen (run_cc)", "acc") +
@@ -461,12 +481,14 @@ function buildSimScaffold() {
   }
 
   // ── Block an existing aGTM integration ────────────────────────
+  // Persisted per host (blockIntent). When write-mode is on and the intent is set
+  // but the page isn't blocked, renderSim re-applies it (once) — so a block survives
+  // a page reload for the demo/prospect flow.
+  var blockDis = (!SIM_WRITE || !loaded) ? " disabled" : "";
   h += '<div class="card"><h2>Vorhandene aGTM-Integration blockieren</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Neutralisiert die geladene aGTM-Integration (<code>inject/initGTM/gtm_load</code> → no-op, <code>consent_check</code> → false), um z. B. eine eigene Integration isoliert zu testen. Reversibel per Entsperren. Ein <b>bereits</b> geladenes GTM lässt sich damit nicht zurückholen.</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-    simBtn("sim-block", "aGTM blockieren", "err", !loaded) +
-    simBtn("sim-unblock", "Entsperren", "", !loaded) +
-    "</div></div>";
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Neutralisiert die geladene aGTM-Integration (<code>inject/initGTM/gtm_load</code> → no-op, <code>consent_check</code> → false), um z. B. eine eigene Integration isoliert zu testen. <b>Pro Host gespeichert</b> und bei aktivem Write-Modus nach einem Reload erneut angewandt. Ein <b>bereits</b> geladenes GTM lässt sich damit nicht zurückholen.</div>' +
+    '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600">' +
+    '<input type="checkbox" id="sim-block-cb"' + (st.blockIntent ? " checked" : "") + blockDis + "> aGTM blockieren</label></div>";
 
   // ── Inject an aGTM integration snippet (for un-integrated pages) ──
   h += '<div class="card"><h2>aGTM-Integration injizieren</h2>' +
@@ -571,14 +593,13 @@ function updateSimLive() {
   var h = "";
   if (!snap.loaded) {
     h += '<span class="chip err">aGTM nicht geladen</span>';
-    if (st.blocked) h += '<span class="chip err">⊘ blockiert</span>';
   } else {
     h += pill("gtmConsent", !!c.gtmConsent, c.gtmConsent ? "true" : "false");
     h += pill("hasResponse", !!c.hasResponse, c.hasResponse ? "true" : "false");
     h += pill("GTM injiziert", !!snap.init, snap.init ? "ja" : "nein");
     if (typeof snap.dataLayerLen === "number") h += '<span class="chip">dataLayer: ' + snap.dataLayerLen + "</span>";
     if (st.active) h += '<span class="chip warn">⚠ consent_check simuliert</span>';
-    if (st.blocked) h += '<span class="chip err">⊘ aGTM blockiert</span>';
+    if (snap.blocked) h += '<span class="chip err">⊘ aGTM blockiert</span>';
 
     var idRow = c.serviceIDs || c.vendorIDs || c.purposeIDs;
     if (c.services || c.purposes || c.vendors || idRow) {
@@ -654,8 +675,7 @@ function attachSimDelegatedOnce() {
       if (!name) return;
       var m = simConsentModel(state.snap || {});
       var g = t.getAttribute("data-grp");
-      var row = { name: name, on: true };
-      if (g !== "purposes") row.id = "";
+      var row = { name: name, id: "", on: true }; // uniform row shape across all groups
       m[g].push(row); simSave();
       buildSimScaffold();
     }
@@ -716,11 +736,12 @@ function attachSimListeners() {
   bindClick("sim-inject", function () {
     simRun(window.aGTMInspectorSim.buildInjectCode(), "inject() erzwungen");
   });
-  bindClick("sim-block", function () {
-    simRun(window.aGTMInspectorSim.buildBlockCode(), "aGTM blockiert");
-  });
-  bindClick("sim-unblock", function () {
-    simRun(window.aGTMInspectorSim.buildUnblockCode(), "aGTM entsperrt");
+  var blockCb = el("sim-block-cb");
+  if (blockCb) blockCb.addEventListener("change", function () {
+    var st = simState();
+    st.blockIntent = blockCb.checked; simSave();
+    if (blockCb.checked) simRun(window.aGTMInspectorSim.buildBlockCode(), "aGTM blockiert");
+    else simRun(window.aGTMInspectorSim.buildUnblockCode(), "aGTM entsperrt");
   });
   bindClick("sim-inject-int", function () {
     var ta = el("sim-integration");

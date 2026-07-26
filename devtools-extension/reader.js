@@ -240,6 +240,9 @@
       // (require a sub-path prefix, so first-party traffic isn't swept in).
       pageHost: (typeof location !== "undefined" && location && location.host) ? location.host : "",
       init: !!d.init,
+      // Simulation-tab block state (set by the opt-in Simulation tab's block action;
+      // read-only here). Lets the panel re-apply a persisted block after a reload.
+      blocked: !!d.__inspBlocked,
       cmp: typeof c.cmp === "string" ? c.cmp : "",
       // The sGTM Client wires a CMP by injecting aGTM.f.consent_check INLINE (the
       // embedded code from its "Used CMP" SELECT) and leaves aGTM.c.cmp empty — the

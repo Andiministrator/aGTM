@@ -38,7 +38,12 @@ function fakeAGTM() {
     var ok = A.f.consent_check(action);
     if (!ok) return false;
     A.d.consent.gtmConsent = !!A.d.consent.services || !!A.d.consent.purposes || !!A.d.consent.vendors;
-    if (action === "update" && !A.d.init && A.d.consent.gtmConsent) A.f.inject();
+    // Mirror aGTM.js:587-592 — inject only when the consent hash CHANGED and GTM
+    // isn't injected yet (so a repeated identical grant doesn't re-inject).
+    var hash = (A.d.consent.services || "") + "|" + (A.d.consent.purposes || "") + "|" + (A.d.consent.vendors || "");
+    var changed = hash !== A.d.last_consent_hash;
+    A.d.last_consent_hash = hash;
+    if (action === "update" && changed && !A.d.init && A.d.consent.gtmConsent) A.f.inject();
     return true;
   };
   A.f.fire = function (o) { calls.push(["fire", o]); w.dataLayer.push(o); };
@@ -254,6 +259,12 @@ describe("simSelection — per-group name/ID toggle", () => {
     var sel = simSelection(m);
     expect(sel.services).toEqual(["Google Analytics"]);
     expect(sel.serviceIDs).toEqual(["s1"]);
+  });
+  test("useId ON but a row has no ID → falls back to that row's name (F-1)", () => {
+    var m = model(); m.useId.services = true; m.services[1].id = ""; // Meta has no ID
+    var sel = simSelection(m);
+    expect(sel.services).toEqual(["s1", "Meta"]); // s1 by ID, Meta by name fallback
+    expect(sel.serviceIDs).toEqual(["s1"]);        // only the real ID collected
   });
 });
 

@@ -20,9 +20,18 @@ A new **Simulation tab** turns the otherwise read-only Inspector into a flow dri
   and **force GTM injection**. A live effect panel shows the resulting
   `gtmConsent` / injection / dataLayer state.
 - **Integration management** for demo/prospect work: **block** an existing aGTM
-  integration (neutralise its loaders + `consent_check`, reversibly) and **inject**
-  a pasted aGTM integration snippet into a page that has no aGTM yet (runs at global
-  scope via a `<script>` element; the box renders even when `window.aGTM` is absent).
+  integration (neutralise its loaders + `consent_check`, reversibly) — a **persisted
+  per-host checkbox** that, while write-mode is on, re-applies once after a page reload
+  (`reader.js` exposes the block state read-only) — and **inject** a pasted aGTM
+  integration snippet (also persisted per host) into a page that has no aGTM yet (runs
+  at global scope via a `<script>` element; the box renders even when `window.aGTM` is
+  absent).
+
+### Changed — aGTM Inspector: GTM tab folded into Diagnose
+
+The standalone **GTM tab** was removed; its injection status, container table and
+injected-`<script>`-tag proof now render as a **card block at the bottom of the
+Diagnose tab** (`gtmCardsHtml()`). A dedicated tab wasn't worth it.
 
 **Posture:** this is the one write-enabled tab. It uses the **same**
 `inspectedWindow.eval` bridge as the read-only reader (so **no new manifest
