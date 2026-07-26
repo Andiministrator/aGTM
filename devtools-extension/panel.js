@@ -1876,7 +1876,9 @@ function renderDiagnose() {
       : "werden nach Consent repliziert" });
   }
   if (s.dlrepeatPolling && !s.dlrepeatDone) {
-    waits.push({ lab: "DL-Repeat Late-Enrichment", detail: "wartet auf Gate-Event(s) vor dem Replay" });
+    waits.push({ lab: "DL-Repeat Late-Enrichment", detail: s.dlrepeatGate
+      ? ('wartet auf Gate-Event(s): <span class="mono">' + esc(s.dlrepeatGate) + "</span>")
+      : "wartet auf Gate-Event(s) vor dem Replay" });
   }
   if (waits.length) {
     html += '<div class="tl-waithd">⏳ Wartet aktuell auf:</div>';

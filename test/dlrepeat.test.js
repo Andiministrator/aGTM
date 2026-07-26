@@ -56,6 +56,9 @@ describe('aGTM.f.dlrepeat', () => {
     expect(fired.length).toBe(0);
     expect(scheduled).toBe(true);
     expect(globalThis.aGTM.d.dlrepeatDone).toBeFalsy();
+    // exposes the awaited gate spec for the aGTM Inspector "waiting on" view
+    expect(globalThis.aGTM.d.dlrepeatPolling).toBe(true);
+    expect(globalThis.aGTM.d.dlrepeatGate).toBe('user_data');
   });
 
   test('replays from the live dataLayer once the gate event is present', () => {

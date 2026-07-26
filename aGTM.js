@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 16.07.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 26.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -2237,6 +2237,7 @@ aGTM.f.dlrepeat = function (cfg) {
   if (gateReady(getSrc())) { doReplay(true); return; }
   // Otherwise poll until the gate is ready, the fallback timeout hits, or a hard cap.
   aGTM.d.dlrepeatPolling = true;
+  aGTM.d.dlrepeatGate = cfg.gateEvents || ""; // expose the awaited gate spec (aGTM Inspector)
   var pollMs = (typeof cfg.pollMs == "number" && cfg.pollMs >= 50) ? cfg.pollMs : 300;
   var timeoutMs = (typeof cfg.timeoutMs == "number" && cfg.timeoutMs > 0) ? cfg.timeoutMs : 0;
   var hardCap = timeoutMs > 0 ? timeoutMs : 30000; // never poll forever
