@@ -1110,6 +1110,31 @@
             "agentContext": "PFADE: aGTM_debug.js (Log-Decode-Logik fuer aGTM.l wiederverwenden); aGTM.js (Datenspeicher-Formen aGTM.d/aGTM.c/aGTM.l); CLAUDE.md §„Data stores“ + „Session Feature“ (aGTM.d.consent/session/attribution/session_status-Semantik); .claude/skills/integration-check (Konfig-Fallen-Liste) + .claude/skills/live-inspector (was live aus aGTM.d gelesen wird). NEU: Ordner devtools-extension/ (manifest.json MV3, devtools_page + panel, content-/injected-Bridge). GOTCHAS: (1) window.aGTM lebt im MAIN world -> DevTools-Panel liest via chrome.devtools.inspectedWindow.eval ODER content-script world:MAIN + postMessage-Bridge (vermeidet breite <all_urls>-Host-Rechte -> weniger Store-Scrutiny). (2) Extension-Code ist NICHT ES5-gebunden (eigener Browser-Kontext, nicht GTM-Sandbox) -> ES6+ ok; NICHT an build.sh/terser haengen. (3) Public Repo -> keine Secrets. (4) Gegen aGTM.d.version version-gaten + defensiv lesen (aGTM.d-Form kann sich aendern). (5) Read-only: nichts in die Seite schreiben. REIHENFOLGE: Entwurf -> Andi-Freigabe -> Bau.",
             "displayId": 45,
             "qa": true
+          },
+          {
+            "id": "agtm-inspector-simulation-tab",
+            "title": "aGTM Inspector: Simulations-Tab (Write-Mode, opt-in)",
+            "description": "Neuer Simulations-Tab in devtools-extension/ (sim.js) — die EINE schreibende Ausnahme der sonst strikt read-only Extension. Treibt window.aGTM ueber denselben inspectedWindow.eval-Kanal (KEINE neue Chrome-Permission), aber via separatem sim.js-Write-Channel, gated hinter per-Session Write-Modus-Toggle (default AUS, nie persistiert). Faehigkeiten: (1) Consent granular simulieren — Purposes/Services(+IDs)/Vendoren einzeln toggelbar, vorbelegt aus gtmPurposes/gtmServices/gtmVendors + Live-Consent, per-Host persistiert, benannte Presets; Grant installiert temporaeren consent_check-Stub + run_cc(update) => echter Library-Pfad reset->check->chelp->gtmConsent->inject->replay. (2) Deny/Reset. (3) CMP-Mock (persistenter Stub, restorable via aGTM.f.__inspOrigCC-Backup). (4) Event feuern (aGTM.f.fire, editierbares JSON + _noConsent/_noDLPush/_post + Verlauf). (5) inject() erzwingen. Live-Effekt-Panel. reader.js bleibt reiner Reader. Builder ES5-safe + unit-getestet (test/devtools/sim.test.js). 564 Tests gruen.",
+            "status": "",
+            "priority": "P2",
+            "owner": "Claude Opus",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": "M",
+            "agentContext": "Dateien: devtools-extension/sim.js (neu), panel.html (+nav/section/script), panel.js (render-dispatch case sim + not-loaded-Liste), reader.js (Header-Klarstellung), README.md (Simulation-Sektion + Posture), manifest.json (description), CHANGELOG.md, test/devtools/sim.test.js (neu) + panel-smoke.test.js (Ladeliste). Nicht auf ES5/build.sh-Pfad. Offen: Andis Live-Load-Verifikation in Chrome + Entscheidung ueber Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, consent-store-POST-Test). ZIP-Artefakt ggf. via scripts/pack-devtools-extension.sh neu bauen.",
+            "links": [],
+            "comments": [
+              {
+                "id": "ae8ced32-d2f9-487b-8212-f3818b84c3da",
+                "author": "Claude Opus",
+                "text": "Implementierung fertig auf dev (Commit folgt): sim.js + Verdrahtung + Doku + Tests. 564 bun-Tests gruen, sim.js node --check ok. Posture bewusst designt/dokumentiert (Write-Modus default AUS, reader.js bleibt reiner Reader, kein neues Permission). OFFEN fuer Andi: (a) Live-Load in Chrome + Durchspielen des Consent-Flows; (b) Entscheidung ueber vorgeschlagene Extra-Features (Google-Consent-Mode-gtag-Push, Cookie-Reset+Reload fuer echten Erstbesuch-Test, Szenario-Runner (deny->fire->grant, spiegelt v1.6-Roadmap), consent-store-POST-Test); (c) ZIP-Artefakt neu bauen falls gewuenscht.",
+                "created": "2026-07-26"
+              }
+            ],
+            "displayId": 49,
+            "columnId": "col-schreiben"
           }
         ]
       },
@@ -1382,7 +1407,7 @@
         ]
       }
     ],
-    "nextDisplayId": 49,
+    "nextDisplayId": 50,
     "attachments": [],
     "background": null,
     "templates": [],
