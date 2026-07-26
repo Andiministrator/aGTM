@@ -714,6 +714,15 @@ describe("Diagnose tab", () => {
     expect(html).toContain("Gate-Event");
     expect(html).toContain("user_data?if=user[id]"); // the actual gate spec from aGTM.d.dlrepeatGate
   });
+  test("timeline waits on GTM injection when consent is granted but no container is in the DOM", () => {
+    const snap = sampleSnap();
+    snap.consent = { hasResponse: true, gtmConsent: true };
+    snap.init = false; snap.gtmScripts = [];
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("Wartet aktuell auf");
+    expect(html).toContain("GTM-Injektion");
+    expect(html).toContain("noch nicht im DOM");
+  });
   test("report export buttons are present", () => {
     const html = renderTab("diagnose");
     expect(html).toContain('id="diag-md"');
@@ -815,6 +824,18 @@ describe("Diagnose tab", () => {
     expect(html).toContain("Wiederkehrer");
     expect(html).toContain("Session-Alter");          // created from se_data
     expect(html).toContain("window.se_data");         // source note (transparency)
+    P.clearIds();
+  });
+  test("Session & IDs: discovery lists numeric aGTM.d.session fields when no known counters (fc-moto vct)", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    const snap = sampleSnap();
+    // fc-moto shape without se_data counters: only ids + vct in aGTM.d.session, nothing in se_data
+    snap.session = { source: "none", sid: "s1", uid: "C.1", raw: { uid: "C.1", ret: true, vct: 49 } };
+    snap.seData = {};
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("Numerische Felder"); // discovery aid
+    expect(html).toContain("vct=49");             // the real numeric field surfaced
     P.clearIds();
   });
   test("Session & IDs: first visit (sessionCount 1) is labelled Erstbesuch", () => {
