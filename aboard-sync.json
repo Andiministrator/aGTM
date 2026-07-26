@@ -1280,6 +1280,12 @@
                 "author": "Claude Opus",
                 "text": "POST-QA-ITERATION (2026-07-26, Andi-Live-Feedback, Commits 23e81b5/ef95b61/f22f741/020cd49). (a) Timeline-Balken farbcodiert pro Meilenstein + Pre-Consent-Tag rot; Balken waren unsichtbar weil <span> inline (width ignoriert) -> display:block gefixt. (b) Consent-Signale (gcs/gcd) verifiziert: denied IST rot (cfp-d), nur l=unset grau + undokumentierte gcd-Buchstaben orange (bewusst); offener Folge-Task: gcd-Alphabet vollstaendig belegen (Recherche). (c) Timeline-Bug: CMP-Entscheidung-Marker wanderte (+70s, wachsend) weil Fallback consentTs=letztes consent-Event (2s-Poll schob es vor) -> neuer Reader-Wert consentFirstTs (erstes Event, stabil). (d) Neue Karte Session & IDs: sid/uid/user_id + Aenderungshistorie (F->C-Promote live sichtbar), pro-Host persistiert (localStorage), plus Session-API-Payload (echter created-Server-Timestamp + Zaehler sessionCount/pvCount/eventCount/counter). 533 Tests gruen, Doku/CHANGELOG/knowledge/ZIP aktuell. Karte weiter QA. Offene Andi-Frage: Default-Tab Diagnose vs Consent.",
                 "created": "2026-07-26"
+              },
+              {
+                "id": "544d08a6-816e-40d8-a2c9-96e7bd2e3f05",
+                "author": "Claude Opus",
+                "text": "KRITIKER-RUNDE 2 (2026-07-26, Commits d6d68e2 Library + 849a8ad P3-Fixes). Umfang seit letzter QA: farbige Timeline-Balken, Session&IDs-Karte (prominente sid/uid, Aenderungshistorie, Per-Host-Persistenz, Session-API-Stat-Tiles mit se_data-Fallback + Live-Alter), consentFirstTs/logMilestones-Timeline-Stabilitaetsfix, Wartet-auf-Block, plus 1-Zeilen-Library-Change aGTM.d.dlrepeatGate (LIVE bei fc-moto.com). Zwei unabhaengige Sub-Agents (Korrektheit/Library + UX/Doku): KEIN P0/P1/P2. Live-Library-Zeile explizit bestaetigt sicher (ES5, kann nicht werfen, verhaltensneutral, +37B im Budget, build.sh driftfrei). 7 P3 behoben/akzeptiert (F-74..F-80): created-Sek/ms-Heuristik, prefers-reduced-motion, seit->gestartet, Palette-Aussage abgeschwaecht, 2 Test-/Doku-Luecken geschlossen; bewusst nicht gefixt: stale dlrepeatPolling (F-74, Panel korrekt gegated, Live-Ripple fuer Kosmetik vermieden). 540 Tests gruen. Doku/CHANGELOG/README/knowledge/findings/ZIP aktuell. Karte weiter QA. Naechster Chat baut einen Simulations-Tab in die Extension (Andi briefed).",
+                "created": "2026-07-26"
               }
             ],
             "qa": true
