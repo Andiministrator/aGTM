@@ -1855,6 +1855,36 @@ function renderDiagnose() {
     });
     html += "</div>";
   }
+  // "Wartet auf" — lifecycle milestones the timeline is still blocked on, with the
+  // events that will unblock them (consent_events / queued events / DL-Repeat gate).
+  var cc = s.consent || {};
+  var consentGiven = truthy(cc.gtmConsent);
+  var injected = !!(s.init && (s.gtmScripts || []).length);
+  var waits = [];
+  if (!consentGiven) {
+    waits.push({ lab: "CMP-Entscheidung", detail: s.consentEvents
+      ? ('erwartete Trigger-Events: <span class="mono">' + esc(s.consentEvents) + "</span>")
+      : "wartet auf das Consent-Signal der CMP" });
+  } else if (!injected) {
+    waits.push({ lab: "GTM-Injektion", detail: "Consent liegt vor, Container noch nicht im DOM" });
+  }
+  if (!consentGiven && s.queueLen > 0) {
+    var qn = [];
+    for (var qi = 0; qi < (s.queue || []).length && qn.length < 8; qi++) { var qe = s.queue[qi]; if (qe && qe.event) qn.push(esc(qe.event)); }
+    waits.push({ lab: s.queueLen + " Event(s) in der Warteschlange", detail: qn.length
+      ? ('werden nach Consent repliziert: <span class="mono">' + qn.join(", ") + "</span>")
+      : "werden nach Consent repliziert" });
+  }
+  if (s.dlrepeatPolling && !s.dlrepeatDone) {
+    waits.push({ lab: "DL-Repeat Late-Enrichment", detail: "wartet auf Gate-Event(s) vor dem Replay" });
+  }
+  if (waits.length) {
+    html += '<div class="tl-waithd">⏳ Wartet aktuell auf:</div>';
+    waits.forEach(function (w) {
+      html += '<div class="tl-wait"><span class="tl-wait-dot"></span><span class="tl-wait-lab">' + esc(w.lab) +
+        '</span><span class="tl-wait-detail">' + w.detail + "</span></div>";
+    });
+  }
   html += "</div>";
 
   // Compliance report export
