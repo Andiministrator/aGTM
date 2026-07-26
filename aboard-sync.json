@@ -1118,7 +1118,7 @@
             "status": "",
             "priority": "P2",
             "owner": "Claude Opus",
-            "qa": false,
+            "qa": true,
             "critical": false,
             "blocked": false,
             "complexity": "M",
@@ -1146,7 +1146,7 @@
               }
             ],
             "displayId": 49,
-            "columnId": "col-schreiben"
+            "columnId": "col-qa"
           }
         ]
       },
