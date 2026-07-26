@@ -186,6 +186,14 @@
   .tl-bar.b-firstTag { background: #1098ad; }
   .tl-bar.b-leak     { background: var(--err); }
   .tl-leak { color: var(--err); font-size: 10px; margin-left: 6px; }
+  /* "waiting on" block — pending lifecycle milestones the timeline is still blocked on */
+  .tl-waithd { color: var(--muted); font-size: 11px; margin-top: 10px; margin-bottom: 2px; }
+  .tl-wait { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; flex-wrap: wrap; }
+  .tl-wait-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); align-self: center; flex: 0 0 auto; animation: tl-pulse 1.4s ease-in-out infinite; }
+  @keyframes tl-pulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+  .tl-wait-lab { font-weight: 600; color: var(--warn); white-space: nowrap; }
+  .tl-wait-detail { color: var(--muted); font-size: 11px; }
+  .tl-wait-detail .mono { color: var(--fg); }
   .report-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   .copied { color: var(--ok); font-size: 11px; align-self: center; }
   /* prominent Session-ID / User-ID rows */

@@ -687,6 +687,32 @@ describe("Diagnose tab", () => {
     expect(html).toContain("vor Consent");   // inline warning on the row
     P.setNet([]);
   });
+  test("timeline shows what aGTM is still waiting on (consent + queued events)", () => {
+    const snap = sampleSnap();
+    snap.consent = { hasResponse: false, gtmConsent: false };
+    snap.consentEvents = "cmp_update,CCM19.consentStateChanged";
+    snap.init = false; snap.gtmScripts = [];
+    snap.queueLen = 2; snap.queue = [{ event: "user" }, { event: "view_item_list" }];
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("Wartet aktuell auf");
+    expect(html).toContain("tl-wait-dot");           // the pulsing indicator
+    expect(html).toContain("CMP-Entscheidung");
+    expect(html).toContain("cmp_update");            // awaited trigger events
+    expect(html).toContain("Warteschlange");
+    expect(html).toContain("view_item_list");        // queued event name
+  });
+  test("no 'waiting on' block once consent is granted and GTM is injected", () => {
+    const html = renderTab("diagnose"); // sample: gtmConsent true, init + gtmScripts present
+    expect(html).not.toContain("Wartet aktuell auf");
+  });
+  test("timeline flags a DL-Repeat late-enrichment gate that is still polling", () => {
+    const snap = sampleSnap(); // consent granted + injected → only the DL-Repeat wait remains
+    snap.dlrepeatPolling = true; snap.dlrepeatDone = false;
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("Wartet aktuell auf");
+    expect(html).toContain("DL-Repeat");
+    expect(html).toContain("Gate-Event");
+  });
   test("report export buttons are present", () => {
     const html = renderTab("diagnose");
     expect(html).toContain('id="diag-md"');

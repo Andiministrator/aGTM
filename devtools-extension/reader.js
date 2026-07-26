@@ -286,6 +286,10 @@
       consentTs: consentTs,
       consentFirstTs: consentFirstTs,
       logMilestones: logMilestones,
+      // DL-Repeat late-enrichment gate state — true while the replay is waiting for its
+      // gate event(s) (Consent-Timeline "waiting on" indicator).
+      dlrepeatPolling: !!d.dlrepeatPolling,
+      dlrepeatDone: !!d.dlrepeatDone,
       vendors: vendors,
       vendorState: vendorState,
       attribution: safeObj(d.attribution) || {}

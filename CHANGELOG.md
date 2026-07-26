@@ -28,7 +28,11 @@ diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
   read-only `navStart` (`performance.timing.navigationStart`) in `reader.js`.
   Bars are **colour-coded per milestone** (reusing the panel palette); a first
   tag fire landing **before** the CMP-decision marker is painted **red** with a
-  "⚠ vor Consent" flag — a pre-consent leak surfaced right on the timeline.
+  "⚠ vor Consent" flag — a pre-consent leak surfaced right on the timeline. Below
+  the waterfall a **"Wartet aktuell auf"** block (pulsing indicator) shows the
+  lifecycle milestones aGTM is still blocked on and the events that will unblock
+  them: the CMP decision with its expected `consent_events` triggers, the queued
+  events waiting to replay after consent, and a still-polling DL-Repeat gate.
 - **Compliance-Report** — a one-click shareable snapshot (Markdown/JSON to
   clipboard, or `.md` download) from leaks + consent flow + config traps +
   `consent_check` status, for the consulting/hand-off scenario.
