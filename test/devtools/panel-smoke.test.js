@@ -158,7 +158,7 @@ describe("panel boot", () => {
 });
 
 describe("every tab renders without throwing", () => {
-  ["diagnose", "consent", "events", "gtm", "datalayer", "session", "config", "network", "sim"].forEach((tab) => {
+  ["diagnose", "consent", "events", "datalayer", "session", "config", "network", "sim"].forEach((tab) => {
     test(tab + " renders non-empty HTML", () => {
       const html = renderTab(tab);
       expect(typeof html).toBe("string");
@@ -601,6 +601,7 @@ describe("Simulation tab", () => {
     expect(html).toContain("CMP-Antwort mocken");
     expect(html).toContain("Event feuern");
     expect(html).toContain("blockieren");        // block-existing box
+    expect(html).toContain('id="sim-block-cb"'); // persisted block checkbox
     expect(html).toContain("Integration injizieren"); // inject box
     expect(html).toContain("sim-useid");         // per-group name/ID toggle
     expect(html).toContain('id="sim-root"');
@@ -756,6 +757,12 @@ describe("Diagnose tab", () => {
     expect(html).toContain('id="diag-md"');
     expect(html).toContain('id="diag-json"');
     expect(html).toContain('id="diag-dl"');
+  });
+  test("GTM injection cards (former GTM tab) render at the bottom of Diagnose", () => {
+    const html = renderTab("diagnose");
+    expect(html).toContain("Injection-Status");           // GTM status card
+    expect(html).toContain("Container — aGTM.c.gtm");     // container table
+    expect(html).toContain("Injizierte Script-Tags (DOM)"); // sample has one script tag
   });
   test("timeline resolves markers from log ids + network (config/pending/inject/firstTag)", () => {
     const P = globalThis.__panel;
