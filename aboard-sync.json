@@ -1283,6 +1283,16 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "ac06b129-067e-4f82-81d0-0cfe2dc91c93",
+            "title": "sGTM Client: Session-API-Zaehler in aGTM.d.session durchreichen (created/counter/pv/event/sessionCount)",
+            "description": "Befund (fc-moto Live-Objekt 2026-07-26, via aGTM Inspector): aGTM.d.session traegt die Session-API-Zaehler NICHT (nur uid/sid/ret/sst/vct/ga4sid/muidga4/consent/source; vct=49 != sessionCount=56). Die vollen Zaehler (created/counter/pvCount/eventCount/sessionCount/lastInteraction) liegen nur in window.se_data. Der Inspector zieht sie jetzt als read-only Fallback aus se_data (Commit 4dc4d36), aber der saubere Weg ist server-seitig: der sGTM Client soll diese Felder aus dem Session-API-Record in cfg.session -> aGTM.d.session durchreichen (wie source), damit webGTM/Integratoren sie via aGTM.d.session lesen koennen ohne se_data-Abhaengigkeit. RELEASE-SENSIBEL: aendert den in den Client eingebetteten base64-Blob / cfg.session-Shape -> rippelt in live getestete Kunden (fc-moto) mitten in der offenen v1.5. Daher NICHT im Inspector-Chat angefasst. Reserved-Key-Blacklist beachten (created/counter etc. sind KEINE reserved session keys, sollten also durchgehen - pruefen warum sie aktuell fehlen: filtert der Client sie? oder liefert die Session-API sie nur im se_data-Pfad?).",
+            "priority": "P2",
+            "status": "todo",
+            "owner": "",
+            "columnId": "col-backlog",
+            "displayId": 48
           }
         ]
       },
@@ -1366,7 +1376,7 @@
         ]
       }
     ],
-    "nextDisplayId": 48,
+    "nextDisplayId": 49,
     "attachments": [],
     "background": null,
     "templates": [],
