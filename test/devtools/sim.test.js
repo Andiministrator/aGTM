@@ -10,7 +10,9 @@ import {
   commaWrap, splitTokens, stubBody,
   buildConsentCode, buildDenyCode, buildCmpMockCode,
   buildResetCode, buildRestoreCode, buildFireCode, buildInjectCode, buildProbeCode,
-  buildBlockCode, buildUnblockCode, buildInjectIntegrationCode, simSelection
+  buildBlockCode, buildUnblockCode, buildInjectIntegrationCode, simSelection,
+  buildGcmPushCode, buildCookieResetCode, buildScenarioCode, buildConsentStoreTestCode,
+  GCM_SIGNALS
 } from "../../devtools-extension/sim.js";
 
 // Run a builder's self-invoking expression against a supplied fake window and
@@ -349,5 +351,244 @@ describe("buildInjectIntegrationCode — runs a pasted snippet at global scope",
     var res = runDoc(buildInjectIntegrationCode(snippet), { aGTM: null }, doc);
     expect(res.ok).toBe(true);
     expect(doc.__appended[0]._text).toBe(snippet);
+  });
+});
+
+/* ==================================================================== *
+ *  Card #50 — Simulation-tab extra features                            *
+ * ==================================================================== */
+
+describe("buildGcmPushCode — gtag('consent','update',…) into the dataLayer", () => {
+  test("pushes a GENUINE arguments object (['consent','update',sig]) — not an array", () => {
+    var w = { aGTM: { c: { gdl: "dataLayer" } }, dataLayer: [] };
+    var res = run(buildGcmPushCode({ ad_storage: "granted", analytics_storage: "denied" }), w);
+    expect(res.ok).toBe(true);
+    expect(res.pushed).toBe(true);
+    expect(w.dataLayer.length).toBe(1);
+    var args = w.dataLayer[0];
+    // an arguments object is array-LIKE but not a real Array — that's what gtag pushes
+    expect(Array.isArray(args)).toBe(false);
+    expect(args.length).toBe(3);
+    expect(args[0]).toBe("consent");
+    expect(args[1]).toBe("update");
+    expect(args[2].ad_storage).toBe("granted");
+    expect(args[2].analytics_storage).toBe("denied");
+  });
+  test("whitelists GCM keys and only granted/denied values", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({ ad_storage: "granted", bogus_key: "granted", analytics_storage: "maybe" }), w);
+    expect(res.signals.ad_storage).toBe("granted");
+    expect(res.signals.bogus_key).toBeUndefined();       // not a GCM signal
+    expect(res.signals.analytics_storage).toBeUndefined(); // invalid value dropped
+  });
+  test("works WITHOUT aGTM on the page → default 'dataLayer'", () => {
+    var w = {}; // no aGTM, no dataLayer yet
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }), w);
+    expect(res.ok).toBe(true);
+    expect(res.dataLayer).toBe("dataLayer");
+    expect(w.dataLayer.length).toBe(1);
+  });
+  test("gdlHint overrides the dataLayer name", () => {
+    var w = { aGTM: { c: { gdl: "dataLayer" } } };
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "myLayer"), w);
+    expect(res.dataLayer).toBe("myLayer");
+    expect(w.myLayer.length).toBe(1);
+  });
+  test("all seven canonical GCM signals are supported", () => {
+    var all = {};
+    GCM_SIGNALS.forEach(function (k) { all[k] = "granted"; });
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode(all), w);
+    GCM_SIGNALS.forEach(function (k) { expect(res.signals[k]).toBe("granted"); });
+    expect(GCM_SIGNALS.length).toBe(7);
+  });
+});
+
+describe("buildCookieResetCode — expire matching cookies across domain/path grid", () => {
+  // Fake document.cookie: getter returns the live jar; setter parses an expiry write
+  // and drops the named cookie when the expires date is in the past.
+  function fakeWin(cookieStr, opts) {
+    opts = opts || {};
+    var jar = {};
+    (cookieStr || "").split(";").forEach(function (p) {
+      var kv = p.split("="); var k = (kv[0] || "").replace(/^\s+|\s+$/g, "");
+      if (k) jar[k] = (kv[1] || "").replace(/^\s+|\s+$/g, "");
+    });
+    var expired = [];
+    var doc = {
+      get cookie() {
+        return Object.keys(jar).map(function (k) { return k + "=" + jar[k]; }).join("; ");
+      },
+      set cookie(v) {
+        var name = v.split("=")[0];
+        if (v.indexOf("01 Jan 1970") >= 0) { if (jar.hasOwnProperty(name)) { delete jar[name]; } expired.push(name); }
+      }
+    };
+    var w = {
+      document: doc,
+      location: { hostname: opts.hostname || "shop.example.com", pathname: opts.pathname || "/cart", reloaded: false, reload: function () { this.reloaded = true; } },
+      __jar: jar, __expired: expired
+    };
+    if (opts.localStorage) {
+      var lsData = opts.localStorage, keys = Object.keys(lsData);
+      w.localStorage = {
+        get length() { return keys.length; },
+        key: function (i) { return keys[i]; },
+        removeItem: function (k) { var idx = keys.indexOf(k); if (idx >= 0) { keys.splice(idx, 1); delete lsData[k]; } }
+      };
+    }
+    // synchronous setTimeout so a reload happens within the test tick
+    w.setTimeout = function (fn) { fn(); return 0; };
+    return w;
+  }
+
+  test("only cookies whose name matches a pattern are expired", () => {
+    var w = fakeWin("CookieConsent=yes; sessionid=abc; OptanonConsent=1; cart=xy");
+    var res = run(buildCookieResetCode(["CookieConsent", "Optanon"], {}), w);
+    expect(res.ok).toBe(true);
+    expect(res.cleared.sort()).toEqual(["CookieConsent", "OptanonConsent"]);
+    expect(res.clearedCount).toBe(2);
+    // untouched cookies survive
+    expect(w.__jar.sessionid).toBe("abc");
+    expect(w.__jar.cart).toBe("xy");
+    expect(w.__jar.CookieConsent).toBeUndefined();
+  });
+  test("empty pattern list = match ALL cookies (nuclear)", () => {
+    var w = fakeWin("a=1; b=2; c=3");
+    var res = run(buildCookieResetCode([], {}), w);
+    expect(res.cleared.sort()).toEqual(["a", "b", "c"]);
+    expect(Object.keys(w.__jar).length).toBe(0);
+  });
+  test("reload:true reloads after clearing; reload:false does not", () => {
+    var w1 = fakeWin("CookieConsent=1");
+    run(buildCookieResetCode(["CookieConsent"], { reload: true }), w1);
+    expect(w1.location.reloaded).toBe(true);
+    var w2 = fakeWin("CookieConsent=1");
+    var res2 = run(buildCookieResetCode(["CookieConsent"], { reload: false }), w2);
+    expect(w2.location.reloaded).toBe(false);
+    expect(res2.reloading).toBeUndefined();
+  });
+  test("clearStorage:true removes matching localStorage keys", () => {
+    var w = fakeWin("x=1", { localStorage: { aGTM_consent: "1", loginToken: "keep", aGTM_sid: "2" } });
+    var res = run(buildCookieResetCode(["aGTM"], { clearStorage: true }), w);
+    expect(res.lsCleared).toBe(2);
+    expect(w.localStorage.length).toBe(1); // only loginToken remains
+  });
+  test("no throw when there is no document/location", () => {
+    var res = run(buildCookieResetCode(["x"], { reload: true }), {});
+    expect(res.ok).toBe(false);
+    expect(typeof res.error).toBe("string");
+  });
+  test("expiry write targets host-only AND parent domains (…, .example.com)", () => {
+    // We can't observe the domain= in the fake jar (it ignores it), but the code must
+    // issue MULTIPLE expiry writes per cookie (path × domain grid) — assert via count.
+    var writes = 0;
+    var w = { document: { get cookie() { return "t=1"; }, set cookie(v) { writes++; } },
+      location: { hostname: "a.b.example.com", pathname: "/p" }, setTimeout: function (f) { f(); } };
+    run(buildCookieResetCode(["t"], {}), w);
+    // 2 paths (/ + /p) × (>=1 domain variants) → clearly more than 1 write for one cookie
+    expect(writes).toBeGreaterThan(2);
+  });
+});
+
+describe("buildScenarioCode — one eval: deny → fire (queue) → grant → inject/replay", () => {
+  // Fake that models the queue: fire() parks events in aGTM.d.f until gtmConsent, then
+  // inject() replays them into the dataLayer — so queuedWhileDenied is meaningful.
+  function fakeQueueAGTM() {
+    var calls = [];
+    var w = { dataLayer: [] };
+    var A = { c: { gdl: "dataLayer" }, d: { consent: {}, init: false, f: [], last_consent_hash: "x" }, f: {} };
+    A.f.consent_check = function () { return true; };
+    A.f.run_cc = function (action) {
+      calls.push(["run_cc", action]);
+      if (action === "update") { A.d.consent.hasResponse = false; A.d.consent.services = ""; A.d.consent.purposes = ""; A.d.consent.vendors = ""; }
+      if (!A.f.consent_check(action)) return false;
+      A.d.consent.gtmConsent = !!A.d.consent.services || !!A.d.consent.purposes || !!A.d.consent.vendors;
+      var hash = (A.d.consent.services || "") + "|" + (A.d.consent.purposes || "");
+      var changed = hash !== A.d.last_consent_hash; A.d.last_consent_hash = hash;
+      if (action === "update" && changed && !A.d.init && A.d.consent.gtmConsent) A.f.inject();
+      return true;
+    };
+    A.f.fire = function (o) { if (A.d.consent && A.d.consent.gtmConsent) { w.dataLayer.push(o); } else { A.d.f.push(o); } };
+    A.f.inject = function () { A.d.init = true; while (A.d.f.length) w.dataLayer.push(A.d.f.shift()); };
+    w.aGTM = A; w.__calls = calls;
+    return w;
+  }
+  test("events queue while denied, then replay on grant", () => {
+    var w = fakeQueueAGTM();
+    var res = run(buildScenarioCode({ services: ["GA"] }, [{ event: "page_view" }, { event: "add_to_cart" }]), w);
+    expect(res.ok).toBe(true);
+    expect(res.scenario.firedEvents).toBe(2);
+    expect(res.scenario.queuedWhileDenied).toBe(2); // both parked before the grant
+    expect(res.gtmConsent).toBe(true);
+    expect(res.init).toBe(true);
+    // both events replayed into the dataLayer after inject
+    expect(w.dataLayer.length).toBe(2);
+    expect(w.dataLayer[0].event).toBe("page_view");
+  });
+  test("empty event list still walks deny→grant", () => {
+    var w = fakeQueueAGTM();
+    var res = run(buildScenarioCode({ services: ["GA"] }, []), w);
+    expect(res.ok).toBe(true);
+    expect(res.scenario.firedEvents).toBe(0);
+    expect(res.gtmConsent).toBe(true);
+  });
+  test("already-injected page → alreadyInjected:true, events stay queued (no replay)", () => {
+    var w = fakeQueueAGTM();
+    w.aGTM.d.init = true;            // GTM already loaded before the scenario
+    w.aGTM.d.last_consent_hash = ""; // ensure the grant would 'change' the hash
+    var res = run(buildScenarioCode({ services: ["GA"] }, [{ event: "page_view" }, { event: "purchase" }]), w);
+    expect(res.ok).toBe(true);
+    expect(res.scenario.alreadyInjected).toBe(true);   // captured BEFORE the run
+    expect(res.scenario.queuedWhileDenied).toBe(2);
+    // inject-once guard means no replay: events orphaned in aGTM.d.f, dataLayer empty
+    expect(w.dataLayer.length).toBe(0);
+    expect(w.aGTM.d.f.length).toBe(2);
+  });
+  test("no aGTM → ok:false, no throw", () => {
+    var res = run(buildScenarioCode({ services: ["GA"] }, [{ event: "x" }]), {});
+    expect(res.ok).toBe(false);
+  });
+});
+
+describe("buildConsentStoreTestCode — force the /aGTMconsent POST via run_cc", () => {
+  // Fake whose run_cc mirrors aGTM.js's end-of-success consent-store diff: POST when the
+  // serialized consent differs from A.d.consent_hash. Blanking the hash MUST cause a POST.
+  function fakeStoreAGTM(url) {
+    var posts = [];
+    var w = { dataLayer: [] };
+    var A = { c: { gdl: "dataLayer", consent_store_url: url }, d: { consent: {}, init: false, consent_hash: "SEEDED", last_consent_hash: "x" }, f: {} };
+    A.f.consent_check = function () { return true; };
+    A.f.xsend = function (u, payload) { posts.push({ url: u, payload: payload }); return {}; };
+    A.f.run_cc = function (action) {
+      if (action === "update") { A.d.consent.hasResponse = false; A.d.consent.services = ""; }
+      A.f.consent_check(action);
+      A.d.consent.gtmConsent = !!A.d.consent.services;
+      var ser = A.d.consent.services || "";
+      if (A.c.consent_store_url && ser !== A.d.consent_hash) { A.f.xsend(A.c.consent_store_url, { consent: A.d.consent.services }); A.d.consent_hash = ser; }
+      return true;
+    };
+    A.f.inject = function () { A.d.init = true; };
+    w.aGTM = A; w.__posts = posts;
+    return w;
+  }
+  test("blanks consent_hash so run_cc POSTs to consent_store_url", () => {
+    var w = fakeStoreAGTM("https://sgtm.example.com/aGTMconsent");
+    var res = run(buildConsentStoreTestCode({ services: ["GA"] }), w);
+    expect(res.ok).toBe(true);
+    expect(res.consentStoreUrl).toBe("https://sgtm.example.com/aGTMconsent");
+    expect(w.__posts.length).toBe(1);
+    expect(w.__posts[0].url).toBe("https://sgtm.example.com/aGTMconsent");
+  });
+  test("errors cleanly when no consent_store_url is configured (no POST)", () => {
+    var w = fakeStoreAGTM("");
+    var res = run(buildConsentStoreTestCode({ services: ["GA"] }), w);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("consent_store_url");
+    expect(w.__posts.length).toBe(0);
+  });
+  test("no aGTM → ok:false, no throw", () => {
+    var res = run(buildConsentStoreTestCode({}), {});
+    expect(res.ok).toBe(false);
   });
 });

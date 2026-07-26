@@ -27,6 +27,25 @@ A new **Simulation tab** turns the otherwise read-only Inspector into a flow dri
   at global scope via a `<script>` element; the box renders even when `window.aGTM` is
   absent).
 
+### Added — aGTM Inspector: Simulation tab extra features
+
+Four further tools on the Simulation tab (same opt-in Write-Modus gate, persisted per
+host, ES5-safe injected builders, unit-tested):
+
+- **Google Consent Mode push** — `gtag('consent','update',{…})` straight into the
+  dataLayer (a genuine `arguments` object, as `gtag()` pushes) to test GCM signals
+  **independently of aGTM**; one checkbox per canonical signal.
+- **Cookie reset + reload** — expire cookies whose name matches a pattern (across the
+  path × parent-domain grid), optionally clear matching `localStorage`, then optionally
+  reload — the true first-visit re-test. Empty pattern field = match every cookie.
+- **Scenario runner** — one click runs **deny → fire (queue) → grant (inject + replay)**
+  and reports the fired/queued counts. Mirrors the v1.6 roadmap's scenario runner.
+- **Consent-store POST test** — blanks `aGTM.d.consent_hash` and calls
+  `run_cc('update')` so the genuine `aGTM.f.xsend()` POST to `consent_store_url`
+  (`/aGTMconsent`) fires; disabled with a hint when no `consent_store_url` is set.
+
+See `devtools-extension/README.md` → *Simulation & the write channel → Extra features*.
+
 ### Changed — aGTM Inspector: GTM tab folded into Diagnose
 
 The standalone **GTM tab** was removed; its injection status, container table and

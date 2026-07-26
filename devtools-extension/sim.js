@@ -57,13 +57,17 @@
   // Wrap a mutating body into a self-invoking, fully try/catch'd expression that
   // ALWAYS returns a small serialisable effect object the panel reads back to show
   // the immediate result (before the next 700ms snapshot poll catches up).
-  function wrap(body) {
+  // `extra` (optional) is a trailing "key:val," fragment spliced into the returned
+  // object literal so a builder can surface scenario-specific fields (e.g. how many
+  // events were queued) computed from temp vars declared in `body`.
+  function wrap(body, extra) {
+    extra = extra || "";
     return "(function(){try{" +
       "var w=window;if(!w.aGTM||!w.aGTM.f||!w.aGTM.d)return{ok:false,error:'aGTM not present on this page'};" +
       "var A=w.aGTM;" +
       body +
       "var c=A.d.consent||{};" +
-      "return{ok:true,gtmConsent:!!c.gtmConsent,hasResponse:!!c.hasResponse,init:!!A.d.init," +
+      "return{ok:true," + extra + "gtmConsent:!!c.gtmConsent,hasResponse:!!c.hasResponse,init:!!A.d.init," +
       "services:c.services||'',purposes:c.purposes||'',vendors:c.vendors||''," +
       "serviceIDs:c.serviceIDs||'',vendorIDs:c.vendorIDs||'',purposeIDs:c.purposeIDs||''," +
       "feedback:c.feedback||''," +
@@ -203,6 +207,114 @@
   }
   SIM.buildInjectIntegrationCode = buildInjectIntegrationCode;
 
+  /* ---- Card #50: Simulation-tab extra features ---------------------- */
+
+  // The seven Google Consent Mode signal keys, in Google's canonical order.
+  var GCM_SIGNALS = ["ad_storage", "analytics_storage", "ad_user_data",
+    "ad_personalization", "functionality_storage", "personalization_storage",
+    "security_storage"];
+  SIM.GCM_SIGNALS = GCM_SIGNALS;
+
+  // (1) Push a Google Consent Mode update straight to the (GTM) dataLayer, exactly
+  // like gtag('consent','update',{…}) does — so GCM signals can be tested even when
+  // aGTM is not on the page. The push carries a GENUINE `arguments` object (built via
+  // an IIFE), which is what Google's tag reads; a plain array would NOT be treated as
+  // a gtag command. `signals` maps a GCM key → 'granted'|'denied' (others dropped).
+  // `gdlHint` (optional) overrides the dataLayer name; otherwise aGTM.c.gdl, else
+  // 'dataLayer'. Independent of aGTM → its own wrapper (not wrap()).
+  function buildGcmPushCode(signals, gdlHint) {
+    signals = signals || {};
+    var sig = {};
+    for (var i = 0; i < GCM_SIGNALS.length; i++) {
+      var k = GCM_SIGNALS[i], v = signals[k];
+      if (v === "granted" || v === "denied") sig[k] = v;
+    }
+    return "(function(){try{" +
+      "var w=window;" +
+      "var dl=" + J(gdlHint || "") + "||(w.aGTM&&w.aGTM.c&&w.aGTM.c.gdl)||'dataLayer';" +
+      "w[dl]=w[dl]||[];" +
+      "var sig=" + J(sig) + ";" +
+      "(function(){w[dl].push(arguments);})('consent','update',sig);" +
+      "return{ok:true,pushed:true,dataLayer:dl,signals:sig,dataLayerLen:(w[dl].length)||0};" +
+      "}catch(e){return{ok:false,error:String(e)};}})()";
+  }
+  SIM.buildGcmPushCode = buildGcmPushCode;
+
+  // (2) Clear consent cookies (and optionally matching localStorage keys) for a real
+  // first-visit re-test, then optionally reload. A cookie is deleted only when its
+  // name CONTAINS one of `patterns` (case-sensitive substring) — an EMPTY pattern list
+  // means "match every cookie" (nuclear, surfaced in the UI). Each match is expired
+  // across the '/' + current-path × ('' + every parent domain) grid so host-only and
+  // domain cookies both die. opts: {clearStorage, reload}. Independent of aGTM.
+  function buildCookieResetCode(patterns, opts) {
+    opts = opts || {};
+    var pats = [];
+    patterns = patterns || [];
+    for (var i = 0; i < patterns.length; i++) {
+      var t = (patterns[i] === null || typeof patterns[i] === "undefined") ? "" : String(patterns[i]);
+      t = t.replace(/^\s+|\s+$/g, "");
+      if (t) pats.push(t);
+    }
+    return "(function(){try{" +
+      "var w=window,d=w.document,loc=w.location;if(!d||!loc)return{ok:false,error:'no document/location'};" +
+      "var pats=" + J(pats) + ";" +
+      "function match(n){if(!pats.length)return true;for(var i=0;i<pats.length;i++){if(n.indexOf(pats[i])>=0)return true;}return false;}" +
+      "var raw=(d.cookie||'').split(';');var names=[];" +
+      "for(var r=0;r<raw.length;r++){var nm=raw[r].split('=')[0].replace(/^\\s+|\\s+$/g,'');if(nm&&match(nm)&&names.indexOf(nm)<0)names.push(nm);}" +
+      "var host=String(loc.hostname||'').split('.');var domains=[''];" +
+      "for(var h=0;h<host.length-1;h++){var dd=host.slice(h).join('.');domains.push('; domain='+dd);domains.push('; domain=.'+dd);}" +
+      "var paths=['/'];var pp=loc.pathname||'/';if(paths.indexOf(pp)<0)paths.push(pp);" +
+      "var exp='=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=';" +
+      "for(var n=0;n<names.length;n++){for(var p=0;p<paths.length;p++){for(var q=0;q<domains.length;q++){try{d.cookie=names[n]+exp+paths[p]+domains[q];}catch(ec){}}}}" +
+      "var lsCleared=0;" +
+      (opts.clearStorage ? "try{var ls=w.localStorage;if(ls){var rm=[];for(var k=0;k<ls.length;k++){var key=ls.key(k);if(key&&match(key))rm.push(key);}for(var m=0;m<rm.length;m++){ls.removeItem(rm[m]);}lsCleared=rm.length;}}catch(el){}" : "") +
+      "var out={ok:true,cleared:names,clearedCount:names.length,lsCleared:lsCleared};" +
+      (opts.reload ? "out.reloading=true;try{if(typeof w.setTimeout==='function'){w.setTimeout(function(){try{loc.reload();}catch(e2){}},80);}else{loc.reload();}}catch(er){}" : "") +
+      "return out;" +
+      "}catch(e){return{ok:false,error:String(e)};}})()";
+  }
+  SIM.buildCookieResetCode = buildCookieResetCode;
+
+  // (3) Scenario runner — one eval that walks the whole consent lifecycle so the user
+  // watches deny → queued events → grant → inject+replay in a single click. Faithful to
+  // the library path: a deny stub + run_cc('update') (GTM stays out), then fire() every
+  // event (held in aGTM.d.f because there's no consent), then the grant stub for `sel` +
+  // run_cc('update') which — on the consent change — injects GTM and replays the queue.
+  // Surfaces queued/fired counts via wrap()'s `extra` so the effect panel proves the
+  // events were actually parked before the grant.
+  function buildScenarioCode(sel, events) {
+    sel = sel || {};
+    events = (events && events.length) ? events : [];
+    var body =
+      // Capture init BEFORE the run so we can tell "just injected" from "was already
+      // injected" — on an already-injected page run_cc's inject()-once guard means the
+      // grant step neither injects nor replays, so the queued events would be orphaned.
+      "var _pre=!!A.d.init;" +
+      stubBody({}) + "A.f.run_cc('update');" +
+      "var _evs=" + J(events) + ";for(var _i=0;_i<_evs.length;_i++){try{A.f.fire(_evs[_i]);}catch(_e){}}" +
+      "var _q=(A.d.f&&A.d.f.length)||0;" +
+      stubBody(sel) + "A.f.run_cc('update');";
+    return wrap(body, "scenario:{firedEvents:_evs.length,queuedWhileDenied:_q,alreadyInjected:_pre},");
+  }
+  SIM.buildScenarioCode = buildScenarioCode;
+
+  // (4) Consent-store POST test — deliberately exercise the /aGTMconsent path. Installs
+  // the `sel` stub, then blanks aGTM.d.consent_hash so run_cc('update')'s end-of-success
+  // diff is GUARANTEED to differ from the stored hash → the real aGTM.f.xsend() POST to
+  // consent_store_url fires (with its genuine onreadystatechange handler). No POST is
+  // synthesised here — the library does it. Reports the URL (and errors out cleanly when
+  // no consent_store_url is configured, since then there is nothing to hit).
+  function buildConsentStoreTestCode(sel) {
+    sel = sel || {};
+    var body =
+      "if(!A.c||!A.c.consent_store_url)return{ok:false,error:'consent_store_url ist nicht konfiguriert - kein /aGTMconsent-Endpunkt gesetzt.'};" +
+      stubBody(sel) +
+      "A.d.consent_hash='';" +
+      "A.f.run_cc('update');";
+    return wrap(body, "consentStoreUrl:(A.c&&A.c.consent_store_url)||'',");
+  }
+  SIM.buildConsentStoreTestCode = buildConsentStoreTestCode;
+
   // Split a comma list (plain "a, b" from config OR comma-wrapped ",a,b," from
   // consent) into trimmed non-empty tokens.
   function splitTokens(str) {
@@ -231,8 +343,22 @@ var SIM_WRITE = false;
 var SIM_LS = "aGTMInspector.sim";
 var SIM_LAST = null; // last write action result {ok,...} for the effect panel
 
+// Default GCM signal map: a denied-by-default baseline (storage that needs consent is
+// denied; the two always-allowed functional/security signals granted) — the safe start
+// for a first-visit consent test.
+function simDefaultGcm() {
+  return {
+    ad_storage: "denied", analytics_storage: "denied", ad_user_data: "denied",
+    ad_personalization: "denied", functionality_storage: "granted",
+    personalization_storage: "denied", security_storage: "granted"
+  };
+}
+// Curated default cookie-name fragments for the reset box (common CMP/consent cookies +
+// aGTM's own). Empty field = match ALL cookies (nuclear) — spelled out in the UI hint.
+var SIM_COOKIE_DEFAULT = "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm";
+
 function simState() {
-  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false };
+  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, scenarioText: "" };
   return state.sim;
 }
 
@@ -241,6 +367,7 @@ function simLoad(host) {
   var st = simState();
   st.host = host;
   st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {}; st.injectCode = ""; st.blockIntent = false;
+  st.gcm = simDefaultGcm(); st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.scenarioText = "";
   try {
     if (typeof localStorage === "undefined") return;
     var all = JSON.parse(localStorage.getItem(SIM_LS) || "{}");
@@ -253,6 +380,11 @@ function simLoad(host) {
       if (e.flags && typeof e.flags === "object") st.flags = e.flags;
       if (typeof e.injectCode === "string") st.injectCode = e.injectCode;
       if (typeof e.blockIntent === "boolean") st.blockIntent = e.blockIntent;
+      if (e.gcm && typeof e.gcm === "object") st.gcm = e.gcm;
+      if (typeof e.cookiePats === "string") st.cookiePats = e.cookiePats;
+      if (typeof e.cookieReload === "boolean") st.cookieReload = e.cookieReload;
+      if (typeof e.cookieLS === "boolean") st.cookieLS = e.cookieLS;
+      if (typeof e.scenarioText === "string") st.scenarioText = e.scenarioText;
     }
   } catch (er) { /* corrupt/unavailable → in-memory defaults */ }
 }
@@ -269,7 +401,12 @@ function simSave() {
       fireText: st.fireText || "",
       flags: st.flags || {},
       injectCode: st.injectCode || "",
-      blockIntent: !!st.blockIntent
+      blockIntent: !!st.blockIntent,
+      gcm: st.gcm || simDefaultGcm(),
+      cookiePats: typeof st.cookiePats === "string" ? st.cookiePats : SIM_COOKIE_DEFAULT,
+      cookieReload: !!st.cookieReload,
+      cookieLS: !!st.cookieLS,
+      scenarioText: st.scenarioText || ""
     };
     localStorage.setItem(SIM_LS, JSON.stringify(all));
   } catch (er) { /* ignore */ }
@@ -476,9 +613,43 @@ function buildSimScaffold() {
       '<div class="muted" style="margin-bottom:8px;font-size:11px">Ruft <code>aGTM.f.inject()</code> direkt — unabhängig vom Consent. Nützlich, um Container-Load isoliert zu testen.</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       simBtn("sim-inject", "aGTM.f.inject() erzwingen", "warn") + "</div></div>";
+
+    // ── Scenario runner (deny → fire → grant) ───────────────────
+    h += '<div class="card"><h2>Szenario-Runner</h2>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Spielt in <b>einem Klick</b> den kompletten Ablauf durch: <b>ablehnen</b> → die Events unten <b>feuern</b> (werden bei fehlendem Consent in <code>aGTM.d.f</code> geparkt) → oben gewählten Consent <b>erteilen</b> (<code>run_cc</code> → inject → Replay der geparkten Events). Events als JSON-Array. <b>Voraussetzung für den Replay:</b> GTM darf noch <b>nicht</b> injiziert sein (sonst greift der inject-once-Schutz → kein Replay). Ist <code>consent_store_url</code> gesetzt, sendet der Lauf zwei echte Consent-Store-POSTs (deny, dann grant).</div>' +
+      '<textarea id="sim-scn" spellcheck="false" style="width:100%;min-height:64px;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px">' +
+      esc(st.scenarioText || '[\n  { "event": "page_view" },\n  { "event": "add_to_cart" }\n]') + "</textarea>" +
+      '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">' +
+      simBtn("sim-scn-run", "Szenario starten (deny→fire→grant)", "acc") + "</div>" +
+      '<div id="sim-scn-err" class="muted" style="font-size:11px"></div></div>';
+
+    // ── consent-store POST test (/aGTMconsent) ──────────────────
+    var csUrl = (snap.config && snap.config.consent_store_url) || "";
+    h += '<div class="card"><h2>Consent-Store-POST testen</h2>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Löst gezielt den <code>/aGTMconsent</code>-POST aus: installiert die oben gewählte Consent-Auswahl, leert <code>aGTM.d.consent_hash</code> (erzwingt den Diff) und ruft <code>run_cc(\'update\')</code> — der echte <code>aGTM.f.xsend()</code>-POST an <code>consent_store_url</code> feuert. ' +
+      (csUrl ? 'Ziel: <code>' + esc(csUrl) + '</code>' : '<b>Kein <code>consent_store_url</code> konfiguriert</b> — der Test meldet das nur, ohne zu senden.') + '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      simBtn("sim-cstore", "Consent-Store-POST auslösen", "warn", !csUrl) + "</div></div>";
   } else {
     h += '<div class="card"><div class="muted">Auf dieser Seite ist <code>window.aGTM</code> nicht geladen — Consent-/Event-Simulation braucht ein aktives aGTM. Du kannst unten eine Integration <b>injizieren</b> (für noch nicht integrierte Seiten).</div></div>';
   }
+
+  // ── Google Consent Mode push (aGTM-independent) ───────────────
+  h += '<div class="card"><h2>Google Consent Mode pushen</h2>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Schiebt ein <code>gtag(\'consent\',\'update\',{…})</code> direkt in den dataLayer (echtes <code>arguments</code>-Objekt) — testet GCM-Signale <b>unabhängig von aGTM</b>. Häkchen = <code>granted</code>, sonst <code>denied</code>.</div>' +
+    simGcmRows(st.gcm) +
+    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
+    simBtn("sim-gcm-push", "consent update pushen", "acc") + "</div></div>";
+
+  // ── Cookie reset + reload (aGTM-independent) ──────────────────
+  h += '<div class="card"><h2>Cookies zurücksetzen + neu laden</h2>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“.</div>' +
+    '<input type="text" id="sim-cookie-pats" spellcheck="false" placeholder="Cookie-Namen-Muster, kommagetrennt (leer = alle)" value="' + esc(typeof st.cookiePats === "string" ? st.cookiePats : "") + '" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">' +
+    '<div class="toolbar" style="margin-top:8px">' +
+    simFlag("sim-cookie-ls", "localStorage auch leeren", st.cookieLS) +
+    simFlag("sim-cookie-reload", "danach neu laden", st.cookieReload) +
+    '<span class="spacer" style="flex:1"></span>' +
+    simBtn("sim-cookie-reset", "Cookies löschen", "warn") + "</div></div>";
 
   // ── Block an existing aGTM integration ────────────────────────
   // Persisted per host (blockIntent). When write-mode is on and the intent is set
@@ -513,6 +684,21 @@ function simBtn(id, label, cls, forceDisabled) {
 }
 function simFlag(id, label, on) {
   return '<label><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + "> " + esc(label) + "</label>";
+}
+
+// One checkbox per Google Consent Mode signal (checked = granted). Data-driven from
+// the builder's GCM_SIGNALS list so the panel never drifts from what the code embeds.
+function simGcmRows(gcm) {
+  gcm = gcm || {};
+  var sigs = (window.aGTMInspectorSim && window.aGTMInspectorSim.GCM_SIGNALS) || [];
+  var h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px 12px">';
+  for (var i = 0; i < sigs.length; i++) {
+    var k = sigs[i], on = gcm[k] === "granted";
+    h += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">' +
+      '<input type="checkbox" class="sim-gcm" data-sig="' + esc(k) + '"' + (on ? " checked" : "") + '> ' +
+      '<span class="mono">' + esc(k) + "</span></label>";
+  }
+  return h + "</div>";
 }
 
 function simConsentGroups(model) {
@@ -618,7 +804,25 @@ function updateSimLive() {
     h += '<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;font-size:11px">' +
       '<span class="chip ' + okc + '">' + (SIM_LAST.ok ? "OK" : "Fehler") + "</span> " +
       '<span class="muted">' + esc(SIM_LAST.label || "") + (SIM_LAST.ts ? " · " + fmtTime(SIM_LAST.ts) : "") + "</span>" +
-      (SIM_LAST.error ? ' <span style="color:var(--err)">' + esc(SIM_LAST.error) + "</span>" : "") + "</div>";
+      (SIM_LAST.error ? ' <span style="color:var(--err)">' + esc(SIM_LAST.error) + "</span>" : "");
+    // Action-specific detail line (scenario counts / GCM signals / cookie reset / POST).
+    var det = "";
+    if (SIM_LAST.scenario) {
+      det = "Events gefeuert: " + (SIM_LAST.scenario.firedEvents | 0) + " · bei Deny geparkt: " + (SIM_LAST.scenario.queuedWhileDenied | 0);
+      if (SIM_LAST.scenario.alreadyInjected && (SIM_LAST.scenario.queuedWhileDenied | 0) > 0) {
+        det += " · ⚠ GTM war bereits injiziert → kein Replay (Events bleiben in aGTM.d.f). Für einen echten Ablauf: Cookies löschen + neu laden.";
+      }
+    } else if (SIM_LAST.signals) {
+      var parts = [];
+      for (var sk in SIM_LAST.signals) if (Object.prototype.hasOwnProperty.call(SIM_LAST.signals, sk)) parts.push(sk + "=" + SIM_LAST.signals[sk]);
+      det = "→ " + (SIM_LAST.dataLayer || "dataLayer") + ": " + (parts.join(", ") || "—");
+    } else if (typeof SIM_LAST.clearedCount === "number") {
+      det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "") + (SIM_LAST.reloading ? " · lädt neu…" : "");
+    } else if (SIM_LAST.consentStoreUrl) {
+      det = "POST → " + SIM_LAST.consentStoreUrl;
+    }
+    if (det) h += '<div class="muted" style="margin-top:3px;font-size:11px">' + esc(det) + "</div>";
+    h += "</div>";
   }
   if (node.__lastHTML === h) return;
   node.__lastHTML = h;
@@ -651,9 +855,14 @@ function attachSimDelegatedOnce() {
       m2.useId[t.getAttribute("data-grp")] = t.checked;
       simSave();
       buildSimScaffold(); // re-render so the ID field emphasis + name dimming update
+    } else if (cn.indexOf("sim-gcm") >= 0) {
+      var st = simState();
+      if (!st.gcm || typeof st.gcm !== "object") st.gcm = simDefaultGcm();
+      st.gcm[t.getAttribute("data-sig")] = t.checked ? "granted" : "denied";
+      simSave();
     }
   });
-  // id fields + fire textarea + integration textarea
+  // id fields + fire textarea + integration textarea + cookie patterns + scenario
   root.addEventListener("input", function (e) {
     var t = e.target;
     if (t && t.className && String(t.className).indexOf("sim-id") >= 0) {
@@ -664,6 +873,10 @@ function attachSimDelegatedOnce() {
       simState().fireText = t.value; simSave();
     } else if (t && t.id === "sim-integration") {
       simState().injectCode = t.value; simSave();
+    } else if (t && t.id === "sim-cookie-pats") {
+      simState().cookiePats = t.value; simSave();
+    } else if (t && t.id === "sim-scn") {
+      simState().scenarioText = t.value; simSave();
     }
   });
   // add a token on Enter in a .sim-add field
@@ -749,6 +962,43 @@ function attachSimListeners() {
     if (!code || !String(code).replace(/^\s+|\s+$/g, "")) return;
     simState().injectCode = code; simSave();
     simRun(window.aGTMInspectorSim.buildInjectIntegrationCode(code), "Integration injiziert");
+  });
+
+  // GCM push
+  bindClick("sim-gcm-push", function () {
+    var st = simState();
+    simRun(window.aGTMInspectorSim.buildGcmPushCode(st.gcm, (state.snap && state.snap.gdl) || ""), "GCM consent update gepusht");
+  });
+
+  // Cookie reset flag checkboxes + button
+  var ckLs = el("sim-cookie-ls");
+  if (ckLs) ckLs.addEventListener("change", function () { simState().cookieLS = ckLs.checked; simSave(); });
+  var ckRl = el("sim-cookie-reload");
+  if (ckRl) ckRl.addEventListener("change", function () { simState().cookieReload = ckRl.checked; simSave(); });
+  bindClick("sim-cookie-reset", function () {
+    var st = simState();
+    var input = el("sim-cookie-pats");
+    var raw = input ? input.value : (st.cookiePats || "");
+    var pats = window.aGTMInspectorSim.splitTokens(raw);
+    simRun(window.aGTMInspectorSim.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: !!st.cookieReload }), "Cookies zurückgesetzt");
+  });
+
+  // Scenario runner
+  bindClick("sim-scn-run", function () {
+    var ta = el("sim-scn"); var errEl = el("sim-scn-err");
+    var evs;
+    try { evs = JSON.parse(ta.value); } catch (e) { if (errEl) errEl.innerHTML = '<span style="color:var(--err)">Ungültiges JSON: ' + esc(e.message) + "</span>"; return; }
+    if (Object.prototype.toString.call(evs) !== "[object Array]") { if (errEl) errEl.innerHTML = '<span style="color:var(--err)">Array von Event-Objekten erwartet</span>'; return; }
+    if (errEl) errEl.textContent = "";
+    simState().scenarioText = ta.value; simSave();
+    var sel = simSelection(simConsentModel(state.snap || {}));
+    simRun(window.aGTMInspectorSim.buildScenarioCode(sel, evs), "Szenario: deny→fire→grant");
+  });
+
+  // consent-store POST test
+  bindClick("sim-cstore", function () {
+    var sel = simSelection(simConsentModel(state.snap || {}));
+    simRun(window.aGTMInspectorSim.buildConsentStoreTestCode(sel), "Consent-Store-POST ausgelöst");
   });
   bindClick("sim-fire-btn", function () {
     var ta = el("sim-fire"); var errEl = el("sim-fire-err");
