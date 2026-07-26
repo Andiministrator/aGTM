@@ -707,11 +707,12 @@ describe("Diagnose tab", () => {
   });
   test("timeline flags a DL-Repeat late-enrichment gate that is still polling", () => {
     const snap = sampleSnap(); // consent granted + injected → only the DL-Repeat wait remains
-    snap.dlrepeatPolling = true; snap.dlrepeatDone = false;
+    snap.dlrepeatPolling = true; snap.dlrepeatDone = false; snap.dlrepeatGate = "user_data?if=user[id]";
     const html = renderTab("diagnose", snap);
     expect(html).toContain("Wartet aktuell auf");
     expect(html).toContain("DL-Repeat");
     expect(html).toContain("Gate-Event");
+    expect(html).toContain("user_data?if=user[id]"); // the actual gate spec from aGTM.d.dlrepeatGate
   });
   test("report export buttons are present", () => {
     const html = renderTab("diagnose");

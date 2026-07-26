@@ -32,7 +32,16 @@ diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
   the waterfall a **"Wartet aktuell auf"** block (pulsing indicator) shows the
   lifecycle milestones aGTM is still blocked on and the events that will unblock
   them: the CMP decision with its expected `consent_events` triggers, the queued
-  events waiting to replay after consent, and a still-polling DL-Repeat gate.
+  events waiting to replay after consent, and a still-polling DL-Repeat gate
+  (now with the concrete awaited gate spec — see the library note below).
+
+### Added — DL-Repeat exposes its awaited gate spec (`aGTM.d.dlrepeatGate`)
+
+`aGTM.f.dlrepeat` now records the configured `gateEvents` string on
+`aGTM.d.dlrepeatGate` while it is polling for the gate — one line, so the aGTM
+Inspector's "waiting on" view can name the exact event(s) the late-enrichment
+replay is blocked on (previously it could only say "a gate event"). Minified
+cost: +37 bytes (well within the size budget). No behaviour change.
 - **Compliance-Report** — a one-click shareable snapshot (Markdown/JSON to
   clipboard, or `.md` download) from leaks + consent flow + config traps +
   `consent_check` status, for the consulting/hand-off scenario.

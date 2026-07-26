@@ -290,6 +290,7 @@
       // gate event(s) (Consent-Timeline "waiting on" indicator).
       dlrepeatPolling: !!d.dlrepeatPolling,
       dlrepeatDone: !!d.dlrepeatDone,
+      dlrepeatGate: typeof d.dlrepeatGate === "string" ? d.dlrepeatGate : "",
       vendors: vendors,
       vendorState: vendorState,
       attribution: safeObj(d.attribution) || {}
