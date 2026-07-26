@@ -1131,6 +1131,12 @@
                 "author": "Claude Opus",
                 "text": "Implementierung fertig auf dev (Commit folgt): sim.js + Verdrahtung + Doku + Tests. 564 bun-Tests gruen, sim.js node --check ok. Posture bewusst designt/dokumentiert (Write-Modus default AUS, reader.js bleibt reiner Reader, kein neues Permission). OFFEN fuer Andi: (a) Live-Load in Chrome + Durchspielen des Consent-Flows; (b) Entscheidung ueber vorgeschlagene Extra-Features (Google-Consent-Mode-gtag-Push, Cookie-Reset+Reload fuer echten Erstbesuch-Test, Szenario-Runner (deny->fire->grant, spiegelt v1.6-Roadmap), consent-store-POST-Test); (c) ZIP-Artefakt neu bauen falls gewuenscht.",
                 "created": "2026-07-26"
+              },
+              {
+                "id": "ac2b6ec2-ad50-4b2f-8497-cc8995a8e370",
+                "author": "Claude Opus",
+                "text": "Runde 2 (Andi-Feedback) umgesetzt: (1) Pro Gruppe (Kategorien/Services/Vendoren) IDs-Umschalter — Consent per ID statt Name (IDs landen im GTM-geprueften String + serviceIDs/vendorIDs/purposeIDs); Purposes haben jetzt auch ID-Feld. (2) Neue Box: vorhandene aGTM-Integration BLOCKIEREN (inject/initGTM/gtm_load->no-op, consent_check->false, reversibel per Entsperren, gesichert unter aGTM.f.__inspBlockBak). (3) Neue Box: aGTM-Integration INJIZIEREN (fuer nicht-integrierte Seiten; laeuft global via <script>-Element; Sim-Tab rendert jetzt auch OHNE geladenes aGTM). simSelection-useId-Logik + neue Builder unit-getestet, 576 Tests gruen.",
+                "created": "2026-07-26"
               }
             ],
             "displayId": 49,
