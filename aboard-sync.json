@@ -1336,6 +1336,24 @@
             "owner": "",
             "columnId": "col-backlog",
             "displayId": 48
+          },
+          {
+            "id": "agtm-inspector-sim-extra-features",
+            "title": "aGTM Inspector Simulations-Tab: Extra-Features (GCM-Push, Reset+Reload, Szenario-Runner, consent-store-POST)",
+            "description": "Folge-Features fuer den Simulations-Tab (sim.js), von Andi fuer den naechsten Chat freigegeben: (1) Google-Consent-Mode-Push — gtag(\"consent\",\"update\",{...}) direkt pushen, um GCM-Signale unabhaengig von aGTM zu testen. (2) Cookie-Reset + Reload — Consent-Cookies loeschen + Seite neu laden fuer einen echten Erstbesuch-Test (Simulation kann bereits injiziertes GTM nicht zurueckholen). (3) Szenario-Runner — Sequenz deny -> Events feuern -> grant -> Replay beobachten, ein Klick; spiegelt das v1.6-Roadmap-Item \"interaktiver Scenario-Runner\". (4) consent-store-POST-Test — den /aGTMconsent-Pfad gezielt ausloesen.",
+            "status": "",
+            "priority": "P3",
+            "owner": "",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": "M",
+            "agentContext": "Baut auf sim.js auf (devtools-extension/). MUSTER strikt einhalten: pure Builder auf window.aGTMInspectorSim (self-invoking (function(){try{}catch(e){}})()-Ausdruck, gibt {ok,...} zurueck), INJIZIERTER Code ES5-only (var, keine Arrow/let/const/Template-Literals). Alle Writes durch simRun() (SIM_WRITE-Gate). Persistenz pro Host via st.* + simSave (localStorage aGTMInspector.sim). Neue Builder in test/devtools/sim.test.js gegen Fake-window.aGTM ausfuehren (Syntax+Verhalten). Szenario-Runner braucht Sequencing mit Waits zwischen Schritten — im Panel-Kontext (setTimeout ok, NICHT im injizierten Code). Cookie-Reset: document.cookie im Seitenkontext loeschen + location.reload(); Cookie-Namen aus aGTM.c/consent ableiten. consent-store-POST: aGTM.c.consent_store_url pruefen, aGTM.f.run_cc(\"update\") treibt den POST via xsend bereits — evtl. reicht ein gezielter run_cc mit geaendertem Consent-Hash. Nach Umsetzung: bun test gruen, kein build.sh noetig (off ES5-Pfad), Doku (README/CHANGELOG/knowledge devtools-inspector-extension.md) + Kritiker-Runde. Karte #49 (Basis-Sim-Tab) ist der Vorlaeufer.",
+            "links": [],
+            "comments": [],
+            "displayId": 50,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -1419,7 +1437,7 @@
         ]
       }
     ],
-    "nextDisplayId": 50,
+    "nextDisplayId": 51,
     "attachments": [],
     "background": null,
     "templates": [],
