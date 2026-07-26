@@ -37,14 +37,38 @@ host, ES5-safe injected builders, unit-tested):
   **independently of aGTM**; one checkbox per canonical signal.
 - **Cookie reset + reload** — expire cookies whose name matches a pattern (across the
   path × parent-domain grid), optionally clear matching `localStorage`, then optionally
-  reload — the true first-visit re-test. Empty pattern field = match every cookie.
+  reload — the true first-visit re-test. Empty pattern field = match every cookie (and,
+  with "clear localStorage", the entire localStorage).
 - **Scenario runner** — one click runs **deny → fire (queue) → grant (inject + replay)**
-  and reports the fired/queued counts. Mirrors the v1.6 roadmap's scenario runner.
+  and reports the fired/queued counts. The replay needs GTM not yet injected (aGTM's
+  inject-once guard); an already-injected page is flagged, not silently orphaned.
+  Mirrors the v1.6 roadmap's scenario runner.
 - **Consent-store POST test** — blanks `aGTM.d.consent_hash` and calls
   `run_cc('update')` so the genuine `aGTM.f.xsend()` POST to `consent_store_url`
   (`/aGTMconsent`) fires; disabled with a hint when no `consent_store_url` is set.
 
 See `devtools-extension/README.md` → *Simulation & the write channel → Extra features*.
+
+### Fixed — aGTM Inspector: Simulation tab (three-critic QA sweep)
+
+A full adversarial review (correctness · security/ES5 · tests/docs) of the whole
+Simulation tab. No P0/P1; the substantive fixes:
+
+- **"Force GTM injection" now genuinely forces.** `aGTM.f.inject()` is consent-gated
+  (no-op unless `hasResponse`, loads only on `gtmConsent`), so the button was a silent
+  no-op that still reported "OK". It now calls `aGTM.f.initGTM(false)` directly (loads
+  every container regardless of consent) and marks `aGTM.d.init` — falling back to
+  `inject()` only on a pre-`initGTM` library, and surfacing the consent-gate rejection
+  instead of a false OK.
+- **Block ↔ consent-mock backup no longer collide.** A Block → Grant → Unblock → Restore
+  sequence used to strand a permanent deny-noop in `consent_check`; the grant stub now
+  backs up the real check from the block backup when a block is active.
+- **Scenario "queued" count is a delta**, no longer inflated by a pre-existing
+  pre-consent backlog in `aGTM.d.f`.
+- Test/docs hardening: the consent-store test now guards the load-bearing hash-blank,
+  the cookie-grid test verifies the actual host-only/dotted-parent domain writes, the
+  panel smoke test asserts all four extra boxes render, and the destructive
+  empty-pattern + clear-localStorage combination is documented.
 
 ### Changed — aGTM Inspector: GTM tab folded into Diagnose
 

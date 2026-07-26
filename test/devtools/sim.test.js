@@ -49,7 +49,16 @@ function fakeAGTM() {
     return true;
   };
   A.f.fire = function (o) { calls.push(["fire", o]); w.dataLayer.push(o); };
-  A.f.inject = function () { calls.push(["inject"]); A.d.init = true; };
+  // inject() mirrors aGTM.js's consent gate: no-op (returns false) unless hasResponse,
+  // and only "loads" when gtmConsent. So a forced load must NOT go through inject().
+  A.f.inject = function () {
+    calls.push(["inject"]);
+    if (!A.d.consent || !A.d.consent.hasResponse) return false;
+    if (A.d.consent.gtmConsent) A.d.init = true;
+    return true;
+  };
+  // initGTM loads every container regardless of consent (aGTM.js:1119) — the real force path.
+  A.f.initGTM = function (noConsent) { calls.push(["initGTM", noConsent]); };
   w.aGTM = A; w.__calls = calls;
   return w;
 }
@@ -139,6 +148,7 @@ describe("buildCmpMockCode — persistent stub + run_cc", () => {
     var res = run(buildCmpMockCode({ services: ["A"] }), w);
     expect(res.ok).toBe(true);
     expect(res.simActive).toBe(true);
+    expect(w.__calls.some(function (c) { return c[0] === "run_cc" && c[1] === "update"; })).toBe(true); // mock DOES drive run_cc
     expect(typeof w.aGTM.f.__inspOrigCC).toBe("function");
     // the stub stays installed → a later run_cc still yields the mocked consent
     w.aGTM.d.consent = {};
@@ -205,11 +215,31 @@ describe("buildFireCode — dispatches through aGTM.f.fire", () => {
 });
 
 describe("buildInjectCode / buildProbeCode / missing aGTM", () => {
-  test("inject forces aGTM.f.inject()", () => {
+  test("force load goes through initGTM(false) — independent of consent", () => {
     var w = fakeAGTM();
+    // no consent at all: hasResponse false, gtmConsent false → inject() would no-op
+    w.aGTM.d.consent = { hasResponse: false, gtmConsent: false };
+    var res = run(buildInjectCode(), w);
+    expect(res.ok).toBe(true);
+    expect(w.aGTM.d.init).toBe(true);                                   // forced
+    expect(w.__calls.some(function (c) { return c[0] === "initGTM" && c[1] === false; })).toBe(true);
+    expect(w.__calls.some(function (c) { return c[0] === "inject"; })).toBe(false); // NOT via the gated inject()
+  });
+  test("falls back to inject() when initGTM is absent (very old library)", () => {
+    var w = fakeAGTM();
+    w.aGTM.d.consent = { hasResponse: true, gtmConsent: true };
+    delete w.aGTM.f.initGTM;
     var res = run(buildInjectCode(), w);
     expect(res.ok).toBe(true);
     expect(w.aGTM.d.init).toBe(true);
+  });
+  test("reports the consent-gate rejection when only the gated inject() exists", () => {
+    var w = fakeAGTM();
+    w.aGTM.d.consent = { hasResponse: false, gtmConsent: false };
+    delete w.aGTM.f.initGTM;
+    var res = run(buildInjectCode(), w); // inject() returns false → surfaced, not a fake OK
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("Consent-Gate");
   });
   test("probe detects an installed stub", () => {
     var w = fakeAGTM();
@@ -228,8 +258,10 @@ describe("buildInjectCode / buildProbeCode / missing aGTM", () => {
 });
 
 describe("stubBody — backup guard string", () => {
-  test("backs up via __inspOrigCC=__inspOrigCC||consent_check (once)", () => {
-    expect(stubBody({}).indexOf("A.f.__inspOrigCC=A.f.__inspOrigCC||A.f.consent_check")).toBeGreaterThanOrEqual(0);
+  test("backs up once, preferring the block backup's real check when a block is active", () => {
+    var s = stubBody({});
+    expect(s.indexOf("A.f.__inspOrigCC=A.f.__inspOrigCC||")).toBeGreaterThanOrEqual(0);
+    expect(s.indexOf("A.f.__inspBlockBak?A.f.__inspBlockBak.consent_check:A.f.consent_check")).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -310,6 +342,16 @@ describe("buildBlockCode / buildUnblockCode", () => {
     expect(run(buildProbeCode(), w).blocked).toBe(false);
     run(buildBlockCode(), w);
     expect(run(buildProbeCode(), w).blocked).toBe(true);
+  });
+  test("Block → Grant → Unblock → Restore does NOT strand a deny-noop (critic P3)", () => {
+    var w = fakeAGTM();
+    var realCC = w.aGTM.f.consent_check;
+    run(buildBlockCode(), w);                 // consent_check → return false; real CC in __inspBlockBak
+    run(buildConsentCode({ services: ["A"] }), w); // grant stub while blocked
+    run(buildUnblockCode(), w);               // restores real CC, discards grant stub
+    run(buildRestoreCode(), w);               // must NOT restore the block's return-false noop
+    expect(w.aGTM.f.consent_check).toBe(realCC);
+    expect(w.aGTM.f.consent_check()).toBe(true); // the real check, not a permanent deny
   });
 });
 
@@ -479,15 +521,20 @@ describe("buildCookieResetCode — expire matching cookies across domain/path gr
     expect(res.ok).toBe(false);
     expect(typeof res.error).toBe("string");
   });
-  test("expiry write targets host-only AND parent domains (…, .example.com)", () => {
-    // We can't observe the domain= in the fake jar (it ignores it), but the code must
-    // issue MULTIPLE expiry writes per cookie (path × domain grid) — assert via count.
-    var writes = 0;
-    var w = { document: { get cookie() { return "t=1"; }, set cookie(v) { writes++; } },
+  test("expiry write targets host-only AND dotted parent domains, never the public suffix", () => {
+    var sets = [];
+    var w = { document: { get cookie() { return "t=1"; }, set cookie(v) { sets.push(v); } },
       location: { hostname: "a.b.example.com", pathname: "/p" }, setTimeout: function (f) { f(); } };
     run(buildCookieResetCode(["t"], {}), w);
-    // 2 paths (/ + /p) × (>=1 domain variants) → clearly more than 1 write for one cookie
-    expect(writes).toBeGreaterThan(2);
+    // host-only variant: an expiry write with NO domain= attribute
+    expect(sets.some(function (v) { return v.indexOf("domain=") < 0; })).toBe(true);
+    // dotted registrable parent + dotted immediate parent
+    expect(sets.some(function (v) { return v.indexOf("domain=.example.com") >= 0; })).toBe(true);
+    expect(sets.some(function (v) { return v.indexOf("domain=.b.example.com") >= 0; })).toBe(true);
+    // must NOT target the bare public suffix (would be rejected / dangerous)
+    expect(sets.some(function (v) { return v.indexOf("domain=com") >= 0 || v.indexOf("domain=.com") >= 0; })).toBe(false);
+    // every write is an expiry in the past
+    expect(sets.length > 0 && sets.every(function (v) { return v.indexOf("01 Jan 1970") >= 0; })).toBe(true);
   });
 });
 
@@ -545,6 +592,14 @@ describe("buildScenarioCode — one eval: deny → fire (queue) → grant → in
     expect(w.dataLayer.length).toBe(0);
     expect(w.aGTM.d.f.length).toBe(2);
   });
+  test("queuedWhileDenied is the DELTA, not inflated by a pre-existing queue (critic P3)", () => {
+    var w = fakeQueueAGTM();
+    w.aGTM.d.f.push({ event: "pre1" }, { event: "pre2" }); // backlog parked before the scenario
+    var res = run(buildScenarioCode({ services: ["GA"] }, [{ event: "page_view" }]), w);
+    expect(res.ok).toBe(true);
+    expect(res.scenario.firedEvents).toBe(1);
+    expect(res.scenario.queuedWhileDenied).toBe(1); // only the 1 this scenario queued, not 3
+  });
   test("no aGTM → ok:false, no throw", () => {
     var res = run(buildScenarioCode({ services: ["GA"] }, [{ event: "x" }]), {});
     expect(res.ok).toBe(false);
@@ -557,7 +612,10 @@ describe("buildConsentStoreTestCode — force the /aGTMconsent POST via run_cc",
   function fakeStoreAGTM(url) {
     var posts = [];
     var w = { dataLayer: [] };
-    var A = { c: { gdl: "dataLayer", consent_store_url: url }, d: { consent: {}, init: false, consent_hash: "SEEDED", last_consent_hash: "x" }, f: {} };
+    // Seed consent_hash to EXACTLY what the granted consent serialises to (",GA,") so the
+    // POST only fires because the builder blanks the hash — if it didn't, ser===consent_hash
+    // and no POST would fire. This makes the test guard the load-bearing blank line (critic P2).
+    var A = { c: { gdl: "dataLayer", consent_store_url: url }, d: { consent: {}, init: false, consent_hash: ",GA,", last_consent_hash: "x" }, f: {} };
     A.f.consent_check = function () { return true; };
     A.f.xsend = function (u, payload) { posts.push({ url: u, payload: payload }); return {}; };
     A.f.run_cc = function (action) {

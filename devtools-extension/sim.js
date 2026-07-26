@@ -83,7 +83,11 @@
   // undo it). The stub keeps the same 'init' short-circuit as real checks.
   function stubBody(sel) {
     sel = sel || {};
-    return "A.f.__inspOrigCC=A.f.__inspOrigCC||A.f.consent_check;" +
+    // Back up the TRUE original consent_check. If a block is currently active, the real
+    // check lives in __inspBlockBak (the live consent_check is the block's `return false`
+    // noop) — capture that, else a Block→Grant→Unblock→Restore sequence would restore the
+    // noop and permanently deny consent (critic P3).
+    return "A.f.__inspOrigCC=A.f.__inspOrigCC||(A.f.__inspBlockBak?A.f.__inspBlockBak.consent_check:A.f.consent_check);" +
       "A.f.consent_check=function(action){A.d.consent=A.d.consent||{};" +
       "if(action=='init'&&A.d.consent.hasResponse)return true;" +
       "A.d.consent.purposes=" + J(commaWrap(sel.purposes)) + ";" +
@@ -112,9 +116,11 @@
   }
   SIM.buildDenyCode = buildDenyCode;
 
-  // Install a PERSISTENT CMP mock (stub only, no run_cc) so the periodic CMP poll
-  // and any later library call see the simulated decision. Same primitive as grant,
-  // minus the immediate run_cc — the panel calls run_cc separately when desired.
+  // Install a PERSISTENT CMP mock: the same consent_check stub as grant, driven once via
+  // run_cc('update') so it takes effect immediately, and left installed so the periodic
+  // 2s CMP poll (and any later library call) keeps seeing the simulated decision until
+  // Restore. Same primitive as grant — the distinction is intent/persistence, not the
+  // run_cc call (both drive it). Restore removes the stub.
   function buildCmpMockCode(sel) {
     return wrap(stubBody(sel) + "if(typeof A.f.run_cc==='function')A.f.run_cc('update');");
   }
@@ -155,10 +161,19 @@
   }
   SIM.buildFireCode = buildFireCode;
 
-  // Force GTM injection directly (independent of consent). Guards on the function
-  // existing so a pre-init page degrades cleanly.
+  // Force GTM container load INDEPENDENT of consent. aGTM.f.inject() is itself
+  // consent-gated (returns false unless aGTM.d.consent.hasResponse, and only loads
+  // containers when gtmConsent — aGTM.js:1186/1210), so calling it here would be a
+  // silent no-op in every reachable sim state. To genuinely force a load we call
+  // aGTM.f.initGTM(false) directly (loads every container regardless of consent —
+  // aGTM.js:1119) and mark aGTM.d.init. Falls back to inject() only if initGTM is
+  // absent (very old library). Reports what it did so the effect panel is honest.
   function buildInjectCode() {
-    return wrap("if(typeof A.f.inject==='function')A.f.inject();else return{ok:false,error:'aGTM.f.inject missing'};");
+    return wrap(
+      "if(typeof A.f.initGTM==='function'){A.f.initGTM(false);A.d.init=true;}" +
+      "else if(typeof A.f.inject==='function'){var _r=A.f.inject();if(_r===false)return{ok:false,error:'inject() vom Consent-Gate abgelehnt (hasResponse/gtmConsent) - und initGTM fehlt.'};}" +
+      "else return{ok:false,error:'aGTM.f.initGTM/inject fehlen.'};"
+    );
   }
   SIM.buildInjectCode = buildInjectCode;
 
@@ -291,8 +306,11 @@
       // grant step neither injects nor replays, so the queued events would be orphaned.
       "var _pre=!!A.d.init;" +
       stubBody({}) + "A.f.run_cc('update');" +
+      // Delta against the queue length BEFORE our fires, so a pre-existing pre-consent
+      // backlog in aGTM.d.f isn't counted as "queued by this scenario" (critic P3).
+      "var _q0=(A.d.f&&A.d.f.length)||0;" +
       "var _evs=" + J(events) + ";for(var _i=0;_i<_evs.length;_i++){try{A.f.fire(_evs[_i]);}catch(_e){}}" +
-      "var _q=(A.d.f&&A.d.f.length)||0;" +
+      "var _q=((A.d.f&&A.d.f.length)||0)-_q0;if(_q<0)_q=0;" +
       stubBody(sel) + "A.f.run_cc('update');";
     return wrap(body, "scenario:{firedEvents:_evs.length,queuedWhileDenied:_q,alreadyInjected:_pre},");
   }
