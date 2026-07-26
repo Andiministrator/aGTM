@@ -1274,6 +1274,12 @@
                 "author": "Claude Opus",
                 "text": "KRITIKER-RUNDE (2026-07-25, Commit 8c7a785). Zwei unabhaengige Sub-Agents (Korrektheit/Logik + UX/Konsistenz/Doku). KEIN P0/P1 — Uhr-Basen (alle Unix-epoch-ms), Escaping, Listener/Paint-Semantik und die leakHitFor-Refactor-Aequivalenz explizit bestaetigt; Doku exakt zum Code. 4 Findings behoben (F-70..F-73 in docs/findings.md): F-70 (P2, echte Aussenwirkung) Health-Score-Leak-Check kein falsches Gruen mehr im Kundenreport — pass nur wenn Vor-Consent-Fenster beobachtet (Navigation bezeugt ODER frueheste net.ts ~ navStart), erfasster Leak immer fail. F-71 (P2) Timeline-Marker CMP-Entscheidung ankert an erster Consent-Erkennung (m3/m2) statt consentTs (letztes Event) — kann nicht mehr hinter GTM-injiziert rutschen. F-72 (P3) Netz-Marker nutzen Request-Start (ts minus HAR-Dauer). F-73 (P3) Nullpunkt konditional benannt (anchored-Flag), Waterfall-Caption praezisiert, tote pre.report-CSS raus. Tests 142 devtools / 525 gesamt gruen. README-Caveat + CHANGELOG + knowledge/topics/devtools-inspector-extension.md aktualisiert. Karte bleibt QA. Naechster Chat: Karte kann nach Erledigt, sobald Andi visuell gegengeprueft hat (Diagnose-Tab in Chrome).",
                 "created": "2026-07-25"
+              },
+              {
+                "id": "d55e1b85-6b93-4505-9f3f-a27e55841359",
+                "author": "Claude Opus",
+                "text": "POST-QA-ITERATION (2026-07-26, Andi-Live-Feedback, Commits 23e81b5/ef95b61/f22f741/020cd49). (a) Timeline-Balken farbcodiert pro Meilenstein + Pre-Consent-Tag rot; Balken waren unsichtbar weil <span> inline (width ignoriert) -> display:block gefixt. (b) Consent-Signale (gcs/gcd) verifiziert: denied IST rot (cfp-d), nur l=unset grau + undokumentierte gcd-Buchstaben orange (bewusst); offener Folge-Task: gcd-Alphabet vollstaendig belegen (Recherche). (c) Timeline-Bug: CMP-Entscheidung-Marker wanderte (+70s, wachsend) weil Fallback consentTs=letztes consent-Event (2s-Poll schob es vor) -> neuer Reader-Wert consentFirstTs (erstes Event, stabil). (d) Neue Karte Session & IDs: sid/uid/user_id + Aenderungshistorie (F->C-Promote live sichtbar), pro-Host persistiert (localStorage), plus Session-API-Payload (echter created-Server-Timestamp + Zaehler sessionCount/pvCount/eventCount/counter). 533 Tests gruen, Doku/CHANGELOG/knowledge/ZIP aktuell. Karte weiter QA. Offene Andi-Frage: Default-Tab Diagnose vs Consent.",
+                "created": "2026-07-26"
               }
             ],
             "qa": true
