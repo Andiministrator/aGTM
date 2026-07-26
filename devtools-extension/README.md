@@ -25,7 +25,7 @@ It is the human-facing companion to the `live-inspector` Claude Code skill.
 | **Session** | `aGTM.d.session`, `aGTM.d.attribution.<method>.*`, `window.se_data` | Session source & attribution, syntax-highlighted. Falls back to a site's `window.se_data` object when `aGTM.d.session` is empty |
 | **Config** | `aGTM.c` + highlighted config traps | The **effective** config in effect after `config()` (defaults + integrator + sGTM-Client injection), syntax-highlighted, plus known config-trap warnings and a **runtime-diff** (first snapshot → current) showing what aGTM derived/changed at runtime |
 | **Netzwerk** | `chrome.devtools.network` | gtm.js / `/aGTMconsent` / `/aGTM.js` / sources / GA hits, **plus** event/collect POSTs to the sGTM (aEvents pipeline) — matched by host + learned path-prefix so first-party traffic isn't swept in under reverse-proxy setups. A **pre-consent leak banner** flags any tracking/marketing request (Google tags + Meta/TikTok/UET/LinkedIn/Pinterest/Criteo/Snap/X/Clarity/… pixels) that fired while `gtmConsent` was still false, with a per-row `⚠ pre-consent` badge (reconciled against the consent timestamp so a hit right after "Accept" isn't false-flagged). A **consent fingerprint** — a compact per-category granted/denied/unset pill cluster decoded from the request's `gcs`/`gcd` params — is shown inline in the list (also on dataLayer consent-command rows). A **search box** (prefix `-` to exclude, e.g. `-clarity`) + per-host checkboxes to filter, **smart URL** (dimmed host, emphasised path, key params as chips), the request's **event name** (`en`) and **property/measurement/stream ID** (`id`/`tid`) under the type badge, a **payload preview** (gzip bodies auto-decompressed via `DecompressionStream`; **aEvents** `?e=`/`?q=` payloads decoded — obfuscated ones by brute-forcing the 63 Caesar shifts, no salt needed), and rows **click-to-expand** into separate collapsible sub-sections (General · **Consent-Signale gcs/gcd decoded** · Query-String · Request-/Response-Header · Payload · aEvents entschlüsselt) |
-| **Simulation** | **writes** `window.aGTM` via `inspectedWindow.eval` (opt-in) | **The one write-enabled tab.** Drive the page to exercise the flow instead of clicking a real banner: **simulate a consent decision** with granular control (toggle exactly which **purposes / services / vendors** are granted, each with an **ID field** and a per-group **"IDs" toggle** to express consent by ID instead of name — pre-filled from `gtmPurposes`/`gtmServices`/`gtmVendors` so you see what GTM actually requires — persisted per host, saveable as **named presets**), **deny/reset**, **mock the CMP** (install a persistent `consent_check` stub, restorable), **fire an event** (`aGTM.f.fire` with editable JSON + `_noConsent`/`_noDLPush`/`_post` flags + recent-event history), and **force GTM injection**. For prospect/demo work it can also **block an existing aGTM integration** (neutralise its loaders + consent check, reversibly) and **inject an aGTM integration snippet** into a page that has no aGTM yet (this box works even when `window.aGTM` is absent). A live effect panel shows the resulting `gtmConsent`/injection/dataLayer state. Everything is gated behind a per-session **Write-Modus** toggle (default **off**, never persisted). See below. |
+| **Simulation** | **writes** `window.aGTM` via `inspectedWindow.eval` (opt-in) | **The one write-enabled tab.** Drive the page to exercise the flow instead of clicking a real banner: **simulate a consent decision** with granular control (toggle exactly which **purposes / services / vendors** are granted, each with an **ID field** and a per-group **"IDs" toggle** to express consent by ID instead of name — pre-filled from `gtmPurposes`/`gtmServices`/`gtmVendors` so you see what GTM actually requires — persisted per host, saveable as **named presets**), **deny/reset**, **mock the CMP** (install a persistent `consent_check` stub, restorable), **fire an event** (`aGTM.f.fire` with editable JSON + `_noConsent`/`_noDLPush`/`_post` flags + recent-event history), and **force GTM injection**. For prospect/demo work it can also **block an existing aGTM integration** (neutralise its loaders + consent check, reversibly) and **inject an aGTM integration snippet** into a page that has no aGTM yet (this box works even when `window.aGTM` is absent). Extra tools: **push a Google Consent Mode update** (`gtag('consent','update',…)`, aGTM-independent), **reset cookies + reload** for a real first-visit test, a one-click **scenario runner** (deny→fire→grant→replay), and a **consent-store POST test** (`/aGTMconsent`). A live effect panel shows the resulting `gtmConsent`/injection/dataLayer state. Everything is gated behind a per-session **Write-Modus** toggle (default **off**, never persisted). See below. |
 
 ## How it works (and why it needs no permissions)
 
@@ -72,6 +72,31 @@ What changes is the *posture*, and that is handled deliberately, not silently:
   An **inject** box runs a pasted aGTM integration snippet (also **persisted per host**)
   at global scope via a `<script>` element — it needs no existing aGTM, so the Simulation
   tab renders even on a page where `window.aGTM` is absent.
+
+### Extra features
+
+Four further tools round out the tab (all gated by the same Write-Modus toggle,
+persisted per host):
+
+- **Google Consent Mode push** — sends a `gtag('consent','update',{…})` straight to the
+  dataLayer (a **genuine `arguments` object**, exactly what `gtag()` pushes — a plain
+  array would not be treated as a consent command), so GCM signals can be tested
+  **independently of aGTM**. One checkbox per canonical signal (checked = `granted`).
+- **Cookie reset + reload** — expires cookies whose name contains one of the given
+  patterns (across the `/` + current-path × parent-domain grid), optionally clears
+  matching `localStorage` keys, then optionally reloads — the real first-visit re-test
+  that plain reset can't do. **Empty pattern field = match every cookie** (nuclear;
+  spelled out in-UI). Also aGTM-independent.
+- **Scenario runner** — one click walks the whole lifecycle: **deny** → **fire** the
+  listed events (parked in `aGTM.d.f` because there's no consent) → **grant** the chosen
+  consent (`run_cc('update')` → inject → replay). The effect panel reports how many
+  events were fired and queued. The replay step needs GTM to be **not yet injected**
+  (aGTM's inject-once guard); on an already-injected page the panel says so instead of
+  silently orphaning the queued events. Mirrors the v1.6 roadmap's scenario runner.
+- **Consent-store POST test** — deliberately exercises the `/aGTMconsent` path: installs
+  the chosen consent, blanks `aGTM.d.consent_hash` (forcing the diff) and calls
+  `run_cc('update')` so the genuine `aGTM.f.xsend()` POST to `consent_store_url` fires.
+  Disabled (with a hint) when no `consent_store_url` is configured.
 
 ## Install (load unpacked)
 
