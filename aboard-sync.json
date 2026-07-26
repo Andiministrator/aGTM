@@ -1137,6 +1137,12 @@
                 "author": "Claude Opus",
                 "text": "Runde 2 (Andi-Feedback) umgesetzt: (1) Pro Gruppe (Kategorien/Services/Vendoren) IDs-Umschalter — Consent per ID statt Name (IDs landen im GTM-geprueften String + serviceIDs/vendorIDs/purposeIDs); Purposes haben jetzt auch ID-Feld. (2) Neue Box: vorhandene aGTM-Integration BLOCKIEREN (inject/initGTM/gtm_load->no-op, consent_check->false, reversibel per Entsperren, gesichert unter aGTM.f.__inspBlockBak). (3) Neue Box: aGTM-Integration INJIZIEREN (fuer nicht-integrierte Seiten; laeuft global via <script>-Element; Sim-Tab rendert jetzt auch OHNE geladenes aGTM). simSelection-useId-Logik + neue Builder unit-getestet, 576 Tests gruen.",
                 "created": "2026-07-26"
+              },
+              {
+                "id": "fec504c2-341b-49df-af28-069b646de25d",
+                "author": "Claude Opus",
+                "text": "Runde 3 (Andi-Feedback) + QA/Kritiker: (1) Block ist jetzt PERSISTENTE Checkbox pro Host (blockIntent) + Auto-Reapply nach Reload bei Write-Modus (reader.js exponiert blocked read-only). Script-Textarea war schon persistiert. (2) GTM-Tab entfernt -> Inhalt als Kartenblock ganz unten im Diagnose-Tab (gtmCardsHtml). (3) Adversarialer Kritiker-Sub-Agent ueber den ganzen Change: KEIN P0/P1; ES5 aller injizierten Strings, Grant-Mechanik vs aGTM.js, Escaping, Listener-Non-Leak, Posture, Auto-Block-Re-Entrancy explizit sauber. 3 nachrangige Findings behoben (F-1 P2: IDs-Modus mit leerer ID faellt jetzt auf den Namen zurueck statt still nichts zu erteilen; F-2/F-3 Aufraeumung/Test-Fidelity). 577 Tests gruen. Doku + knowledge aktualisiert. Bereit fuer QA/Live-Test durch Andi. Offene Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, consent-store-POST-Test) macht der naechste Chat.",
+                "created": "2026-07-26"
               }
             ],
             "displayId": 49,
