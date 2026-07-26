@@ -106,13 +106,21 @@
       }
     } catch (e5) { /* ignore */ }
 
-    // Timestamp of the last consent-related aGTM event (when consent last changed).
-    var consentTs = 0;
+    // Timestamp of the last consent-related aGTM event (when consent last changed) and
+    // the FIRST one (the initial consent decision). The last is used by the network
+    // leak reconciliation; the first is a STABLE anchor for the Consent-Timeline — the
+    // last one wanders forward as the 2s poll / CMP re-pushes emit more consent events,
+    // which would keep stretching the timeline bar (see Andi 2026-07-26).
+    var consentTs = 0, consentFirstTs = 0;
     try {
       var dld = d.dl || [];
       for (var di = dld.length - 1; di >= 0; di--) {
         var de = dld[di] || {};
         if (typeof de.event === "string" && /consent/i.test(de.event) && de.aGTMts) { consentTs = de.aGTMts; break; }
+      }
+      for (var dj = 0; dj < dld.length; dj++) {
+        var df = dld[dj] || {};
+        if (typeof df.event === "string" && /consent/i.test(df.event) && df.aGTMts) { consentFirstTs = df.aGTMts; break; }
       }
     } catch (e6) { /* ignore */ }
 
@@ -259,6 +267,7 @@
       gcm: gcm,
       consentCommands: consentCommands,
       consentTs: consentTs,
+      consentFirstTs: consentFirstTs,
       vendors: vendors,
       vendorState: vendorState,
       attribution: safeObj(d.attribution) || {}
