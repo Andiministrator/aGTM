@@ -188,6 +188,11 @@
   .tl-leak { color: var(--err); font-size: 10px; margin-left: 6px; }
   .report-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   .copied { color: var(--ok); font-size: 11px; align-self: center; }
+  /* prominent Session-ID / User-ID rows */
+  .idbig { display: flex; align-items: baseline; gap: 10px; margin: 3px 0; flex-wrap: wrap; }
+  .idbig > .lab { color: var(--muted); font-size: 11px; min-width: 84px; }
+  .idbig .val { font-family: ui-monospace, monospace; font-size: 15px; font-weight: 700; color: var(--accent); word-break: break-all; }
+  .idbig .since { color: var(--muted); font-size: 10px; }
   /* Session KPI stat tiles — neutral ink, no series colours (dataviz: text tokens only) */
   .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .stat { flex: 1 1 92px; min-width: 92px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }

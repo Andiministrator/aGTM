@@ -1745,19 +1745,24 @@ function renderDiagnose() {
   html += '<div class="card"><h2>Session &amp; IDs</h2>';
   var raw = (s.session && s.session.raw) || {};
   var anyId = false;
-  html += '<div class="grid">';
-  ID_FIELDS.forEach(function (f) {
-    var t = state.idTrack[f.key];
-    var cell;
+  // Session-ID + User-ID shown large/prominent; the CRM user_id stays small below.
+  function idBig(key, label) {
+    var t = state.idTrack[key], val;
     if (t && t.value) {
       anyId = true;
-      cell = '<span class="chip acc">' + esc(t.value) + '</span> <span class="muted">seit ' + esc(fmtStamp(t.since)) + "</span>";
+      val = '<span class="val">' + esc(t.value) + '</span> <span class="since">seit ' + esc(fmtStamp(t.since)) + "</span>";
     } else {
-      cell = '<span class="muted">—</span>';
+      val = '<span class="muted">—</span>';
     }
-    html += '<div class="k">' + esc(f.label) + '</div><div class="v">' + cell + "</div>";
-  });
-  html += "</div>";
+    return '<div class="idbig"><span class="lab">' + esc(label) + "</span>" + val + "</div>";
+  }
+  html += idBig("sid", "Session-ID") + idBig("uid", "User-ID");
+  var uc = state.idTrack.user_id;
+  if (uc && uc.value) {
+    anyId = true;
+    html += '<div class="grid" style="margin-top:4px"><div class="k">user_id (CRM)</div><div class="v"><span class="chip acc">' + esc(uc.value) +
+      '</span> <span class="muted">seit ' + esc(fmtStamp(uc.since)) + "</span></div></div>";
+  }
   if (anyId) {
     html += '<div class="muted" style="margin-top:4px;font-size:11px">„seit" = erstmals im Inspector gesehen (nicht zwingend der serverseitige Setz-Zeitpunkt).</div>';
   }
