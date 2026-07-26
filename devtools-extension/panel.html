@@ -188,6 +188,12 @@
   .tl-leak { color: var(--err); font-size: 10px; margin-left: 6px; }
   .report-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   .copied { color: var(--ok); font-size: 11px; align-self: center; }
+  /* Session KPI stat tiles — neutral ink, no series colours (dataviz: text tokens only) */
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .stat { flex: 1 1 92px; min-width: 92px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .stat .num { font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--fg); }
+  .stat .lab { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; margin-top: 3px; }
+  .stat .sub { color: var(--muted); font-size: 10px; margin-top: 2px; }
 </style>
 </head>
 <body>

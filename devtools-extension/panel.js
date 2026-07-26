@@ -78,6 +78,17 @@ function fmtStamp(ms) {
   function p(n) { n = String(n); return n.length < 2 ? "0" + n : n; }
   return p(t.getDate()) + "." + p(t.getMonth() + 1) + ". " + p(t.getHours()) + ":" + p(t.getMinutes()) + ":" + p(t.getSeconds());
 }
+// Compact human age (minute granularity, so the live Session-Alter tile repaints at most
+// once a minute — a seconds-granular value would defeat the paint() repaint guard).
+function humanAge(ms) {
+  if (!(ms > 0)) return "< 1 min";
+  var m = Math.floor(ms / 60000);
+  if (m < 1) return "< 1 min";
+  if (m < 60) return m + " min";
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + " h";
+  return Math.floor(h / 24) + " d";
+}
 function truthy(v) { return v === true || v === "true"; }
 
 /**
@@ -1748,24 +1759,33 @@ function renderDiagnose() {
     }
     html += '<div class="k">' + esc(f.label) + '</div><div class="v">' + cell + "</div>";
   });
-  // Authentic server-side session-creation time (Unix seconds) from the Session API payload.
-  if (typeof raw.created === "number" && raw.created > 0) {
-    html += '<div class="k">Session erstellt</div><div class="v"><span class="mono">' + esc(fmtStamp(raw.created * 1000)) +
-      '</span> <span class="muted">(Server)</span></div>';
-  }
   html += "</div>";
   if (anyId) {
-    html += '<div class="muted" style="margin-top:4px;font-size:11px">„seit" = erstmals im Inspector gesehen (nicht zwingend der serverseitige Setz-Zeitpunkt) · „Session erstellt" ist der echte Server-Zeitstempel.</div>';
+    html += '<div class="muted" style="margin-top:4px;font-size:11px">„seit" = erstmals im Inspector gesehen (nicht zwingend der serverseitige Setz-Zeitpunkt).</div>';
   }
-  // Server session metrics from the Session API (delivered on the /aGTM.js request).
-  var METRICS = [
-    { k: "sessionCount", label: "Sitzungen" }, { k: "pvCount", label: "Seitenaufrufe" },
-    { k: "eventCount", label: "Events" }, { k: "counter", label: "Counter" }
-  ];
-  var mchips = [];
-  METRICS.forEach(function (m) { if (typeof raw[m.k] === "number") mchips.push('<span class="chip"><span class="muted">' + esc(m.label) + ": </span>" + esc(String(raw[m.k])) + "</span>"); });
-  if (mchips.length) {
-    html += '<div style="margin-top:8px"><span class="muted" style="font-size:11px">Session-API-Zähler: </span>' + mchips.join(" ") + "</div>";
+
+  // Session-API payload (delivered on the /aGTM.js request) as a KPI stat-tile row with
+  // smart derivations. IMPORTANT: the counters are a SNAPSHOT at page load — they do NOT
+  // advance during the page (the reader keeps reading the same aGTM.d.session). Only the
+  // Session-Alter is live (derived from the authentic `created` timestamp).
+  var num = function (k) { return typeof raw[k] === "number" ? raw[k] : null; };
+  var sc = num("sessionCount"), pv = num("pvCount"), ec = num("eventCount"), cnt = num("counter");
+  var hasCreated = typeof raw.created === "number" && raw.created > 0;
+  var tiles = [];
+  if (sc !== null) tiles.push({ num: "#" + sc, lab: "Sitzung", sub: sc > 1 ? "Wiederkehrer" : "Erstbesuch" });
+  if (pv !== null) tiles.push({ num: String(pv), lab: "Seitenaufrufe", sub: "diese Session" });
+  if (ec !== null) tiles.push({ num: String(ec), lab: "Events", sub: "diese Session" });
+  if (ec !== null && pv) tiles.push({ num: (ec / pv).toFixed(1).replace(/\.0$/, ""), lab: "Events / Aufruf", sub: "Engagement" });
+  else if (cnt !== null) tiles.push({ num: String(cnt), lab: "Counter", sub: "aGTM-intern" });
+  if (hasCreated) tiles.push({ num: humanAge((new Date()).getTime() - raw.created * 1000), lab: "Session-Alter", sub: "seit " + fmtStamp(raw.created * 1000) });
+  if (tiles.length) {
+    html += '<div class="stats">';
+    tiles.forEach(function (t) {
+      html += '<div class="stat"><div class="num">' + esc(t.num) + '</div><div class="lab">' + esc(t.lab) + "</div>" +
+        (t.sub ? '<div class="sub">' + esc(t.sub) + "</div>" : "") + "</div>";
+    });
+    html += "</div>" +
+      '<div class="muted" style="margin-top:6px;font-size:11px">Die Zähler sind ein <strong>Server-Stand vom Seitenaufruf</strong> (<code>/aGTM.js</code>) und laufen während der Seite <strong>nicht</strong> weiter. Nur das Session-Alter aktualisiert sich live.</div>';
   }
   if (state.idHistory.length) {
     html += '<div class="muted" style="margin-top:8px">Änderungen (in dieser Inspector-Sitzung beobachtet):</div>' +
