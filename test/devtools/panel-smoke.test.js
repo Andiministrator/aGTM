@@ -84,7 +84,7 @@ beforeAll(() => {
     "  saveSettings: saveSettings," +
     "  loadSettings: loadSettings," +
     "  trackIds: trackIds," +
-    "  clearIds: function(){ state.idTrack = {}; state.idHistory = []; }," +
+    "  clearIds: function(){ state.idTrack = {}; state.idHistory = []; state.idHost = null; }," +
     "  withScrollAnchor: withScrollAnchor" +
     "};";
   (0, eval)(src);
@@ -124,7 +124,7 @@ function sampleSnap() {
       { id: "m9", timestamp: 5000, obj: { event: "page_view" } },
       { id: "e17", timestamp: 7000, obj: { __unserializable: true } }
     ],
-    session: { source: "it_webgains", sid: "s1", uid: "C.1.fcm", raw: { sid: "s1", uid: "C.1.fcm", ret: true, vct: 7 } },
+    session: { source: "it_webgains", sid: "s1", uid: "C.1.fcm", raw: { sid: "s1", uid: "C.1.fcm", ret: true, vct: 7, created: 1785059324, counter: 29, pvCount: 5, eventCount: 29, sessionCount: 56 } },
     seData: { visitorId: "v-123", segments: ["a", "b"] },
     gcm: {
       ad_storage: { "default": false, update: true, implicit: null, region: "DE" },
@@ -135,7 +135,7 @@ function sampleSnap() {
       { type: "default", payload: { ad_storage: "denied", analytics_storage: "denied", wait_for_update: 500 } },
       { type: "update", payload: { ad_storage: "granted", analytics_storage: "granted" } }
     ],
-    consentTs: 5000,
+    consentTs: 5000, consentFirstTs: 1800,
     vendors: { tcf: true, gpp: false, usp: false, gpc: false, meta: true, uet: false, tiktok: false, linkedin: false, pinterest: false, amazon: false, criteo: false, snap: false, twitter: false },
     attribution: { last_touch: { sou: "google", med: "cpc" } }
   };
@@ -658,6 +658,18 @@ describe("Diagnose tab", () => {
     expect(html).toContain("tl-bar b-navStart");
     expect(html).toContain("b-consent");
   });
+  test("consent marker uses the FIRST consent event, not the wandering last one (Andi 2026-07-26)", () => {
+    const P = globalThis.__panel;
+    const snap = sampleSnap();
+    snap.navStart = 1000;
+    snap.log = []; snap.dl = [];                 // no m3/m2 → fall back to the reader timestamps
+    snap.consentFirstTs = 1500;                  // first consent decision
+    snap.consentTs = 70000;                      // last consent event (2s poll kept advancing it)
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("+500 ms");           // 1500 − 1000 → stable CMP marker
+    expect(html).not.toContain("+69000 ms");     // 70000 − 1000 would be the wandering marker
+    P.clearIds();
+  });
   test("a tag fire before the CMP decision paints the bar red + flags it in the timeline", () => {
     const P = globalThis.__panel;
     const snap = sampleSnap();
@@ -748,6 +760,40 @@ describe("Diagnose tab", () => {
     const html = renderTab("diagnose", snap);
     expect(html).toContain("Noch keine ID-Änderung");
     expect(html).toContain("F→C-User-ID-Promote");
+    P.clearIds();
+  });
+  test("Session & IDs: authentic 'created' + Session-API counters render", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    const html = renderTab("diagnose"); // sample has raw.created + counters
+    expect(html).toContain("Session erstellt");
+    expect(html).toContain("(Server)");
+    expect(html).toContain("Session-API-Zähler");
+    expect(html).toContain("Sitzungen");
+    expect(html).toContain(">56<");   // sessionCount value
+    expect(html).toContain("Seitenaufrufe");
+    P.clearIds();
+  });
+  test("Session & IDs history persists across a panel reopen (localStorage per host)", () => {
+    const store = {};
+    const prevLS = globalThis.localStorage;
+    globalThis.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+    const P = globalThis.__panel;
+    P.clearIds();
+    // observe a promote on host a.de → persisted
+    P.trackIds({ loaded: true, pageHost: "a.de", session: { sid: "s1", uid: "F.1.x" }, config: {} });
+    P.trackIds({ loaded: true, pageHost: "a.de", session: { sid: "s1", uid: "C.1.y" }, config: {} });
+    // simulate a panel reopen: wipe in-memory, then the first poll re-loads from storage
+    P.clearIds();
+    P.trackIds({ loaded: true, pageHost: "a.de", session: { sid: "s1", uid: "C.1.y" }, config: {} });
+    const html = renderTab("diagnose");
+    expect(html).toContain("F.1.x");   // the change survived the reopen
+    expect(html).toContain("C.1.y");
+    // a DIFFERENT host starts clean (no cross-site mixing)
+    P.trackIds({ loaded: true, pageHost: "b.de", session: { sid: "s9", uid: "C.9.z" }, config: {} });
+    const htmlB = renderTab("diagnose");
+    expect(htmlB).not.toContain("F.1.x");
+    globalThis.localStorage = prevLS;
     P.clearIds();
   });
   test("net-derived markers use request START (finished ts − duration), not the finish time (F-3)", () => {

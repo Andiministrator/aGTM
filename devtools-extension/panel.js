@@ -36,7 +36,8 @@ var state = {
   // In-memory (survives page reloads while DevTools stays open — so a reload that triggers
   // the F→C user-id promote is captured — but resets when the panel is closed).
   idTrack: {},
-  idHistory: []
+  idHistory: [],
+  idHost: null           // pageHost the id-tracking state currently belongs to (for per-host persistence)
 };
 
 /* ---------- theme ---------- */
@@ -69,6 +70,14 @@ function fmtTime(ms) {
 function pretty(x) {
   try { return JSON.stringify(x, null, 2); } catch (e) { return String(x); }
 }
+// Date + time stamp (DD.MM. HH:MM:SS) — for the Session/IDs card, whose values persist
+// across days via localStorage, so a bare time-of-day would be ambiguous.
+function fmtStamp(ms) {
+  if (!ms) return "";
+  var t = new Date(ms);
+  function p(n) { n = String(n); return n.length < 2 ? "0" + n : n; }
+  return p(t.getDate()) + "." + p(t.getMonth() + 1) + ". " + p(t.getHours()) + ":" + p(t.getMinutes()) + ":" + p(t.getSeconds());
+}
 function truthy(v) { return v === true || v === "true"; }
 
 /**
@@ -88,6 +97,31 @@ function paint(sectionId, html) {
 
 /* ---------- persisted settings (localStorage — no permission needed) ---------- */
 var LS_KEY = "aGTMInspector.settings";
+// Session/User-ID history, persisted PER HOST so the "since" + change log survive a
+// panel close / DevTools reopen without mixing different sites. Best-effort; degrades to
+// pure in-memory when localStorage is unavailable.
+var LS_IDS = "aGTMInspector.ids";
+function loadIds(host) {
+  state.idTrack = {}; state.idHistory = [];
+  try {
+    if (typeof localStorage === "undefined") return;
+    var all = JSON.parse(localStorage.getItem(LS_IDS) || "{}");
+    var e = all && all[host];
+    if (e && typeof e === "object") {
+      if (e.idTrack && typeof e.idTrack === "object") state.idTrack = e.idTrack;
+      if (Object.prototype.toString.call(e.idHistory) === "[object Array]") state.idHistory = e.idHistory;
+    }
+  } catch (er) { /* corrupt/unavailable → in-memory only */ }
+}
+function saveIds(host) {
+  try {
+    if (typeof localStorage === "undefined" || !host) return;
+    var all = {};
+    try { all = JSON.parse(localStorage.getItem(LS_IDS) || "{}") || {}; } catch (e2) { all = {}; }
+    all[host] = { idTrack: state.idTrack, idHistory: state.idHistory.slice(-50) };
+    localStorage.setItem(LS_IDS, JSON.stringify(all));
+  } catch (er) { /* ignore */ }
+}
 function loadSettings() {
   try {
     if (typeof localStorage === "undefined") return;
@@ -1581,10 +1615,11 @@ function timelineSignals() {
     config: logTs("m1"),
     pending: logTs("m8"),
     // Prefer the FIRST consent completion (m3 setup-complete / m2 consent-available) so the
-    // marker anchors the CMP decision that triggered injection. consentTs is only a fallback:
-    // it's the LAST consent event (reader takes it from the tail), which on a later re-consent
-    // could otherwise sort AFTER "GTM injiziert" and invert the waterfall (Kritiker UX-P2).
-    consent: logTs("m3") || logTs("m2") || s.consentTs,
+    // marker anchors the CMP decision that triggered injection. Fallback is consentFirstTs
+    // (the FIRST consent event) — NOT consentTs (the LAST one), which wanders forward as the
+    // 2s poll / CMP re-pushes emit more consent events and would keep stretching the bar
+    // (Andi 2026-07-26) or invert the waterfall on a later re-consent (Kritiker UX-P2).
+    consent: logTs("m3") || logTs("m2") || s.consentFirstTs,
     // m6 = GTM injected, m5 = GTAG injected (log); else the aGTM_ready / gtm.js DL event; else the wire.
     inject: logTs("m6") || logTs("m5") || dlTs("aGTM_ready") || dlTs("gtm.js") || netGtm,
     firstTag: firstTag
@@ -1647,17 +1682,24 @@ var ID_FIELDS = [
 // the initial set (from "") and the v1.5 F→C user-id promote (F.…→C.… after consent).
 function trackIds(snap) {
   if (!snap || !snap.loaded) return; // a mid-navigation {loaded:false} must not record a spurious clear
-  var now = (new Date()).getTime();
+  var host = snap.pageHost || "";
+  // On the first snapshot (or a host switch) load that host's persisted history so "since"
+  // + the change log survive a panel reopen; a change on a genuinely new session is then
+  // recorded as a normal diff against the last stored value.
+  if (state.idHost !== host) { state.idHost = host; loadIds(host); }
+  var now = (new Date()).getTime(), changed = false;
   for (var i = 0; i < ID_FIELDS.length; i++) {
     var f = ID_FIELDS[i], val = String(f.get(snap) || ""), cur = state.idTrack[f.key];
     if (!cur) {
-      if (val) { state.idTrack[f.key] = { value: val, since: now }; state.idHistory.push({ ts: now, field: f.key, from: "", to: val }); }
+      if (val) { state.idTrack[f.key] = { value: val, since: now }; state.idHistory.push({ ts: now, field: f.key, from: "", to: val }); changed = true; }
     } else if (cur.value !== val) {
       state.idHistory.push({ ts: now, field: f.key, from: cur.value, to: val });
       state.idTrack[f.key] = { value: val, since: now };
+      changed = true;
     }
   }
   if (state.idHistory.length > 200) state.idHistory.splice(0, state.idHistory.length - 200);
+  if (changed) saveIds(host);
 }
 
 function renderDiagnose() {
@@ -1690,8 +1732,9 @@ function renderDiagnose() {
   });
   html += "</div></div>";
 
-  // Session & IDs — current sid/uid/user_id + change history (F→C promote etc.)
+  // Session & IDs — current sid/uid/user_id + server session metrics + change history.
   html += '<div class="card"><h2>Session &amp; IDs</h2>';
+  var raw = (s.session && s.session.raw) || {};
   var anyId = false;
   html += '<div class="grid">';
   ID_FIELDS.forEach(function (f) {
@@ -1699,15 +1742,30 @@ function renderDiagnose() {
     var cell;
     if (t && t.value) {
       anyId = true;
-      cell = '<span class="chip acc">' + esc(t.value) + '</span> <span class="muted">seit ' + esc(fmtTime(t.since)) + "</span>";
+      cell = '<span class="chip acc">' + esc(t.value) + '</span> <span class="muted">seit ' + esc(fmtStamp(t.since)) + "</span>";
     } else {
       cell = '<span class="muted">—</span>';
     }
     html += '<div class="k">' + esc(f.label) + '</div><div class="v">' + cell + "</div>";
   });
+  // Authentic server-side session-creation time (Unix seconds) from the Session API payload.
+  if (typeof raw.created === "number" && raw.created > 0) {
+    html += '<div class="k">Session erstellt</div><div class="v"><span class="mono">' + esc(fmtStamp(raw.created * 1000)) +
+      '</span> <span class="muted">(Server)</span></div>';
+  }
   html += "</div>";
   if (anyId) {
-    html += '<div class="muted" style="margin-top:4px;font-size:11px">„seit" = erstmals im Inspector gesehen (nicht zwingend der serverseitige Setz-Zeitpunkt).</div>';
+    html += '<div class="muted" style="margin-top:4px;font-size:11px">„seit" = erstmals im Inspector gesehen (nicht zwingend der serverseitige Setz-Zeitpunkt) · „Session erstellt" ist der echte Server-Zeitstempel.</div>';
+  }
+  // Server session metrics from the Session API (delivered on the /aGTM.js request).
+  var METRICS = [
+    { k: "sessionCount", label: "Sitzungen" }, { k: "pvCount", label: "Seitenaufrufe" },
+    { k: "eventCount", label: "Events" }, { k: "counter", label: "Counter" }
+  ];
+  var mchips = [];
+  METRICS.forEach(function (m) { if (typeof raw[m.k] === "number") mchips.push('<span class="chip"><span class="muted">' + esc(m.label) + ": </span>" + esc(String(raw[m.k])) + "</span>"); });
+  if (mchips.length) {
+    html += '<div style="margin-top:8px"><span class="muted" style="font-size:11px">Session-API-Zähler: </span>' + mchips.join(" ") + "</div>";
   }
   if (state.idHistory.length) {
     html += '<div class="muted" style="margin-top:8px">Änderungen (in dieser Inspector-Sitzung beobachtet):</div>' +
@@ -1717,7 +1775,7 @@ function renderDiagnose() {
       var change = h.from
         ? ('<span class="mono">' + esc(h.from) + '</span> <span class="muted">→</span> <span class="mono">' + esc(h.to) + "</span>")
         : ('<span class="chip ok">gesetzt</span> <span class="mono">' + esc(h.to) + "</span>");
-      html += '<tr><td class="fit mono">' + esc(fmtTime(h.ts)) + '</td><td class="fit mono">' + esc(h.field) + '</td><td>' + change + "</td></tr>";
+      html += '<tr><td class="fit mono">' + esc(fmtStamp(h.ts)) + '</td><td class="fit mono">' + esc(h.field) + '</td><td>' + change + "</td></tr>";
     });
     html += "</tbody></table>";
   } else {

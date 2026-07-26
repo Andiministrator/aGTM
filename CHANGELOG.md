@@ -36,7 +36,11 @@ diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
   first-observed timestamp, **plus a live change history**: the panel diffs the ids
   on every poll and logs each change (from → to, timestamped), so the v1.5 F→C
   user-id promote (fingerprint `F.…` → stable cookie `C.…` after consent) is
-  visible as it happens. In-memory (survives page reloads while DevTools stays open).
+  visible as it happens. The history is **persisted per host** via `localStorage`
+  (survives a panel close / DevTools reopen; no cross-site mixing). Also surfaces the
+  Session-API payload delivered on the `/aGTM.js` request: the **authentic server
+  `created` timestamp** (so "since" isn't only first-observed) and the session
+  counters (`sessionCount` / `pvCount` / `eventCount` / `counter`).
 
 The aggregation lives in a new pure `diagnose.js` (browser global + node-require,
 like `netclassify.js`) and is unit-tested (`test/devtools/diagnose.test.js` +
@@ -51,7 +55,10 @@ stays N/A (a captured leak is always a fail). The Consent-Timeline anchors its
 re-consent can't sort it behind "GTM injected"; network-derived markers use the
 request start (finished ts − duration) instead of the finish time; and the
 "since page load" label/anchor is now conditional (falls back to "first marker"
-when `navStart` is unavailable).
+when `navStart` is unavailable). When the debug log is inactive, the marker falls
+back to a new read-only `consentFirstTs` (the **first** consent event) rather than
+`consentTs` (the last one), which the 2s consent poll / CMP re-pushes keep advancing
+— that was stretching the timeline bar to tens of seconds (Andi 2026-07-26).
 
 ### Added — aGTM Inspector: consent fingerprint in the list view · library size-budget guard (＋ critic round 2)
 
