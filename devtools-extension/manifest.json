@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "aGTM Inspector",
   "version": "1.5",
-  "description": "Live view of aGTM consent lifecycle, event queue/replay, GTM injection, session & attribution, and aGTM-relevant network calls — in DevTools.",
+  "description": "Live view of aGTM consent lifecycle, event queue/replay, GTM injection, session & attribution, and aGTM-relevant network calls — in DevTools. Read-only, plus an opt-in Simulation tab to drive consent/events for testing.",
   "devtools_page": "devtools.html",
   "icons": {
     "16": "icons/icon16.png",

@@ -9,6 +9,11 @@
  * try/catch and JSON round-trips (which drop functions) so a half-initialised or
  * absent aGTM never throws in the panel.
  *
+ * This read-only guarantee is scoped to THIS file (the snapshot poll). The one
+ * write-enabled feature — the Simulation tab — lives in sim.js and runs its own
+ * MUTATING eval strings through a separate, opt-in channel (see sim.js header and
+ * README "Simulation & the write channel"). Keep reader.js a pure reader.
+ *
  * ES5-safe on purpose (runs in whatever the page supports); do not use ES6 here.
  */
 (function () {
