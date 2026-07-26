@@ -29,8 +29,14 @@ var state = {
   expanded: {},
   configBaseline: null,  // first config snapshot seen, for the Config runtime-diff
   diag: null,            // latest Diagnose-tab inputs, for the report export buttons
-  navObserved: false     // true once a page navigation was witnessed (network capture
+  navObserved: false,    // true once a page navigation was witnessed (network capture
                          // then covers the pre-consent window — gates the leak health-check)
+  // Session/User-ID change tracking (Diagnose tab). idTrack: field -> {value, since}
+  // (current value + first-observed ts); idHistory: [{ts, field, from, to}] append-only.
+  // In-memory (survives page reloads while DevTools stays open — so a reload that triggers
+  // the F→C user-id promote is captured — but resets when the panel is closed).
+  idTrack: {},
+  idHistory: []
 };
 
 /* ---------- theme ---------- */
@@ -134,6 +140,7 @@ function poll() {
       return;
     }
     state.snap = result || { loaded: false };
+    trackIds(state.snap); // record sid/uid/user_id changes every poll (also when off the Diagnose tab)
     setLive(!!state.snap.loaded, state.snap.loaded ? "aGTM aktiv" : "aGTM nicht gefunden");
     el("ver").textContent = state.snap.loaded && state.snap.version ? ("v" + state.snap.version) : "";
     withScrollAnchor(render);
@@ -1628,6 +1635,31 @@ function diagReportCtx() {
   };
 }
 
+// Identity fields watched for changes: session sid/uid (from aGTM.d.session) + the
+// integrator CRM user_id (from aGTM.c). Label + where to read it from a snapshot.
+var ID_FIELDS = [
+  { key: "sid", label: "Session-ID", get: function (s) { return (s.session && s.session.sid) || ""; } },
+  { key: "uid", label: "User-ID", get: function (s) { return (s.session && s.session.uid) || ""; } },
+  { key: "user_id", label: "user_id (CRM)", get: function (s) { return (s.config && s.config.user_id) || ""; } }
+];
+// Called every poll (also when off the Diagnose tab). Diffs the current sid/uid/user_id
+// against the last observed values and appends a history entry on any change — including
+// the initial set (from "") and the v1.5 F→C user-id promote (F.…→C.… after consent).
+function trackIds(snap) {
+  if (!snap || !snap.loaded) return; // a mid-navigation {loaded:false} must not record a spurious clear
+  var now = (new Date()).getTime();
+  for (var i = 0; i < ID_FIELDS.length; i++) {
+    var f = ID_FIELDS[i], val = String(f.get(snap) || ""), cur = state.idTrack[f.key];
+    if (!cur) {
+      if (val) { state.idTrack[f.key] = { value: val, since: now }; state.idHistory.push({ ts: now, field: f.key, from: "", to: val }); }
+    } else if (cur.value !== val) {
+      state.idHistory.push({ ts: now, field: f.key, from: cur.value, to: val });
+      state.idTrack[f.key] = { value: val, since: now };
+    }
+  }
+  if (state.idHistory.length > 200) state.idHistory.splice(0, state.idHistory.length - 200);
+}
+
 function renderDiagnose() {
   var s = state.snap, c = s.config || {};
   var traps = activeConfigTraps(c, s);
@@ -1657,6 +1689,41 @@ function renderDiagnose() {
       '<span class="cl">' + esc(ch.label) + '</span><span class="cd">' + esc(ch.detail) + "</span></div>";
   });
   html += "</div></div>";
+
+  // Session & IDs — current sid/uid/user_id + change history (F→C promote etc.)
+  html += '<div class="card"><h2>Session &amp; IDs</h2>';
+  var anyId = false;
+  html += '<div class="grid">';
+  ID_FIELDS.forEach(function (f) {
+    var t = state.idTrack[f.key];
+    var cell;
+    if (t && t.value) {
+      anyId = true;
+      cell = '<span class="chip acc">' + esc(t.value) + '</span> <span class="muted">seit ' + esc(fmtTime(t.since)) + "</span>";
+    } else {
+      cell = '<span class="muted">—</span>';
+    }
+    html += '<div class="k">' + esc(f.label) + '</div><div class="v">' + cell + "</div>";
+  });
+  html += "</div>";
+  if (anyId) {
+    html += '<div class="muted" style="margin-top:4px;font-size:11px">„seit" = erstmals im Inspector gesehen (nicht zwingend der serverseitige Setz-Zeitpunkt).</div>';
+  }
+  if (state.idHistory.length) {
+    html += '<div class="muted" style="margin-top:8px">Änderungen (in dieser Inspector-Sitzung beobachtet):</div>' +
+      '<table class="compact"><thead><tr><th class="fit">Zeit</th><th class="fit">Feld</th><th>Änderung</th></tr></thead><tbody>';
+    // newest first
+    state.idHistory.slice().reverse().forEach(function (h) {
+      var change = h.from
+        ? ('<span class="mono">' + esc(h.from) + '</span> <span class="muted">→</span> <span class="mono">' + esc(h.to) + "</span>")
+        : ('<span class="chip ok">gesetzt</span> <span class="mono">' + esc(h.to) + "</span>");
+      html += '<tr><td class="fit mono">' + esc(fmtTime(h.ts)) + '</td><td class="fit mono">' + esc(h.field) + '</td><td>' + change + "</td></tr>";
+    });
+    html += "</tbody></table>";
+  } else {
+    html += '<div class="muted" style="margin-top:6px">Noch keine ID-Änderung beobachtet. Der Inspector zeigt Änderungen ab dem Öffnen — z. B. den F→C-User-ID-Promote (Fingerprint <code>F.…</code> → stabile Cookie-ID <code>C.…</code>) nach der Consent-Entscheidung.</div>';
+  }
+  html += "</div>";
 
   // Consent timeline waterfall
   html += '<div class="card"><h2>Consent-Timeline</h2>';
