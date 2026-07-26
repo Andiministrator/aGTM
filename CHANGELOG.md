@@ -37,10 +37,12 @@ diagnostics, all off the ES5/`build.sh` path with no new manifest permissions:
   on every poll and logs each change (from → to, timestamped), so the v1.5 F→C
   user-id promote (fingerprint `F.…` → stable cookie `C.…` after consent) is
   visible as it happens. The history is **persisted per host** via `localStorage`
-  (survives a panel close / DevTools reopen; no cross-site mixing). Also surfaces the
-  Session-API payload delivered on the `/aGTM.js` request: the **authentic server
-  `created` timestamp** (so "since" isn't only first-observed) and the session
-  counters (`sessionCount` / `pvCount` / `eventCount` / `counter`).
+  (survives a panel close / DevTools reopen; no cross-site mixing). The Session-API
+  payload delivered on the `/aGTM.js` request is surfaced as a **KPI stat-tile row**
+  with smart derivations — returning-visitor vs first-visit (from `sessionCount`),
+  events-per-pageview engagement, and a **live session age** from the authentic
+  server `created` timestamp — with a clear caveat that the counters are a
+  **page-load snapshot** (they don't advance during the page; only the age is live).
 
 The aggregation lives in a new pure `diagnose.js` (browser global + node-require,
 like `netclassify.js`) and is unit-tested (`test/devtools/diagnose.test.js` +

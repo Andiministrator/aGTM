@@ -762,16 +762,29 @@ describe("Diagnose tab", () => {
     expect(html).toContain("F→C-User-ID-Promote");
     P.clearIds();
   });
-  test("Session & IDs: authentic 'created' + Session-API counters render", () => {
+  test("Session & IDs: Session-API counters render as smart stat tiles + snapshot caveat", () => {
     const P = globalThis.__panel;
     P.clearIds();
-    const html = renderTab("diagnose"); // sample has raw.created + counters
-    expect(html).toContain("Session erstellt");
-    expect(html).toContain("(Server)");
-    expect(html).toContain("Session-API-Zähler");
-    expect(html).toContain("Sitzungen");
-    expect(html).toContain(">56<");   // sessionCount value
+    const html = renderTab("diagnose"); // sample raw: created + sessionCount 56, pvCount 5, eventCount 29
+    expect(html).toContain('class="stat"');
+    expect(html).toContain("Sitzung");
+    expect(html).toContain("#56");                 // sessionCount as "#56"
+    expect(html).toContain("Wiederkehrer");        // sc>1 → returning-visitor derivation
     expect(html).toContain("Seitenaufrufe");
+    expect(html).toContain("Events / Aufruf");     // derived engagement (29/5 = 5.8)
+    expect(html).toContain("5.8");
+    expect(html).toContain("Session-Alter");       // live age tile from `created`
+    expect(html).toContain("Server-Stand vom Seitenaufruf"); // the mandatory snapshot caveat
+    P.clearIds();
+  });
+  test("Session & IDs: first visit (sessionCount 1) is labelled Erstbesuch", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    const snap = sampleSnap();
+    snap.session.raw = { created: 1785059324, sessionCount: 1, pvCount: 1, eventCount: 1 };
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("Erstbesuch");
+    expect(html).not.toContain("Wiederkehrer");
     P.clearIds();
   });
   test("Session & IDs history persists across a panel reopen (localStorage per host)", () => {
