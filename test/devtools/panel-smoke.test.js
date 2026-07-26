@@ -606,6 +606,14 @@ describe("Simulation tab", () => {
     expect(html).toContain("sim-useid");         // per-group name/ID toggle
     expect(html).toContain('id="sim-root"');
   });
+  test("card #50 extras: GCM push + cookie reset + scenario + consent-store boxes render", () => {
+    const html = renderTab("sim");
+    expect(html).toContain("Google Consent Mode pushen");   // GCM push box
+    expect(html).toContain("ad_storage");                    // a GCM signal row (simGcmRows non-empty)
+    expect(html).toContain("Cookies zurücksetzen");          // cookie reset box
+    expect(html).toContain("Szenario-Runner");               // scenario runner box
+    expect(html).toContain("Consent-Store-POST testen");     // consent-store test box
+  });
   test("not loaded: still offers the integration-inject box (for un-integrated pages)", () => {
     const P = globalThis.__panel;
     P.setSnap({ loaded: false });

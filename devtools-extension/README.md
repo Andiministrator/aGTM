@@ -86,7 +86,8 @@ persisted per host):
   patterns (across the `/` + current-path × parent-domain grid), optionally clears
   matching `localStorage` keys, then optionally reloads — the real first-visit re-test
   that plain reset can't do. **Empty pattern field = match every cookie** (nuclear;
-  spelled out in-UI). Also aGTM-independent.
+  spelled out in-UI) — and, combined with "clear localStorage", that wipes the
+  **entire** `localStorage` too (login tokens included). Also aGTM-independent.
 - **Scenario runner** — one click walks the whole lifecycle: **deny** → **fire** the
   listed events (parked in `aGTM.d.f` because there's no consent) → **grant** the chosen
   consent (`run_cc('update')` → inject → replay). The effect panel reports how many
