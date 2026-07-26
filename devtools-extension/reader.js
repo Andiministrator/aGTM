@@ -199,6 +199,23 @@
       }
     } catch (e3) { /* ignore — DOM query is best-effort */ }
 
+    // Stable lifecycle-milestone timestamps for the Consent-Timeline, computed over the
+    // FULL log (aGTM.l is append-only / uncapped) — NOT the tail(l,100) sent below. Reading
+    // "the first m3 in the tail" from the panel wandered forward once the 2s consent poll grew
+    // the log past 100 entries and the early m3 dropped out (Andi 2026-07-26, esp. with the
+    // tab backgrounded). First occurrence over the full log is permanently stable.
+    function firstLogTs(id) {
+      try { for (var li = 0; li < l.length; li++) { var le = l[li]; if (le && le.id === id && le.timestamp) return le.timestamp; } }
+      catch (elt) { /* ignore */ }
+      return 0;
+    }
+    var logMilestones = {
+      config: firstLogTs("m1"),
+      pending: firstLogTs("m8"),
+      consent: firstLogTs("m3") || firstLogTs("m2"),
+      inject: firstLogTs("m6") || firstLogTs("m5")
+    };
+
     return clone({
       loaded: true,
       version: typeof d.version !== "undefined" ? d.version : null,
@@ -268,6 +285,7 @@
       consentCommands: consentCommands,
       consentTs: consentTs,
       consentFirstTs: consentFirstTs,
+      logMilestones: logMilestones,
       vendors: vendors,
       vendorState: vendorState,
       attribution: safeObj(d.attribution) || {}
