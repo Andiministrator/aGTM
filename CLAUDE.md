@@ -71,7 +71,13 @@ via `chrome.devtools.inspectedWindow.eval()` (running `reader.js`, a pure reader
 (`sim.js`): behind a per-session "Write-Modus" toggle (default off, never persisted)
 it drives the page — simulated consent decisions, event firing, forced GTM injection,
 Google-Consent-Mode pushes, cookie reset — through that same `eval()` bridge, which is
-why `manifest.json` still declares **no** `permissions`/`host_permissions`.
+why `manifest.json` still declares **no** `permissions`/`host_permissions`. The cookie
+reset also evaluates inside the page's **third-party frames** (a CMP keeps its own copy
+of the consent in its own origin), via `eval(code, {frameURL})`. That stays inside the
+same posture: DevTools gates frame evaluation on schemes, `chrome://`, Web-Store and
+enterprise-policy hosts — **not** on `host_permissions`. It does require the frame's
+exact committed **document URL** (an origin resolves to no frame — F-115), which is why
+the candidates come from `getResources()` filtered to `type === "document"`.
 
 It is ES6+ (own browser context — **not** on the ES5/`build.sh` path), and its version
 is coupled to the library version (see the build table). Distribution is "load

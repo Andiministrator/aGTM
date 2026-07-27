@@ -58,7 +58,13 @@
     }
 
     if (!w.aGTM || !w.aGTM.d) {
-      return { loaded: false, gcm: readGcm(), icsPresent: icsPresent(), gtmPresent: gtmPresent() };
+      // pageHost is reported even here: the Simulation tab's cookie reset and the network
+      // classification both need to tell the page's own origin from a third party, and
+      // both work on pages where aGTM never loaded.
+      return {
+        loaded: false, gcm: readGcm(), icsPresent: icsPresent(), gtmPresent: gtmPresent(),
+        pageHost: (typeof location !== "undefined" && location && location.host) ? location.host : ""
+      };
     }
     var A = w.aGTM, d = A.d || {}, c = A.c || {}, l = A.l || [];
 

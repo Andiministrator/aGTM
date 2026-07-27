@@ -430,6 +430,69 @@
   }
   SIM.splitTokens = splitTokens;
 
+  // Pick the frames the cookie reset should additionally run in — the CMP's own origin.
+  //
+  // WHY DOCUMENT URLS AND NOT ORIGINS — this is the whole point (F-115): DevTools
+  // resolves inspectedWindow.eval's `frameURL` by an EXACT string match against the
+  // frame's committed document URL (ExtensionServer.evaluate → resolveURLToFrame:
+  // `frame.url === url`). An origin such as "https://cdn.consentmanager.net" therefore
+  // matches no frame at all — it only earns one "there is no frame with URL …" per try,
+  // which is exactly how the first attempt failed. getResources() reports a `type` per
+  // resource, and the document-typed ones ARE the frame documents (main frame plus every
+  // sub-frame, cross-origin/out-of-process ones included, since DevTools attaches to
+  // those targets too). Those URLs are what frameURL can actually address.
+  //
+  // Same-site documents are dropped: their cookie jar is already covered by the
+  // top-frame pass (which expires across the whole parent-domain grid).
+  function pickFrameDocs(resources, pageHost, max) {
+    var out = [], seen = {};
+    resources = resources || [];
+    max = max || 8;
+    pageHost = (typeof pageHost === "string" ? pageHost : "").toLowerCase();
+    for (var i = 0; i < resources.length && out.length < max; i++) {
+      var r = resources[i];
+      if (!r || typeof r.url !== "string") continue;
+      // Only real frame documents. Everything else (scripts, images, fonts …) is not
+      // addressable by frameURL and would just produce noise.
+      if (String(r.type || "").toLowerCase() !== "document") continue;
+      var u = r.url;
+      if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0) continue;
+      var host;
+      try { host = new URL(u).host.toLowerCase(); } catch (e) { continue; }
+      if (!host || seen[u]) continue;
+      // Same registrable-ish site as the page → the top-frame run already covers it.
+      if (pageHost && (host === pageHost ||
+          host.indexOf("." + pageHost) === host.length - pageHost.length - 1 ||
+          pageHost.indexOf("." + host) === pageHost.length - host.length - 1)) continue;
+      seen[u] = 1;
+      out.push({ url: u, host: host });
+    }
+    return out;
+  }
+  SIM.pickFrameDocs = pickFrameDocs;
+
+  // Render the third-party-frame pass for the effect line. Deliberately says something
+  // in EVERY case — "reached nothing" is the outcome the user must not miss, because
+  // then the CMP restores its consent on the next load and the first-visit test is a
+  // lie. `f` is {checked, reached, cookies:["host:name"], ls, fails:[{host,why}]}, or
+  // null when the pass was switched off (then: no output at all).
+  function formatFramePass(f) {
+    if (!f) return "";
+    var INK = " Für einen echten Erstbesuch: Inkognito-Fenster.";
+    if (!f.checked) return " · Keine fremden Frames im Seitenbaum — eine CMP-Kopie auf fremder Domain wäre so nicht erreichbar." + INK;
+    var head = " · CMP-Frames: " + (f.reached || 0) + "/" + f.checked + " erreicht";
+    if (!f.reached) {
+      var why = (f.fails || []).slice(0, 2).map(function (x) { return x.host + ": " + x.why; }).join(" · ");
+      return " · ⚠ Fremde Frames" + (f.checked > 1 ? " (" + f.checked + ")" : "") + " nicht erreichbar" +
+        (why ? " — " + why : "") + ". Die CMP-Kopie auf ihrer Domain bleibt liegen." + INK;
+    }
+    var cookies = f.cookies || [];
+    if (!cookies.length && !f.ls) return head + ", dort passte aber nichts auf die Muster — falls die CMP ihren Consent trotzdem wiederherstellt:" + INK;
+    return head + " → " + cookies.slice(0, 6).join(", ") + (cookies.length > 6 ? " …" : "") +
+      (f.ls ? " · localStorage: " + f.ls : "");
+  }
+  SIM.formatFramePass = formatFramePass;
+
   if (typeof window !== "undefined") window.aGTMInspectorSim = SIM;
   if (typeof module !== "undefined" && module.exports) module.exports = SIM;
 })();
@@ -492,7 +555,7 @@ var SIM_COOKIE_DEFAULTS_PAST = [
 ];
 
 function simState() {
-  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), gcmMode: "update", gcmWait: "", gcmRegions: "", cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, scenarioText: "", containerIds: "" };
+  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), gcmMode: "update", gcmWait: "", gcmRegions: "", cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, cookieFrames: true, scenarioText: "", containerIds: "" };
   return state.sim;
 }
 
@@ -503,7 +566,7 @@ function simLoad(host) {
   st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {}; st.injectCode = ""; st.blockIntent = false;
   st.gcm = simDefaultGcm(); st.gcmMode = "update"; st.gcmWait = ""; st.gcmRegions = "";
   st.gcmForce = false; // never persisted — see the force checkbox handler
-  st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.scenarioText = ""; st.containerIds = "";
+  st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.cookieFrames = true; st.scenarioText = ""; st.containerIds = "";
   try {
     if (typeof localStorage === "undefined") return;
     var all = JSON.parse(localStorage.getItem(SIM_LS) || "{}");
@@ -525,6 +588,7 @@ function simLoad(host) {
       }
       if (typeof e.cookieReload === "boolean") st.cookieReload = e.cookieReload;
       if (typeof e.cookieLS === "boolean") st.cookieLS = e.cookieLS;
+      if (typeof e.cookieFrames === "boolean") st.cookieFrames = e.cookieFrames;
       if (typeof e.scenarioText === "string") st.scenarioText = e.scenarioText;
       if (typeof e.containerIds === "string") st.containerIds = e.containerIds;
     }
@@ -551,6 +615,7 @@ function simSave() {
       cookiePats: typeof st.cookiePats === "string" ? st.cookiePats : SIM_COOKIE_DEFAULT,
       cookieReload: !!st.cookieReload,
       cookieLS: !!st.cookieLS,
+      cookieFrames: !!st.cookieFrames,
       scenarioText: st.scenarioText || "",
       containerIds: st.containerIds || ""
     };
@@ -621,15 +686,20 @@ function simSelection(model) {
 }
 
 /* ---------- write bridge (the ONE mutating eval path) ---------- */
-function simRun(code, label) {
+// `extra` (optional) is attached to the result as SIM_LAST.frames — the third-party-frame
+// pass of the cookie reset rides along on it so it is persisted (and thus survives the
+// reload the reset triggers) together with the top-frame result it belongs to.
+function simRun(code, label, extra) {
   if (!SIM_WRITE) return;
   try {
     chrome.devtools.inspectedWindow.eval(code, function (result, err) {
       if (err && (err.isError || err.isException)) {
         SIM_LAST = { ok: false, error: (err.value || "eval error"), label: label, ts: nowMs() };
+        if (extra) SIM_LAST.frames = extra;
       } else {
         SIM_LAST = result || { ok: false, error: "no result" };
         SIM_LAST.label = label; SIM_LAST.ts = nowMs();
+        if (extra) SIM_LAST.frames = extra;
         if (SIM_LAST.reloading) simLastSave();   // survive the reload we just triggered
         if (typeof SIM_LAST.simActive === "boolean") simState().active = SIM_LAST.simActive;
         // snap.blocked (from reader.js) is authoritative for the block state.
@@ -641,6 +711,47 @@ function simRun(code, label) {
     SIM_LAST = { ok: false, error: String(e), label: label, ts: nowMs() };
     updateSimLive();
   }
+}
+
+// Third-party CMP frames (Consentmanager, Usercentrics, Cookiebot …) keep their OWN
+// copy of the consent state in their OWN origin: cookies on their domain plus a
+// localStorage under e.g. https://cdn.consentmanager.net. The page cannot touch either
+// — same-origin policy — so a reset run only in the top frame leaves the CMP able to
+// restore everything on the next load and the banner never reappears.
+//
+// DevTools may evaluate INSIDE such a frame without any manifest permission: the
+// permission gate on the frame (ExtensionServer.evaluate → RegisteredExtension
+// .isAllowedOnTarget) only rejects forbidden schemes, chrome:// and Web-Store origins,
+// file:// without file access, and enterprise-policy-blocked hosts — it does NOT consult
+// the extension's host_permissions. So the "no permissions" posture stays intact.
+// What it DOES require is the frame's exact document URL — see pickFrameDocs.
+function simFrameDocs(cb) {
+  try {
+    var iw = chrome.devtools.inspectedWindow;
+    if (!iw || typeof iw.getResources !== "function") { cb([]); return; }
+    iw.getResources(function (resources) {
+      var pageHost = (state.snap && state.snap.pageHost) || "";
+      cb(window.aGTMInspectorSim.pickFrameDocs(resources, pageHost, 8));
+    });
+  } catch (e) { cb([]); }
+}
+
+// Run an expression inside ONE frame. Never throws and never logs: a frame may be gone
+// between discovery and execution, which is normal. The reason a frame could not be
+// reached is handed back so the effect line can say it out loud — silently doing
+// nothing is what made the earlier attempt impossible to judge.
+function simRunInFrame(code, doc, done) {
+  try {
+    chrome.devtools.inspectedWindow.eval(code, { frameURL: doc.url }, function (result, err) {
+      if (err && (err.isError || err.isException)) {
+        done({ host: doc.host, ok: false, why: String(err.description || err.code || err.value || "Fehler") });
+      } else if (result && result.ok) {
+        done({ host: doc.host, ok: true, cleared: result.cleared || [], lsCleared: result.lsCleared | 0 });
+      } else {
+        done({ host: doc.host, ok: false, why: (result && result.error) || "keine Antwort" });
+      }
+    });
+  } catch (e) { done({ host: doc.host, ok: false, why: String(e) }); }
 }
 function nowMs() { try { return Date.now(); } catch (e) { return 0; } }
 
@@ -743,12 +854,13 @@ function buildSimScaffold() {
     "</div></div>";
 
   var boxCookie = '<div class="card"><h2>Cookies zurücksetzen + neu laden</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“. <b>Grenze:</b> gelöscht werden kann nur, was auf der <b>eigenen Domain</b> liegt. Viele CMPs (Consentmanager, Usercentrics, Cookiebot …) halten eine <b>zweite Kopie</b> in ihrem eigenen iframe-Origin (Cookies auf <code>.consentmanager.net</code> + dessen localStorage) — die ist für die Seite unerreichbar und stellt den Consent nach dem Reload oft wieder her. <b>Für einen echten Erstbesuch-Test deshalb ein Inkognito-Fenster verwenden</b> (Extension dort einmalig zulassen: chrome://extensions → Details → „Im Inkognitomodus zulassen").</div>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“. Viele CMPs (Consentmanager, Usercentrics, Cookiebot …) halten eine <b>zweite Kopie</b> in ihrem eigenen iframe-Origin (Cookies auf <code>.consentmanager.net</code> + localStorage unter <code>cdn.consentmanager.net</code>) und stellen den Consent daraus nach dem Reload wieder her. Für die <b>Seite</b> ist die unerreichbar (Same-Origin-Policy) — <b>DevTools</b> darf dort hinein, deshalb löscht die Option „auch in CMP-Frames“ dieselben Muster zusätzlich in jedem fremden Frame der Seite. <b>Grenze:</b> das erreicht nur Origins, die <b>gerade als Frame im Seitenbaum stehen</b>; speichert die CMP ohne offenen Frame, bleibt ihre Kopie liegen. Das Ergebnis unten sagt pro Frame, was wirklich gelöscht wurde — <b>steht dort nichts Gelöschtes, ist ein Inkognito-Fenster der verlässliche Weg</b> (Extension dort einmalig zulassen: chrome://extensions → Details → „Im Inkognitomodus zulassen").</div>' +
     '<input type="text" id="sim-cookie-pats" spellcheck="false" placeholder="Cookie-Namen-Muster, kommagetrennt (leer = alle)" value="' + esc(typeof st.cookiePats === "string" ? st.cookiePats : "") + '" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">' +
     '<div class="muted" style="margin-top:4px;font-size:11px">Ein Muster trifft als <b>Teilstring</b> (<code>__cmp</code> trifft <code>__cmpccu45430</code>). <code>*</code> ist ein Platzhalter zum Verankern: <code>__cmp*</code> = beginnt mit, <code>*consent</code> = endet auf, <code>*</code> = alles.' +
     (st.cookiePats !== SIM_COOKIE_DEFAULT ? ' <a href="#" id="sim-cookie-reset-pats" style="color:var(--accent)">Standardliste wiederherstellen</a>' : "") + "</div>" +
     '<div class="toolbar" style="margin-top:8px">' +
     simFlag("sim-cookie-ls", "localStorage auch leeren", st.cookieLS) +
+    simFlag("sim-cookie-frames", "auch in CMP-Frames (Drittanbieter-Origin)", st.cookieFrames) +
     simFlag("sim-cookie-reload", "danach neu laden", st.cookieReload) +
     '<span class="spacer" style="flex:1"></span>' +
     simBtn("sim-cookie-reset", "Cookies löschen", "warn") + "</div></div>";
@@ -1130,6 +1242,7 @@ function updateSimLive() {
         // tell the difference between "cleared" and "your CMP is not in the pattern list"
         // (that is how Consentmanager slipped through, see SIM_COOKIE_DEFAULT).
         det = "⚠ Im Haupt-Frame passte kein Cookie auf die Muster — dort nichts gelöscht (evtl. schon vorher entfernt). Cookie-Namen im Application-Tab prüfen; leeres Feld = alle Cookies.";
+        det += window.aGTMInspectorSim.formatFramePass(SIM_LAST.frames);
       } else {
         // Name the cookies, not just the count — that is what tells you whether YOUR
         // CMP was actually covered by the patterns.
@@ -1137,6 +1250,7 @@ function updateSimLive() {
         var more = (SIM_LAST.cleared || []).length > 8 ? " …" : "";
         det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (nm ? " (" + nm + more + ")" : "") +
           (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "");
+        det += window.aGTMInspectorSim.formatFramePass(SIM_LAST.frames);
         det += (SIM_LAST.reloading ? " · lädt neu…" : "");
       }
     } else if (SIM_LAST.loadedContainers && SIM_LAST.loadedContainers.length) {
@@ -1351,6 +1465,8 @@ function attachSimListeners() {
   // Cookie reset flag checkboxes + button
   var ckLs = el("sim-cookie-ls");
   if (ckLs) ckLs.addEventListener("change", function () { simState().cookieLS = ckLs.checked; simSave(); });
+  var ckFr = el("sim-cookie-frames");
+  if (ckFr) ckFr.addEventListener("change", function () { simState().cookieFrames = ckFr.checked; simSave(); });
   var ckRl = el("sim-cookie-reload");
   if (ckRl) ckRl.addEventListener("change", function () { simState().cookieReload = ckRl.checked; simSave(); });
   bindClick("sim-cookie-reset-pats", function (ev) {
@@ -1364,7 +1480,46 @@ function attachSimListeners() {
     var raw = input ? input.value : (st.cookiePats || "");
     var pats = window.aGTMInspectorSim.splitTokens(raw);
     var SIMB = window.aGTMInspectorSim;
-    simRun(SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: !!st.cookieReload }), "Cookies zurückgesetzt");
+    function topReset(frames) {
+      simRun(SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: !!st.cookieReload }), "Cookies zurückgesetzt", frames);
+    }
+    if (!st.cookieFrames) { topReset(null); return; }
+
+    // The CMP frames go FIRST and never with `reload` — the top-frame reload would cut
+    // them short. WATCHDOG: the frame pass is a best-effort EXTRA, the top-frame reset is
+    // the feature. Everything here is async (getResources → N frame evals); if any link
+    // never calls back, the reset must still happen. Hanging the working path behind the
+    // optional one is exactly how this broke once before.
+    var frameCode = SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: false });
+    var settled = false;
+    var acc = { checked: 0, reached: 0, cookies: [], ls: 0, fails: [] };
+    function finish() {
+      if (settled) return;
+      settled = true;
+      topReset(acc);
+    }
+    try { if (typeof setTimeout === "function") setTimeout(finish, 1200); } catch (e) { /* ignore */ }
+    simFrameDocs(function (docs) {
+      if (settled) return;
+      acc.checked = docs.length;
+      if (!docs.length) { finish(); return; }
+      var pending = docs.length;
+      docs.forEach(function (doc) {
+        simRunInFrame(frameCode, doc, function (r) {
+          if (r && r.ok) {
+            acc.reached++;
+            acc.ls += r.lsCleared | 0;
+            (r.cleared || []).forEach(function (n) {
+              var tag = r.host + ":" + n;
+              if (acc.cookies.indexOf(tag) < 0) acc.cookies.push(tag);
+            });
+          } else if (r) {
+            acc.fails.push({ host: r.host, why: r.why });
+          }
+          if (--pending === 0) finish();
+        });
+      });
+    });
   });
 
   // Scenario runner

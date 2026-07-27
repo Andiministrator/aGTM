@@ -12,7 +12,8 @@ import {
   buildResetCode, buildRestoreCode, buildFireCode, buildInjectCode, buildProbeCode,
   buildBlockCode, buildUnblockCode, buildInjectIntegrationCode, simSelection,
   buildGcmPushCode, buildCookieResetCode, buildScenarioCode, buildConsentStoreTestCode,
-  buildLoadContainerCode, GCM_SIGNALS, GCM_MODES, hasCls, SIM_COOKIE_DEFAULT
+  buildLoadContainerCode, GCM_SIGNALS, GCM_MODES, hasCls, SIM_COOKIE_DEFAULT,
+  pickFrameDocs, formatFramePass
 } from "../../devtools-extension/sim.js";
 
 // Run a builder's self-invoking expression against a supplied fake window and
@@ -996,5 +997,97 @@ describe("Cookie reset — wildcard patterns", () => {
     var res = run(buildCookieResetCode(["__cmp", "["], {}), w);
     expect(res.ok).toBe(true);
     expect(res.cleared).toContain("__cmpccu45430");
+  });
+});
+
+// ── Third-party CMP frames ──────────────────────────────────────────────────
+// The reset can only reach the CMP's own copy (cookies on .consentmanager.net +
+// localStorage under cdn.consentmanager.net) by running INSIDE that frame. DevTools
+// addresses a frame by its EXACT document URL — an origin matches nothing (F-115) —
+// so the candidate list must come from the document-typed resources, not from every
+// resource host.
+describe("pickFrameDocs — which frames the reset additionally runs in", () => {
+  const PAGE = [
+    { url: "https://www.victors.de/", type: "document" },
+    { url: "https://www.victors.de/js/main.js", type: "script" },
+    { url: "https://cdn.consentmanager.net/delivery/cmp.js", type: "script" },
+    { url: "https://cdn.consentmanager.net/delivery/cmp.php?id=45430", type: "document" },
+    { url: "https://www.googletagmanager.com/gtm.js?id=GTM-X", type: "script" },
+    { url: "https://fonts.gstatic.com/s/font.woff2", type: "font" }
+  ];
+
+  test("picks the CMP frame document, not its scripts and not other hosts", () => {
+    expect(pickFrameDocs(PAGE, "www.victors.de")).toEqual([
+      { url: "https://cdn.consentmanager.net/delivery/cmp.php?id=45430", host: "cdn.consentmanager.net" }
+    ]);
+  });
+  test("a script-only third party never becomes a candidate", () => {
+    // This is the F-115 regression: gtm.js / font CDNs are resource origins, not frames.
+    const hosts = pickFrameDocs(PAGE, "www.victors.de").map((d) => d.host);
+    expect(hosts).not.toContain("www.googletagmanager.com");
+    expect(hosts).not.toContain("fonts.gstatic.com");
+  });
+  test("the page's own documents are skipped — the top-frame pass covers them", () => {
+    const docs = pickFrameDocs([
+      { url: "https://victors.de/", type: "document" },
+      { url: "https://rp.victors.de/embed.html", type: "document" },
+      { url: "https://cdn.consentmanager.net/x.php", type: "document" }
+    ], "victors.de");
+    expect(docs.map((d) => d.host)).toEqual(["cdn.consentmanager.net"]);
+  });
+  test("a host merely ENDING in the page host is not the page's own site", () => {
+    const docs = pickFrameDocs([{ url: "https://notvictors.de/x.html", type: "document" }], "victors.de");
+    expect(docs.map((d) => d.host)).toEqual(["notvictors.de"]);
+  });
+  test("non-http documents, junk and duplicates are dropped", () => {
+    const docs = pickFrameDocs([
+      { url: "about:blank", type: "document" },
+      { url: "data:text/html,x", type: "document" },
+      { url: "chrome-extension://abc/panel.html", type: "document" },
+      { url: null, type: "document" },
+      {},
+      { url: "https://cdn.consentmanager.net/x.php", type: "document" },
+      { url: "https://cdn.consentmanager.net/x.php", type: "document" }
+    ], "www.victors.de");
+    expect(docs.length).toBe(1);
+  });
+  test("the candidate list is capped so one click cannot fan out unbounded", () => {
+    const many = [];
+    for (let i = 0; i < 30; i++) many.push({ url: "https://f" + i + ".example.com/x.html", type: "document" });
+    expect(pickFrameDocs(many, "victors.de").length).toBe(8);
+    expect(pickFrameDocs(many, "victors.de", 3).length).toBe(3);
+  });
+  test("no resources / no page host → empty, never throws", () => {
+    expect(pickFrameDocs(null, "")).toEqual([]);
+    expect(pickFrameDocs([{ url: "https://a.de/x.html", type: "document" }], "")).toHaveLength(1);
+  });
+});
+
+describe("formatFramePass — the frame pass is always reported", () => {
+  test("switched off → says nothing at all", () => {
+    expect(formatFramePass(null)).toBe("");
+  });
+  test("nothing deleted anywhere still points at incognito", () => {
+    // The failure that matters: the user believes the reset worked, the CMP restores
+    // its consent from its own origin, and the 'first visit' was never one.
+    expect(formatFramePass({ checked: 0, reached: 0, cookies: [], ls: 0, fails: [] })).toContain("Inkognito");
+    expect(formatFramePass({ checked: 1, reached: 0, cookies: [], ls: 0, fails: [{ host: "cdn.consentmanager.net", why: "Permission denied" }] }))
+      .toContain("Inkognito");
+    expect(formatFramePass({ checked: 1, reached: 1, cookies: [], ls: 0, fails: [] })).toContain("Inkognito");
+  });
+  test("an unreachable frame names the host and the reason", () => {
+    const s = formatFramePass({ checked: 2, reached: 0, cookies: [], ls: 0, fails: [{ host: "cdn.consentmanager.net", why: "Permission denied" }] });
+    expect(s).toContain("cdn.consentmanager.net");
+    expect(s).toContain("Permission denied");
+  });
+  test("a successful pass names what went, per host", () => {
+    const s = formatFramePass({
+      checked: 2, reached: 1, ls: 3, fails: [],
+      cookies: ["cdn.consentmanager.net:__cmpconsent45430", "cdn.consentmanager.net:__cmpccu45430"]
+    });
+    expect(s).toContain("1/2 erreicht");
+    expect(s).toContain("__cmpconsent45430");
+    expect(s).toContain("localStorage: 3");
+    expect(s).not.toContain("Inkognito");   // it worked — no need to send the user away
   });
 });

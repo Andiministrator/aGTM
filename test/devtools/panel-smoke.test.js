@@ -1633,3 +1633,157 @@ describe("Cookie reset button reaches the page", () => {
     expect(hit[0]).toContain("_tpf");
   });
 });
+
+// The reset's whole purpose is a genuine first-visit test, and that fails as long as
+// the CMP's own origin keeps a second copy of the consent (Consentmanager: cookies on
+// .consentmanager.net + localStorage under cdn.consentmanager.net). DevTools may
+// evaluate inside that frame — but ONLY when addressed by the frame's exact document
+// URL; an origin matches no frame at all (F-115). These tests pin the wiring: the right
+// URL, no reload in the frame pass, and — most importantly — a frame pass that hangs
+// must never take the working top-frame reset down with it.
+describe("Cookie reset — third-party CMP frame pass", () => {
+  var calls;   // [{code, frameURL}]
+  function clickReset() {
+    const node = globalThis.__nodes["sim-cookie-reset"];
+    const ls = (node.__listeners && node.__listeners.click) || [];
+    ls[ls.length - 1]({});
+  }
+  function setResources(list, answer) {
+    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) {
+      if (answer === false) return;      // never answers — watchdog territory
+      cb(list);
+    };
+  }
+  // The reset patterns come from the input field, exactly as the browser has it.
+  // The snapshot is re-set per click because simRun() polls afterwards, and the stubbed
+  // eval answers that poll with its action result — which would leave state.snap without
+  // a pageHost and make the page's own document look like a third party.
+  function prime() {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setSimWrite(true); P.buildSimScaffold();
+    globalThis.__nodes["sim-cookie-pats"].value = P.simState().cookiePats;
+    calls.length = 0;
+  }
+  const CMP = "https://cdn.consentmanager.net/delivery/cmp.php?id=45430";
+  const RES = [
+    { url: "https://fc-moto.com/", type: "document" },
+    { url: CMP, type: "document" },
+    { url: "https://www.googletagmanager.com/gtm.js?id=GTM-X", type: "script" }
+  ];
+
+  beforeAll(() => {
+    calls = [];
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var opts = typeof a === "function" ? null : a;
+      var cb = typeof a === "function" ? a : b;
+      calls.push({ code: code, frameURL: opts && opts.frameURL });
+      if (cb) cb({ ok: true, cleared: ["__cmpconsent45430"], clearedCount: 1, lsCleared: 2 }, null);
+    };
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap()); P.setTab("sim"); P.render();
+  });
+  afterAll(() => {
+    globalThis.__panel.setSimWrite(false);
+    globalThis.__panel.simState().cookieFrames = true;
+    globalThis.chrome.devtools.inspectedWindow.eval = function () {};
+    delete globalThis.chrome.devtools.inspectedWindow.getResources;
+  });
+
+  test("the reset runs inside the CMP frame, addressed by its DOCUMENT URL", () => {
+    setResources(RES);
+    prime();
+    clickReset();
+    const framed = calls.filter(function (c) { return c.frameURL; });
+    expect(framed.length).toBe(1);
+    expect(framed[0].frameURL).toBe(CMP);              // not the origin — that matches nothing
+    expect(framed[0].code).toContain("__cmp");
+  });
+  test("the frame pass never reloads — that is the top frame's job, and it would cut the frames short", () => {
+    setResources(RES);
+    prime();
+    clickReset();
+    const framed = calls.filter(function (c) { return c.frameURL; })[0];
+    const top = calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; })[0];
+    expect(framed.code).not.toContain("reload()");
+    expect(top.code).toContain("reload()");            // cookieReload defaults to true
+  });
+  test("what the frames gave up is reported, per host", () => {
+    const P = globalThis.__panel;
+    setResources(RES);
+    prime();
+    clickReset();
+    P.updateSimLive();
+    const html = globalThis.__nodes["sim-live"]._html;
+    expect(html).toContain("cdn.consentmanager.net:__cmpconsent45430");
+    expect(html).toContain("1/1 erreicht");
+  });
+  test("a frame that refuses evaluation is named, not silently swallowed", () => {
+    const P = globalThis.__panel;
+    setResources(RES);
+    prime();
+    const realEval = globalThis.chrome.devtools.inspectedWindow.eval;
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var opts = typeof a === "function" ? null : a;
+      var cb = typeof a === "function" ? a : b;
+      calls.push({ code: code, frameURL: opts && opts.frameURL });
+      if (!cb) return;
+      if (opts && opts.frameURL) cb(null, { isError: true, code: "E_FAILED", description: "Permission denied" });
+      else cb({ ok: true, cleared: ["x"], clearedCount: 1, lsCleared: 0 }, null);
+    };
+    clickReset();
+    globalThis.chrome.devtools.inspectedWindow.eval = realEval;
+    P.updateSimLive();
+    const html = globalThis.__nodes["sim-live"]._html;
+    expect(html).toContain("Permission denied");
+    expect(html).toContain("Inkognito");               // the honest fallback answer
+  });
+  test("with the frame pass off nothing is discovered and the reset is a straight call", () => {
+    const P = globalThis.__panel;
+    let asked = false;
+    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) { asked = true; cb(RES); };
+    P.simState().cookieFrames = false;
+    prime();
+    clickReset();
+    P.simState().cookieFrames = true;
+    expect(asked).toBe(false);
+    expect(calls.filter(function (c) { return c.frameURL; }).length).toBe(0);
+    expect(calls.filter(function (c) { return c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
+  });
+
+  // WATCHDOG. Both of these hang the optional path on purpose. Removing the 1.2 s
+  // fallback makes them fail — which is precisely the bug that once shipped: the
+  // working reset was put behind an unverified async chain and did nothing at all.
+  function withFastWatchdog(fn) {
+    const realTo = globalThis.setTimeout;
+    globalThis.setTimeout = function (f, ms) { if (ms === 1200) { f(); return 0; } return realTo(f, ms); };
+    try { fn(); } finally { globalThis.setTimeout = realTo; }
+  }
+  test("getResources never answering still resets the top frame", () => {
+    setResources(RES, false);
+    prime();
+    withFastWatchdog(clickReset);
+    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
+  });
+  test("a frame eval never answering still resets the top frame", () => {
+    setResources(RES);
+    prime();
+    const realEval = globalThis.chrome.devtools.inspectedWindow.eval;
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var opts = typeof a === "function" ? null : a;
+      var cb = typeof a === "function" ? a : b;
+      calls.push({ code: code, frameURL: opts && opts.frameURL });
+      if (opts && opts.frameURL) return;               // frame never calls back
+      if (cb) cb({ ok: true, cleared: [], clearedCount: 0, lsCleared: 0 }, null);
+    };
+    withFastWatchdog(clickReset);
+    globalThis.chrome.devtools.inspectedWindow.eval = realEval;
+    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
+  });
+  test("the top-frame reset happens exactly once, watchdog and completion cannot both fire it", () => {
+    setResources(RES);
+    prime();
+    withFastWatchdog(clickReset);   // completion runs synchronously AND the watchdog fires
+    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
+  });
+});
