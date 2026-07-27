@@ -1476,3 +1476,54 @@ describe("Exception preview rendering in the network list", () => {
     expect(tip[1].length).toBe(400);
   });
 });
+
+describe("Leak banner does not flash on page load (settle window)", () => {
+  // The stamp is taken at capture time; the consent anchor only appears in a LATER
+  // snapshot. Without a grace period the banner shows red for a fraction of a second
+  // on every load before the reconcile catches up (Andi, victors.de).
+  function noAnchorSnap() {
+    const snap = sampleSnap();
+    snap.logMilestones = { config: 0, pending: 0, consent: 0, inject: 0 };
+    snap.consentFirstTs = 0;
+    snap.consentTs = 0;
+    snap.consent = { hasResponse: false, gtmConsent: false, services: "", purposes: "", vendors: "" };
+    return snap;
+  }
+  function bannerFor(tsOffsetMs) {
+    const P = globalThis.__panel;
+    P.setSnap(noAnchorSnap());
+    P.setNet([{
+      id: 91, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com",
+      method: "GET", status: 200, ts: Date.now() - tsOffsetMs, time: 0,
+      propId: "", evName: "", preConsent: true
+    }]);
+    P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
+    P.setTab("network"); P.render();
+    return globalThis.document.getElementById("tab-network")._html;
+  }
+  afterAll(() => { const P = globalThis.__panel; P.setNet([]); P.setSnap(sampleSnap()); });
+
+  test("a request captured just now is undecided — no banner yet", () => {
+    expect(bannerFor(0)).not.toContain("Pre-Consent-Leak");
+  });
+  test("once the grace period passed and no consent ever came, it IS reported", () => {
+    expect(bannerFor(5000)).toContain("Pre-Consent-Leak");
+  });
+  test("with an anchor present the decision is immediate — no waiting", () => {
+    const P = globalThis.__panel;
+    const snap = noAnchorSnap();
+    snap.logMilestones = { config: 0, pending: 0, consent: Date.now() - 10000, inject: 0 };
+    snap.consent = { hasResponse: true, gtmConsent: true, services: "a", purposes: "", vendors: "" };
+    P.setSnap(snap);
+    P.setNet([{
+      id: 92, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com",
+      method: "GET", status: 200, ts: Date.now() - 20000, time: 0,   // BEFORE the anchor
+      propId: "", evName: "", preConsent: true
+    }]);
+    P.netSet("netOnlyAGTM", false);
+    P.setTab("network"); P.render();
+    // Old enough to be past the grace period anyway, but the point is that the anchor
+    // decides it — a pre-consent hit stays a finding.
+    expect(globalThis.document.getElementById("tab-network")._html).toContain("Pre-Consent-Leak");
+  });
+});

@@ -1050,10 +1050,23 @@ function reqStartTs(e) {
 // is why it must use a stable anchor.
 //
 // Returns the trackingHit ({vendor}) or null. Shared by renderNetwork + computeNetLeaks.
-function leakHitFor(e, cls, consentGranted, consentTs) {
+// How long a fresh stamp stays PROVISIONAL while no consent anchor is known yet.
+// Two poll intervals: the stamp is taken at capture time against a snapshot that can be
+// one poll stale, and the anchor itself only appears in the snapshot AFTER the consent
+// milestone was logged. Without this, every page load flashes the red banner for a
+// fraction of a second before the reconcile catches up (observed by Andi on victors.de).
+var LEAK_SETTLE_MS = 2 * POLL_MS;
+function nowTs() { try { return Date.now(); } catch (e) { return 0; } }
+
+function leakHitFor(e, cls, consentGranted, consentTs, now) {
   if (!(e.preConsent && NET.trackingHit)) return null;
   var reconciledLegit = consentGranted && consentTs && reqStartTs(e) >= consentTs;
   if (reconciledLegit) return null;
+  // No anchor yet AND the request is fresh → undecided, not "leak". As soon as the
+  // anchor arrives the reconcile above decides it properly; if consent never comes, the
+  // stamp stands once the grace period is over, so a genuine leak is still reported
+  // (just ~1.4 s later). Only the flash disappears, never a finding.
+  if (!consentTs && (now || nowTs()) - e.ts < LEAK_SETTLE_MS) return null;
   return NET.trackingHit(e.url, cls);
 }
 // All current pre-consent leaks as plain data — for the Diagnose health-score + report.
@@ -1062,9 +1075,10 @@ function computeNetLeaks() {
   var scope = NET.sgtmScope(state.net, s.config), pageHost = s.pageHost || "";
   var consentGranted = !!(s.consent && truthy(s.consent.gtmConsent));
   var consentTs = consentMomentTs();
+  var now = nowTs();
   var out = [];
   state.net.forEach(function (e) {
-    var hit = leakHitFor(e, NET.classify(e.url, scope, pageHost), consentGranted, consentTs);
+    var hit = leakHitFor(e, NET.classify(e.url, scope, pageHost), consentGranted, consentTs, now);
     if (hit) out.push({ vendor: hit.vendor, url: e.url, ts: e.ts, host: e.host });
   });
   return out;
@@ -1589,9 +1603,10 @@ function renderNetwork() {
   var snap = state.snap || {};
   var consentGranted = !!(snap.consent && truthy(snap.consent.gtmConsent));
   var consentTs = consentMomentTs();
+  var now = nowTs();
   var mapped = state.net.map(function (e) {
     var cls = NET.classify(e.url, scope, pageHost);
-    return { e: e, cls: cls, leak: leakHitFor(e, cls, consentGranted, consentTs) }; // leak = tracking request that fired before consent
+    return { e: e, cls: cls, leak: leakHitFor(e, cls, consentGranted, consentTs, now) }; // leak = tracking request that fired before consent
   });
   var leaks = mapped.filter(function (r) { return r.leak; });
   var rows = state.netOnlyAGTM ? mapped.filter(function (r) { return r.cls; }) : mapped;
