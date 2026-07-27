@@ -1298,10 +1298,17 @@
                 "author": "Claude Opus",
                 "created": "2026-07-27",
                 "text": "START (2026-07-27): Andi hat entschieden — #51 wird JETZT gebaut und geht mit v1.5 raus; v1.5 bleibt bis auf Weiteres offen (kein Tag). Umsetzung nach dem Design in der Kartenbeschreibung: Modus-Switch update|default|declare, default-only-Felder wait_for_update/region, ehrlicher Timing-Guard (kein stiller No-op, Muster F-84/F-90), Ist-Zustand-Zeile mit Herkunft implicit/default/update in der Push-Box."
+              },
+              {
+                "id": "ea7b37ae-5839-4a25-98f7-2a6343c34ce5",
+                "author": "Claude Opus",
+                "created": "2026-07-27",
+                "text": "UMGESETZT auf dev (Commit fbd0587) -> QA. (1) Modus-Switch update|default|declare ueber GCM_MODES (unbekannter Modus faellt auf update zurueck, nie ein Fantasie-Verb). (2) wait_for_update/region NUR bei default (in Googles API default-only; bei update/declare mitzusenden wuerde einen Effekt suggerieren, den es nicht gibt) - Regionen getrimmt+uppercased, ein Push = ein Region-Scope. (3) TIMING-GUARD als Kern: Erkennung ueber google_tag_data.ics ODER aGTM.d.init -> ok:false mit Begruendung statt Erfolgsmeldung; \"trotzdem pushen\" uebergeht ihn und das Effekt-Panel flaggt den Push dann als wirkungslos; update ist nie geguarded. (4) Ist-Zustand-Zeile mit Herkunft, per Poll aktualisiert (#sim-gcm-status - das Scaffold wird nur einmal gebaut, sonst friert die Zeile ein). Implicit bleibt bewusst Anzeige statt vierter Button.\n\nZWEI DEFEKTE beim Bauen gefunden und behoben (docs/findings.md): F-94 (P2) - die delegierten Sim-Handler matchten Klassennamen per SUBSTRING, und \"sim-gcm-mode\" enthaelt \"sim-gcm\": ein Klick auf die neuen Modus-Radios lief in den Signal-Checkbox-Zweig und schrieb st.gcm[null] in den persistierten Per-Host-State. Neuer purer Helfer hasCls() matcht ganze Klassen-Tokens, Regressionstest dabei. F-95 (P3) - die Praezedenz update>default>implicit>declare lag nur in panel.js; nach consentsignals.js gezogen (gcmEffective/gcmOriginLabel/gcmStatusModel) und geteilt, sonst haetten Consent-Tab und Push-Box unterschiedlich urteilen koennen (F-66-Drift-Klasse).\n\n652 bun-Tests gruen (+44: 19 consentsignals, 19 sim-Builder, 6 panel-smoke), ./build.sh ohne Warnung, ZIP neu gepackt, README/CHANGELOG/knowledge nachgezogen. HINWEIS: KEINE Kritiker-Sub-Agent-Runde gefahren (Session-Vorgabe: Sub-Agents nur auf ausdrueckliche Anforderung) - stattdessen Selbst-Review, die F-94/F-95 gefunden hat. Falls die uebliche Zwei-Kritiker-Runde gewuenscht ist, bitte anfordern. v1.5 bleibt offen (kein Tag)."
               }
             ],
             "displayId": 51,
-            "columnId": "col-schreiben"
+            "columnId": "col-qa",
+            "qa": true
           }
         ]
       },
