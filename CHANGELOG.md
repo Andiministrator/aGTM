@@ -19,6 +19,13 @@ instead of reporting plain success, and the UI states the hard limit: only cooki
 page's own domain can be cleared — a CMP's copy on its own domain (`.consentmanager.net`)
 is unreachable and can restore the state after the reload.
 
+Cookie patterns now support `*` as a wildcard, so a pattern can be anchored — `__cmp*`
+(starts with), `*consent` (ends with), `*` (everything). A plain fragment keeps matching
+as a substring, and regex metacharacters in a pattern stay literal. The effect panel
+names the removed cookies instead of only counting them, and a "restore the default
+list" link appears whenever the field differs from the shipped patterns — an edited
+field is never migrated automatically, so this is the way back.
+
 Buttons that are disabled because write-mode is off now explain themselves on hover. A disabled button swallows the click silently, so "I clicked and nothing happened" was the only feedback — and since write-mode resets to off on every panel open, that is the normal state right after reloading the extension.
 
 ### Added — aGTM Inspector: exception details in the network list
