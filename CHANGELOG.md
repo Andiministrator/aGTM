@@ -50,6 +50,13 @@ quietly green.
 This also corrects the Health-Score and the Compliance-Report, which both derive from the
 same leak list and could show a false red for a customer.
 
+A fresh stamp for which no consent anchor is known yet is treated as **undecided** for two
+poll intervals rather than as a leak. The stamp is taken when a request is captured, but
+the anchor only appears in a later snapshot, so without that grace period the banner
+flashed red on every page load before the reconcile caught up. A leak on a page where
+consent never arrives is still reported once the window passes — only the flash is gone,
+never a finding.
+
 ### Added — aGTM Inspector: Consent Mode push covers `default` and `declare`
 
 The Simulation tab's **Google Consent Mode push** box could only send
