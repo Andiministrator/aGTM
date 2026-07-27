@@ -1412,11 +1412,18 @@
                 "author": "Claude Opus",
                 "text": "Live-Test 1 (Andi, victors.de): Frame-Zugriff BESTAETIGT — der localStorage der CMP-Origin war geloescht. Die zwei Cookies auf .consentmanager.net blieben aber liegen. Ursache (F-118): CMP-Cookies sind Cross-Site-Cookies (SameSite=None; Secure), und in ihrem Drittanbieter-Frame verwirft Chrome jeden document.cookie-Write, der auf SameSite=Lax defaulten wuerde — der Ablauf-Write kam nie an. Fix: jeder Write geht jetzt zweimal raus (blank + mit SameSite=None; Secure). Zweiter Fehler derselben Runde: der Reset meldete die VERSUCHTEN Namen als geloescht; er liest den Cookie-Jar jetzt nach dem Schreiben erneut und meldet nur, was nachweislich weg ist — was liegen blieb, wird namentlich genannt (typisch HttpOnly). 741 Tests gruen (+6), Mutationstest: ohne SameSite-Variante fallen 3, ohne Verifikation 1. Commit 8d97ce4, ZIP neu gepackt.\n\nOFFEN = Live-Test 2: Extension neu laden, victors.de, Cookies loeschen. Erwartung: Effekt-Zeile nennt cdn.consentmanager.net:__cmpccu45430/__cmpconsent45430 als geloescht, Application-Tab zeigt sie nicht mehr, Banner kommt nach dem Reload wieder. Falls sie unter \"blieben liegen\" auftauchen: dann sind sie HttpOnly und aus dem Browser heraus per JS grundsaetzlich nicht loeschbar — dann ist Inkognito die endgueltige Antwort und die Karte wird mit dieser dokumentierten Grenze geschlossen.",
                 "created": "2026-07-27"
+              },
+              {
+                "id": "966e6e7b-dc8c-42da-84f2-674e4120c474",
+                "author": "Claude Opus",
+                "text": "ABGENOMMEN (Andi, Live-Test 2 auf victors.de, 2026-07-27): \"ah - jetzt geht es\". Der Cookie-Reset erreicht die CMP-Kopie im Drittanbieter-Origin jetzt vollstaendig — Cookies auf .consentmanager.net UND localStorage unter cdn.consentmanager.net. Damit ist ein echter Erstbesuch-Test im normalen Fenster moeglich; Inkognito bleibt der dokumentierte Rueckfallweg fuer Origins, die gerade keinen Frame offen haben.\n\nZwei Runden, beide vorab belegt statt geraten: F-117 (Kandidaten = getResources() gefiltert auf type===document, weil frameURL die exakte Dokument-URL braucht; Rechteprueufung fragt host_permissions nicht ab -> Posture bleibt) und F-118 (Cross-Site-Write mit SameSite=None; Secure + Verifikation des Ergebnisses statt Erfolgsbehauptung). 741 Tests gruen, Mutationstest je Mechanismus. Commits 88f89b2, 8d97ce4, 82e4fc9. ZIP gepackt.",
+                "created": "2026-07-27"
               }
             ],
             "critical": true,
             "displayId": 54,
-            "columnId": "col-qa"
+            "columnId": "col-erledigt",
+            "qa": true
           }
         ]
       },
