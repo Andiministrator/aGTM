@@ -1165,7 +1165,7 @@ function updateSimLive() {
         // A reset that matched nothing used to report plain success — the user could not
         // tell the difference between "cleared" and "your CMP is not in the pattern list"
         // (that is how Consentmanager slipped through, see SIM_COOKIE_DEFAULT).
-        det = "⚠ Kein Cookie passte auf die Muster — nichts gelöscht. Cookie-Namen im Application-Tab prüfen und ein passendes Fragment ergänzen (leeres Feld = alle Cookies).";
+        det = "⚠ Im Haupt-Frame passte kein Cookie auf die Muster — dort nichts gelöscht (evtl. schon vorher entfernt). Cookie-Namen im Application-Tab prüfen; leeres Feld = alle Cookies.";
       } else {
         // Name the cookies, not just the count — that is what tells you whether YOUR
         // CMP was actually covered by the patterns.
@@ -1173,13 +1173,6 @@ function updateSimLive() {
         var more = (SIM_LAST.cleared || []).length > 8 ? " …" : "";
         det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (nm ? " (" + nm + more + ")" : "") +
           (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "");
-        if (SIM_FRAME_EXTRA && SIM_FRAME_EXTRA.failed) {
-          det += " · ⚠ Drittanbieter-Frames nicht erreichbar (Frame-Zugriff fehlgeschlagen) — die CMP-Kopie auf ihrer eigenen Domain bleibt. Für einen echten Erstbesuch: Inkognito-Fenster.";
-        } else if (SIM_FRAME_EXTRA) {
-          det += " · Drittanbieter-Frames: " + SIM_FRAME_EXTRA.frames +
-            (SIM_FRAME_EXTRA.cookies.length ? " → " + SIM_FRAME_EXTRA.cookies.slice(0, 6).join(", ") : " → nichts gefunden") +
-            (SIM_FRAME_EXTRA.ls ? " · localStorage: " + SIM_FRAME_EXTRA.ls : "");
-        }
         det += (SIM_LAST.reloading ? " · lädt neu…" : "");
       }
     } else if (SIM_LAST.loadedContainers && SIM_LAST.loadedContainers.length) {
@@ -1187,7 +1180,21 @@ function updateSimLive() {
     } else if (SIM_LAST.consentStoreUrl) {
       det = "POST → " + SIM_LAST.consentStoreUrl;
     }
-    if (det) h += '<div class="muted" style="margin-top:3px;font-size:11px">' + esc(det) + "</div>";
+    // The third-party-frame outcome applies to BOTH branches: it used to hang off the
+    // "cleared something" branch only, so exactly when the top frame found nothing —
+    // the case where the frame pass matters most — it stayed invisible.
+    if (SIM_FRAME_EXTRA) {
+      if (SIM_FRAME_EXTRA.failed) {
+        det += " · ⚠ Drittanbieter-Frames nicht erreichbar — die CMP-Kopie auf ihrer eigenen Domain bleibt. Für einen echten Erstbesuch: Inkognito-Fenster.";
+      } else {
+        det += " · Drittanbieter-Frames: " + SIM_FRAME_EXTRA.frames +
+          (SIM_FRAME_EXTRA.cookies.length ? " → Cookies: " + SIM_FRAME_EXTRA.cookies.slice(0, 6).join(", ") : " → keine Cookies") +
+          (SIM_FRAME_EXTRA.ls ? " · localStorage-Einträge: " + SIM_FRAME_EXTRA.ls : " · kein localStorage");
+      }
+    } else if (typeof SIM_LAST.clearedCount === "number") {
+      det += " · Drittanbieter-Frames: nicht durchsucht";
+    }
+    if (det) h += '<div class="sim-det">' + esc(det) + "</div>";
     h += "</div>";
   }
   // The GCM box lives outside #sim-live but its "Ist-Zustand" line must track the poll,

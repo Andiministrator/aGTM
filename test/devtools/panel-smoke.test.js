@@ -107,7 +107,8 @@ beforeAll(() => {
     "  exceptionInfo: exceptionInfo," +
     "  setSimWrite: function(v){ SIM_WRITE = v; }," +
     "  getSimWrite: function(){ return SIM_WRITE; }," +
-    "  simFrameOrigins: simFrameOrigins" +
+    "  simFrameOrigins: simFrameOrigins," +
+    "  setFrameExtra: function(v){ SIM_FRAME_EXTRA = v; }" +
     "};";
   (0, eval)(src);
 });
@@ -1593,7 +1594,7 @@ describe("Simulation tab — action buttons actually reach the page", () => {
     P.setSimWrite(true); P.buildSimScaffold();
     clickSim("sim-cookie-reset");                  // stubbed eval returns clearedCount 0
     P.updateSimLive();
-    expect(globalThis.__nodes["sim-live"]._html).toContain("Kein Cookie passte");
+    expect(globalThis.__nodes["sim-live"]._html).toContain("passte kein Cookie auf die Muster");
   });
 });
 
@@ -1728,5 +1729,44 @@ describe("Cookie reset is never blocked by the frame pass (regression)", () => {
     clickReset();
     expect(evals.filter(function (c) { return c.indexOf("__cmp") !== -1; }).length).toBe(1);
     P.simState().cookieFrames = true;
+  });
+});
+
+describe("Effect line reports the frame pass in BOTH outcomes", () => {
+  // Regression: the third-party-frame result was appended only in the "cleared
+  // something" branch. So in the one case where the frame pass matters most — the top
+  // frame found nothing, e.g. because the CMP only keeps its copy on its own domain —
+  // the user was told nothing about it at all.
+  function lineFor(last, frameExtra) {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setSimLast(last);
+    P.setFrameExtra(frameExtra);
+    P.updateSimLive();
+    return globalThis.__nodes["sim-live"]._html;
+  }
+  afterAll(() => { globalThis.__panel.setSimLast(null); globalThis.__panel.setFrameExtra(null); });
+
+  test("nothing cleared in the top frame, but the frames were searched", () => {
+    const html = lineFor(
+      { ok: true, label: "Cookies zurückgesetzt", ts: 1, clearedCount: 0, cleared: [], lsCleared: 0 },
+      { frames: 1, cookies: ["__cmpccu45430"], ls: 4 }
+    );
+    expect(html).toContain("passte kein Cookie");
+    expect(html).toContain("Drittanbieter-Frames: 1");
+    expect(html).toContain("__cmpccu45430");
+    expect(html).toContain("localStorage-Einträge: 4");
+  });
+  test("frames unreachable is stated in the nothing-cleared case too", () => {
+    const html = lineFor(
+      { ok: true, label: "x", ts: 1, clearedCount: 0, cleared: [], lsCleared: 0 },
+      { frames: 0, cookies: [], ls: 0, failed: true }
+    );
+    expect(html).toContain("nicht erreichbar");
+    expect(html).toContain("Inkognito");
+  });
+  test("frame pass switched off is stated, not silently omitted", () => {
+    const html = lineFor({ ok: true, label: "x", ts: 1, clearedCount: 2, cleared: ["a", "b"], lsCleared: 0 }, null);
+    expect(html).toContain("nicht durchsucht");
   });
 });

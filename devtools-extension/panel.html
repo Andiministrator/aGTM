@@ -107,6 +107,11 @@
      without the weight of a chip. */
   /* The effect panel stays in view while you scroll the (long) Simulation tab, so an
      action's result is never reported off-screen. */
+  /* The action result is the whole point of the panel — it was 11px muted text that
+     users scrolled past. Give it room and contrast. */
+  .sim-det { margin-top: 6px; font-size: 13px; line-height: 1.5; color: var(--fg);
+             background: var(--bg); border-left: 3px solid var(--accent);
+             border-radius: 4px; padding: 7px 10px; }
   .sim-live-card { position: sticky; top: 0; z-index: 6; box-shadow: 0 6px 12px -8px rgba(0,0,0,.6); }
   .net-exc { margin-top: 3px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap;
              border-left: 2px solid var(--err); padding-left: 6px; }
