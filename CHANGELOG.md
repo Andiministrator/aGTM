@@ -2,6 +2,29 @@
 
 ## Version 1.5 — *in development*
 
+### Added — aGTM Inspector: exception details in the network list
+
+An `exception` hit now shows its **type and message directly in the list row**. The event
+name alone (`exception`) says nothing; the payload is the whole point. The values are read
+from whichever carrier the hit uses — GA4 query string (`ep.type`/`ep.text`), GA4 POST body,
+or a decoded aEvents payload — URL-decoded, truncated for the row, with the full message on
+hover. Rows that are not exceptions are unchanged.
+
+### Changed — aGTM Inspector: query-string values are URL-decoded
+
+The expanded **Query-String** section of a network row showed the raw HAR values, so a
+GA4 hit read `Uncaught%20ReferenceError%3A%20Fancybox%20is%20not%20defined` and a vendor
+ID list read `%2C50%2C39%2C511`. The chip preview on the row above already decoded (it
+goes through `URL.searchParams`), so the two views of the same request disagreed.
+
+Values are now decoded for display, one level deep and defensively: each value is decoded
+on its own, and one that is not valid percent-encoding — `100%`, `%ZZ` — keeps its raw
+form instead of throwing and taking the row with it. `+` is left alone (that is
+form-encoding, and in a GA4 query string a literal plus is more likely to be data than a
+space). The section header reports how many values were decoded, and how many were
+**double-encoded** — that case is surfaced rather than unwrapped further, because it is
+normally a real tagging bug worth seeing.
+
 ### Fixed — aGTM Inspector: pre-consent leak false positives
 
 The Netzwerk tab flagged `gtm.js`/`gtag.js` as pre-consent leaks on pages where consent

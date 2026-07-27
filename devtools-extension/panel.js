@@ -1115,6 +1115,41 @@ function allParamsPreview(url) {
     return '<span class="preview">' + parts.slice(0, 24).join("  ") + (parts.length > 24 ? "  …" : "") + "</span>";
   } catch (e) { return ""; }
 }
+// URL-decode the values of a query-string map for display.
+//
+// Chrome hands us the HAR `request.queryString` values RAW, so a GA4 hit shows up as
+// "Uncaught%20ReferenceError%3A%20…" or ",50,39" as "%2C50%2C39" — technically correct
+// and practically unreadable. The chip preview above the row already decodes (it goes
+// through URL.searchParams), so the two views of the same data disagreed.
+//
+// Decoding is ONE level only and deliberately defensive:
+//   - decodeURIComponent throws on a malformed sequence (a lone "%", "%ZZ"). A value
+//     that legitimately contains a percent sign must survive, so every value is decoded
+//     in its own try/catch and falls back to the raw string.
+//   - "+" is NOT treated as a space here: that is form-encoding (application/x-www-
+//     form-urlencoded), and in a GA4 query string a literal plus is more likely to be
+//     data than a space.
+//   - A value that still looks percent-encoded AFTER decoding is left at one level and
+//     reported — double encoding is a real tracking bug worth seeing, not something to
+//     quietly unwrap.
+//
+// Returns { map, decoded, doubled } — decoded/doubled are counts for the UI label.
+function decodeParams(map) {
+  var out = {}, decoded = 0, doubled = 0;
+  if (!map || typeof map !== "object") return { map: out, decoded: 0, doubled: 0 };
+  var keys = objKeys(map);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i], v = map[k];
+    if (typeof v !== "string" || v.indexOf("%") === -1) { out[k] = v; continue; }
+    var dec;
+    try { dec = decodeURIComponent(v); } catch (e) { out[k] = v; continue; }
+    if (dec === v) { out[k] = v; continue; }
+    decoded++;
+    if (/%[0-9A-Fa-f]{2}/.test(dec)) doubled++;
+    out[k] = dec;
+  }
+  return { map: out, decoded: decoded, doubled: doubled };
+}
 // Convert a HAR [{name,value}] header list into a plain {name:value} map for display.
 function headerMap(list) {
   var m = {};
@@ -1199,6 +1234,54 @@ function reqEventName(url, post) {
     if (m) { try { return decodeURIComponent(m[1]); } catch (e2) { return m[1]; } }
   }
   return "";
+}
+// An exception hit is the one event where the interesting part is the PAYLOAD, not the
+// event name: "exception" alone tells you nothing, `type` + `text` tell you what broke.
+// Surface those in the list so an error is readable without expanding the row.
+//
+// Three shapes carry it:
+//   GA4 GET   — ?en=exception&ep.type=JS%20Error&ep.text=…
+//   GA4 POST  — body "en=exception&ep.type=…&ep.text=…" (same encoding)
+//   aEvents   — the decoded object, where the keys are plain (type/text, or
+//               exception_type/error_message depending on the tag's mapping)
+// Values are URL-decoded per value and fault-tolerant (see decodeParams' reasoning).
+// Returns { type, text } with empty strings when absent — never null, so callers can
+// destructure without guarding.
+function decode1(v) {
+  if (typeof v !== "string" || v.indexOf("%") === -1) return v || "";
+  try { return decodeURIComponent(v); } catch (e) { return v; }
+}
+function paramFrom(url, post, names) {
+  var i, qs = null;
+  try { qs = (new URL(url)).searchParams; } catch (e) { /* not a URL */ }
+  for (i = 0; i < names.length; i++) {
+    if (qs) { var v = qs.get(names[i]); if (v) return v; }   // searchParams decodes already
+  }
+  if (post) {
+    for (i = 0; i < names.length; i++) {
+      // Escape the name: "ep.type" contains a regex metacharacter.
+      var esc1 = names[i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      var m = new RegExp("(?:^|[&\\n])" + esc1 + "=([^&\\s]*)").exec(post);
+      if (m && m[1]) return decode1(m[1]);
+    }
+  }
+  return "";
+}
+function exceptionInfo(e) {
+  var ev = (e && (e.evName || (e.ae && (e.ae.event_name || e.ae.event)))) || "";
+  if (String(ev).toLowerCase().indexOf("exception") === -1) return null;
+  var post = (e.payload || e.decodedPayload || "");
+  var type = "", text = "";
+  if (e.ae) {
+    var a = e.ae;
+    type = a.type || a.exception_type || a["ep.type"] || a.error_type || "";
+    text = a.text || a.exception_text || a["ep.text"] || a.error_message || a.message || "";
+  }
+  if (!type) type = paramFrom(e.url || "", post, ["ep.type", "epn.type", "exception_type", "type"]);
+  if (!text) text = paramFrom(e.url || "", post, ["ep.text", "exception_text", "error_message", "text", "description"]);
+  type = decode1(String(type || "")); text = decode1(String(text || ""));
+  if (!type && !text) return null;
+  return { type: type, text: text };
 }
 function initNetwork() {
   try {
@@ -1320,6 +1403,25 @@ function decodePayload(e) {
   } catch (err) { e.decodeError = String(err); }
 }
 // One collapsible sub-section of a network row's detail (headers / query as JSON).
+// Query-string sub-section: same shape as netSub, but the values are URL-decoded for
+// display (see decodeParams). The label states what happened, so nobody mistakes a
+// decoded value for what actually went over the wire.
+function netSubQuery(key, obj) {
+  var n = obj && typeof obj === "object" ? objKeys(obj).length : 0;
+  if (!n) return "";
+  var r = decodeParams(obj);
+  var label = "Query-String";
+  var note = "";
+  if (r.decoded) {
+    note = ' <span class="muted">— ' + r.decoded + " URL-dekodiert" +
+      (r.doubled ? ', davon ' + r.doubled + " doppelt kodiert (nur eine Ebene aufgelöst)" : "") + "</span>";
+  }
+  var open = !!state.expanded[key];
+  var h = '<div class="net-sub" data-expand="' + esc(key) + '">' + (open ? "▾" : "▸") + " " + esc(label) +
+    ' <span class="muted">(' + n + ")</span>" + note + "</div>";
+  if (open) h += '<pre class="jsonview">' + JV.highlight(r.map) + "</pre>";
+  return h;
+}
 function netSub(key, label, obj) {
   var n = obj && typeof obj === "object" ? objKeys(obj).length : 0;
   if (!n) return "";
@@ -1459,7 +1561,7 @@ function netDetailHtml(e) {
   var aeBody = e.payload || e.decodedPayload || "";
   if (!e.ae && e.__aeBody !== aeBody) { e.__aeBody = aeBody; e.ae = decodeAEvents(e.url, aeBody) || null; }
   h += netSubSignals("n|" + e.id + "|sig", e);
-  h += netSub("n|" + e.id + "|q", "Query-String", d.queryString);
+  h += netSubQuery("n|" + e.id + "|q", d.queryString);
   h += netSub("n|" + e.id + "|rq", "Request-Header", d.requestHeaders);
   h += netSub("n|" + e.id + "|rs", "Response-Header", d.responseHeaders);
   h += netSubPayload("n|" + e.id + "|pl", e);
@@ -1566,6 +1668,16 @@ function renderNetwork() {
       // Preview uses the readable body, or the auto-decompressed gzip body once available.
       var pv = e.payload || e.decodedPayload || "";
       var urlCell = urlPretty(e.url);
+      // Exception hits get their type + message right in the list — the whole point of
+      // the row is WHAT broke, and "exception" as an event name does not say that.
+      // Placed directly under the URL, before the parameter noise.
+      var exc = exceptionInfo(e);
+      if (exc) {
+        urlCell += '<div class="net-exc" title="' + esc(exc.text || exc.type) + '">' +
+          (exc.type ? '<span class="net-exc-t">' + esc(trunc(exc.type, 40)) + "</span>" : "") +
+          (exc.text ? '<span class="net-exc-m">' + esc(trunc(exc.text, 160)) + "</span>" : "") +
+          "</div>";
+      }
       if (e.ae) {
         urlCell += '<div class="u-params"><span class="chip ok" style="font-size:9px;padding:0 4px">aEvents ✓</span> ' + aePreview(e.ae) + "</div>";
       } else if (pv) {

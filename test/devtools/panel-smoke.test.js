@@ -102,7 +102,9 @@ beforeAll(() => {
     "  simLoad: simLoad," +
     "  updateSimLive: updateSimLive," +
     "  setSimLast: function(v){ SIM_LAST = v; }," +
-    "  simGcmStatusInner: simGcmStatusInner" +
+    "  simGcmStatusInner: simGcmStatusInner," +
+    "  decodeParams: decodeParams," +
+    "  exceptionInfo: exceptionInfo" +
     "};";
   (0, eval)(src);
 });
@@ -1289,5 +1291,188 @@ describe("Pre-consent leak reconcile (card #52 — victors.de false positives)",
     P.netSet("netOnlyAGTM", false);
     P.setTab("network"); P.render();
     expect(globalThis.document.getElementById("tab-network")._html).toContain("Pre-Consent-Leak");
+  });
+});
+
+/* ==================================================================== *
+ *  Query-string values are URL-decoded for display                      *
+ * ==================================================================== */
+
+describe("decodeParams — readable query-string values", () => {
+  const dp = () => globalThis.__panel.decodeParams;
+
+  test("decodes the GA4 case from the report (ep.text of a JS error)", () => {
+    const r = dp()({
+      "ep.text": "Uncaught%20ReferenceError%3A%20Fancybox%20is%20not%20defined%20%7C%20line%3A%202054"
+    });
+    expect(r.map["ep.text"]).toBe("Uncaught ReferenceError: Fancybox is not defined | line: 2054");
+    expect(r.decoded).toBe(1);
+  });
+  test("decodes a comma-wrapped vendor id list", () => {
+    const r = dp()({ "ep.cmp_vendorIDs": "%2C50%2C39%2C511%2C" });
+    expect(r.map["ep.cmp_vendorIDs"]).toBe(",50,39,511,");
+  });
+  test("values without a percent sign are passed through untouched", () => {
+    const r = dp()({ tid: "G-BJE5WBVXFY", en: "exception", v: "2" });
+    expect(r.map).toEqual({ tid: "G-BJE5WBVXFY", en: "exception", v: "2" });
+    expect(r.decoded).toBe(0);
+  });
+  test("a malformed sequence keeps the raw value instead of throwing", () => {
+    // decodeURIComponent("100%") throws URIError — a naive decode would kill the row.
+    const r = dp()({ discount: "100%", broken: "%ZZ", lone: "50%-off" });
+    expect(r.map.discount).toBe("100%");
+    expect(r.map.broken).toBe("%ZZ");
+    expect(r.map.lone).toBe("50%-off");
+    expect(r.decoded).toBe(0);
+  });
+  test("'+' is NOT turned into a space (that would be form-encoding, not URL-encoding)", () => {
+    const r = dp()({ q: "a+b%20c" });
+    expect(r.map.q).toBe("a+b c");
+  });
+  test("double-encoded values are unwrapped ONE level and reported", () => {
+    // %252C → one decode gives %2C. Unwrapping further would hide a real tracking bug.
+    const r = dp()({ list: "%252C50%252C39" });
+    expect(r.map.list).toBe("%2C50%2C39");
+    expect(r.doubled).toBe(1);
+  });
+  test("a URL inside a parameter becomes readable", () => {
+    const r = dp()({ dl: "https%3A%2F%2Fwww.victors.de%2Flayout%2Fjs%2Fmain.js%3F01" });
+    expect(r.map.dl).toBe("https://www.victors.de/layout/js/main.js?01");
+  });
+  test("non-string values and garbage input never throw", () => {
+    expect(dp()({ n: 5, nil: null }).map).toEqual({ n: 5, nil: null });
+    expect(dp()(null).map).toEqual({});
+    expect(dp()("nope").map).toEqual({});
+  });
+});
+
+describe("Query-String sub-section rendering", () => {
+  function expandedQueryHtml(qs) {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setNet([{
+      id: 77, url: "https://rp.victors.de/g/collect?v=2", host: "rp.victors.de", method: "GET",
+      status: 200, ts: 5000, time: 0, propId: "G-X", evName: "exception", preConsent: false,
+      detail: { method: "GET", url: "https://rp.victors.de/g/collect?v=2", status: 200, queryString: qs }
+    }]);
+    P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
+    P.setExpanded({ "n|77": true, "n|77|q": true });
+    P.setTab("network"); P.render();
+    return globalThis.document.getElementById("tab-network")._html;
+  }
+  afterAll(() => { const P = globalThis.__panel; P.setNet([]); P.setExpanded({}); P.setSnap(sampleSnap()); });
+
+  test("the expanded section shows decoded values and says so", () => {
+    const html = expandedQueryHtml({ "ep.text": "JS%20Error%3A%20boom", v: "2" });
+    expect(html).toContain("JS Error: boom");
+    expect(html).not.toContain("JS%20Error");
+    expect(html).toContain("URL-dekodiert");
+  });
+  test("nothing to decode → no misleading label", () => {
+    const html = expandedQueryHtml({ v: "2", tid: "G-X" });
+    expect(html).toContain("Query-String");
+    expect(html).not.toContain("URL-dekodiert");
+  });
+  test("double encoding is called out rather than silently unwrapped", () => {
+    const html = expandedQueryHtml({ list: "%252C50" });
+    expect(html).toContain("doppelt kodiert");
+  });
+});
+
+/* ==================================================================== *
+ *  Exception hits show type + text in the list preview                  *
+ * ==================================================================== */
+
+describe("exceptionInfo — pull type/text out of the three carriers", () => {
+  const ex = () => globalThis.__panel.exceptionInfo;
+  const GA4_URL = "https://rp.victors.de/g/collect?v=2&en=exception" +
+    "&ep.type=JS%20Error&ep.text=Uncaught%20ReferenceError%3A%20Fancybox%20is%20not%20defined";
+
+  test("GA4 GET: decodes ep.type / ep.text from the query string", () => {
+    const r = ex()({ evName: "exception", url: GA4_URL });
+    expect(r.type).toBe("JS Error");
+    expect(r.text).toBe("Uncaught ReferenceError: Fancybox is not defined");
+  });
+  test("GA4 POST: reads them from the body", () => {
+    const r = ex()({
+      evName: "exception", url: "https://x.example/g/collect",
+      payload: "en=exception&ep.type=JS%20Error&ep.text=boom%20happened&v=2"
+    });
+    expect(r.type).toBe("JS Error");
+    expect(r.text).toBe("boom happened");
+  });
+  test("aEvents: reads the plain keys of the decoded object", () => {
+    const r = ex()({ ae: { event: "exception", type: "JS Error", text: "aEvents boom" }, url: "https://x/e?e=1" });
+    expect(r.type).toBe("JS Error");
+    expect(r.text).toBe("aEvents boom");
+  });
+  test("aEvents alternate key names are covered", () => {
+    const r = ex()({ ae: { event_name: "exception", exception_type: "TypeError", error_message: "x is not a function" }, url: "https://x/e" });
+    expect(r.type).toBe("TypeError");
+    expect(r.text).toBe("x is not a function");
+  });
+  test("a non-exception event returns null — no noise on normal rows", () => {
+    expect(ex()({ evName: "page_view", url: "https://x/g/collect?en=page_view&ep.text=hello" })).toBeNull();
+    expect(ex()({ ae: { event: "add_to_cart" }, url: "https://x/e" })).toBeNull();
+  });
+  test("an exception without any detail returns null instead of an empty box", () => {
+    expect(ex()({ evName: "exception", url: "https://x/g/collect?en=exception" })).toBeNull();
+  });
+  test("only one of the two present is still worth showing", () => {
+    const r = ex()({ evName: "exception", url: "https://x/g/collect?en=exception&ep.text=lonely" });
+    expect(r.type).toBe("");
+    expect(r.text).toBe("lonely");
+  });
+  test("the regex-escaped key name matters: ep.type must not match epXtype", () => {
+    const r = ex()({ evName: "exception", url: "https://x/g/collect", payload: "epXtype=wrong&ep.type=right" });
+    expect(r.type).toBe("right");
+  });
+  test("garbage input never throws", () => {
+    expect(ex()({})).toBeNull();
+    expect(ex()({ evName: "exception" })).toBeNull();
+    expect(ex()({ evName: "exception", url: "not a url", payload: null })).toBeNull();
+  });
+});
+
+describe("Exception preview rendering in the network list", () => {
+  function listHtml(entry) {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setNet([Object.assign({
+      id: 88, host: "rp.victors.de", method: "GET", status: 200, ts: 5000, time: 0,
+      propId: "G-X", preConsent: false, detail: {}
+    }, entry)]);
+    P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
+    P.setExpanded({});
+    P.setTab("network"); P.render();
+    return globalThis.document.getElementById("tab-network")._html;
+  }
+  afterAll(() => { const P = globalThis.__panel; P.setNet([]); P.setSnap(sampleSnap()); });
+
+  test("the decoded message is visible without expanding the row", () => {
+    const html = listHtml({
+      evName: "exception",
+      url: "https://rp.victors.de/g/collect?v=2&en=exception&ep.type=JS%20Error&ep.text=Uncaught%20ReferenceError%3A%20Fancybox%20is%20not%20defined"
+    });
+    expect(html).toContain("net-exc");
+    expect(html).toContain("JS Error");
+    expect(html).toContain("Uncaught ReferenceError: Fancybox is not defined");
+  });
+  test("a normal event renders no exception block", () => {
+    const html = listHtml({ evName: "page_view", url: "https://rp.victors.de/g/collect?v=2&en=page_view" });
+    expect(html).not.toContain("net-exc");
+  });
+  test("a very long message is truncated in the list, full text kept in the tooltip", () => {
+    const long = "E".repeat(400);
+    const html = listHtml({ evName: "exception", url: "https://x/g/collect?en=exception&ep.text=" + long });
+    // The VISIBLE span is capped …
+    const vis = /<span class="net-exc-m">([^<]*)<\/span>/.exec(html);
+    expect(vis).not.toBeNull();
+    expect(vis[1].length).toBeLessThan(200);
+    expect(vis[1]).toContain("…");
+    // … while the title attribute still carries the whole message for hovering.
+    const tip = /title="(E+)"/.exec(html);
+    expect(tip).not.toBeNull();
+    expect(tip[1].length).toBe(400);
   });
 });
