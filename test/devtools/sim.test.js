@@ -863,3 +863,38 @@ describe("hasCls — exact class-token matching in the delegated handlers", () =
     expect(hasCls({ className: "" }, "sim-gcm")).toBe(false);
   });
 });
+
+describe("buildGcmPushCode — critic round: guard completeness and purity", () => {
+  test("a refused push does NOT touch the page (no dataLayer created as a side effect)", () => {
+    var w = { google_tag_data: { ics: {} } };   // no dataLayer yet
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }, "", { mode: "default" }), w);
+    expect(res.ok).toBe(false);
+    expect("dataLayer" in w).toBe(false);
+  });
+  test("google_tag_manager closes the window too — noConsent containers never set aGTM.d.init", () => {
+    // initGTM(true) (noConsent) and the tab's own container override load GTM via
+    // gtm_load without setting aGTM.d.init, so init alone would miss them.
+    var w = { dataLayer: [], google_tag_manager: { "GTM-X": {} }, aGTM: { d: { init: false } } };
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }, "", { mode: "default" }), w);
+    expect(res.ok).toBe(false);
+    expect(res.gtmObj).toBe(true);
+    expect(res.ics).toBe(false);
+    expect(res.injected).toBe(false);
+    expect(w.dataLayer.length).toBe(0);
+  });
+  test("the refusal names the signal that actually fired", () => {
+    var byIcs = run(buildGcmPushCode({}, "", { mode: "default" }), { google_tag_data: { ics: {} } });
+    expect(byIcs.error).toContain("google_tag_data.ics");
+    var byInit = run(buildGcmPushCode({}, "", { mode: "default" }), { aGTM: { d: { init: true } } });
+    expect(byInit.error).toContain("aGTM.d.init");
+    var byObj = run(buildGcmPushCode({}, "", { mode: "default" }), { google_tag_manager: {} });
+    expect(byObj.error).toContain("google_tag_manager");
+  });
+  test("force still pushes when only google_tag_manager is present", () => {
+    var w = { dataLayer: [], google_tag_manager: {} };
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", { mode: "default", force: true }), w);
+    expect(res.ok).toBe(true);
+    expect(res.late).toBe(true);
+    expect(w.dataLayer.length).toBe(1);
+  });
+});

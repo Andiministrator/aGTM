@@ -783,6 +783,17 @@ Find the available extensions in the [aGTM Extension Documentation](ext/README-e
 
 ## Debugging
 
+
+**aGTM Inspector (Chrome DevTools panel).** For interactive debugging there is a
+DevTools extension in [devtools-extension/](devtools-extension/) that shows the
+consent lifecycle, the event queue/replay, GTM injection, session & attribution,
+the effective config and the aGTM-relevant network calls live — plus a Diagnose tab
+with a health-score, a consent timeline and a shareable compliance report, and an
+opt-in Simulation tab to drive consent decisions without clicking a real banner.
+Install: download `aGTM-Inspector.zip` from the repo root (or use the
+`devtools-extension/` folder), then `chrome://extensions` → Developer mode →
+**Load unpacked**. See [devtools-extension/README.md](devtools-extension/README.md).
+
 All settings, data and functions are stored in only one object: `aGTM`
 You can enter the name of the object (aGTM) into the browser console and you'll get all settings and all data for debugging.
 

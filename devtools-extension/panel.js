@@ -294,7 +294,7 @@ function renderConsent() {
   html += renderVendors(s.vendors, s.vendorState);
   paint("tab-consent", html);
 }
-// Google Consent Mode — google_tag_data.ics.entries (update > default > implicit).
+// Google Consent Mode — google_tag_data.ics.entries.
 var GCM_ORDER = ["ad_storage", "analytics_storage", "ad_user_data", "ad_personalization",
   "functionality_storage", "personalization_storage", "security_storage"];
 // Precedence update > default > implicit > declare (F-66 keeps `declare` as the last
@@ -454,7 +454,7 @@ function renderConsentMode(s) {
         '<td class="fit mono">' + gcmMini(en.implicit) + "</td><td></td></tr>";
     });
     html += "</tbody></table>" +
-      '<div class="muted" style="margin-top:6px">Effektiver Status = <strong>update &gt; default &gt; implicit</strong>. Quelle: GTM-internes <code>google_tag_data.ics.entries</code>.</div></div>';
+      '<div class="muted" style="margin-top:6px">Effektiver Status = <strong>update &gt; default &gt; implizit &gt; declare</strong>. Quelle: GTM-internes <code>google_tag_data.ics.entries</code>.</div></div>';
   } else {
     // No ics (state only from dataLayer commands) → fold + chips.
     var folded = foldConsent(cmds);

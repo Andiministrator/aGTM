@@ -18,7 +18,8 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 - New CMPs: JTL Consent, JTL EU Cookie
 - New GTM Variable Templates: Consent Check, Consent Info
 - Build script (`build.sh`) for automated minification and Base64 generation
-- Test suite grown to 380 tests across 30 files (`bun test`), plus `___TESTS___` scenarios in every GTM template and the sGTM Client
+- **aGTM Inspector** — a Chrome DevTools panel (`devtools-extension/`) showing the consent lifecycle, event queue/replay, GTM injection, session/attribution, the effective config and aGTM-relevant network traffic live, with a Diagnose tab (health-score, consent timeline, compliance report) and an opt-in Simulation tab for driving the flow without clicking a real banner.
+- Test suite grown to 669 tests across 37 files (`bun test`), plus `___TESTS___` scenarios in every GTM template and the sGTM Client
 
 ## v1.6 — planned
 
