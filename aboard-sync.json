@@ -1341,6 +1341,26 @@
             "displayId": 52,
             "columnId": "col-qa",
             "qa": true
+          },
+          {
+            "id": "agtm-inspector-net-readability",
+            "owner": "Claude Opus",
+            "complexity": "S",
+            "effort": "S",
+            "qa": true,
+            "title": "aGTM Inspector Netzwerk-Tab: Query-String URL-dekodieren + Exception-Details in der Vorschau",
+            "description": "Zwei Lesbarkeits-Verbesserungen aus Andis victors.de-Sichtung (2026-07-27): (1) Query-String-Werte werden URL-dekodiert angezeigt - Chrome liefert die HAR-Werte roh, die Chip-Vorschau darueber dekodierte aber bereits (Inkonsistenz). (2) Exception-Hits (GA4 wie aEvents) zeigen type + text direkt in der Listenzeile, weil der Event-Name allein nichts aussagt. Details im Kommentar.",
+            "labels": [],
+            "comments": [
+              {
+                "id": "1dcc4dc7-9a7a-4821-8968-05f63b9e98b0",
+                "author": "Claude Opus",
+                "created": "2026-07-27",
+                "text": "UMGESETZT auf dev (Commit 4f05e1a) -> QA. Zwei Andi-Wuensche aus der victors.de-Sichtung, beide in der Netzwerk-Ansicht.\n\n(1) URL-DEKODIERUNG DER QUERY-STRING-WERTE (F-104): Chrome liefert die HAR-request.queryString-Werte ROH durch, deshalb stand im aufgeklappten Query-String \"Uncaught%20ReferenceError%3A%20Fancybox%20is%20not%20defined\" und \"%2C50%2C39%2C511\". Die Chip-Vorschau EINE ZEILE DARUEBER dekodierte dagegen bereits, weil sie ueber URL.searchParams laeuft - zwei Ansichten desselben Requests, die unterschiedlich aussahen (dieselbe Inkonsistenz-Klasse wie F-95/F-96). Neue pure Funktion decodeParams(map) -> {map, decoded, doubled}. EINE Ebene, pro Wert try/catch: decodeURIComponent WIRFT bei \"100%\" oder \"%ZZ\" - ein Wert mit legitimem Prozentzeichen behaelt seine Rohform statt die Zeile zu killen (Mutationstest verifiziert: ohne try/catch faellt der Test). \"+\" wird NICHT zu Leerzeichen - das waere Form-Encoding, in einem GA4-Query-String ist ein Plus eher Daten. Der Abschnitts-Header nennt die Zahl der dekodierten Werte und wie viele DOPPELT kodiert waren; die werden bewusst nur eine Ebene aufgeloest und ausgewiesen, weil Doppel-Encoding meist ein echter Tagging-Bug ist.\n\n(2) EXCEPTION-DETAILS IN DER LISTENVORSCHAU (F-105): Ein Event namens \"exception\" sagt fuer sich nichts - der Inhalt der Zeile ist die Nutzlast. Neue pure Funktion exceptionInfo(e) -> {type,text}|null, die alle DREI Traeger abdeckt: GA4-GET-Query (ep.type/ep.text), GA4-POST-Body und dekodierte aEvents-Objekte (inkl. Alternativnamen exception_type/error_message, weil die Tag-Mappings variieren). Falle beim POST-Body: der Schluesselname muss regex-escaped werden - \"ep.type\" enthaelt einen Metazeichen-Punkt, ein naives Muster wuerde auch \"epXtype\" matchen (Test dagegen). Darstellung bewusst dezent nach Andis \"smart/cool/nicht stoerend\": linke rote Randlinie + type in Fehlerfarbe + Meldung monospace/gedimmt statt Chip-Laerm, direkt unter der URL vor dem Parameter-Rauschen. Meldung auf 160 Zeichen gekuerzt, VOLLER Text im title-Tooltip. Nicht-Exception-Zeilen bleiben unveraendert.\n\n23 neue Tests (11 Dekodierung inkl. der Wirf-Faelle und Doppel-Encoding, 12 Exception inkl. Regex-Escape-Falle, Garbage-Input und Truncation-vs-Tooltip). 698 bun-Tests gruen, ./build.sh ohne Warnung, ZIP neu gepackt.\n\nEIGENER FEHLER BEIM TESTSCHREIBEN (dokumentiert): Mein Truncation-Test prueferte \"HTML enthaelt nicht 200x E\" - das schlug fehl, weil der VOLLE Text korrekt im title-Attribut steht. Der Test prueft jetzt getrennt: sichtbarer span gekuerzt (<200 Zeichen, mit Ellipse) UND title vollstaendig (400 Zeichen). Lehre wie schon bei der PRE-CONSENT-LEAK-Grossschreibung: gegen die konkrete Stelle im Markup assertieren, nicht gegen \"irgendwo im HTML\".\n\nOFFEN (bewusst nicht mitgemacht): GA4-POST-Bodies (k=v&...) sind ebenso URL-kodiert; payloadBody() zeigt sie als Text. Dort ist das Risiko hoeher (JSON-/Batch-/Control-Char-Faelle), das gehoert in einen eigenen Schritt - siehe F-104."
+              }
+            ],
+            "displayId": 53,
+            "columnId": "col-qa"
           }
         ]
       },
@@ -1568,7 +1588,7 @@
         ]
       }
     ],
-    "nextDisplayId": 53,
+    "nextDisplayId": 54,
     "attachments": [],
     "background": null,
     "templates": [],
