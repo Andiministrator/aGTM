@@ -1170,7 +1170,9 @@ function updateSimLive() {
         var more = (SIM_LAST.cleared || []).length > 8 ? " …" : "";
         det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (nm ? " (" + nm + more + ")" : "") +
           (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "");
-        if (SIM_FRAME_EXTRA) {
+        if (SIM_FRAME_EXTRA && SIM_FRAME_EXTRA.failed) {
+          det += " · ⚠ Drittanbieter-Frames nicht erreichbar (Frame-Zugriff fehlgeschlagen) — die CMP-Kopie auf ihrer eigenen Domain bleibt. Für einen echten Erstbesuch: Inkognito-Fenster.";
+        } else if (SIM_FRAME_EXTRA) {
           det += " · Drittanbieter-Frames: " + SIM_FRAME_EXTRA.frames +
             (SIM_FRAME_EXTRA.cookies.length ? " → " + SIM_FRAME_EXTRA.cookies.slice(0, 6).join(", ") : " → nichts gefunden") +
             (SIM_FRAME_EXTRA.ls ? " · localStorage: " + SIM_FRAME_EXTRA.ls : "");
@@ -1409,24 +1411,32 @@ function attachSimListeners() {
       return;
     }
     var frameCode = SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: false });
+    // WATCHDOG. The frame pass is a best-effort EXTRA; the top-frame reset is the
+    // feature. Everything below is async (getResources → N frame evals), and if any of
+    // it never calls back, the reset must still happen — hanging the working path behind
+    // an unverified async call is how this broke once already.
+    var settled = false, hits = [], lsHits = 0, frameCount = 0, frameErr = false;
+    function topReset() {
+      if (settled) return;
+      settled = true;
+      SIM_FRAME_EXTRA = frameErr
+        ? { frames: 0, cookies: [], ls: 0, failed: true }
+        : (frameCount ? { frames: frameCount, cookies: hits, ls: lsHits } : null);
+      simRun(SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: !!st.cookieReload }), "Cookies zurückgesetzt");
+    }
+    try { if (typeof setTimeout === "function") setTimeout(topReset, 1200); } catch (e) { /* ignore */ }
     simFrameOrigins(function (origins) {
-      var pending = origins.length, hits = [], lsHits = 0;
-      function finish() {
-        var res = simRun(SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: !!st.cookieReload }), "Cookies zurückgesetzt");
-        // Fold the frame results into the effect line once the top-frame call returns.
-        SIM_FRAME_EXTRA = hits.length || lsHits
-          ? { frames: origins.length, cookies: hits, ls: lsHits }
-          : (origins.length ? { frames: origins.length, cookies: [], ls: 0 } : null);
-        return res;
-      }
-      if (!pending) { finish(); return; }
+      if (settled) return;
+      frameCount = origins.length;
+      if (!frameCount) { topReset(); return; }
+      var pending = frameCount;
       origins.forEach(function (o) {
         simRunInFrame(frameCode, o, function (r) {
           if (r) {
             (r.cleared || []).forEach(function (n) { if (hits.indexOf(n) < 0) hits.push(n); });
             lsHits += (r.lsCleared | 0);
-          }
-          if (--pending === 0) finish();
+          } else { frameErr = true; }
+          if (--pending === 0) topReset();
         });
       });
     });
