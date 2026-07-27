@@ -28,7 +28,9 @@ aGTM/
 │   └── variables/       # Variable templates
 ├── sgtmClient/          # Server-side GTM client template
 ├── ext/                 # Extensions (e.g. Stape.io integration)
-├── devtools-extension/  # "aGTM Inspector" Chrome DevTools panel (read-only; ES6+, NOT on the ES5/build.sh path)
+├── devtools-extension/  # "aGTM Inspector" Chrome DevTools panel (read-only + opt-in Simulation write channel; ES6+, NOT on the ES5/build.sh path)
+├── configurator/        # Standalone visual config builder (GitHub Pages, linked from README)
+├── aGTM-Inspector.zip   # Packaged aGTM Inspector (derived — see scripts/pack-devtools-extension.sh)
 ├── assets/              # Images, Excel event overview
 ├── tmp/                 # Temporary files / backups (not production-relevant)
 ├── .claude/skills/      # Claude Code skills (see below); only these are tracked under .claude/
@@ -46,23 +48,37 @@ The repo ships [Claude Code](https://claude.com/claude-code) **skills** under
 - **`config-builder`** — generate an `aGTM.f.config({…})` + init snippet and
   sanity-check it.
 - **`integration-check`** — diagnose & audit a live or configured integration.
+- **`live-inspector`** — drive a real browser through the live consent flow
+  end-to-end (needs `claude --chrome` or the Chrome DevTools MCP).
 
 Only these skill files are git-tracked under `.claude/`; the rest of `.claude/`
 (local settings, worktrees) stays ignored via targeted `.gitignore` negations.
 
 ### aGTM Inspector (Chrome DevTools extension)
 
-`devtools-extension/` ships a **read-only** MV3 DevTools panel ("aGTM Inspector")
-for people who build/validate/debug an integration — the human-facing companion
-to the `live-inspector` skill. It reflects `window.aGTM` live (Consent lifecycle,
-event queue/replay, GTM injection, session/attribution, config traps, and
-aGTM-relevant network calls). It reads the page **only** via
-`chrome.devtools.inspectedWindow.eval()` (running `reader.js`, read-only) and
-`chrome.devtools.network`, so `manifest.json` declares **no** `permissions`/
-`host_permissions`. It is ES6+ (own browser context — **not** on the ES5/`build.sh`
-path), and its version is coupled to the library version (see the build table).
-Distribution is "load unpacked"; the network classifier is unit-tested
-(`test/devtools/netclassify.test.js`). See `devtools-extension/README.md`.
+`devtools-extension/` ships an MV3 DevTools panel ("aGTM Inspector") for people
+who build/validate/debug an integration — the human-facing companion to the
+`live-inspector` skill. Eight tabs: **Diagnose** (health-score, consent timeline,
+compliance report, session & IDs, GTM injection), **Consent** (consent lifecycle,
+Google Consent Mode sequence, non-Google vendor detection), **Events** (queue/replay,
+decoded `aGTM.l`), **dataLayer**, **Session** (session/attribution), **Config**
+(effective config + traps + runtime diff), **Netzwerk** (`chrome.devtools.network`,
+gzip/aEvents payload decode, pre-consent leak detection) and **Simulation**.
+
+Every tab **except Simulation** is strictly read-only: the panel reads the page only
+via `chrome.devtools.inspectedWindow.eval()` (running `reader.js`, a pure reader) and
+`chrome.devtools.network`. **Simulation is the one deliberate write exception**
+(`sim.js`): behind a per-session "Write-Modus" toggle (default off, never persisted)
+it drives the page — simulated consent decisions, event firing, forced GTM injection,
+Google-Consent-Mode pushes, cookie reset — through that same `eval()` bridge, which is
+why `manifest.json` still declares **no** `permissions`/`host_permissions`.
+
+It is ES6+ (own browser context — **not** on the ES5/`build.sh` path), and its version
+is coupled to the library version (see the build table). Distribution is "load
+unpacked" or the tracked `aGTM-Inspector.zip` at the repo root. The pure modules are
+unit-tested under `test/devtools/` (`netclassify`, `consentsignals`, `diagnose`,
+`jsonview`, the `sim` code builders) plus a `panel-smoke` integration test. See
+`devtools-extension/README.md`.
 
 ---
 
@@ -121,6 +137,7 @@ Tests live in `test/`. Browser globals are set up via `test/setup.js` (loaded au
 | `scripts/check-init.js` | Strips comments from `aGTM.js` and checks for an accidental uncommented `aGTM.f.init()` call |
 | `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` **and** re-syncs the same base64 blob into `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js` so the client source stays byte-identical to the template's sandboxed block (the blob is the only line that drifts across a library rebuild — see below). **Also** re-syncs the embedded CMP `consent_check` codes in the template's "Used CMP" SELECT from `cmp/*.min.js` (F-52 — see "Embedded CMP consent_check sync" below) |
 | `scripts/cmp-sync-lib.js` | Shared, side-effect-free helpers for the embedded-CMP-code sync: `CMP_MAP` (displayValue → `cc_<name>` file), consent_check extraction, GTM string encoding, template parsing. Imported by both `update-sgtm-template.js` (writer) and `test/cmp/template-sync.test.js` (drift guard) so the mapping lives in one place |
+| `scripts/pack-devtools-extension.sh` | Packs `devtools-extension/` reproducibly into the tracked `aGTM-Inspector.zip`. Deliberately **not** part of `build.sh` (the extension is off the ES5 path) — but `build.sh` *does* rewrite `devtools-extension/manifest.json`, so **re-run this after every version bump**, or the tracked ZIP ships a stale manifest. |
 | `bunfig.toml` | Configures `bun test`: preloads `test/setup.js` before every test file |
 | `test/setup.js` | Sets up browser globals (`window`, `document`, etc.) and loads `aGTM.js` into global scope via indirect eval |
 | `test/helpers.js` | `MockXHR` class and `resetAGTM()` — used in every test file |
@@ -266,7 +283,7 @@ aGTM.f.config(cfg)             — applied at integrator startup, BEFORE init()
   │      for each method in aGTM.d.session.attribution:
   │        aGTM.d.attribution[method] = aGTM.f.resolveAttribution(method)
   │      (HYBRID: URL wins for sou/cam/med/camid/cli/clp/cls/sre,
-  │       API for afs/lcs/fss; see internal/api/integration-guide.md §7)
+  │       API for afs/lcs/fss; see `internal/api/integration-guide.md` §7 (gitignored maintainer reference))
   │
   └─ [end of config()] — Phase 3 B1 fix:
        if (aGTM.d.consent.hasResponse === true && typeof call_cc === 'function')
@@ -405,7 +422,8 @@ aGTM.f.inject()
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
 | `aGTM.d.session` | Session & user data pre-populated from `cfg.session` (sGTM Client injection — see Session Feature below) |
 | `aGTM.d.session_status` | Consent-sync lifecycle: `""` (no preset), `"preset"` (cfg.session accepted, no usable consent — this also covers a source-/attribution-only delivery that carries no `sid`), `"preset_with_consent"` (preset consent seeded into `aGTM.d.consent`), `"synced"` (CMP decision diffed and POSTed to `consent_store_url`), `"confirmed"` (CMP decision matches the preset, no POST needed). |
-| `aGTM.d.attribution` | Keyed-by-method attribution object populated at end of `config()` from `aGTM.d.session.attribution` merged with current URL/referrer. Empty `{}` when no preset is supplied. Read e.g. `aGTM.d.attribution.last_touch.sou`. See `internal/api/integration-guide.md` §7. |
+| `aGTM.d.attribution` | Keyed-by-method attribution object populated at end of `config()` from `aGTM.d.session.attribution` merged with current URL/referrer. Empty `{}` when no preset is supplied. Read e.g. `aGTM.d.attribution.last_touch.sou`. See `internal/api/integration-guide.md` §7 (gitignored maintainer reference). |
+| `aGTM.d.dlrepeatDone` / `dlrepeatPolling` / `dlrepeatGate` | DL-Repeat state: replay already ran once · a gate poll is currently active · the gate spec (`cfg.gateEvents`) being awaited, exposed read-only for the aGTM Inspector. Consumers of `dlrepeatPolling` must also check `!dlrepeatDone` — the flag is not cleared after a successful replay (F-74). |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
 
 ### Session Feature

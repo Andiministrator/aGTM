@@ -19,12 +19,29 @@ pushen" checkbox overrides the guard for deliberate experiments and the effect p
 then marks the push as ineffective; `update` is never guarded.
 
 An **Ist-Zustand** line above the checkboxes now shows the effective per-category state
-*and its origin* (`update` > `default` > `implizit` > `declare`), refreshed with the
+*and its origin* (`update` > `default` > `implicit` > `declare`), refreshed with the
 poll, so a push has a visible before/after. This also covers the **implicit** state,
 which cannot be pushed at all: it is what Google assumes when no `default` ever arrived,
 so the Inspector reports it rather than pretending there is a button for it. The
 precedence rule moved into `consentsignals.js` and is now shared with the Consent tab's
-flow table, so the two views can no longer drift apart.
+flow table, so the two views can no longer disagree about the effective state.
+
+Hardened after a three-reviewer round:
+
+- The status line and the in-page guard now read the **same** signals. Previously the
+  line judged the window open/closed by the ics *entries* alone, so on every consent
+  grant — and on any page without aGTM — it advertised an open window while the guard
+  refused the push.
+- `reader.js` reads the Consent Mode state **before** the aGTM gate, so the GCM box
+  works on pages without aGTM, which is exactly what it advertises. Still read-only,
+  still no permissions.
+- The guard also checks `window.google_tag_manager`: `aGTM.d.init` misses the paths
+  that load GTM without it (`noConsent` containers, the Simulation tab's own container
+  override). The refusal message now names the signal that actually fired.
+- A refused push no longer touches the page at all (it used to create `window.dataLayer`
+  as a side effect of being rejected).
+- An unparsable `wait_for_update` is flagged at the field instead of being dropped
+  silently while the push still reports OK.
 
 ### Added — aGTM Inspector: Simulation tab (opt-in write channel)
 
@@ -56,8 +73,9 @@ A new **Simulation tab** turns the otherwise read-only Inspector into a flow dri
 Four further tools on the Simulation tab (same opt-in Write-Modus gate, persisted per
 host, ES5-safe injected builders, unit-tested):
 
-- **Google Consent Mode push** — `gtag('consent','update',{…})` straight into the
-  dataLayer (a genuine `arguments` object, as `gtag()` pushes) to test GCM signals
+- **Google Consent Mode push** — a `gtag('consent',<verb>,{…})` straight into the
+  dataLayer (initially `update` only; `default`/`declare` were added later — see the
+  entry at the top of this release) (a genuine `arguments` object, as `gtag()` pushes) to test GCM signals
   **independently of aGTM**; one checkbox per canonical signal.
 - **Cookie reset + reload** — expire cookies whose name matches a pattern (across the
   path × parent-domain grid), optionally clear matching `localStorage`, then optionally
@@ -387,7 +405,7 @@ Fourth polish round on the DevTools panel (all UI/reader; still read-only):
 - **Non-Google vendor/framework detection**: a box that flags which consent frameworks
   and vendor pixels are present on the page (TCF `__tcfapi`, GPP `__gpp`, USP, GPC, and
   Meta/Microsoft-UET/TikTok/LinkedIn/Pinterest/Amazon/Criteo/Snap/X) and the consent
-  signal each expects — sourced from `knowledge/consent/12-…`.
+  signal each expects — sourced from the maintainer's consent-mode research notes.
 - **Coloured dataLayer categories**: each push is tagged and colour-coded — aGTM, GTM,
   E-Commerce (GA4 ecommerce events / `ecommerce` key), Pageview, Consent, gtag command,
   or Message.

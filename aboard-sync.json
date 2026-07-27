@@ -1309,6 +1309,18 @@
             "displayId": 51,
             "columnId": "col-qa",
             "qa": true
+          },
+          {
+            "id": "agtm-inspector-leak-reconcile",
+            "owner": "Claude Opus",
+            "complexity": "S",
+            "effort": "S",
+            "title": "aGTM Inspector: Pre-Consent-Leak-Erkennung — Falsch-Positive durch consentTs-Reconcile (victors.de)",
+            "description": "BEFUND (Andi-Meldung 2026-07-27, victors.de): Der Netzwerk-Tab flaggt gtm.js/gtag.js als \"pre-consent\", obwohl der Consent zu dem Zeitpunkt bereits vorlag. Analyse: ZWEI ineinandergreifende Mechanismen.\n\n(1) STEMPEL-RACE (prinzipbedingt): panel.js:1230 stempelt preConsent beim Erfassen gegen den ZULETZT GEPOLLTEN Snapshot (700ms-Poll). Bei victors.de liegen aGTM.js (10:42:45.345) und gtm.js (46.546) ~1,2s auseinander, die drei GTM-Requests fallen in ein 180ms-Fenster. Sagte der Snapshot da noch gtmConsent=false, werden alle gestempelt. Die ga-collect bei 46.832 hat KEIN Badge - da war der Poll durch. Der Stempel allein ist unvermeidlich ungenau; die Reconcile ist das Korrektiv.\n\n(2) RECONCILE GREIFT NIE (der eigentliche Bug): leakHitFor (panel.js:1023) prueft \"Request-Zeit >= Consent-Zeit -> doch kein Leak\", vergleicht aber gegen consentTs. Der Reader (reader.js:119-124) berechnet consentTs bewusst als das LETZTE Consent-Event. Der 2s-CMP-Poll der Library (start_consent_poll -> run_cc('update') -> aGTM_consent_update bei Hash-Aenderung) schiebt diesen Zeitstempel immer weiter nach vorn -> ein Request 200ms nach der Entscheidung wird gegen einen Zeitstempel von Minuten spaeter verglichen -> Reconcile schlaegt nie an, der Stempel bleibt kleben.\n\nDer Reader hat den richtigen Wert bereits: consentFirstTs. Die Consent-Timeline wurde am 2026-07-26 genau deswegen umgestellt (F-71; panel.js:1635 sagt woertlich \"Never consentTs (the LAST event) - that is what kept the marker wandering\") - der Leak-Pfad wurde uebersehen. Derselbe Fehler an zweiter Stelle.\n\nZUSAETZLICHE INVARIANTE, bisher ungenutzt: Ein von aGTM injiziertes gtm.js kann per Definition KEIN Pre-Consent-Leak sein, weil aGTM GTM erst nach gtmConsent=true injiziert (Ausnahme: bewusst konfigurierte noConsent-Container, die der Banner-Text bereits als Ausnahme nennt).\n\nUMFANG: (a) Reconcile auf consentFirstTs umstellen (mit Fallback auf consentTs), (b) pruefen ob der Vergleich den Request-START statt das Ende nutzen sollte (e.ts ist die Capture-Zeit bei onRequestFinished; F-72 hat fuer Timeline-Marker bereits ts-minus-HAR-Dauer eingefuehrt - beim Leak wirkt das Ende konservativ Richtung \"legit\", erzeugt also eher Falsch-Negative), (c) aGTM-Injection-Invariante als zusaetzlichen Freispruch pruefen, (d) Bestandstest panel-smoke.test.js:528 kodiert das falsche Verhalten mit (ts=4000 als Leak erwartet, waere mit consentFirstTs=1800 legit) - muss mitgezogen werden, (e) Health-Score/Compliance-Report haengen an computeNetLeaks und erben den Fehler -> falsches Rot im Kundenreport.\n\nERWARTUNG NACH FIX: Die GTM-Eintraege verschwinden aus dem Banner. Die im selben Banner gemeldeten LinkedIn x3 / Meta x5 koennten ECHTE Leaks sein (feuern typischerweise direkt aus dem Seiten-HTML, nicht ueber aGTM) - wird erst nach dem Fix sauber sichtbar.",
+            "labels": [],
+            "comments": [],
+            "displayId": 52,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -1536,7 +1548,7 @@
         ]
       }
     ],
-    "nextDisplayId": 52,
+    "nextDisplayId": 53,
     "attachments": [],
     "background": null,
     "templates": [],

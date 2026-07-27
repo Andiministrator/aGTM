@@ -280,20 +280,26 @@
     return "(function(){try{" +
       "var w=window;" +
       "var dl=" + J(gdlHint || "") + "||(w.aGTM&&w.aGTM.c&&w.aGTM.c.gdl)||'dataLayer';" +
-      "w[dl]=w[dl]||[];" +
       "var mode=" + J(mode) + ";" +
       "var ics=!!(w.google_tag_data&&w.google_tag_data.ics);" +
       "var injected=!!(w.aGTM&&w.aGTM.d&&w.aGTM.d.init);" +
-      "var late=ics||injected;" +
+      // aGTM.d.init only covers the consent-gated load. noConsent containers
+      // (initGTM(true)) and the tab's own container-override (gtm_load) put GTM on the
+      // page WITHOUT setting it — google_tag_manager catches those too.
+      "var gtmObj=!!w.google_tag_manager;" +
+      "var late=ics||injected||gtmObj;" +
       (guarded
-        ? "if(late)return{ok:false,pushed:false,mode:mode,late:true,ics:ics,injected:injected," +
-          "error:\"'\"+mode+\"' kommt zu spät: \"+(ics?'Das Google-Tag hat den Consent-Zustand bereits verarbeitet (google_tag_data.ics)':'aGTM hat GTM bereits injiziert (aGTM.d.init)')+\". Jetzt wirkt nur noch 'update'. Für einen echten Test: Cookies zurücksetzen + neu laden — oder 'trotzdem pushen' ankreuzen.\"};"
+        ? "if(late)return{ok:false,pushed:false,mode:mode,late:true,ics:ics,injected:injected,gtmObj:gtmObj," +
+          "error:\"'\"+mode+\"' kommt zu spät: \"+(ics?'Das Google-Tag hat den Consent-Zustand bereits verarbeitet (google_tag_data.ics)':(injected?'aGTM hat den consent-gesteuerten Load bereits ausgeführt (aGTM.d.init)':'Es ist bereits ein GTM-Container auf der Seite (google_tag_manager)'))+\". Jetzt wirkt nur noch 'update'. Für einen echten Test: Cookies zurücksetzen + neu laden — oder 'trotzdem pushen' ankreuzen.\"};"
         : "") +
+      // Only AFTER the guard — a refused push must not touch the page at all (it would
+      // otherwise create window[dl] as a side effect of being rejected).
+      "w[dl]=w[dl]||[];" +
       "var sig=" + J(sig) + ";" +
       "var cmd=" + J(extra) + ";" +
       "for(var q in cmd){if(Object.prototype.hasOwnProperty.call(cmd,q))sig[q]=cmd[q];}" +
       "(function(){w[dl].push(arguments);})('consent',mode,sig);" +
-      "return{ok:true,pushed:true,mode:mode,late:late,ics:ics,injected:injected," +
+      "return{ok:true,pushed:true,mode:mode,late:late,ics:ics,injected:injected,gtmObj:gtmObj," +
       "signals:sig,dataLayer:dl,dataLayerLen:(w[dl].length)||0};" +
       "}catch(e){return{ok:false,error:String(e)};}})()";
   }
@@ -824,8 +830,12 @@ function simGcmMode(st) {
 // is spelled out per mode instead of hidden in a tooltip.
 var SIM_GCM_MODE_HINT = {
   update: "Revidiert den Consent-Zustand — wirkt jederzeit, auch nach dem GTM-Load. Der Normalfall nach einer CMP-Entscheidung.",
-  "default": "Setzt den Ausgangszustand VOR dem Consent. Wirkt nur, solange das Google-Tag den Zustand noch nicht verarbeitet hat — auf einer aGTM-Seite also, solange GTM noch nicht injiziert ist.",
-  "declare": "Meldet einen bereits bekannten Zustand (von CMP-/Vendor-Templates genutzt). Gleiche Timing-Regel wie default."
+  "default": "Setzt den Ausgangszustand VOR dem Consent. Wirkt nur, solange das Google-Tag den Zustand noch nicht verarbeitet hat — auf einer aGTM-Seite also, solange der consent-gesteuerte GTM-Load noch nicht gelaufen ist.",
+  // Honest caveat: 'default' and 'update' are the documented gtag verbs. 'declare' is
+  // primarily a GTM-template API (declareConsentState); that a dataLayer-pushed
+  // declare command is dispatched by the Google tag is NOT documented. The Ist-Zustand
+  // line's declare column is how you check whether it actually arrived.
+  "declare": "Meldet einen bereits bekannten Zustand — genutzt von CMP-/Vendor-Templates. Gleiche Timing-Regel wie default. Achtung: offiziell dokumentiert sind nur update und default; ob ein per dataLayer gepushtes declare vom Google-Tag verarbeitet wird, zeigt dir die Herkunft-Spalte im Ist-Zustand oben."
 };
 function simGcmModeRow(mode) {
   var modes = simGcmModes(), h = '<div class="toolbar" style="margin:8px 0 6px;gap:12px">';
@@ -839,6 +849,15 @@ function simGcmModeRow(mode) {
   return h + '<div class="muted" style="font-size:11px;margin-bottom:8px">' +
     esc(SIM_GCM_MODE_HINT[mode] || "") + "</div>";
 }
+// A wait_for_update the builder will drop: text was entered, but it is not a number > 0.
+// Mirrors the builder's own `isFinite(wfu) && wfu > 0` test (sim.js buildGcmPushCode).
+function simGcmWaitInvalid(v) {
+  if (typeof v !== "string") return false;
+  var t = v.replace(/^\s+|\s+$/g, "");
+  if (!t) return false;                 // empty = deliberately unset, not an error
+  var n = Number(t);
+  return !(isFinite(n) && n > 0);
+}
 // wait_for_update / region are 'default'-only in Google's API, so the fields only
 // exist in that mode — no dead inputs that quietly do nothing.
 function simGcmDefaultFields(st, mode) {
@@ -847,7 +866,12 @@ function simGcmDefaultFields(st, mode) {
   return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:10px">' +
     '<label style="font-size:11px">wait_for_update (ms)' +
     '<input type="text" id="sim-gcm-wait" inputmode="numeric" spellcheck="false" placeholder="z. B. 500" value="' +
-    esc(typeof st.gcmWait === "string" ? st.gcmWait : "") + '" style="' + inp + ';width:100%;margin-top:3px"></label>' +
+    esc(typeof st.gcmWait === "string" ? st.gcmWait : "") + '" style="' + inp + ';width:100%;margin-top:3px">' +
+    // A non-empty but unparsable value would otherwise be dropped silently and the push
+    // would still report OK — say it right at the field instead.
+    (simGcmWaitInvalid(st.gcmWait)
+      ? '<span style="color:var(--err);font-size:10px">keine Zahl &gt; 0 — <code>wait_for_update</code> wird NICHT mitgesendet</span>'
+      : "") + "</label>" +
     '<label style="font-size:11px">region (kommagetrennt, leer = global)' +
     '<input type="text" id="sim-gcm-regions" spellcheck="false" placeholder="z. B. DE,AT,US-CA" value="' +
     esc(typeof st.gcmRegions === "string" ? st.gcmRegions : "") + '" style="' + inp + ';width:100%;margin-top:3px"></label>' +
@@ -866,10 +890,23 @@ function simGcmStatusLine(snap) {
 }
 function simGcmStatusInner(snap) {
   var S = window.aGTMInspectorSignals;
+  snap = snap || {};
   var model = S && S.gcmStatusModel
-    ? S.gcmStatusModel(snap && snap.gcm, (window.aGTMInspectorSim && window.aGTMInspectorSim.GCM_SIGNALS) || [])
+    ? S.gcmStatusModel(snap.gcm, (window.aGTMInspectorSim && window.aGTMInspectorSim.GCM_SIGNALS) || [])
     : { present: false, rows: [] };
+  // The line must judge "window open?" by the SAME signals as the in-page guard,
+  // otherwise it says "open" while the push is refused. The guard checks
+  // google_tag_data.ics (which can exist with an EMPTY entries map, so snap.gcm alone
+  // is not enough) or aGTM.d.init; gtmPresent additionally covers the paths that never
+  // set aGTM.d.init (noConsent containers, the container-override button).
+  var closed = model.present || !!snap.icsPresent || !!snap.init || !!snap.gtmPresent;
   if (!model.present) {
+    if (closed) {
+      return "<b>Ist-Zustand:</b> noch keine Kategorie-Werte lesbar, aber GTM ist bereits am Werk " +
+        (snap.icsPresent ? "(<code>google_tag_data.ics</code> vorhanden)"
+          : (snap.init ? "(aGTM hat den consent-gesteuerten Load ausgeführt)" : "(<code>google_tag_manager</code> vorhanden)")) +
+        " → das Zeitfenster für <code>default</code>/<code>declare</code> ist <b>geschlossen</b>, nur <code>update</code> wirkt noch.";
+    }
     return "<b>Ist-Zustand:</b> kein <code>google_tag_data.ics</code> — das Google-Tag hat noch keinen Consent-Zustand verarbeitet. " +
       "Ohne <code>default</code> gilt Googles <b>impliziter</b> Zustand (granted). Das Zeitfenster für <code>default</code>/<code>declare</code> ist <b>offen</b>.";
   }
@@ -1226,7 +1263,9 @@ function attachSimListeners() {
       regions: window.aGTMInspectorSim.splitTokens(st.gcmRegions || ""),
       force: !!st.gcmForce
     });
-    simRun(code, "GCM consent " + mode + " gepusht");
+    // Label in the neutral form: the guard may refuse, and "gepusht" next to an error
+    // chip would be exactly the false success this feature exists to prevent.
+    simRun(code, "GCM consent " + mode + " push");
   });
 
   // Cookie reset flag checkboxes + button

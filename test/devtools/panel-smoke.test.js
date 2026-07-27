@@ -19,7 +19,16 @@ function makeNode(id) {
     id: id, className: "", textContent: "", __lastHTML: undefined, _html: "",
     querySelectorAll: function () { return []; },
     querySelector: function () { return null; },
-    addEventListener: function () {},
+    // Listeners are RECORDED, not discarded: the Simulation tab routes its controls
+    // through delegated handlers on #tab-sim, so dropping them meant the delegation
+    // logic (which branch fires for which class) was untestable — that is how the
+    // F-94 class collision could be "fixed" with every test still green.
+    __listeners: null,
+    addEventListener: function (ev, fn) {
+      if (!this.__listeners) this.__listeners = {};
+      if (!this.__listeners[ev]) this.__listeners[ev] = [];
+      this.__listeners[ev].push(fn);
+    },
     getAttribute: function () { return null; },
     classList: { add: function () {}, remove: function () {}, toggle: function () {} }
   };
@@ -87,7 +96,13 @@ beforeAll(() => {
     "  clearIds: function(){ state.idTrack = {}; state.idHistory = []; state.idHost = null; }," +
     "  withScrollAnchor: withScrollAnchor," +
     "  simState: simState," +
-    "  buildSimScaffold: buildSimScaffold" +
+    "  buildSimScaffold: buildSimScaffold," +
+    "  attachSimDelegatedOnce: attachSimDelegatedOnce," +
+    "  simSave: simSave," +
+    "  simLoad: simLoad," +
+    "  updateSimLive: updateSimLive," +
+    "  setSimLast: function(v){ SIM_LAST = v; }," +
+    "  simGcmStatusInner: simGcmStatusInner" +
     "};";
   (0, eval)(src);
 });
@@ -976,6 +991,17 @@ describe("Simulation tab — GCM push modes (card #51)", () => {
     expect(upd).not.toContain('id="sim-gcm-regions"');
     const dec = renderSimWithMode("declare");
     expect(dec).not.toContain('id="sim-gcm-wait"');
+    expect(dec).not.toContain('id="sim-gcm-regions"');
+  });
+  test("an unparsable wait_for_update is flagged at the field instead of silently dropped", () => {
+    const P = globalThis.__panel;
+    P.simState().gcmWait = "500ms";                 // Number("500ms") → NaN → builder drops it
+    const bad = renderSimWithMode("default");
+    expect(bad).toContain("wird NICHT mitgesendet");
+    P.simState().gcmWait = "500";
+    expect(renderSimWithMode("default")).not.toContain("wird NICHT mitgesendet");
+    P.simState().gcmWait = "";                      // empty = deliberately unset, no warning
+    expect(renderSimWithMode("default")).not.toContain("wird NICHT mitgesendet");
   });
   test("the force override is offered for default/declare but not for update", () => {
     expect(renderSimWithMode("default")).toContain("sim-gcm-force");
@@ -983,16 +1009,19 @@ describe("Simulation tab — GCM push modes (card #51)", () => {
     expect(renderSimWithMode("update")).not.toContain("sim-gcm-force");
   });
   test("the Ist-Zustand line reports effective state AND origin from the ics snapshot", () => {
-    const html = renderSimWithMode("update");
-    expect(html).toContain('id="sim-gcm-status"');
-    expect(html).toContain("Ist-Zustand");
-    expect(html).toContain("granted");
-    expect(html).toContain("(update)"); // sampleSnap's ad_storage/analytics_storage came from an update
+    renderSimWithMode("update");
+    // Assert on the status NODE, not the whole tab: "granted" also appears in the box's
+    // intro text ("Häkchen = granted"), so a tab-wide toContain would pass even if the
+    // line rendered no values at all.
+    const line = globalThis.__nodes["sim-gcm-status"]._html;
+    expect(line).toContain("Ist-Zustand");
+    expect(line).toContain(">granted<");
+    expect(line).toContain("(update)"); // sampleSnap's ad_storage/analytics_storage came from an update
   });
-  test("without an ics object the line says the default window is still open", () => {
+  test("without ANY GTM signal the line says the default window is still open", () => {
     const P = globalThis.__panel;
     const snap = sampleSnap();
-    snap.gcm = null;
+    snap.gcm = null; snap.init = false; snap.icsPresent = false; snap.gtmPresent = false;
     P.setSnap(snap);
     P.setTab("sim");
     P.render();
@@ -1002,5 +1031,164 @@ describe("Simulation tab — GCM push modes (card #51)", () => {
     expect(html).toContain("implizit");
     expect(html).toContain("offen");
     P.setSnap(sampleSnap());
+  });
+  // The line must agree with the in-page guard. Each of these three states makes the
+  // guard refuse a default push, so the line must NOT advertise an open window.
+  test("no ics values but GTM already at work → line says the window is CLOSED, not open", () => {
+    const P = globalThis.__panel;
+    [
+      { init: true, icsPresent: false, gtmPresent: false },   // aGTM ran its gated load
+      { init: false, icsPresent: true, gtmPresent: false },   // ics exists, entries empty
+      { init: false, icsPresent: false, gtmPresent: true }    // noConsent container / override
+    ].forEach(function (state) {
+      const line = P.simGcmStatusInner(Object.assign({ gcm: null }, state));
+      expect(line).toContain("geschlossen");
+      expect(line).not.toContain("<b>offen</b>");
+    });
+  });
+});
+
+/* ==================================================================== *
+ *  Simulation tab — delegated handlers, persistence, effect panel      *
+ *  (critic round card #51: these paths had zero coverage, so the F-94  *
+ *  fix could be reverted with every test still green)                  *
+ * ==================================================================== */
+
+describe("Simulation tab — delegated change handlers (F-94)", () => {
+  // Dispatch a change event into the delegated listener registered on #tab-sim.
+  function fireChange(target) {
+    const node = globalThis.__nodes["tab-sim"];
+    const ls = (node.__listeners && node.__listeners.change) || [];
+    expect(ls.length).toBeGreaterThan(0);   // no listener = the test proves nothing
+    ls.forEach(function (fn) { fn({ target: target }); });
+  }
+  function el(attrs) {
+    return Object.assign({
+      className: "", checked: false, value: "", id: undefined,
+      getAttribute: function () { return null; }
+    }, attrs);
+  }
+
+  beforeAll(() => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap()); P.setTab("sim"); P.render();
+    P.attachSimDelegatedOnce();
+  });
+  afterAll(() => {
+    const st = globalThis.__panel.simState();
+    st.gcmMode = "update"; st.gcmForce = false;
+  });
+
+  test("a mode radio switches the mode and does NOT write into st.gcm", () => {
+    const P = globalThis.__panel;
+    const st = P.simState();
+    st.gcm = { ad_storage: "granted" };
+    st.gcmMode = "update"; st.gcmForce = true;
+    // The radios carry class "sim-gcm-mode" and no data-sig — under the old substring
+    // match this landed in the signal branch and wrote st.gcm[null] = "granted".
+    fireChange(el({ className: "sim-gcm-mode", value: "default", checked: true }));
+    expect(P.simState().gcmMode).toBe("default");
+    expect(Object.keys(P.simState().gcm)).toEqual(["ad_storage"]);  // no "null" key
+    expect(P.simState().gcmForce).toBe(false);                      // reset on mode switch
+  });
+  test("an unchecked radio (the one being deselected) is ignored", () => {
+    const P = globalThis.__panel;
+    P.simState().gcmMode = "declare";
+    fireChange(el({ className: "sim-gcm-mode", value: "update", checked: false }));
+    expect(P.simState().gcmMode).toBe("declare");
+  });
+  test("a signal checkbox still toggles its own signal", () => {
+    const P = globalThis.__panel;
+    P.simState().gcm = { ad_storage: "granted" };
+    fireChange(el({
+      className: "sim-gcm", checked: false,
+      getAttribute: function (a) { return a === "data-sig" ? "ad_storage" : null; }
+    }));
+    expect(P.simState().gcm.ad_storage).toBe("denied");
+  });
+  test("a signal checkbox without data-sig writes nothing (no null key)", () => {
+    const P = globalThis.__panel;
+    P.simState().gcm = { ad_storage: "granted" };
+    fireChange(el({ className: "sim-gcm", checked: true }));
+    expect(Object.keys(P.simState().gcm)).toEqual(["ad_storage"]);
+  });
+  test("the force checkbox is picked up by id", () => {
+    const P = globalThis.__panel;
+    P.simState().gcmForce = false;
+    fireChange(el({ id: "sim-gcm-force", checked: true }));
+    expect(P.simState().gcmForce).toBe(true);
+    P.simState().gcmForce = false;
+  });
+});
+
+describe("Simulation tab — GCM state persistence per host", () => {
+  var store, prevLS;
+  beforeAll(() => {
+    store = {};
+    prevLS = globalThis.localStorage;
+    globalThis.localStorage = {
+      getItem: (k) => (k in store ? store[k] : null),
+      setItem: (k, v) => { store[k] = String(v); }
+    };
+  });
+  afterAll(() => { globalThis.localStorage = prevLS; });
+
+  test("gcmMode/gcmWait/gcmRegions survive a panel reopen", () => {
+    const P = globalThis.__panel;
+    const st = P.simState();
+    st.host = "example.com"; st.gcmMode = "default"; st.gcmWait = "500"; st.gcmRegions = "DE,AT";
+    P.simSave();
+    P.simLoad("example.com");
+    expect([P.simState().gcmMode, P.simState().gcmWait, P.simState().gcmRegions])
+      .toEqual(["default", "500", "DE,AT"]);
+  });
+  test("an unknown persisted mode falls back to 'update' instead of being trusted", () => {
+    const P = globalThis.__panel;
+    store["aGTMInspector.sim"] = JSON.stringify({ "example.com": { gcmMode: "bogus" } });
+    P.simLoad("example.com");
+    expect(P.simState().gcmMode).toBe("update");
+  });
+  test("gcmForce is NEVER persisted — overriding the guard must not outlive the session", () => {
+    const P = globalThis.__panel;
+    const st = P.simState();
+    st.host = "example.com"; st.gcmForce = true;
+    P.simSave();
+    expect(store["aGTMInspector.sim"]).not.toContain("gcmForce");
+    P.simLoad("example.com");
+    expect(P.simState().gcmForce).toBe(false);
+  });
+});
+
+describe("Simulation tab — effect panel + polled Ist-Zustand line", () => {
+  afterAll(() => { globalThis.__panel.setSimLast(null); });
+
+  test("a force-pushed late default is flagged as ineffective", () => {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setSimLast({ ok: true, pushed: true, mode: "default", late: true,
+      signals: { ad_storage: "denied" }, dataLayer: "dataLayer" });
+    P.updateSimLive();
+    const html = globalThis.__nodes["sim-live"]._html;
+    expect(html).toContain("zu spät gepusht");
+    expect(html).toContain("consent default");
+  });
+  test("a late 'update' is NOT flagged — update is legitimate at any time", () => {
+    const P = globalThis.__panel;
+    P.setSimLast({ ok: true, pushed: true, mode: "update", late: true,
+      signals: { ad_storage: "granted" }, dataLayer: "dataLayer" });
+    P.updateSimLive();
+    expect(globalThis.__nodes["sim-live"]._html).not.toContain("zu spät gepusht");
+  });
+  test("the Ist-Zustand line follows the poll (the scaffold is built only once)", () => {
+    const P = globalThis.__panel;
+    const empty = sampleSnap();
+    empty.gcm = null; empty.init = false; empty.icsPresent = false; empty.gtmPresent = false;
+    P.setSnap(empty); P.setTab("sim"); P.render(); P.buildSimScaffold();
+    expect(globalThis.__nodes["sim-gcm-status"]._html).toContain("offen");
+    P.setSnap(sampleSnap());   // ics appears — WITHOUT rebuilding the scaffold
+    P.updateSimLive();
+    const line = globalThis.__nodes["sim-gcm-status"]._html;
+    expect(line).toContain("(update)");
+    expect(line).not.toContain("offen");
   });
 });

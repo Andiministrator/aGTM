@@ -19,7 +19,47 @@
 (function () {
   try {
     var w = window;
-    if (!w.aGTM || !w.aGTM.d) return { loaded: false };
+
+    // Google Consent Mode state is read BEFORE the aGTM gate below, because it is not
+    // aGTM's data: GTM/the Google tag keeps it in google_tag_data.ics.entries, and the
+    // Simulation tab's GCM push box works on pages WITHOUT aGTM too. Reading it only
+    // in the loaded branch left that box's "Ist-Zustand" line permanently blind on a
+    // plain GTM page — it claimed the default-push window was open while the in-page
+    // guard refused the push (critic round card #51).
+    function readGcm() {
+      try {
+        var ics = w.google_tag_data && w.google_tag_data.ics;
+        if (!ics || !ics.entries || typeof ics.entries !== "object") return null;
+        var out = {};
+        for (var cat in ics.entries) {
+          if (!Object.prototype.hasOwnProperty.call(ics.entries, cat)) continue;
+          var en = ics.entries[cat] || {};
+          out[cat] = {
+            "declare": typeof en["declare"] === "boolean" ? en["declare"] : null,
+            "default": typeof en["default"] === "boolean" ? en["default"] : null,
+            update: typeof en.update === "boolean" ? en.update : null,
+            implicit: typeof en.implicit === "boolean" ? en.implicit : null,
+            region: typeof en.region === "string" ? en.region : ""
+          };
+        }
+        return out;
+      } catch (eG) { return null; }
+    }
+    // `icsPresent` is the guard's own signal: google_tag_data.ics may exist while
+    // `entries` is still empty, which already closes the default/declare window.
+    function icsPresent() {
+      try { return !!(w.google_tag_data && w.google_tag_data.ics); } catch (eP) { return false; }
+    }
+    // Any GTM container actually present — covers the paths that do NOT set
+    // aGTM.d.init (noConsent containers via initGTM(true), the Simulation tab's
+    // container override via gtm_load, or a GTM that was never loaded by aGTM).
+    function gtmPresent() {
+      try { return !!w.google_tag_manager; } catch (eM) { return false; }
+    }
+
+    if (!w.aGTM || !w.aGTM.d) {
+      return { loaded: false, gcm: readGcm(), icsPresent: icsPresent(), gtmPresent: gtmPresent() };
+    }
     var A = w.aGTM, d = A.d || {}, c = A.c || {}, l = A.l || [];
 
     function clone(x) {
@@ -74,27 +114,11 @@
     // as a Session-tab fallback / cross-check when aGTM.d.session is empty. Read-only.
     var seData = (typeof w.se_data !== "undefined") ? safeObj(w.se_data) : null;
 
-    // Google Consent Mode state — GTM/Google-Tag keeps it in google_tag_data.ics.entries,
-    // one entry per category with default/update/implicit booleans. The panel derives the
-    // effective status (update > default > implicit). Read-only, best-effort.
-    var gcm = null;
-    try {
-      var ics = w.google_tag_data && w.google_tag_data.ics;
-      if (ics && ics.entries && typeof ics.entries === "object") {
-        gcm = {};
-        for (var cat in ics.entries) {
-          if (!Object.prototype.hasOwnProperty.call(ics.entries, cat)) continue;
-          var en = ics.entries[cat] || {};
-          gcm[cat] = {
-            "declare": typeof en["declare"] === "boolean" ? en["declare"] : null,
-            "default": typeof en["default"] === "boolean" ? en["default"] : null,
-            update: typeof en.update === "boolean" ? en.update : null,
-            implicit: typeof en.implicit === "boolean" ? en.implicit : null,
-            region: typeof en.region === "string" ? en.region : ""
-          };
-        }
-      }
-    } catch (e4b) { /* ignore — GCM object is optional */ }
+    // Google Consent Mode state — one entry per category with declare/default/update/
+    // implicit booleans. The panel derives the effective status
+    // (update > default > implicit > declare). Read via the helper defined at the top
+    // of this file, which also serves the no-aGTM branch. Read-only, best-effort.
+    var gcm = readGcm();
 
     // Consent commands pushed via gtag('consent','default'|'update'|'declare',{…}) land in
     // the dataLayer as arguments objects. Captured in ORDER over the full dataLayer (not the
@@ -290,6 +314,11 @@
       },
       seData: seData,
       gcm: gcm,
+      // Guard-relevant facts that are NOT aGTM's own state (see the helpers at the top):
+      // whether the Google tag published an ics object at all, and whether any GTM
+      // container is present — including the paths that never set aGTM.d.init.
+      icsPresent: icsPresent(),
+      gtmPresent: gtmPresent(),
       consentCommands: consentCommands,
       consentTs: consentTs,
       consentFirstTs: consentFirstTs,

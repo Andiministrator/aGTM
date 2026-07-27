@@ -15,7 +15,7 @@ import { test, expect, describe } from "bun:test";
 import { readFileSync } from "fs";
 import { gzipSync } from "zlib";
 
-// Deliberate ceilings. Current (2026-07-25): raw 35_932 B, gzip 10_815 B.
+// Deliberate ceilings. Current (2026-07-27): raw 35_969 B, gzip 10_827 B.
 // Headroom is intentionally small (~1 KB raw) so a meaningful addition trips the guard.
 const BUDGET_RAW = 37_000;
 const BUDGET_GZIP = 11_300;
