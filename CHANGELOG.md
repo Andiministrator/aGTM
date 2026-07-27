@@ -35,6 +35,11 @@ inside a frame via `inspectedWindow.eval({frameURL})` **without any manifest per
 and the frames are discovered from `getResources()`; the extension still declares no
 permissions.
 
+The frame pass is strictly best-effort: the top-frame reset fires after at most 1.2 s
+regardless of whether the frame calls come back, so the optional extra can never block
+the feature itself. If the frames cannot be reached, the effect line says so and points
+at an incognito window for a genuine first visit.
+
 The result of a reset also survives the reload it triggers. It used to be shown ~80 ms
 before the page reloaded, so the most useful feedback — which cookies actually went —
 was gone before it could be read.

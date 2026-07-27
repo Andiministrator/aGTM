@@ -1650,3 +1650,83 @@ describe("Third-party CMP frames — discovery and reset", () => {
     globalThis.chrome.devtools.inspectedWindow.getResources = prev;
   });
 });
+
+describe("Cookie reset is never blocked by the frame pass (regression)", () => {
+  // The frame pass is an optional EXTRA layered on top of the reset. It is fully async
+  // (getResources → N frame evals) and any of it may never call back — as happened live:
+  // the whole reset silently stopped working. The watchdog must still fire the top-frame
+  // reset. This test hangs every async step on purpose.
+  var evals, timers;
+  function clickReset() {
+    const node = globalThis.__nodes["sim-cookie-reset"];
+    const ls = (node.__listeners && node.__listeners.click) || [];
+    ls[ls.length - 1]({});
+  }
+  beforeAll(() => {
+    evals = []; timers = [];
+    globalThis.__savedTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = function (fn) { timers.push(fn); return 0; };
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var cb = typeof a === "function" ? a : b;
+      evals.push(code);
+      if (cb) cb({ ok: true, cleared: ["x"], clearedCount: 1, lsCleared: 0 }, null);
+    };
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap()); P.setTab("sim"); P.render();
+    P.setSimWrite(true);
+  });
+  afterAll(() => {
+    globalThis.setTimeout = globalThis.__savedTimeout;
+    globalThis.__panel.setSimWrite(false);
+    globalThis.chrome.devtools.inspectedWindow.eval = function () {};
+    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) { cb([]); };
+  });
+
+  test("getResources never calling back → the watchdog still runs the reset", () => {
+    const P = globalThis.__panel;
+    globalThis.chrome.devtools.inspectedWindow.getResources = function () { /* hangs */ };
+    P.simState().cookieFrames = true;
+    P.buildSimScaffold();
+    globalThis.__nodes["sim-cookie-pats"].value = "__cmp";
+    evals.length = 0; timers.length = 0;
+    clickReset();
+    expect(evals.length).toBe(0);          // nothing yet — the frame pass is pending
+    expect(timers.length).toBeGreaterThan(0);
+    timers.forEach(function (fn) { fn(); });   // watchdog fires
+    expect(evals.filter(function (c) { return c.indexOf("__cmp") !== -1; }).length).toBe(1);
+  });
+  test("a frame eval that never calls back → the watchdog still runs the reset", () => {
+    const P = globalThis.__panel;
+    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) {
+      cb([{ url: "https://cdn.consentmanager.net/cmp.js" }]);
+    };
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var cb = typeof a === "function" ? a : b;
+      evals.push(code);
+      if (a && a.frameURL) return;         // frame call hangs
+      if (cb) cb({ ok: true, cleared: ["x"], clearedCount: 1, lsCleared: 0 }, null);
+    };
+    P.buildSimScaffold();
+    globalThis.__nodes["sim-cookie-pats"].value = "__cmp";
+    evals.length = 0; timers.length = 0;
+    clickReset();
+    timers.forEach(function (fn) { fn(); });
+    // Two evals carrying the pattern: the hung frame one and the top-frame one.
+    expect(evals.filter(function (c) { return c.indexOf("__cmp") !== -1; }).length).toBe(2);
+  });
+  test("with the frame pass switched off the reset runs synchronously as before", () => {
+    const P = globalThis.__panel;
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var cb = typeof a === "function" ? a : b;
+      evals.push(code);
+      if (cb) cb({ ok: true, cleared: ["x"], clearedCount: 1, lsCleared: 0 }, null);
+    };
+    P.simState().cookieFrames = false;
+    P.buildSimScaffold();
+    globalThis.__nodes["sim-cookie-pats"].value = "__cmp";
+    evals.length = 0; timers.length = 0;
+    clickReset();
+    expect(evals.filter(function (c) { return c.indexOf("__cmp") !== -1; }).length).toBe(1);
+    P.simState().cookieFrames = true;
+  });
+});
