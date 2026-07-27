@@ -11,12 +11,15 @@ nothing while still reporting success, so a first-visit re-test silently kept th
 consent.
 
 The list now leads with the `__cmp` prefix (covering the whole family) plus entries for
-Complianz, CookieYes, Didomi, Osano, Termly, Orestbida, Matomo and Shopify. A stored
+Complianz, CookieYes, Didomi, Osano, Termly, Orestbida, Matomo, Shopify and `_tpf` —
+aGTM's own user-id cookie, which the `aGTM`/`agtm` fragments do not match either. A stored
 pattern list that is byte-identical to a previous default is lifted to the current one, so
 users who never edited the field get the fix. A run that matches nothing now says so
 instead of reporting plain success, and the UI states the hard limit: only cookies on the
 page's own domain can be cleared — a CMP's copy on its own domain (`.consentmanager.net`)
 is unreachable and can restore the state after the reload.
+
+Buttons that are disabled because write-mode is off now explain themselves on hover. A disabled button swallows the click silently, so "I clicked and nothing happened" was the only feedback — and since write-mode resets to off on every panel open, that is the normal state right after reloading the extension.
 
 ### Added — aGTM Inspector: exception details in the network list
 

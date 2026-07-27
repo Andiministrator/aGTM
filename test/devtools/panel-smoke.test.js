@@ -16,7 +16,7 @@ var _saved = {};
 // ── fake DOM ────────────────────────────────────────────────────────────────
 function makeNode(id) {
   var node = {
-    id: id, className: "", textContent: "", __lastHTML: undefined, _html: "",
+    id: id, className: "", textContent: "", value: "", __lastHTML: undefined, _html: "",
     querySelectorAll: function () { return []; },
     querySelector: function () { return null; },
     // Listeners are RECORDED, not discarded: the Simulation tab routes its controls
@@ -104,7 +104,9 @@ beforeAll(() => {
     "  setSimLast: function(v){ SIM_LAST = v; }," +
     "  simGcmStatusInner: simGcmStatusInner," +
     "  decodeParams: decodeParams," +
-    "  exceptionInfo: exceptionInfo" +
+    "  exceptionInfo: exceptionInfo," +
+    "  setSimWrite: function(v){ SIM_WRITE = v; }," +
+    "  getSimWrite: function(){ return SIM_WRITE; }" +
     "};";
   (0, eval)(src);
 });
@@ -1525,5 +1527,71 @@ describe("Leak banner does not flash on page load (settle window)", () => {
     // Old enough to be past the grace period anyway, but the point is that the anchor
     // decides it — a pre-consent hit stays a finding.
     expect(globalThis.document.getElementById("tab-network")._html).toContain("Pre-Consent-Leak");
+  });
+});
+
+describe("Simulation tab — action buttons actually reach the page", () => {
+  // The button handlers (bindClick) were never exercised: only the DELEGATED handlers
+  // had tests. A dead button is invisible to the suite otherwise.
+  var evals;
+  function clickSim(id) {
+    const node = globalThis.__nodes[id];
+    const ls = (node.__listeners && node.__listeners.click) || [];
+    expect(ls.length).toBeGreaterThan(0);   // no handler bound = the button is dead
+    // Only the LAST binding is live. In the browser `innerHTML = …` replaces the child
+    // nodes, so each scaffold rebuild starts from a listener-free button; the fake DOM
+    // keeps one node per id, so bindings accumulate here. Calling the most recent one
+    // mirrors the real behaviour.
+    ls[ls.length - 1]({});
+  }
+  beforeAll(() => {
+    evals = [];
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, cb) {
+      evals.push(code);
+      if (cb) cb({ ok: true, cleared: [], clearedCount: 0, lsCleared: 0 }, null);
+    };
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap()); P.setTab("sim"); P.render();
+  });
+  afterAll(() => {
+    globalThis.__panel.setSimWrite(false);
+    globalThis.chrome.devtools.inspectedWindow.eval = function () {};
+  });
+
+  test("with write-mode OFF the button does nothing — by design, not by accident", () => {
+    const P = globalThis.__panel;
+    P.setSimWrite(false); P.buildSimScaffold();
+    evals.length = 0;
+    clickSim("sim-cookie-reset");
+    expect(evals.length).toBe(0);
+  });
+  // simRun() also triggers a snapshot poll after every action, so more than one eval
+  // reaches the stub — assert on WHAT was sent, not on how many.
+  test("with write-mode ON the cookie reset sends its code to the page", () => {
+    const P = globalThis.__panel;
+    P.setSimWrite(true); P.buildSimScaffold();
+    // The handler reads the INPUT FIELD, not the state — mirror what the browser has
+    // in it after the scaffold rendered.
+    globalThis.__nodes["sim-cookie-pats"].value = P.simState().cookiePats;
+    evals.length = 0;
+    clickSim("sim-cookie-reset");
+    const hit = evals.filter(function (c) { return c.indexOf("__cmp") !== -1; });
+    expect(hit.length).toBe(1);                    // the reset carrying the default patterns
+    expect(hit[0]).toContain("document");
+    expect(hit[0]).toContain("_tpf");              // aGTM's own user-id cookie is covered
+  });
+  test("the GCM push button reaches the page too", () => {
+    const P = globalThis.__panel;
+    P.setSimWrite(true); P.buildSimScaffold();
+    evals.length = 0;
+    clickSim("sim-gcm-push");
+    expect(evals.filter(function (c) { return c.indexOf("'consent'") !== -1; }).length).toBe(1);
+  });
+  test("a zero-match reset surfaces as a warning, not as success", () => {
+    const P = globalThis.__panel;
+    P.setSimWrite(true); P.buildSimScaffold();
+    clickSim("sim-cookie-reset");                  // stubbed eval returns clearedCount 0
+    P.updateSimLive();
+    expect(globalThis.__nodes["sim-live"]._html).toContain("Kein Cookie passte");
   });
 });
