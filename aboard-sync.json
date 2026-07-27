@@ -1369,6 +1369,12 @@
                 "author": "Claude Opus",
                 "text": "Folgerunde (Andi-Feedback, Commit 06b485a): (1) Uebersichts-Umbau des Sim-Tabs: flaches Layout mit 4 Abschnitts-Ueberschriften (Consent / Events / GTM & Integration / Umgebung), Write-Toggle + Live-Effekt oben angepinnt (Andi-Wahl gegen klappbare Gruppen/Unter-Tabs). (2) #3-Entscheidung getroffen: CMP-Mock-Box aufgeloest (Grant installiert ohnehin einen persistenten consent_check-Stub = mockt die CMP), Restore wandert neben Grant/Deny/Reset; buildCmpMockCode entfernt. (3) Andis GTM-Override-Idee umgesetzt: neue Box \"Anderen GTM-Container laden\" (buildLoadContainerCode) laedt Container-IDs direkt via aGTM.f.gtm_load, consent- und config-unabhaengig -> Live-Seite testweise auf Staging/Demo-Container zeigen ohne Config-Aenderung (paart mit Blockieren); IDs pro Host persistiert. 604 bun-Tests gruen, ES5 verifiziert, ZIP neu gepackt, Doku (README/CHANGELOG/knowledge) nachgezogen. v1.5 bleibt offen. Karte bleibt in QA fuer Andis Live-Durchspielen.",
                 "created": "2026-07-27"
+              },
+              {
+                "id": "2389846e-ff60-451e-9e99-922f30de008b",
+                "author": "Claude Opus",
+                "text": "Kritiker-Runde ueber den Umbau (2 Sub-Agents: Correctness/ES5/Posture + Tests/Doku, Commit dc94a96). KEIN P0/P1/P2. 4 P3 behoben (F-90..F-93): F-90 buildLoadContainerCode+buildInjectCode meldeten falschen Erfolg vor init() (gtm_load/initGTM no-oppen bei !aGTM.d.config, aGTM.js:997) -> Config-Guard, ok:false ehrlich; F-91 Fake-gtm_load fing das 6. Config-Arg nicht ein -> jetzt captured+asserted; F-92 Blank-Token/gtm_load-fehlt/no-config ungetestet + Builder trimmt Tokens nicht -> Trim + Tests; F-93 Doku-Praezisierung \"uebrige\" Config-Container. 608 bun-Tests gruen, ES5 verifiziert, ZIP neu gepackt, Doku (README/CHANGELOG/knowledge/findings F-90..93) nachgezogen. Karte bleibt in QA fuer Andis Live-Durchspielen. v1.5 offen, kein Tag.",
+                "created": "2026-07-27"
               }
             ],
             "displayId": 50,
