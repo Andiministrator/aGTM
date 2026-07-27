@@ -8,11 +8,11 @@
 import { test, expect, describe } from "bun:test";
 import {
   commaWrap, splitTokens, stubBody,
-  buildConsentCode, buildDenyCode, buildCmpMockCode,
+  buildConsentCode, buildDenyCode,
   buildResetCode, buildRestoreCode, buildFireCode, buildInjectCode, buildProbeCode,
   buildBlockCode, buildUnblockCode, buildInjectIntegrationCode, simSelection,
   buildGcmPushCode, buildCookieResetCode, buildScenarioCode, buildConsentStoreTestCode,
-  GCM_SIGNALS
+  buildLoadContainerCode, GCM_SIGNALS
 } from "../../devtools-extension/sim.js";
 
 // Run a builder's self-invoking expression against a supplied fake window and
@@ -59,6 +59,8 @@ function fakeAGTM() {
   };
   // initGTM loads every container regardless of consent (aGTM.js:1119) — the real force path.
   A.f.initGTM = function (noConsent) { calls.push(["initGTM", noConsent]); };
+  // gtm_load injects a single container (aGTM.js:1127) — used by the container-override.
+  A.f.gtm_load = function (win, doc, id, idParam, gdl, cfg) { calls.push(["gtm_load", id, idParam, gdl]); };
   w.aGTM = A; w.__calls = calls;
   return w;
 }
@@ -139,21 +141,6 @@ describe("buildDenyCode — clears all consent", () => {
     expect(w.aGTM.d.consent.services).toBe("");
     expect(w.aGTM.d.consent.purposes).toBe("");
     expect(res.gtmConsent).toBe(false);
-  });
-});
-
-describe("buildCmpMockCode — persistent stub + run_cc", () => {
-  test("installs a stub and evaluates it", () => {
-    var w = fakeAGTM();
-    var res = run(buildCmpMockCode({ services: ["A"] }), w);
-    expect(res.ok).toBe(true);
-    expect(res.simActive).toBe(true);
-    expect(w.__calls.some(function (c) { return c[0] === "run_cc" && c[1] === "update"; })).toBe(true); // mock DOES drive run_cc
-    expect(typeof w.aGTM.f.__inspOrigCC).toBe("function");
-    // the stub stays installed → a later run_cc still yields the mocked consent
-    w.aGTM.d.consent = {};
-    w.aGTM.f.run_cc("update");
-    expect(w.aGTM.d.consent.services).toBe(",A,");
   });
 });
 
@@ -648,5 +635,40 @@ describe("buildConsentStoreTestCode — force the /aGTMconsent POST via run_cc",
   test("no aGTM → ok:false, no throw", () => {
     var res = run(buildConsentStoreTestCode({}), {});
     expect(res.ok).toBe(false);
+  });
+});
+
+describe("buildLoadContainerCode — load a different GTM container than the config", () => {
+  test("registers each id and injects it via gtm_load (consent-independent)", () => {
+    var w = fakeAGTM();
+    w.aGTM.d.consent = { hasResponse: false, gtmConsent: false }; // no consent at all
+    var res = run(buildLoadContainerCode(["GTM-TEST1", "GTM-TEST2"]), w);
+    expect(res.ok).toBe(true);
+    expect(res.loadedContainers).toEqual(["GTM-TEST1", "GTM-TEST2"]);
+    // both injected via gtm_load, regardless of consent
+    expect(w.__calls.filter(function (c) { return c[0] === "gtm_load"; }).map(function (c) { return c[1]; }))
+      .toEqual(["GTM-TEST1", "GTM-TEST2"]);
+    // registered + marked loaded so a later initGTM won't reload them
+    expect(w.aGTM.c.gtm["GTM-TEST1"].hasLoaded).toBe(true);
+    expect(w.aGTM.c.gtm["GTM-TEST2"].hasLoaded).toBe(true);
+  });
+  test("preserves an existing container config object (only sets hasLoaded)", () => {
+    var w = fakeAGTM();
+    w.aGTM.c.gtm = { "GTM-CFG": { idParam: "&gtm_auth=x", noConsent: true, hasLoaded: false } };
+    run(buildLoadContainerCode(["GTM-CFG"]), w);
+    expect(w.aGTM.c.gtm["GTM-CFG"].idParam).toBe("&gtm_auth=x"); // not clobbered
+    expect(w.aGTM.c.gtm["GTM-CFG"].hasLoaded).toBe(true);
+    // idParam threaded into gtm_load
+    var call = w.__calls.find(function (c) { return c[0] === "gtm_load"; });
+    expect(call[2]).toBe("&gtm_auth=x");
+  });
+  test("empty / blank id list → ok:false, no gtm_load", () => {
+    var w = fakeAGTM();
+    var res = run(buildLoadContainerCode([]), w);
+    expect(res.ok).toBe(false);
+    expect(w.__calls.some(function (c) { return c[0] === "gtm_load"; })).toBe(false);
+  });
+  test("no aGTM → ok:false, no throw", () => {
+    expect(run(buildLoadContainerCode(["GTM-X"]), {}).ok).toBe(false);
   });
 });

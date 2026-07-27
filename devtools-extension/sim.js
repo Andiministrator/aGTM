@@ -116,16 +116,6 @@
   }
   SIM.buildDenyCode = buildDenyCode;
 
-  // Install a PERSISTENT CMP mock: the same consent_check stub as grant, driven once via
-  // run_cc('update') so it takes effect immediately, and left installed so the periodic
-  // 2s CMP poll (and any later library call) keeps seeing the simulated decision until
-  // Restore. Same primitive as grant — the distinction is intent/persistence, not the
-  // run_cc call (both drive it). Restore removes the stub.
-  function buildCmpMockCode(sel) {
-    return wrap(stubBody(sel) + "if(typeof A.f.run_cc==='function')A.f.run_cc('update');");
-  }
-  SIM.buildCmpMockCode = buildCmpMockCode;
-
   // Reset aGTM's consent STATE for observation and restore the original CMP check.
   // NOTE: cannot un-inject an already-loaded GTM (the <script> is in the DOM). A
   // true first-visit re-test needs a cookie clear + reload — see the tab's hint.
@@ -333,6 +323,29 @@
   }
   SIM.buildConsentStoreTestCode = buildConsentStoreTestCode;
 
+  // Load one or more GTM containers DIRECTLY via aGTM.f.gtm_load — independent of consent
+  // and of the integration config. Lets a live page be pointed at a staging/demo container
+  // without editing the real config (pairs with block). Each id is registered into
+  // aGTM.c.gtm (marked hasLoaded so a later initGTM won't reload it) and injected with the
+  // same call shape initGTM uses (aGTM.js:1127). Does NOT touch the configured containers'
+  // load state, so the normal consent flow for those still works.
+  function buildLoadContainerCode(ids) {
+    ids = ids || [];
+    return wrap(
+      "if(typeof A.f.gtm_load!=='function')return{ok:false,error:'aGTM.f.gtm_load fehlt.'};" +
+      "A.c=A.c||{};A.c.gtm=A.c.gtm||{};var _gdl=A.c.gdl||'dataLayer';" +
+      "var _ids=" + J(ids) + ";var _loaded=[];" +
+      "for(var _i=0;_i<_ids.length;_i++){var _id=_ids[_i];if(!_id)continue;" +
+        "if(!A.c.gtm[_id]||typeof A.c.gtm[_id]!=='object')A.c.gtm[_id]={};" +
+        "A.c.gtm[_id].hasLoaded=true;" +
+        "A.f.gtm_load(window,document,_id,(A.c.gtm[_id].idParam||''),_gdl,A.c.gtm[_id]);" +
+        "_loaded.push(_id);}" +
+      "if(!_loaded.length)return{ok:false,error:'Keine gültige Container-ID angegeben.'};",
+      "loadedContainers:_loaded,"
+    );
+  }
+  SIM.buildLoadContainerCode = buildLoadContainerCode;
+
   // Split a comma list (plain "a, b" from config OR comma-wrapped ",a,b," from
   // consent) into trimmed non-empty tokens.
   function splitTokens(str) {
@@ -376,7 +389,7 @@ function simDefaultGcm() {
 var SIM_COOKIE_DEFAULT = "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm";
 
 function simState() {
-  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, scenarioText: "" };
+  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, scenarioText: "", containerIds: "" };
   return state.sim;
 }
 
@@ -385,7 +398,7 @@ function simLoad(host) {
   var st = simState();
   st.host = host;
   st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {}; st.injectCode = ""; st.blockIntent = false;
-  st.gcm = simDefaultGcm(); st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.scenarioText = "";
+  st.gcm = simDefaultGcm(); st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.scenarioText = ""; st.containerIds = "";
   try {
     if (typeof localStorage === "undefined") return;
     var all = JSON.parse(localStorage.getItem(SIM_LS) || "{}");
@@ -403,6 +416,7 @@ function simLoad(host) {
       if (typeof e.cookieReload === "boolean") st.cookieReload = e.cookieReload;
       if (typeof e.cookieLS === "boolean") st.cookieLS = e.cookieLS;
       if (typeof e.scenarioText === "string") st.scenarioText = e.scenarioText;
+      if (typeof e.containerIds === "string") st.containerIds = e.containerIds;
     }
   } catch (er) { /* corrupt/unavailable → in-memory defaults */ }
 }
@@ -424,7 +438,8 @@ function simSave() {
       cookiePats: typeof st.cookiePats === "string" ? st.cookiePats : SIM_COOKIE_DEFAULT,
       cookieReload: !!st.cookieReload,
       cookieLS: !!st.cookieLS,
-      scenarioText: st.scenarioText || ""
+      scenarioText: st.scenarioText || "",
+      containerIds: st.containerIds || ""
     };
     localStorage.setItem(SIM_LS, JSON.stringify(all));
   } catch (er) { /* ignore */ }
@@ -574,7 +589,7 @@ function buildSimScaffold() {
 
   var h = '<div id="sim-root">';
 
-  // ── Write-mode banner + toggle ────────────────────────────────
+  // ── Write-mode banner + toggle (pinned) ───────────────────────
   h += '<div class="card ' + (SIM_WRITE ? "warnbox" : "leakbox") + '" id="sim-mode">' +
     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
     '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:700">' +
@@ -587,32 +602,59 @@ function buildSimScaffold() {
     '<div class="muted" style="margin-top:6px;font-size:11px">Der Inspector ist ansonsten strikt read-only. Dieser Tab ist die einzige Ausnahme und wird bei jedem Öffnen wieder auf AUS gesetzt.</div>' +
     "</div>";
 
-  // ── Live effect panel (repainted per poll) ────────────────────
+  // ── Live effect panel (pinned, repainted per poll) ────────────
   h += '<div class="card"><h2>Live-Zustand &amp; Effekt</h2><div id="sim-live"></div></div>';
 
+  // Build the content boxes once, then assemble under section headers so the tab reads
+  // as four labelled groups (Consent · Events · GTM & Integration · Umgebung) instead of
+  // one long stack. GCM push, cookie reset and the integration-inject snippet are aGTM-
+  // independent, so they also appear in the not-loaded view.
+  var csUrl = (snap.config && snap.config.consent_store_url) || "";
+  var blockDis = (!SIM_WRITE || !loaded) ? " disabled" : "";
+
+  var boxGcm = '<div class="card"><h2>Google Consent Mode pushen</h2>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Schiebt ein <code>gtag(\'consent\',\'update\',{…})</code> direkt in den dataLayer (echtes <code>arguments</code>-Objekt) — testet GCM-Signale <b>unabhängig von aGTM</b>. Häkchen = <code>granted</code>, sonst <code>denied</code>.</div>' +
+    simGcmRows(st.gcm) +
+    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
+    simBtn("sim-gcm-push", "consent update pushen", "acc") + "</div></div>";
+
+  var boxCookie = '<div class="card"><h2>Cookies zurücksetzen + neu laden</h2>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“.</div>' +
+    '<input type="text" id="sim-cookie-pats" spellcheck="false" placeholder="Cookie-Namen-Muster, kommagetrennt (leer = alle)" value="' + esc(typeof st.cookiePats === "string" ? st.cookiePats : "") + '" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">' +
+    '<div class="toolbar" style="margin-top:8px">' +
+    simFlag("sim-cookie-ls", "localStorage auch leeren", st.cookieLS) +
+    simFlag("sim-cookie-reload", "danach neu laden", st.cookieReload) +
+    '<span class="spacer" style="flex:1"></span>' +
+    simBtn("sim-cookie-reset", "Cookies löschen", "warn") + "</div></div>";
+
+  var boxIntegration = '<div class="card"><h2>aGTM-Integration injizieren</h2>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Für Seiten ohne aGTM: Integrationscode (Loader / <code>config</code> / <code>consent_check</code> / <code>init</code>) einfügen und injizieren — läuft im globalen Seitenkontext wie eine echte Einbindung. Pro Host gespeichert.</div>' +
+    '<textarea id="sim-integration" spellcheck="false" placeholder="// aGTM-Integrationscode hier einfügen…" style="width:100%;min-height:90px;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px">' +
+    esc(st.injectCode || "") + "</textarea>" +
+    '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">' +
+    simBtn("sim-inject-int", "Integration injizieren", "acc") + "</div></div>";
+
   if (loaded) {
-    // ── Consent simulation ──────────────────────────────────────
+    // ── CONSENT ──────────────────────────────────────────────────
+    // "Restore" folds in the former standalone "CMP mock" box: Grant already installs a
+    // persistent consent_check stub (= mocks the CMP), so a separate mock box was redundant;
+    // Restore (undo the stub without wiping consent) lives here next to Reset.
+    h += simHead("Consent");
     h += '<div class="card"><h2>Consent simulieren</h2>' +
-      '<div class="muted" style="margin-bottom:8px;font-size:11px">Wähle Kategorien / Services / Vendoren, für die Consent erteilt wird. Vorbelegt aus <code>gtmPurposes/gtmServices/gtmVendors</code> (was GTM benötigt) + aktuellem Consent. Pro Gruppe lässt sich per <b>IDs</b> umschalten, ob per <b>ID</b> statt Name konsentiert wird (die IDs landen dann im GTM-geprüften String + in <code>serviceIDs/vendorIDs/purposeIDs</code>; fehlt bei einer Zeile die ID, greift ihr Name). Grant installiert einen temporären <code>consent_check</code> und ruft <code>run_cc(\'update\')</code> — der echte Library-Pfad (reset→check→chelp→gtmConsent→inject→replay).</div>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Wähle Kategorien / Services / Vendoren, für die Consent erteilt wird. Vorbelegt aus <code>gtmPurposes/gtmServices/gtmVendors</code> (was GTM benötigt) + aktuellem Consent. Pro Gruppe lässt sich per <b>IDs</b> umschalten, ob per <b>ID</b> statt Name konsentiert wird (die IDs landen dann im GTM-geprüften String + in <code>serviceIDs/vendorIDs/purposeIDs</code>; fehlt bei einer Zeile die ID, greift ihr Name). <b>Grant</b> installiert einen persistenten <code>consent_check</code>-Stub (mockt damit die CMP — auch der 2s-Poll sieht ihn) und ruft <code>run_cc(\'update\')</code> → echter Library-Pfad reset→check→chelp→gtmConsent→inject→replay. <b>Restore</b> stellt den originalen <code>consent_check</code> wieder her.</div>' +
       simConsentGroups(model) +
       '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
       simBtn("sim-grant", "Consent erteilen (run_cc)", "acc") +
       simBtn("sim-deny", "Alles ablehnen", "") +
-      simBtn("sim-reset", "Reset (Consent leeren + CMP restore)", "") +
+      simBtn("sim-reset", "Reset (leeren + Restore)", "") +
+      simBtn("sim-restore", "Original consent_check wiederherstellen", "") +
       "</div>" +
-      '<div class="muted" style="margin-top:6px;font-size:11px">Hinweis: Ein bereits injiziertes GTM lässt sich nicht „zurück-laden“. Für einen echten Erstbesuch-Test: Consent-Cookies löschen + Seite neu laden.</div>' +
+      '<div class="muted" style="margin-top:6px;font-size:11px">Hinweis: Ein bereits injiziertes GTM lässt sich nicht „zurück-laden“. Für einen echten Erstbesuch-Test: „Umgebung“ → Cookies löschen + Seite neu laden.</div>' +
       simPresets(st) +
       "</div>";
 
-    // ── CMP mock ────────────────────────────────────────────────
-    h += '<div class="card"><h2>CMP-Antwort mocken</h2>' +
-      '<div class="muted" style="margin-bottom:8px;font-size:11px">Installiert die obige Consent-Auswahl als <b>persistenten</b> <code>consent_check</code>-Stub — auch der periodische CMP-Poll (2s) sieht dann die simulierte Entscheidung. Das Original wird gesichert und ist per Restore wiederherstellbar.</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-      simBtn("sim-mock", "CMP-Mock installieren", "warn") +
-      simBtn("sim-restore", "Original consent_check wiederherstellen", "") +
-      "</div></div>";
-
-    // ── Fire event ──────────────────────────────────────────────
+    // ── EVENTS ───────────────────────────────────────────────────
+    h += simHead("Events");
     h += '<div class="card"><h2>Event feuern</h2>' +
       '<textarea id="sim-fire" spellcheck="false" style="width:100%;min-height:70px;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px">' +
       esc(st.fireText || '{\n  "event": "test_event"\n}') + "</textarea>" +
@@ -626,13 +668,6 @@ function buildSimScaffold() {
       simEventHistory(st) +
       "</div>";
 
-    // ── Force inject ────────────────────────────────────────────
-    h += '<div class="card"><h2>GTM-Injection erzwingen</h2>' +
-      '<div class="muted" style="margin-bottom:8px;font-size:11px">Ruft <code>aGTM.f.inject()</code> direkt — unabhängig vom Consent. Nützlich, um Container-Load isoliert zu testen.</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-      simBtn("sim-inject", "aGTM.f.inject() erzwingen", "warn") + "</div></div>";
-
-    // ── Scenario runner (deny → fire → grant) ───────────────────
     h += '<div class="card"><h2>Szenario-Runner</h2>' +
       '<div class="muted" style="margin-bottom:8px;font-size:11px">Spielt in <b>einem Klick</b> den kompletten Ablauf durch: <b>ablehnen</b> → die Events unten <b>feuern</b> (werden bei fehlendem Consent in <code>aGTM.d.f</code> geparkt) → oben gewählten Consent <b>erteilen</b> (<code>run_cc</code> → inject → Replay der geparkten Events). Events als JSON-Array. <b>Voraussetzung für den Replay:</b> GTM darf noch <b>nicht</b> injiziert sein (sonst greift der inject-once-Schutz → kein Replay). Ist <code>consent_store_url</code> gesetzt, sendet der Lauf zwei echte Consent-Store-POSTs (deny, dann grant).</div>' +
       '<textarea id="sim-scn" spellcheck="false" style="width:100%;min-height:64px;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px">' +
@@ -641,51 +676,45 @@ function buildSimScaffold() {
       simBtn("sim-scn-run", "Szenario starten (deny→fire→grant)", "acc") + "</div>" +
       '<div id="sim-scn-err" class="muted" style="font-size:11px"></div></div>';
 
-    // ── consent-store POST test (/aGTMconsent) ──────────────────
-    var csUrl = (snap.config && snap.config.consent_store_url) || "";
+    // ── GTM & INTEGRATION ────────────────────────────────────────
+    h += simHead("GTM & Integration");
+    h += '<div class="card"><h2>Anderen GTM-Container laden</h2>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Lädt gezielt einen (oder mehrere) GTM-Container <b>zusätzlich</b> — <b>unabhängig von Consent und Integrations-Config</b> — via <code>aGTM.f.gtm_load</code>. So lässt sich eine Live-Seite testweise auf einen <b>Staging-/Demo-Container</b> zeigen, ohne die echte Config zu ändern (oft kombiniert mit „Vorhandene Integration blockieren“). Kommagetrennt.</div>' +
+      '<input type="text" id="sim-container-ids" spellcheck="false" placeholder="GTM-XXXX, GTM-YYYY" value="' + esc(typeof st.containerIds === "string" ? st.containerIds : "") + '" style="width:100%;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">' +
+      '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">' +
+      simBtn("sim-container-load", "Container laden", "warn") + "</div></div>";
+
+    h += '<div class="card"><h2>GTM-Injection erzwingen</h2>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Lädt die <b>konfigurierten</b> Container via <code>aGTM.f.initGTM(false)</code> — <b>unabhängig vom Consent</b> (nicht das consent-gated <code>inject()</code>). Nützlich, um Container-Load isoliert zu testen.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      simBtn("sim-inject", "GTM-Injection erzwingen", "warn") + "</div></div>";
+
     h += '<div class="card"><h2>Consent-Store-POST testen</h2>' +
       '<div class="muted" style="margin-bottom:8px;font-size:11px">Löst gezielt den <code>/aGTMconsent</code>-POST aus: installiert die oben gewählte Consent-Auswahl, leert <code>aGTM.d.consent_hash</code> (erzwingt den Diff) und ruft <code>run_cc(\'update\')</code> — der echte <code>aGTM.f.xsend()</code>-POST an <code>consent_store_url</code> feuert. ' +
       (csUrl ? 'Ziel: <code>' + esc(csUrl) + '</code>' : '<b>Kein <code>consent_store_url</code> konfiguriert</b> — der Test meldet das nur, ohne zu senden.') + '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       simBtn("sim-cstore", "Consent-Store-POST auslösen", "warn", !csUrl) + "</div></div>";
+
+    h += '<div class="card"><h2>Vorhandene aGTM-Integration blockieren</h2>' +
+      '<div class="muted" style="margin-bottom:8px;font-size:11px">Neutralisiert die geladene aGTM-Integration (<code>inject/initGTM/gtm_load</code> → no-op, <code>consent_check</code> → false), um z. B. eine eigene Integration isoliert zu testen. <b>Pro Host gespeichert</b> und bei aktivem Write-Modus nach einem Reload erneut angewandt. Ein <b>bereits</b> geladenes GTM lässt sich damit nicht zurückholen.</div>' +
+      '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600">' +
+      '<input type="checkbox" id="sim-block-cb"' + (st.blockIntent ? " checked" : "") + blockDis + "> aGTM blockieren</label></div>";
+
+    h += boxIntegration;
+
+    // ── UMGEBUNG (aGTM-independent) ──────────────────────────────
+    h += simHead("Umgebung");
+    h += boxGcm + boxCookie;
   } else {
-    h += '<div class="card"><div class="muted">Auf dieser Seite ist <code>window.aGTM</code> nicht geladen — Consent-/Event-Simulation braucht ein aktives aGTM. Du kannst unten eine Integration <b>injizieren</b> (für noch nicht integrierte Seiten).</div></div>';
+    h += simHead("Consent");
+    h += '<div class="card"><div class="muted">Auf dieser Seite ist <code>window.aGTM</code> nicht geladen — Consent-/Event-Simulation braucht ein aktives aGTM. Du kannst unter „GTM & Integration“ eine Integration <b>injizieren</b> (für noch nicht integrierte Seiten).</div></div>';
+
+    h += simHead("GTM & Integration");
+    h += boxIntegration;
+
+    h += simHead("Umgebung");
+    h += boxGcm + boxCookie;
   }
-
-  // ── Google Consent Mode push (aGTM-independent) ───────────────
-  h += '<div class="card"><h2>Google Consent Mode pushen</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Schiebt ein <code>gtag(\'consent\',\'update\',{…})</code> direkt in den dataLayer (echtes <code>arguments</code>-Objekt) — testet GCM-Signale <b>unabhängig von aGTM</b>. Häkchen = <code>granted</code>, sonst <code>denied</code>.</div>' +
-    simGcmRows(st.gcm) +
-    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
-    simBtn("sim-gcm-push", "consent update pushen", "acc") + "</div></div>";
-
-  // ── Cookie reset + reload (aGTM-independent) ──────────────────
-  h += '<div class="card"><h2>Cookies zurücksetzen + neu laden</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“.</div>' +
-    '<input type="text" id="sim-cookie-pats" spellcheck="false" placeholder="Cookie-Namen-Muster, kommagetrennt (leer = alle)" value="' + esc(typeof st.cookiePats === "string" ? st.cookiePats : "") + '" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">' +
-    '<div class="toolbar" style="margin-top:8px">' +
-    simFlag("sim-cookie-ls", "localStorage auch leeren", st.cookieLS) +
-    simFlag("sim-cookie-reload", "danach neu laden", st.cookieReload) +
-    '<span class="spacer" style="flex:1"></span>' +
-    simBtn("sim-cookie-reset", "Cookies löschen", "warn") + "</div></div>";
-
-  // ── Block an existing aGTM integration ────────────────────────
-  // Persisted per host (blockIntent). When write-mode is on and the intent is set
-  // but the page isn't blocked, renderSim re-applies it (once) — so a block survives
-  // a page reload for the demo/prospect flow.
-  var blockDis = (!SIM_WRITE || !loaded) ? " disabled" : "";
-  h += '<div class="card"><h2>Vorhandene aGTM-Integration blockieren</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Neutralisiert die geladene aGTM-Integration (<code>inject/initGTM/gtm_load</code> → no-op, <code>consent_check</code> → false), um z. B. eine eigene Integration isoliert zu testen. <b>Pro Host gespeichert</b> und bei aktivem Write-Modus nach einem Reload erneut angewandt. Ein <b>bereits</b> geladenes GTM lässt sich damit nicht zurückholen.</div>' +
-    '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600">' +
-    '<input type="checkbox" id="sim-block-cb"' + (st.blockIntent ? " checked" : "") + blockDis + "> aGTM blockieren</label></div>";
-
-  // ── Inject an aGTM integration snippet (for un-integrated pages) ──
-  h += '<div class="card"><h2>aGTM-Integration injizieren</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Für Seiten ohne aGTM: Integrationscode (Loader / <code>config</code> / <code>consent_check</code> / <code>init</code>) einfügen und injizieren — läuft im globalen Seitenkontext wie eine echte Einbindung. Pro Host gespeichert.</div>' +
-    '<textarea id="sim-integration" spellcheck="false" placeholder="// aGTM-Integrationscode hier einfügen…" style="width:100%;min-height:90px;font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px">' +
-    esc(st.injectCode || "") + "</textarea>" +
-    '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">' +
-    simBtn("sim-inject-int", "Integration injizieren", "acc") + "</div></div>";
 
   h += "</div>";
 
@@ -699,6 +728,12 @@ function simBtn(id, label, cls, forceDisabled) {
   var extra = cls ? (" " + cls) : "";
   var dis = (!SIM_WRITE || forceDisabled) ? " disabled" : "";
   return '<button class="small sim-act' + extra + '" id="' + id + '"' + dis + '>' + esc(label) + "</button>";
+}
+// Section divider: an uppercase muted label with a trailing hairline, so the flat box
+// stack reads as labelled groups (Consent · Events · GTM & Integration · Umgebung).
+function simHead(title) {
+  return '<div class="sim-sec" style="display:flex;align-items:center;gap:8px;margin:16px 2px 4px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">' +
+    "<span>" + esc(title) + "</span><span style=\"flex:1;height:1px;background:var(--border)\"></span></div>";
 }
 function simFlag(id, label, on) {
   return '<label><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + "> " + esc(label) + "</label>";
@@ -836,6 +871,8 @@ function updateSimLive() {
       det = "→ " + (SIM_LAST.dataLayer || "dataLayer") + ": " + (parts.join(", ") || "—");
     } else if (typeof SIM_LAST.clearedCount === "number") {
       det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "") + (SIM_LAST.reloading ? " · lädt neu…" : "");
+    } else if (SIM_LAST.loadedContainers && SIM_LAST.loadedContainers.length) {
+      det = "Container geladen: " + SIM_LAST.loadedContainers.join(", ");
     } else if (SIM_LAST.consentStoreUrl) {
       det = "POST → " + SIM_LAST.consentStoreUrl;
     }
@@ -895,6 +932,8 @@ function attachSimDelegatedOnce() {
       simState().cookiePats = t.value; simSave();
     } else if (t && t.id === "sim-scn") {
       simState().scenarioText = t.value; simSave();
+    } else if (t && t.id === "sim-container-ids") {
+      simState().containerIds = t.value; simSave();
     }
   });
   // add a token on Enter in a .sim-add field
@@ -957,15 +996,19 @@ function attachSimListeners() {
   bindClick("sim-reset", function () {
     simRun(window.aGTMInspectorSim.buildResetCode(), "Reset + CMP restore");
   });
-  bindClick("sim-mock", function () {
-    var sel = simSelection(simConsentModel(state.snap || {}));
-    simRun(window.aGTMInspectorSim.buildCmpMockCode(sel), "CMP-Mock installiert");
-  });
   bindClick("sim-restore", function () {
     simRun(window.aGTMInspectorSim.buildRestoreCode(), "consent_check wiederhergestellt");
   });
   bindClick("sim-inject", function () {
-    simRun(window.aGTMInspectorSim.buildInjectCode(), "inject() erzwungen");
+    simRun(window.aGTMInspectorSim.buildInjectCode(), "GTM-Injection erzwungen");
+  });
+  bindClick("sim-container-load", function () {
+    var input = el("sim-container-ids");
+    var raw = input ? input.value : (simState().containerIds || "");
+    var ids = window.aGTMInspectorSim.splitTokens(raw);
+    if (!ids.length) { return; }
+    simState().containerIds = raw; simSave();
+    simRun(window.aGTMInspectorSim.buildLoadContainerCode(ids), "GTM-Container geladen: " + ids.join(", "));
   });
   var blockCb = el("sim-block-cb");
   if (blockCb) blockCb.addEventListener("change", function () {

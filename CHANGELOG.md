@@ -70,6 +70,22 @@ Simulation tab. No P0/P1; the substantive fixes:
   panel smoke test asserts all four extra boxes render, and the destructive
   empty-pattern + clear-localStorage combination is documented.
 
+### Changed — aGTM Inspector: Simulation tab reorganised + GTM container override
+
+Clarity pass after the tab grew to a dozen stacked boxes:
+
+- **Four labelled section groups** — Consent · Events · GTM & Integration · Umgebung —
+  under a pinned write-toggle + live-effect panel, instead of one flat stack.
+- **"CMP mock" box folded into Consent.** Grant already installs a persistent
+  `consent_check` stub (= mocks the CMP), so the separate box was redundant; **Restore**
+  (undo the stub without wiping consent) now sits next to Deny/Reset. `buildCmpMockCode`
+  removed.
+- **New: load a different GTM container** (`buildLoadContainerCode`). Injects one or more
+  container IDs directly via `aGTM.f.gtm_load`, independent of consent and of the
+  integration config — point a live page at a staging/demo container without editing the
+  real config (pairs with "block existing integration"). Does not touch the configured
+  containers' load state.
+
 ### Changed — aGTM Inspector: GTM tab folded into Diagnose
 
 The standalone **GTM tab** was removed; its injection status, container table and
