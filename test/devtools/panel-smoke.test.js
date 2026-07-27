@@ -594,11 +594,12 @@ describe("feedback fixes", () => {
 
 // ── card #49: Simulation tab (opt-in write channel) ──
 describe("Simulation tab", () => {
-  test("loaded: renders consent sim + CMP mock + fire + block + inject boxes", () => {
+  test("loaded: renders consent sim + fire + block + inject boxes (CMP-mock folded into consent)", () => {
     const html = renderTab("sim");
     expect(html).toContain("Write-Modus");
     expect(html).toContain("Consent simulieren");
-    expect(html).toContain("CMP-Antwort mocken");
+    expect(html).not.toContain("CMP-Antwort mocken"); // standalone box removed; folded into consent
+    expect(html).toContain("sim-restore");            // Restore now lives in the consent box
     expect(html).toContain("Event feuern");
     expect(html).toContain("blockieren");        // block-existing box
     expect(html).toContain('id="sim-block-cb"'); // persisted block checkbox
@@ -606,13 +607,23 @@ describe("Simulation tab", () => {
     expect(html).toContain("sim-useid");         // per-group name/ID toggle
     expect(html).toContain('id="sim-root"');
   });
-  test("card #50 extras: GCM push + cookie reset + scenario + consent-store boxes render", () => {
+  test("flat grouping: the four section headers render", () => {
+    const html = renderTab("sim");
+    expect(html).toContain("class=\"sim-sec\"");
+    expect(html).toContain(">Consent<");
+    expect(html).toContain(">Events<");
+    expect(html).toContain(">GTM &amp; Integration<");
+    expect(html).toContain(">Umgebung<");
+  });
+  test("card #50 extras + container override: all boxes render", () => {
     const html = renderTab("sim");
     expect(html).toContain("Google Consent Mode pushen");   // GCM push box
     expect(html).toContain("ad_storage");                    // a GCM signal row (simGcmRows non-empty)
     expect(html).toContain("Cookies zurücksetzen");          // cookie reset box
     expect(html).toContain("Szenario-Runner");               // scenario runner box
     expect(html).toContain("Consent-Store-POST testen");     // consent-store test box
+    expect(html).toContain("Anderen GTM-Container laden");   // container-override box
+    expect(html).toContain('id="sim-container-ids"');
   });
   test("not loaded: still offers the integration-inject box (for un-integrated pages)", () => {
     const P = globalThis.__panel;
