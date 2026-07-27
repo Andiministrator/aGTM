@@ -12,7 +12,7 @@ import {
   buildResetCode, buildRestoreCode, buildFireCode, buildInjectCode, buildProbeCode,
   buildBlockCode, buildUnblockCode, buildInjectIntegrationCode, simSelection,
   buildGcmPushCode, buildCookieResetCode, buildScenarioCode, buildConsentStoreTestCode,
-  buildLoadContainerCode, GCM_SIGNALS
+  buildLoadContainerCode, GCM_SIGNALS, GCM_MODES, hasCls
 } from "../../devtools-extension/sim.js";
 
 // Run a builder's self-invoking expression against a supplied fake window and
@@ -705,5 +705,161 @@ describe("buildLoadContainerCode — load a different GTM container than the con
   });
   test("no aGTM → ok:false, no throw", () => {
     expect(run(buildLoadContainerCode(["GTM-X"]), {}).ok).toBe(false);
+  });
+});
+
+/* ==================================================================== *
+ *  Card #51 — GCM push modes (update / default / declare)              *
+ * ==================================================================== */
+
+describe("buildGcmPushCode — mode switch", () => {
+  test("GCM_MODES is the single source of truth for the three verbs", () => {
+    expect(GCM_MODES).toEqual(["update", "default", "declare"]);
+  });
+  test("no opts → 'update' (unchanged behaviour for existing callers)", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }), w);
+    expect(res.mode).toBe("update");
+    expect(w.dataLayer[0][1]).toBe("update");
+  });
+  test("an unknown mode falls back to 'update' rather than pushing a bogus verb", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", { mode: "nonsense" }), w);
+    expect(res.mode).toBe("update");
+    expect(w.dataLayer[0][1]).toBe("update");
+  });
+  test("'default' pushes gtag('consent','default',…) on a page that has not settled", () => {
+    var w = { dataLayer: [] }; // no google_tag_data, no aGTM → the window is open
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }, "", { mode: "default" }), w);
+    expect(res.ok).toBe(true);
+    expect(res.pushed).toBe(true);
+    expect(res.late).toBe(false);
+    expect(w.dataLayer[0][1]).toBe("default");
+    expect(w.dataLayer[0][2].ad_storage).toBe("denied");
+  });
+  test("'declare' pushes the declare verb", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", { mode: "declare" }), w);
+    expect(res.pushed).toBe(true);
+    expect(w.dataLayer[0][1]).toBe("declare");
+  });
+});
+
+describe("buildGcmPushCode — timing guard (the point of card #51)", () => {
+  test("'default' after google_tag_data.ics exists → refused, NOT pushed", () => {
+    var w = { dataLayer: [], google_tag_data: { ics: { entries: {} } } };
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }, "", { mode: "default" }), w);
+    expect(res.ok).toBe(false);
+    expect(res.pushed).toBe(false);
+    expect(res.late).toBe(true);
+    expect(res.ics).toBe(true);
+    expect(w.dataLayer.length).toBe(0);          // nothing landed in the dataLayer
+    expect(res.error).toContain("zu spät");
+  });
+  test("'default' after aGTM injected GTM → refused (aGTM.d.init is the other signal)", () => {
+    var w = { dataLayer: [], aGTM: { c: { gdl: "dataLayer" }, d: { init: true } } };
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }, "", { mode: "default" }), w);
+    expect(res.ok).toBe(false);
+    expect(res.injected).toBe(true);
+    expect(res.ics).toBe(false);
+    expect(w.dataLayer.length).toBe(0);
+  });
+  test("'declare' is guarded exactly like 'default'", () => {
+    var w = { dataLayer: [], google_tag_data: { ics: {} } };
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", { mode: "declare" }), w);
+    expect(res.ok).toBe(false);
+    expect(res.late).toBe(true);
+    expect(w.dataLayer.length).toBe(0);
+  });
+  test("'update' is NEVER guarded — revising consent later is its whole purpose", () => {
+    var w = { dataLayer: [], google_tag_data: { ics: { entries: {} } }, aGTM: { d: { init: true } } };
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", { mode: "update" }), w);
+    expect(res.ok).toBe(true);
+    expect(res.pushed).toBe(true);
+    expect(res.late).toBe(true);                 // reported, but not blocking
+    expect(w.dataLayer.length).toBe(1);
+  });
+  test("force:true pushes a late default anyway, but still reports late:true", () => {
+    var w = { dataLayer: [], google_tag_data: { ics: {} } };
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }, "", { mode: "default", force: true }), w);
+    expect(res.ok).toBe(true);
+    expect(res.pushed).toBe(true);
+    expect(res.late).toBe(true);                 // the panel turns this into a warning
+    expect(w.dataLayer.length).toBe(1);
+  });
+  test("on a virgin aGTM page (consent pending, GTM not injected) a default goes through", () => {
+    // The realistic aGTM case: the library is present but waiting for the CMP, so the
+    // pre-consent window is genuinely open — this is what makes the feature useful.
+    var w = { dataLayer: [], aGTM: { c: { gdl: "dataLayer" }, d: { init: false, consent: {} } } };
+    var res = run(buildGcmPushCode({ analytics_storage: "denied" }, "", { mode: "default" }), w);
+    expect(res.ok).toBe(true);
+    expect(res.late).toBe(false);
+    expect(w.dataLayer[0][1]).toBe("default");
+  });
+});
+
+describe("buildGcmPushCode — wait_for_update / region (default-only)", () => {
+  test("wait_for_update rides along with a default push", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }, "", { mode: "default", waitForUpdate: 500 }), w);
+    expect(res.signals.wait_for_update).toBe(500);
+    expect(w.dataLayer[0][2].wait_for_update).toBe(500);
+  });
+  test("a numeric string is accepted and rounded (the field is a text input)", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({}, "", { mode: "default", waitForUpdate: "750.4" }), w);
+    expect(res.signals.wait_for_update).toBe(750);
+  });
+  test("junk / zero / negative wait_for_update is dropped, not sent as NaN", () => {
+    var w = { dataLayer: [] };
+    ["abc", "", 0, -5, null].forEach(function (v) {
+      var res = run(buildGcmPushCode({}, "", { mode: "default", waitForUpdate: v }), w);
+      expect(res.signals.wait_for_update).toBeUndefined();
+    });
+  });
+  test("regions are trimmed, upper-cased and empty tokens dropped", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({}, "", { mode: "default", regions: [" de ", "", "us-ca", null] }), w);
+    expect(res.signals.region).toEqual(["DE", "US-CA"]);
+  });
+  test("an empty region list sends no region key (global default)", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({}, "", { mode: "default", regions: ["", "  "] }), w);
+    expect(res.signals.region).toBeUndefined();
+  });
+  test("update/declare never carry wait_for_update or region — they are default-only in the gtag API", () => {
+    var w = { dataLayer: [] };
+    ["update", "declare"].forEach(function (m) {
+      var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", {
+        mode: m, waitForUpdate: 500, regions: ["DE"], force: true
+      }), w);
+      expect(res.signals.wait_for_update).toBeUndefined();
+      expect(res.signals.region).toBeUndefined();
+    });
+  });
+  test("signal whitelist still applies in default mode", () => {
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({ ad_storage: "granted", bogus: "granted" }, "", { mode: "default" }), w);
+    expect(res.signals.ad_storage).toBe("granted");
+    expect(res.signals.bogus).toBeUndefined();
+  });
+});
+
+describe("hasCls — exact class-token matching in the delegated handlers", () => {
+  test("the collision it exists for: sim-gcm-mode must NOT match sim-gcm", () => {
+    // Regression: the delegated change handler matched with indexOf, so clicking a
+    // mode radio ran the signal-checkbox branch and wrote st.gcm[null] = "granted".
+    expect(hasCls({ className: "sim-gcm-mode" }, "sim-gcm")).toBe(false);
+    expect(hasCls({ className: "sim-gcm-mode" }, "sim-gcm-mode")).toBe(true);
+    expect(hasCls({ className: "sim-gcm" }, "sim-gcm")).toBe(true);
+  });
+  test("matches one token among several", () => {
+    expect(hasCls({ className: "chip sim-gcm wide" }, "sim-gcm")).toBe(true);
+    expect(hasCls({ className: "sim-gcm" }, "gcm")).toBe(false);
+  });
+  test("missing/odd nodes never throw", () => {
+    expect(hasCls(null, "sim-gcm")).toBe(false);
+    expect(hasCls({}, "sim-gcm")).toBe(false);
+    expect(hasCls({ className: "" }, "sim-gcm")).toBe(false);
   });
 });

@@ -92,10 +92,34 @@ persisted per host):
   real config (pairs with "block an existing integration"). Does not touch *other*
   configured containers' load state (entering an id that is itself a configured container
   does mark that one loaded).
-- **Google Consent Mode push** — sends a `gtag('consent','update',{…})` straight to the
+- **Google Consent Mode push** — sends a `gtag('consent',<verb>,{…})` straight to the
   dataLayer (a **genuine `arguments` object**, exactly what `gtag()` pushes — a plain
   array would not be treated as a consent command), so GCM signals can be tested
   **independently of aGTM**. One checkbox per canonical signal (checked = `granted`).
+  All three verbs are available:
+  - `update` — revises consent; works at any time, the normal case after a CMP decision.
+  - `default` — seeds the pre-consent baseline. Adds the two fields that only exist on
+    this verb: **`wait_for_update`** (ms) and **`region`** (comma-separated; one push =
+    one region scope, push again for another).
+  - `declare` — announces an already-known state (used by CMP/vendor templates).
+
+  **Timing guard.** `default` and `declare` are only read while the Google tag has not
+  yet evaluated consent; pushed later they land in the dataLayer and change nothing. The
+  box therefore **refuses** a late `default`/`declare` and says why, instead of reporting
+  a success that did not happen — "too late" is detected via `google_tag_data.ics` or,
+  on an aGTM page, `aGTM.d.init`. On a typical aGTM page both are false until consent is
+  given, which is exactly why a `default` push is useful here. A **"trotzdem pushen"**
+  checkbox overrides the guard for deliberate experiments; the effect panel then flags
+  the push as ineffective. `update` is never guarded.
+
+  An **Ist-Zustand** line above the checkboxes shows the current effective state per
+  category *and where it came from* (`update` > `default` > `implizit` > `declare`),
+  refreshed with the poll, so a push has a visible before/after. This is also the answer
+  to "what is the implicit state?" — **implicit cannot be pushed**: it is what Google
+  assumes when no `default` ever arrived, so it is a reading, not a fourth button. To
+  reach it, clear cookies and reload (the box below) and push nothing. The precedence
+  rule lives in `consentsignals.js` and is shared with the Consent tab, so the two views
+  cannot disagree.
 - **Cookie reset + reload** — expires cookies whose name contains one of the given
   patterns (across the `/` + current-path × parent-domain grid), optionally clears
   matching `localStorage` keys, then optionally reloads — the real first-visit re-test

@@ -5,7 +5,10 @@
 // anowave.com + perspection.app (2026-07-24).
 
 import { test, expect, describe } from "bun:test";
-import { decodeGcs, decodeGcd, decodeSignals } from "../../devtools-extension/consentsignals.js";
+import {
+  decodeGcs, decodeGcd, decodeSignals,
+  gcmEffective, gcmOriginLabel, gcmStatusModel
+} from "../../devtools-extension/consentsignals.js";
 
 function stateOf(dec, name) {
   var hit = dec.signals.filter(function (s) { return s.name === name; })[0];
@@ -114,5 +117,119 @@ describe("decodeSignals — from a URL", () => {
   });
   test("malformed URL → null, never throws", () => {
     expect(decodeSignals("not a url")).toBeNull();
+  });
+});
+
+/* ==================================================================== *
+ *  Card #51 — effective ics state + origin (shared by the Consent tab   *
+ *  and the Simulation tab's GCM push box)                               *
+ * ==================================================================== */
+
+// reader.js shape: one entry per category, four booleans (or null) + region.
+function entry(o) {
+  return {
+    "declare": null, "default": null, update: null, implicit: null, region: "",
+    ...o
+  };
+}
+
+describe("gcmEffective — precedence update > default > implicit > declare", () => {
+  test("update wins over everything", () => {
+    const e = gcmEffective(entry({ update: true, "default": false, implicit: false, "declare": false }));
+    expect(e.value).toBe(true);
+    expect(e.origin).toBe("update");
+  });
+  test("default wins when no update", () => {
+    const e = gcmEffective(entry({ "default": false, implicit: true, "declare": true }));
+    expect(e.value).toBe(false);
+    expect(e.origin).toBe("default");
+  });
+  test("implicit wins over declare", () => {
+    const e = gcmEffective(entry({ implicit: true, "declare": false }));
+    expect(e.value).toBe(true);
+    expect(e.origin).toBe("implicit");
+  });
+  test("declare is the last resort (F-66)", () => {
+    const e = gcmEffective(entry({ "declare": false }));
+    expect(e.value).toBe(false);
+    expect(e.origin).toBe("declare");
+  });
+  test("false is a real value, not 'unset' — denied must not fall through", () => {
+    // The bug this guards: `if (entry.update)` would skip a denied update and report
+    // the default instead, i.e. show granted where the page actually denied.
+    const e = gcmEffective(entry({ update: false, "default": true }));
+    expect(e.value).toBe(false);
+    expect(e.origin).toBe("update");
+  });
+  test("no boolean at all → null/null", () => {
+    expect(gcmEffective(entry({})).value).toBeNull();
+    expect(gcmEffective(entry({})).origin).toBeNull();
+  });
+  test("garbage in → null, never throws", () => {
+    expect(gcmEffective(null).value).toBeNull();
+    expect(gcmEffective(undefined).origin).toBeNull();
+    expect(gcmEffective("nope").value).toBeNull();
+    expect(gcmEffective({ update: "granted" }).value).toBeNull(); // string, not boolean
+  });
+});
+
+describe("gcmOriginLabel", () => {
+  test("implicit is labelled in German like the Consent tab's flow table", () => {
+    expect(gcmOriginLabel("implicit")).toBe("implizit");
+  });
+  test("the wire names pass through", () => {
+    expect(gcmOriginLabel("update")).toBe("update");
+    expect(gcmOriginLabel("default")).toBe("default");
+    expect(gcmOriginLabel("declare")).toBe("declare");
+  });
+  test("unknown/empty origin → empty string", () => {
+    expect(gcmOriginLabel(null)).toBe("");
+    expect(gcmOriginLabel("bogus")).toBe("");
+  });
+});
+
+describe("gcmStatusModel — summary for the push box", () => {
+  const ORDER = ["ad_storage", "analytics_storage", "ad_user_data"];
+
+  test("no ics object → present:false (the window for a default push is still open)", () => {
+    const m = gcmStatusModel(null, ORDER);
+    expect(m.present).toBe(false);
+    expect(m.rows.length).toBe(0);
+  });
+  test("empty entries object → present:false, not an empty table", () => {
+    expect(gcmStatusModel({}, ORDER).present).toBe(false);
+  });
+  test("rows follow the supplied canonical order", () => {
+    const m = gcmStatusModel({
+      ad_user_data: entry({ update: true }),
+      ad_storage: entry({ "default": false })
+    }, ORDER);
+    expect(m.present).toBe(true);
+    expect(m.rows.map(r => r.cat)).toEqual(["ad_storage", "ad_user_data"]);
+  });
+  test("categories outside the canonical order are appended, not dropped", () => {
+    const m = gcmStatusModel({
+      ad_storage: entry({ update: true }),
+      some_future_storage: entry({ update: false })
+    }, ORDER);
+    expect(m.rows.map(r => r.cat)).toEqual(["ad_storage", "some_future_storage"]);
+  });
+  test("counts granted/denied/unset and collects the origins seen", () => {
+    const m = gcmStatusModel({
+      ad_storage: entry({ update: true }),
+      analytics_storage: entry({ "default": false }),
+      ad_user_data: entry({})
+    }, ORDER);
+    expect(m.counts).toEqual({ granted: 1, denied: 1, unset: 1 });
+    expect(m.origins.sort()).toEqual(["default", "update"]);
+  });
+  test("works without an order argument", () => {
+    const m = gcmStatusModel({ ad_storage: entry({ implicit: true }) });
+    expect(m.present).toBe(true);
+    expect(m.rows[0].origin).toBe("implicit");
+  });
+  test("garbage in → present:false, never throws", () => {
+    expect(gcmStatusModel("nope", ORDER).present).toBe(false);
+    expect(gcmStatusModel(undefined).present).toBe(false);
   });
 });

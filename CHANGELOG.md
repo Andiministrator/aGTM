@@ -2,6 +2,30 @@
 
 ## Version 1.5 — *in development*
 
+### Added — aGTM Inspector: Consent Mode push covers `default` and `declare`
+
+The Simulation tab's **Google Consent Mode push** box could only send
+`gtag('consent','update',…)`. It now offers all three verbs — `update`, `default` and
+`declare` — plus the two fields that exist only on `default`: `wait_for_update` (ms) and
+`region` (comma-separated).
+
+The point of the addition is the **timing guard**: `default`/`declare` are only read
+while the Google tag has not yet evaluated consent, so pushing them afterwards changes
+nothing. The box now detects that state (via `google_tag_data.ics`, or `aGTM.d.init` on
+an aGTM page) and **refuses the push with a reason** instead of reporting a success that
+did not happen. On a typical aGTM page the window is genuinely open until consent is
+given — which is what makes a `default` push useful in the first place. A "trotzdem
+pushen" checkbox overrides the guard for deliberate experiments and the effect panel
+then marks the push as ineffective; `update` is never guarded.
+
+An **Ist-Zustand** line above the checkboxes now shows the effective per-category state
+*and its origin* (`update` > `default` > `implizit` > `declare`), refreshed with the
+poll, so a push has a visible before/after. This also covers the **implicit** state,
+which cannot be pushed at all: it is what Google assumes when no `default` ever arrived,
+so the Inspector reports it rather than pretending there is a button for it. The
+precedence rule moved into `consentsignals.js` and is now shared with the Consent tab's
+flow table, so the two views can no longer drift apart.
+
 ### Added — aGTM Inspector: Simulation tab (opt-in write channel)
 
 A new **Simulation tab** turns the otherwise read-only Inspector into a flow driver

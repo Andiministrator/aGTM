@@ -223,27 +223,78 @@
     "security_storage"];
   SIM.GCM_SIGNALS = GCM_SIGNALS;
 
-  // (1) Push a Google Consent Mode update straight to the (GTM) dataLayer, exactly
-  // like gtag('consent','update',{…}) does — so GCM signals can be tested even when
+  // The three gtag consent verbs we can push. 'update' revises consent at any time;
+  // 'default' seeds the pre-consent baseline and 'declare' announces an already-known
+  // state — both of those are only read while the Google tag has not yet processed its
+  // consent state, hence the timing guard below (card #51).
+  var GCM_MODES = ["update", "default", "declare"];
+  SIM.GCM_MODES = GCM_MODES;
+
+  // (1) Push a Google Consent Mode command straight to the (GTM) dataLayer, exactly
+  // like gtag('consent',<mode>,{…}) does — so GCM signals can be tested even when
   // aGTM is not on the page. The push carries a GENUINE `arguments` object (built via
   // an IIFE), which is what Google's tag reads; a plain array would NOT be treated as
   // a gtag command. `signals` maps a GCM key → 'granted'|'denied' (others dropped).
   // `gdlHint` (optional) overrides the dataLayer name; otherwise aGTM.c.gdl, else
   // 'dataLayer'. Independent of aGTM → its own wrapper (not wrap()).
-  function buildGcmPushCode(signals, gdlHint) {
+  //
+  // `opts` (card #51):
+  //   mode          'update' (default) | 'default' | 'declare'
+  //   waitForUpdate number → wait_for_update (ms); 'default' only, per Google's API
+  //   regions       array of region codes → region: [...]; 'default' only
+  //   force         push a late default/declare anyway (the guard reports, not blocks)
+  //
+  // TIMING GUARD — the point of the whole feature. 'default'/'declare' are only read
+  // BEFORE the Google tag evaluates consent; afterwards the push lands in the dataLayer
+  // and changes nothing, which would make a success message a lie (the F-84/F-90 class
+  // of bug: a button that reports success while silently no-op'ing). We detect "too
+  // late" via google_tag_data.ics (published once the tag processed consent) or, on an
+  // aGTM page, aGTM.d.init === true (GTM injected). On a typical aGTM page BOTH are
+  // false until consent is given — which is exactly why a default push is useful here.
+  // 'update' is never guarded: revising consent later is precisely its purpose.
+  function buildGcmPushCode(signals, gdlHint, opts) {
     signals = signals || {};
+    opts = opts || {};
+    var mode = opts.mode;
+    if (GCM_MODES.indexOf(mode) < 0) mode = "update";
     var sig = {};
     for (var i = 0; i < GCM_SIGNALS.length; i++) {
       var k = GCM_SIGNALS[i], v = signals[k];
       if (v === "granted" || v === "denied") sig[k] = v;
     }
+    // wait_for_update / region are 'default'-only in Google's API — silently sending
+    // them with update/declare would suggest an effect that does not exist.
+    var extra = {};
+    if (mode === "default") {
+      var wfu = Number(opts.waitForUpdate);
+      if (isFinite(wfu) && wfu > 0) extra.wait_for_update = Math.round(wfu);
+      var regs = [], src = opts.regions || [];
+      for (var r = 0; r < src.length; r++) {
+        var t = (src[r] === null || typeof src[r] === "undefined") ? "" : String(src[r]);
+        t = t.replace(/^\s+|\s+$/g, "");
+        if (t) regs.push(t.toUpperCase());
+      }
+      if (regs.length) extra.region = regs;
+    }
+    var guarded = (mode !== "update") && !opts.force;
     return "(function(){try{" +
       "var w=window;" +
       "var dl=" + J(gdlHint || "") + "||(w.aGTM&&w.aGTM.c&&w.aGTM.c.gdl)||'dataLayer';" +
       "w[dl]=w[dl]||[];" +
+      "var mode=" + J(mode) + ";" +
+      "var ics=!!(w.google_tag_data&&w.google_tag_data.ics);" +
+      "var injected=!!(w.aGTM&&w.aGTM.d&&w.aGTM.d.init);" +
+      "var late=ics||injected;" +
+      (guarded
+        ? "if(late)return{ok:false,pushed:false,mode:mode,late:true,ics:ics,injected:injected," +
+          "error:\"'\"+mode+\"' kommt zu spät: \"+(ics?'Das Google-Tag hat den Consent-Zustand bereits verarbeitet (google_tag_data.ics)':'aGTM hat GTM bereits injiziert (aGTM.d.init)')+\". Jetzt wirkt nur noch 'update'. Für einen echten Test: Cookies zurücksetzen + neu laden — oder 'trotzdem pushen' ankreuzen.\"};"
+        : "") +
       "var sig=" + J(sig) + ";" +
-      "(function(){w[dl].push(arguments);})('consent','update',sig);" +
-      "return{ok:true,pushed:true,dataLayer:dl,signals:sig,dataLayerLen:(w[dl].length)||0};" +
+      "var cmd=" + J(extra) + ";" +
+      "for(var q in cmd){if(Object.prototype.hasOwnProperty.call(cmd,q))sig[q]=cmd[q];}" +
+      "(function(){w[dl].push(arguments);})('consent',mode,sig);" +
+      "return{ok:true,pushed:true,mode:mode,late:late,ics:ics,injected:injected," +
+      "signals:sig,dataLayer:dl,dataLayerLen:(w[dl].length)||0};" +
       "}catch(e){return{ok:false,error:String(e)};}})()";
   }
   SIM.buildGcmPushCode = buildGcmPushCode;
@@ -395,7 +446,7 @@ function simDefaultGcm() {
 var SIM_COOKIE_DEFAULT = "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm";
 
 function simState() {
-  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, scenarioText: "", containerIds: "" };
+  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), gcmMode: "update", gcmWait: "", gcmRegions: "", cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, scenarioText: "", containerIds: "" };
   return state.sim;
 }
 
@@ -404,7 +455,9 @@ function simLoad(host) {
   var st = simState();
   st.host = host;
   st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {}; st.injectCode = ""; st.blockIntent = false;
-  st.gcm = simDefaultGcm(); st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.scenarioText = ""; st.containerIds = "";
+  st.gcm = simDefaultGcm(); st.gcmMode = "update"; st.gcmWait = ""; st.gcmRegions = "";
+  st.gcmForce = false; // never persisted — see the force checkbox handler
+  st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.scenarioText = ""; st.containerIds = "";
   try {
     if (typeof localStorage === "undefined") return;
     var all = JSON.parse(localStorage.getItem(SIM_LS) || "{}");
@@ -418,6 +471,9 @@ function simLoad(host) {
       if (typeof e.injectCode === "string") st.injectCode = e.injectCode;
       if (typeof e.blockIntent === "boolean") st.blockIntent = e.blockIntent;
       if (e.gcm && typeof e.gcm === "object") st.gcm = e.gcm;
+      if (typeof e.gcmMode === "string" && simGcmModes().indexOf(e.gcmMode) >= 0) st.gcmMode = e.gcmMode;
+      if (typeof e.gcmWait === "string") st.gcmWait = e.gcmWait;
+      if (typeof e.gcmRegions === "string") st.gcmRegions = e.gcmRegions;
       if (typeof e.cookiePats === "string") st.cookiePats = e.cookiePats;
       if (typeof e.cookieReload === "boolean") st.cookieReload = e.cookieReload;
       if (typeof e.cookieLS === "boolean") st.cookieLS = e.cookieLS;
@@ -441,6 +497,9 @@ function simSave() {
       injectCode: st.injectCode || "",
       blockIntent: !!st.blockIntent,
       gcm: st.gcm || simDefaultGcm(),
+      gcmMode: st.gcmMode || "update",
+      gcmWait: typeof st.gcmWait === "string" ? st.gcmWait : "",
+      gcmRegions: typeof st.gcmRegions === "string" ? st.gcmRegions : "",
       cookiePats: typeof st.cookiePats === "string" ? st.cookiePats : SIM_COOKIE_DEFAULT,
       cookieReload: !!st.cookieReload,
       cookieLS: !!st.cookieLS,
@@ -618,11 +677,17 @@ function buildSimScaffold() {
   var csUrl = (snap.config && snap.config.consent_store_url) || "";
   var blockDis = (!SIM_WRITE || !loaded) ? " disabled" : "";
 
+  var gcmMode = simGcmMode(st);
   var boxGcm = '<div class="card"><h2>Google Consent Mode pushen</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Schiebt ein <code>gtag(\'consent\',\'update\',{…})</code> direkt in den dataLayer (echtes <code>arguments</code>-Objekt) — testet GCM-Signale <b>unabhängig von aGTM</b>. Häkchen = <code>granted</code>, sonst <code>denied</code>.</div>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Schiebt ein <code>gtag(\'consent\',&lt;Modus&gt;,{…})</code> direkt in den dataLayer (echtes <code>arguments</code>-Objekt) — testet GCM-Signale <b>unabhängig von aGTM</b>. Häkchen = <code>granted</code>, sonst <code>denied</code>.</div>' +
+    simGcmStatusLine(snap) +
+    simGcmModeRow(gcmMode) +
     simGcmRows(st.gcm) +
-    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
-    simBtn("sim-gcm-push", "consent update pushen", "acc") + "</div></div>";
+    simGcmDefaultFields(st, gcmMode) +
+    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+    simBtn("sim-gcm-push", "consent " + gcmMode + " pushen", "acc") +
+    (gcmMode === "update" ? "" : simFlag("sim-gcm-force", "trotzdem pushen (Timing-Guard aus)", !!st.gcmForce)) +
+    "</div></div>";
 
   var boxCookie = '<div class="card"><h2>Cookies zurücksetzen + neu laden</h2>' +
     '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“.</div>' +
@@ -743,6 +808,83 @@ function simHead(title) {
 }
 function simFlag(id, label, on) {
   return '<label><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + "> " + esc(label) + "</label>";
+}
+
+/* ---------- GCM push box (card #51) ---------- */
+
+// The builder owns the mode list; the panel never hard-codes it.
+function simGcmModes() {
+  return (window.aGTMInspectorSim && window.aGTMInspectorSim.GCM_MODES) || ["update", "default", "declare"];
+}
+function simGcmMode(st) {
+  var m = st && st.gcmMode;
+  return simGcmModes().indexOf(m) >= 0 ? m : "update";
+}
+// What each verb actually does — the timing rule is the part people get wrong, so it
+// is spelled out per mode instead of hidden in a tooltip.
+var SIM_GCM_MODE_HINT = {
+  update: "Revidiert den Consent-Zustand — wirkt jederzeit, auch nach dem GTM-Load. Der Normalfall nach einer CMP-Entscheidung.",
+  "default": "Setzt den Ausgangszustand VOR dem Consent. Wirkt nur, solange das Google-Tag den Zustand noch nicht verarbeitet hat — auf einer aGTM-Seite also, solange GTM noch nicht injiziert ist.",
+  "declare": "Meldet einen bereits bekannten Zustand (von CMP-/Vendor-Templates genutzt). Gleiche Timing-Regel wie default."
+};
+function simGcmModeRow(mode) {
+  var modes = simGcmModes(), h = '<div class="toolbar" style="margin:8px 0 6px;gap:12px">';
+  for (var i = 0; i < modes.length; i++) {
+    var m = modes[i];
+    h += '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px">' +
+      '<input type="radio" name="sim-gcm-mode" class="sim-gcm-mode" value="' + esc(m) + '"' +
+      (m === mode ? " checked" : "") + "> <code>" + esc(m) + "</code></label>";
+  }
+  h += "</div>";
+  return h + '<div class="muted" style="font-size:11px;margin-bottom:8px">' +
+    esc(SIM_GCM_MODE_HINT[mode] || "") + "</div>";
+}
+// wait_for_update / region are 'default'-only in Google's API, so the fields only
+// exist in that mode — no dead inputs that quietly do nothing.
+function simGcmDefaultFields(st, mode) {
+  if (mode !== "default") return "";
+  var inp = "font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:5px";
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:10px">' +
+    '<label style="font-size:11px">wait_for_update (ms)' +
+    '<input type="text" id="sim-gcm-wait" inputmode="numeric" spellcheck="false" placeholder="z. B. 500" value="' +
+    esc(typeof st.gcmWait === "string" ? st.gcmWait : "") + '" style="' + inp + ';width:100%;margin-top:3px"></label>' +
+    '<label style="font-size:11px">region (kommagetrennt, leer = global)' +
+    '<input type="text" id="sim-gcm-regions" spellcheck="false" placeholder="z. B. DE,AT,US-CA" value="' +
+    esc(typeof st.gcmRegions === "string" ? st.gcmRegions : "") + '" style="' + inp + ';width:100%;margin-top:3px"></label>' +
+    '</div><div class="muted" style="font-size:11px;margin-top:4px">Ein Push = ein Region-Scope. Für mehrere unterschiedliche Defaults nacheinander pushen (Google wertet den spezifischsten Treffer aus).</div>';
+}
+// Current effective GCM state + where it came from, so the push has a visible
+// before/after. This ALSO answers "was ist der implizite Status?" — implicit is not a
+// command one can push, it is what Google assumes when no default ever arrived, so it
+// belongs here as a reading, not as a fourth button.
+// The scaffold is built once, so the line gets its own node that updateSimLive()
+// refreshes on every 700 ms poll — otherwise the "before/after" would freeze at the
+// state the box happened to be built with.
+function simGcmStatusLine(snap) {
+  return '<div id="sim-gcm-status" style="margin-bottom:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px">' +
+    simGcmStatusInner(snap) + "</div>";
+}
+function simGcmStatusInner(snap) {
+  var S = window.aGTMInspectorSignals;
+  var model = S && S.gcmStatusModel
+    ? S.gcmStatusModel(snap && snap.gcm, (window.aGTMInspectorSim && window.aGTMInspectorSim.GCM_SIGNALS) || [])
+    : { present: false, rows: [] };
+  if (!model.present) {
+    return "<b>Ist-Zustand:</b> kein <code>google_tag_data.ics</code> — das Google-Tag hat noch keinen Consent-Zustand verarbeitet. " +
+      "Ohne <code>default</code> gilt Googles <b>impliziter</b> Zustand (granted). Das Zeitfenster für <code>default</code>/<code>declare</code> ist <b>offen</b>.";
+  }
+  var h = '<b>Ist-Zustand</b> <span class="muted">(effektiv, Herkunft in Klammern)</span>' +
+    '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 10px">';
+  for (var i = 0; i < model.rows.length; i++) {
+    var r = model.rows[i];
+    var col = r.value === true ? "var(--ok)" : (r.value === false ? "var(--err)" : "");
+    var val = r.value === true ? "granted" : (r.value === false ? "denied" : "—");
+    var org = (S && S.gcmOriginLabel) ? S.gcmOriginLabel(r.origin) : (r.origin || "");
+    h += '<span class="mono" style="font-size:11px">' + esc(catShort(r.cat)) +
+      ' <span style="color:' + col + '">' + esc(val) + "</span>" +
+      (org ? ' <span class="muted">(' + esc(org) + ")</span>" : "") + "</span>";
+  }
+  return h + "</div>";
 }
 
 // One checkbox per Google Consent Mode signal (checked = granted). Data-driven from
@@ -874,7 +1016,12 @@ function updateSimLive() {
     } else if (SIM_LAST.signals) {
       var parts = [];
       for (var sk in SIM_LAST.signals) if (Object.prototype.hasOwnProperty.call(SIM_LAST.signals, sk)) parts.push(sk + "=" + SIM_LAST.signals[sk]);
-      det = "→ " + (SIM_LAST.dataLayer || "dataLayer") + ": " + (parts.join(", ") || "—");
+      det = "consent " + (SIM_LAST.mode || "update") + " → " + (SIM_LAST.dataLayer || "dataLayer") + ": " + (parts.join(", ") || "—");
+      // A default/declare that went out AFTER the tag settled was forced past the guard —
+      // it is in the dataLayer but changes nothing. Say so rather than leave a green OK.
+      if (SIM_LAST.late && SIM_LAST.mode && SIM_LAST.mode !== "update") {
+        det += " · ⚠ zu spät gepusht (Guard übergangen) — wirkungslos für den bereits verarbeiteten Zustand.";
+      }
     } else if (typeof SIM_LAST.clearedCount === "number") {
       det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "") + (SIM_LAST.reloading ? " · lädt neu…" : "");
     } else if (SIM_LAST.loadedContainers && SIM_LAST.loadedContainers.length) {
@@ -884,6 +1031,14 @@ function updateSimLive() {
     }
     if (det) h += '<div class="muted" style="margin-top:3px;font-size:11px">' + esc(det) + "</div>";
     h += "</div>";
+  }
+  // The GCM box lives outside #sim-live but its "Ist-Zustand" line must track the poll,
+  // so refresh it here — BEFORE the unchanged-HTML early return below, which only
+  // concerns #sim-live's own markup.
+  var gcmStat = el("sim-gcm-status");
+  if (gcmStat) {
+    var gh = simGcmStatusInner(snap);
+    if (gcmStat.__lastHTML !== gh) { gcmStat.__lastHTML = gh; gcmStat.innerHTML = gh; }
   }
   if (node.__lastHTML === h) return;
   node.__lastHTML = h;
@@ -896,6 +1051,15 @@ function updateSimLive() {
 // (write-toggle, preset load, event fire) would stack another handler and fire N×.
 // Direct listeners on rebuilt inner nodes (buttons, toggle, flags) are (re)attached
 // per build in attachSimListeners.
+// Exact class-token test. The delegated handlers used to match with indexOf, which is
+// fine while class names are disjoint — but "sim-gcm-mode" CONTAINS "sim-gcm", so the
+// mode radios would have been processed as signal checkboxes (writing a null key into
+// the persisted gcm map). Match whole tokens instead (card #51).
+function hasCls(node, cls) {
+  if (!node || !node.className) return false;
+  return (" " + String(node.className) + " ").indexOf(" " + cls + " ") >= 0;
+}
+
 function attachSimDelegatedOnce() {
   var root = el("tab-sim");
   if (!root || root.__simDelegated) return;
@@ -904,6 +1068,17 @@ function attachSimDelegatedOnce() {
   // consent token checkboxes + per-group useId toggle
   root.addEventListener("change", function (e) {
     var t = e.target;
+    // The GCM mode radios (id-less, class "sim-gcm-mode") come BEFORE the signal
+    // checkboxes because a substring test would match both — see hasCls.
+    if (t && t.id === "sim-gcm-force") { simState().gcmForce = !!t.checked; return; }
+    if (hasCls(t, "sim-gcm-mode")) {
+      if (!t.checked) return;
+      var stm = simState();
+      stm.gcmMode = t.value;
+      stm.gcmForce = false;   // an override never carries over to another verb
+      simSave(); buildSimScaffold();
+      return;
+    }
     if (!t || !t.className) return;
     var cn = String(t.className);
     if (cn.indexOf("sim-tok") >= 0) {
@@ -916,10 +1091,12 @@ function attachSimDelegatedOnce() {
       m2.useId[t.getAttribute("data-grp")] = t.checked;
       simSave();
       buildSimScaffold(); // re-render so the ID field emphasis + name dimming update
-    } else if (cn.indexOf("sim-gcm") >= 0) {
+    } else if (hasCls(t, "sim-gcm")) {
       var st = simState();
+      var sig = t.getAttribute("data-sig");
+      if (!sig) return;   // no signal to toggle → never write a null key into st.gcm
       if (!st.gcm || typeof st.gcm !== "object") st.gcm = simDefaultGcm();
-      st.gcm[t.getAttribute("data-sig")] = t.checked ? "granted" : "denied";
+      st.gcm[sig] = t.checked ? "granted" : "denied";
       simSave();
     }
   });
@@ -936,6 +1113,10 @@ function attachSimDelegatedOnce() {
       simState().injectCode = t.value; simSave();
     } else if (t && t.id === "sim-cookie-pats") {
       simState().cookiePats = t.value; simSave();
+    } else if (t && t.id === "sim-gcm-wait") {
+      simState().gcmWait = t.value; simSave();
+    } else if (t && t.id === "sim-gcm-regions") {
+      simState().gcmRegions = t.value; simSave();
     } else if (t && t.id === "sim-scn") {
       simState().scenarioText = t.value; simSave();
     } else if (t && t.id === "sim-container-ids") {
@@ -1031,10 +1212,21 @@ function attachSimListeners() {
     simRun(window.aGTMInspectorSim.buildInjectIntegrationCode(code), "Integration injiziert");
   });
 
-  // GCM push
+  // GCM push. The mode radios, the two default-only text fields and the force
+  // checkbox are all handled by the delegated listeners (attachSimDelegatedOnce) —
+  // switching the mode rebuilds the scaffold, and `force` is deliberately NOT
+  // persisted: overriding the timing guard is a one-off decision, not a setting that
+  // should silently survive the next panel open.
   bindClick("sim-gcm-push", function () {
     var st = simState();
-    simRun(window.aGTMInspectorSim.buildGcmPushCode(st.gcm, (state.snap && state.snap.gdl) || ""), "GCM consent update gepusht");
+    var mode = simGcmMode(st);
+    var code = window.aGTMInspectorSim.buildGcmPushCode(st.gcm, (state.snap && state.snap.gdl) || "", {
+      mode: mode,
+      waitForUpdate: st.gcmWait,
+      regions: window.aGTMInspectorSim.splitTokens(st.gcmRegions || ""),
+      force: !!st.gcmForce
+    });
+    simRun(code, "GCM consent " + mode + " gepusht");
   });
 
   // Cookie reset flag checkboxes + button
@@ -1107,3 +1299,7 @@ function bindClick(id, fn) {
 // same namespace/exports as the code builders so it can be unit-tested.
 if (typeof window !== "undefined" && window.aGTMInspectorSim) window.aGTMInspectorSim.simSelection = simSelection;
 if (typeof module !== "undefined" && module.exports) module.exports.simSelection = simSelection;
+// hasCls guards the delegated handlers against prefix collisions between class names
+// (card #51) — pure and worth a regression test of its own.
+if (typeof window !== "undefined" && window.aGTMInspectorSim) window.aGTMInspectorSim.hasCls = hasCls;
+if (typeof module !== "undefined" && module.exports) module.exports.hasCls = hasCls;
