@@ -85,7 +85,9 @@ beforeAll(() => {
     "  loadSettings: loadSettings," +
     "  trackIds: trackIds," +
     "  clearIds: function(){ state.idTrack = {}; state.idHistory = []; state.idHost = null; }," +
-    "  withScrollAnchor: withScrollAnchor" +
+    "  withScrollAnchor: withScrollAnchor," +
+    "  simState: simState," +
+    "  buildSimScaffold: buildSimScaffold" +
     "};";
   (0, eval)(src);
 });
@@ -937,5 +939,68 @@ describe("Diagnose tab", () => {
     expect(html).toContain("+1200 ms"); // 2200 − 1000, i.e. start-based not finish-based (+2000)
     expect(html).not.toContain("+2000 ms");
     P.setNet([]);
+  });
+});
+
+describe("Simulation tab — GCM push modes (card #51)", () => {
+  // The mode drives which controls exist, so each case rebuilds the scaffold.
+  function renderSimWithMode(mode) {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.setTab("sim");
+    P.render();
+    P.simState().gcmMode = mode;
+    P.buildSimScaffold();
+    return globalThis.document.getElementById("tab-sim")._html;
+  }
+  afterAll(() => { globalThis.__panel.simState().gcmMode = "update"; });
+
+  test("all three verbs are offered as radios", () => {
+    const html = renderSimWithMode("update");
+    expect(html).toContain('class="sim-gcm-mode"');
+    expect(html).toContain('value="update"');
+    expect(html).toContain('value="default"');
+    expect(html).toContain('value="declare"');
+  });
+  test("the button label follows the selected mode", () => {
+    expect(renderSimWithMode("update")).toContain("consent update pushen");
+    expect(renderSimWithMode("default")).toContain("consent default pushen");
+    expect(renderSimWithMode("declare")).toContain("consent declare pushen");
+  });
+  test("wait_for_update/region exist ONLY in default mode (they are default-only in the gtag API)", () => {
+    const dflt = renderSimWithMode("default");
+    expect(dflt).toContain('id="sim-gcm-wait"');
+    expect(dflt).toContain('id="sim-gcm-regions"');
+    const upd = renderSimWithMode("update");
+    expect(upd).not.toContain('id="sim-gcm-wait"');
+    expect(upd).not.toContain('id="sim-gcm-regions"');
+    const dec = renderSimWithMode("declare");
+    expect(dec).not.toContain('id="sim-gcm-wait"');
+  });
+  test("the force override is offered for default/declare but not for update", () => {
+    expect(renderSimWithMode("default")).toContain("sim-gcm-force");
+    expect(renderSimWithMode("declare")).toContain("sim-gcm-force");
+    expect(renderSimWithMode("update")).not.toContain("sim-gcm-force");
+  });
+  test("the Ist-Zustand line reports effective state AND origin from the ics snapshot", () => {
+    const html = renderSimWithMode("update");
+    expect(html).toContain('id="sim-gcm-status"');
+    expect(html).toContain("Ist-Zustand");
+    expect(html).toContain("granted");
+    expect(html).toContain("(update)"); // sampleSnap's ad_storage/analytics_storage came from an update
+  });
+  test("without an ics object the line says the default window is still open", () => {
+    const P = globalThis.__panel;
+    const snap = sampleSnap();
+    snap.gcm = null;
+    P.setSnap(snap);
+    P.setTab("sim");
+    P.render();
+    P.buildSimScaffold();
+    const html = globalThis.document.getElementById("tab-sim")._html;
+    expect(html).toContain("google_tag_data.ics");
+    expect(html).toContain("implizit");
+    expect(html).toContain("offen");
+    P.setSnap(sampleSnap());
   });
 });

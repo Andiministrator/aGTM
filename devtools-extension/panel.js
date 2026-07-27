@@ -297,13 +297,12 @@ function renderConsent() {
 // Google Consent Mode — google_tag_data.ics.entries (update > default > implicit).
 var GCM_ORDER = ["ad_storage", "analytics_storage", "ad_user_data", "ad_personalization",
   "functionality_storage", "personalization_storage", "security_storage"];
+// Precedence update > default > implicit > declare (F-66 keeps `declare` as the last
+// fallback). The rule itself lives in consentsignals.js so the Consent tab and the
+// Simulation tab's push box can never disagree about the effective state (card #51).
 function gcmCurrent(en) {
-  if (en.update !== null && typeof en.update !== "undefined") return en.update;
-  if (en["default"] !== null && typeof en["default"] !== "undefined") return en["default"];
-  if (en.implicit !== null && typeof en.implicit !== "undefined") return en.implicit;
-  // F-66: fall back to `declare` (the earliest/weakest ics signal) so a category that only
-  // ever declared a value still shows a state instead of "—".
-  return (en["declare"] !== null && typeof en["declare"] !== "undefined") ? en["declare"] : null;
+  var S = window.aGTMInspectorSignals;
+  return S && S.gcmEffective ? S.gcmEffective(en).value : null;
 }
 function gcmChip(v) {
   if (v === true) return '<span class="chip ok">granted</span>';

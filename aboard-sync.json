@@ -1292,10 +1292,16 @@
                 "author": "Claude Opus",
                 "created": "2026-07-27",
                 "text": "Angelegt aus Andis Frage (2026-07-27) direkt nach der Freigabe der vier Inspector-Karten. Noch NICHT gebaut — offen ist nur die Release-Weiche: jetzt in v1.5 (Extension geht ohnehin mit dem v1.5-Tag raus, Feature klein und off-build-path) oder erst v1.6 nach dem Release. Karte liegt vorerst in der v1.5-Lane im Backlog."
+              },
+              {
+                "id": "90dc50ca-fdf0-4a30-9078-eb90c6ff9a2b",
+                "author": "Claude Opus",
+                "created": "2026-07-27",
+                "text": "START (2026-07-27): Andi hat entschieden — #51 wird JETZT gebaut und geht mit v1.5 raus; v1.5 bleibt bis auf Weiteres offen (kein Tag). Umsetzung nach dem Design in der Kartenbeschreibung: Modus-Switch update|default|declare, default-only-Felder wait_for_update/region, ehrlicher Timing-Guard (kein stiller No-op, Muster F-84/F-90), Ist-Zustand-Zeile mit Herkunft implicit/default/update in der Push-Box."
               }
             ],
             "displayId": 51,
-            "columnId": "col-backlog"
+            "columnId": "col-schreiben"
           }
         ]
       },

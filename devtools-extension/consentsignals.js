@@ -82,7 +82,73 @@
     return out;
   }
 
-  var api = { decodeGcs: decodeGcs, decodeGcd: decodeGcd, decodeSignals: decodeSignals };
+  // ── ics entries — effective state and where it came from ────────────────────
+  // GTM keeps the live Consent Mode state in google_tag_data.ics.entries, one entry
+  // per category with declare/default/update/implicit booleans (reader.js mirrors
+  // exactly those four plus `region`). Google resolves them in a fixed precedence:
+  // update beats default beats implicit; `declare` is the earliest/weakest signal and
+  // only shows when nothing else was ever set (F-66).
+  //
+  // This lives HERE — not in panel.js or sim.js — because both the read-only Consent
+  // tab and the Simulation tab's push box need the SAME answer. Duplicating the
+  // precedence is how the two views drift apart (card #51).
+  var ICS_PRECEDENCE = ["update", "default", "implicit", "declare"];
+  // Human labels for the origin, matching the wording of the Consent tab's flow table.
+  var ICS_ORIGIN_LABEL = {
+    update: "update", "default": "default",
+    implicit: "implizit", "declare": "declare"
+  };
+
+  // → { value: true|false|null, origin: 'update'|'default'|'implicit'|'declare'|null }
+  // `value` is null (origin null) when the entry carries no boolean at all.
+  function gcmEffective(entry) {
+    if (!entry || typeof entry !== "object") return { value: null, origin: null };
+    for (var i = 0; i < ICS_PRECEDENCE.length; i++) {
+      var k = ICS_PRECEDENCE[i], v = entry[k];
+      if (typeof v === "boolean") return { value: v, origin: k };
+    }
+    return { value: null, origin: null };
+  }
+  function gcmOriginLabel(origin) {
+    return (origin && ICS_ORIGIN_LABEL[origin]) || "";
+  }
+
+  // Summarise the whole ics map for a compact status line.
+  // `entries` is reader.js's snap.gcm (category → {declare,default,update,implicit}).
+  // Returns { present, rows:[{cat,value,origin}], counts:{granted,denied,unset},
+  //           origins:[…] } — `present` is false when GTM has not published an ics
+  //           object at all, which is exactly the window in which a 'default' push
+  //           still takes effect.
+  function gcmStatusModel(entries, order) {
+    var out = { present: false, rows: [], counts: { granted: 0, denied: 0, unset: 0 }, origins: [] };
+    if (!entries || typeof entries !== "object") return out;
+    var seen = {}, cats = [], i, c;
+    // Caller-supplied order first (canonical GCM order), then any extra category the
+    // page published, so a non-standard signal is shown instead of silently dropped.
+    for (i = 0; order && i < order.length; i++) {
+      c = order[i];
+      if (Object.prototype.hasOwnProperty.call(entries, c) && !seen[c]) { seen[c] = 1; cats.push(c); }
+    }
+    for (c in entries) {
+      if (Object.prototype.hasOwnProperty.call(entries, c) && !seen[c]) { seen[c] = 1; cats.push(c); }
+    }
+    if (!cats.length) return out;
+    out.present = true;
+    for (i = 0; i < cats.length; i++) {
+      var eff = gcmEffective(entries[cats[i]]);
+      out.rows.push({ cat: cats[i], value: eff.value, origin: eff.origin });
+      if (eff.value === true) out.counts.granted++;
+      else if (eff.value === false) out.counts.denied++;
+      else out.counts.unset++;
+      if (eff.origin && out.origins.indexOf(eff.origin) < 0) out.origins.push(eff.origin);
+    }
+    return out;
+  }
+
+  var api = {
+    decodeGcs: decodeGcs, decodeGcd: decodeGcd, decodeSignals: decodeSignals,
+    gcmEffective: gcmEffective, gcmOriginLabel: gcmOriginLabel, gcmStatusModel: gcmStatusModel
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.aGTMInspectorSignals = api;
 })(typeof window !== "undefined" ? window : this);
