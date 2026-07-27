@@ -451,13 +451,15 @@ function simDefaultGcm() {
 // substring test, so PREFIXES are the efficient form: "__cmp" covers Consentmanager's
 // whole family (__cmpconsent<id>, __cmpccu<id>, __cmpcvcx…), which the earlier entry
 // "cmpsettings" did NOT match — Consentmanager sites were silently unaffected by a
-// reset (found on victors.de, 2026-07-27).
-var SIM_COOKIE_DEFAULT = "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm";
+// reset (found on victors.de, 2026-07-27). `_tpf` is aGTM's own user-id cookie;
+// the "aGTM"/"agtm" fragments do NOT match it.
+var SIM_COOKIE_DEFAULT = "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,_tpf,aGTM,agtm";
 // Earlier default lists. A user who never edited the field still carries the old string
 // in localStorage, so an exact match is lifted to the current default instead of
 // leaving them with a list that misses their CMP.
 var SIM_COOKIE_DEFAULTS_PAST = [
-  "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm"
+  "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm",
+  "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm"
 ];
 
 function simState() {
@@ -815,7 +817,11 @@ function buildSimScaffold() {
 function simBtn(id, label, cls, forceDisabled) {
   var extra = cls ? (" " + cls) : "";
   var dis = (!SIM_WRITE || forceDisabled) ? " disabled" : "";
-  return '<button class="small sim-act' + extra + '" id="' + id + '"' + dis + '>' + esc(label) + "</button>";
+  // A disabled button swallows the click silently — say WHY on hover, otherwise "I
+  // clicked and nothing happened" is the only feedback (write-mode resets to off on
+  // every panel open, so this is the normal state after reloading the extension).
+  var why = (!SIM_WRITE && !forceDisabled) ? ' title="Write-Modus ist aus — oben einschalten, um die Seite zu treiben."' : "";
+  return '<button class="small sim-act' + extra + '" id="' + id + '"' + dis + why + ">" + esc(label) + "</button>";
 }
 // Section divider: an uppercase muted label with a trailing hairline, so the flat box
 // stack reads as labelled groups (Consent · Events · GTM & Integration · Umgebung).
