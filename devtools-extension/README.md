@@ -89,8 +89,9 @@ persisted per host):
 - **Load a different GTM container** (GTM & Integration) — injects one or more container
   IDs directly via `aGTM.f.gtm_load`, **independent of consent and of the integration
   config**, so a live page can be pointed at a staging/demo container without editing the
-  real config (pairs with "block an existing integration"). Does not touch the configured
-  containers' load state.
+  real config (pairs with "block an existing integration"). Does not touch *other*
+  configured containers' load state (entering an id that is itself a configured container
+  does mark that one loaded).
 - **Google Consent Mode push** — sends a `gtag('consent','update',{…})` straight to the
   dataLayer (a **genuine `arguments` object**, exactly what `gtag()` pushes — a plain
   array would not be treated as a consent command), so GCM signals can be tested

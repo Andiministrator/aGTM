@@ -83,7 +83,7 @@ Clarity pass after the tab grew to a dozen stacked boxes:
 - **New: load a different GTM container** (`buildLoadContainerCode`). Injects one or more
   container IDs directly via `aGTM.f.gtm_load`, independent of consent and of the
   integration config — point a live page at a staging/demo container without editing the
-  real config (pairs with "block existing integration"). Does not touch the configured
+  real config (pairs with "block existing integration"). Does not touch *other* configured
   containers' load state.
 
 ### Changed — aGTM Inspector: GTM tab folded into Diagnose

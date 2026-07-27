@@ -160,6 +160,9 @@
   // absent (very old library). Reports what it did so the effect panel is honest.
   function buildInjectCode() {
     return wrap(
+      // Both initGTM and inject need a loaded config; report honestly if aGTM isn't init'd
+      // yet (otherwise we'd mark init=true over a silent no-op).
+      "if(!A.d.config)return{ok:false,error:'aGTM nicht initialisiert (aGTM.d.config fehlt) - erst aGTM.f.init() ausfuehren.'};" +
       "if(typeof A.f.initGTM==='function'){A.f.initGTM(false);A.d.init=true;}" +
       "else if(typeof A.f.inject==='function'){var _r=A.f.inject();if(_r===false)return{ok:false,error:'inject() vom Consent-Gate abgelehnt (hasResponse/gtmConsent) - und initGTM fehlt.'};}" +
       "else return{ok:false,error:'aGTM.f.initGTM/inject fehlen.'};"
@@ -333,9 +336,12 @@
     ids = ids || [];
     return wrap(
       "if(typeof A.f.gtm_load!=='function')return{ok:false,error:'aGTM.f.gtm_load fehlt.'};" +
+      // gtm_load no-ops (logs e7) when aGTM isn't initialised (aGTM.js:997) — bail honestly
+      // instead of reporting a load that didn't happen (and marking hasLoaded).
+      "if(!A.d.config)return{ok:false,error:'aGTM nicht initialisiert (aGTM.d.config fehlt) - erst aGTM.f.init() ausfuehren.'};" +
       "A.c=A.c||{};A.c.gtm=A.c.gtm||{};var _gdl=A.c.gdl||'dataLayer';" +
       "var _ids=" + J(ids) + ";var _loaded=[];" +
-      "for(var _i=0;_i<_ids.length;_i++){var _id=_ids[_i];if(!_id)continue;" +
+      "for(var _i=0;_i<_ids.length;_i++){var _id=(_ids[_i]==null?'':(''+_ids[_i])).replace(/^\\s+|\\s+$/g,'');if(!_id)continue;" +
         "if(!A.c.gtm[_id]||typeof A.c.gtm[_id]!=='object')A.c.gtm[_id]={};" +
         "A.c.gtm[_id].hasLoaded=true;" +
         "A.f.gtm_load(window,document,_id,(A.c.gtm[_id].idParam||''),_gdl,A.c.gtm[_id]);" +

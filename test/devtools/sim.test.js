@@ -29,7 +29,7 @@ function run(code, w) {
 function fakeAGTM() {
   var calls = [];
   var w = { dataLayer: [] };
-  var A = { c: { gdl: "dataLayer" }, d: { consent: {}, init: false, last_consent_hash: "x" }, f: {} };
+  var A = { c: { gdl: "dataLayer" }, d: { consent: {}, init: false, config: true, last_consent_hash: "x" }, f: {} };
   A.f.consent_check = function (action) { calls.push(["orig_cc", action]); return true; };
   A.f.run_cc = function (action) {
     calls.push(["run_cc", action]);
@@ -60,7 +60,9 @@ function fakeAGTM() {
   // initGTM loads every container regardless of consent (aGTM.js:1119) — the real force path.
   A.f.initGTM = function (noConsent) { calls.push(["initGTM", noConsent]); };
   // gtm_load injects a single container (aGTM.js:1127) — used by the container-override.
-  A.f.gtm_load = function (win, doc, id, idParam, gdl, cfg) { calls.push(["gtm_load", id, idParam, gdl]); };
+  // Captures the 6th arg (container config object), which real gtm_load dereferences
+  // (o.gtmJS/o.gtmURL/o.env, aGTM.js:1050) → a builder that drops it would throw in-browser.
+  A.f.gtm_load = function (win, doc, id, idParam, gdl, cfg) { calls.push(["gtm_load", id, idParam, gdl, cfg]); };
   w.aGTM = A; w.__calls = calls;
   return w;
 }
@@ -227,6 +229,14 @@ describe("buildInjectCode / buildProbeCode / missing aGTM", () => {
     var res = run(buildInjectCode(), w); // inject() returns false → surfaced, not a fake OK
     expect(res.ok).toBe(false);
     expect(res.error).toContain("Consent-Gate");
+  });
+  test("aGTM present but not initialised (no aGTM.d.config) → ok:false, no fake init", () => {
+    var w = fakeAGTM();
+    delete w.aGTM.d.config;
+    var res = run(buildInjectCode(), w);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("nicht initialisiert");
+    expect(w.aGTM.d.init).toBe(false); // not marked injected over a no-op
   });
   test("probe detects an installed stub", () => {
     var w = fakeAGTM();
@@ -646,11 +656,36 @@ describe("buildLoadContainerCode — load a different GTM container than the con
     expect(res.ok).toBe(true);
     expect(res.loadedContainers).toEqual(["GTM-TEST1", "GTM-TEST2"]);
     // both injected via gtm_load, regardless of consent
-    expect(w.__calls.filter(function (c) { return c[0] === "gtm_load"; }).map(function (c) { return c[1]; }))
-      .toEqual(["GTM-TEST1", "GTM-TEST2"]);
+    var loads = w.__calls.filter(function (c) { return c[0] === "gtm_load"; });
+    expect(loads.map(function (c) { return c[1]; })).toEqual(["GTM-TEST1", "GTM-TEST2"]);
     // registered + marked loaded so a later initGTM won't reload them
     expect(w.aGTM.c.gtm["GTM-TEST1"].hasLoaded).toBe(true);
     expect(w.aGTM.c.gtm["GTM-TEST2"].hasLoaded).toBe(true);
+    // the 6th arg (container config object) is threaded through — real gtm_load derefs it
+    expect(loads[0][4]).toBe(w.aGTM.c.gtm["GTM-TEST1"]);
+    expect(loads[1][4]).toBe(w.aGTM.c.gtm["GTM-TEST2"]);
+  });
+  test("blank/whitespace tokens are skipped; only real ids load", () => {
+    var w = fakeAGTM();
+    var res = run(buildLoadContainerCode(["", "   ", "GTM-X"]), w);
+    expect(res.ok).toBe(true);
+    expect(res.loadedContainers).toEqual(["GTM-X"]);
+    expect(w.__calls.filter(function (c) { return c[0] === "gtm_load"; }).length).toBe(1);
+  });
+  test("gtm_load missing → ok:false, no throw", () => {
+    var w = fakeAGTM();
+    delete w.aGTM.f.gtm_load;
+    var res = run(buildLoadContainerCode(["GTM-X"]), w);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("gtm_load");
+  });
+  test("aGTM present but not initialised (no aGTM.d.config) → ok:false, no fake load", () => {
+    var w = fakeAGTM();
+    delete w.aGTM.d.config;
+    var res = run(buildLoadContainerCode(["GTM-X"]), w);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("nicht initialisiert");
+    expect(w.__calls.some(function (c) { return c[0] === "gtm_load"; })).toBe(false);
   });
   test("preserves an existing container config object (only sets hasLoaded)", () => {
     var w = fakeAGTM();
