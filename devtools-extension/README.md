@@ -125,11 +125,24 @@ persisted per host):
   starts with, `*consent` = ends with, `*` = everything; regex metacharacters stay
   literal). A **"restore the default list"** link appears whenever the field differs from
   the shipped patterns, and the effect panel **names** the cookies it removed, so you can
-  see at a glance whether your CMP was covered (the shipped list leads with prefixes such as `__cmp`, which covers Consentmanager's whole `__cmpconsent…`/`__cmpccu…` family; a run that matches nothing says so instead of reporting success, and **only the page's own domain can be cleared**. Many CMPs keep a second copy inside their own iframe origin (cookies on `.consentmanager.net` plus that origin's `localStorage`), which the page cannot reach and which often restores consent on the next load — so a genuine first-visit test needs an **incognito window**. DevTools' `inspectedWindow.eval({frameURL})` does *not* help here: it addresses a frame by its exact document URL and refuses cross-origin CMP frames (tried and removed, see the changelog). The effect line names the cookies it removed and survives the reload it triggers) (across the `/` + current-path × parent-domain grid), optionally clears
+  see at a glance whether your CMP was covered (the shipped list leads with prefixes such as `__cmp`, which covers Consentmanager's whole `__cmpconsent…`/`__cmpccu…` family; a run that matches nothing says so instead of reporting success. The effect line survives the reload it triggers) (across the `/` + current-path × parent-domain grid), optionally clears
   matching `localStorage` keys, then optionally reloads — the real first-visit re-test
   that plain reset can't do. **Empty pattern field = match every cookie** (nuclear;
   spelled out in-UI) — and, combined with "clear localStorage", that wipes the
   **entire** `localStorage` too (login tokens included). Also aGTM-independent.
+  **Third-party CMP frames** (`auch in CMP-Frames`, on by default): many CMPs keep a
+  second copy of the consent inside their own iframe origin — cookies on
+  `.consentmanager.net` plus that origin's `localStorage` — which the page cannot reach
+  and which restores consent on the next load. DevTools can, so the same patterns are
+  cleared in every foreign frame of the page first (never with the reload — that would
+  cut them short), addressed by the frame's exact **document URL** taken from the
+  document-typed `getResources()` entries; an origin resolves to no frame at all. This
+  needs **no** Chrome permission: frame evaluation is gated on schemes, `chrome://`,
+  Web-Store and enterprise-policy hosts, not on `host_permissions`. The pass is
+  best-effort behind a 1.2 s watchdog (it can never delay the top-frame reset) and
+  reports **per host** what went or why a frame refused. It only reaches origins that are
+  framed at that moment — when the effect line reports nothing removed there, an
+  **incognito window** remains the reliable route to a genuine first visit.
 - **Scenario runner** — one click walks the whole lifecycle: **deny** → **fire** the
   listed events (parked in `aGTM.d.f` because there's no consent) → **grant** the chosen
   consent (`run_cc('update')` → inject → replay). The effect panel reports how many

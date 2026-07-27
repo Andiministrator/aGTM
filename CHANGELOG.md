@@ -26,15 +26,30 @@ names the removed cookies instead of only counting them, and a "restore the defa
 list" link appears whenever the field differs from the shipped patterns — an edited
 field is never migrated automatically, so this is the way back.
 
-**Third-party CMP frames stay out of reach.** A CMP such as Consentmanager keeps a
-second copy of the consent state in its own iframe origin — cookies on
+**The reset now also runs inside the CMP's own frame.** A CMP such as Consentmanager
+keeps a second copy of the consent state in its own iframe origin — cookies on
 `.consentmanager.net` plus that origin's `localStorage` — which the page cannot touch
-under the same-origin policy, and which restores consent on the next load. An attempt to
-reach it through DevTools' `inspectedWindow.eval({frameURL})` was built and **removed
-again**: that option addresses a frame by its exact document URL, so an origin does not
-resolve (`there is no frame with URL …`), and probing every loaded origin produced a
-screenful of extension errors per click. The box now says plainly that a genuine
-first-visit test needs an **incognito window**, which was the honest answer all along.
+under the same-origin policy, and which restores consent on the next load, making a
+first-visit test impossible.
+
+A first attempt to reach it through `inspectedWindow.eval({frameURL})` was built and
+removed again, because it passed **origins**: that option resolves a frame by an exact
+match against the frame's committed **document URL**, so an origin resolves to nothing
+(`there is no frame with URL …`), and the candidates were drawn from every loaded
+resource — mostly hosts that are no frames at all, one console error each.
+
+Both halves are fixed now. Candidates come from `getResources()` filtered to the
+**document-typed** entries, which are precisely the frame documents (main frame plus
+every sub-frame, cross-origin ones included), so `frameURL` gets a URL it can resolve.
+The same patterns are then cleared in each foreign frame first — never with the reload,
+which is the top frame's job — and the effect line reports that pass **per host**: what
+was removed, or which frame refused and why. Nothing in this needs a Chrome permission:
+DevTools gates frame evaluation on schemes, `chrome://`, Web-Store and enterprise-policy
+hosts, not on the extension's `host_permissions`, so the extension still declares none.
+The pass is a best-effort extra behind a 1.2 s watchdog — the top-frame reset, which
+always worked, can never be held up by it — and can be switched off. Where no foreign
+frame carries the copy, the effect line still points at an **incognito window** as the
+reliable way to a genuine first visit.
 
 The result of a reset also survives the reload it triggers. It used to be shown ~80 ms
 before the page reloaded, so the most useful feedback — which cookies actually went —
