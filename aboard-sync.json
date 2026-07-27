@@ -1055,9 +1055,152 @@
             "displayId": 44
           },
           {
+            "id": "agtm-inspector-simulation-tab",
+            "title": "aGTM Inspector: Simulations-Tab (Write-Mode, opt-in)",
+            "description": "Neuer Simulations-Tab in devtools-extension/ (sim.js) — die EINE schreibende Ausnahme der sonst strikt read-only Extension. Treibt window.aGTM ueber denselben inspectedWindow.eval-Kanal (KEINE neue Chrome-Permission), aber via separatem sim.js-Write-Channel, gated hinter per-Session Write-Modus-Toggle (default AUS, nie persistiert). Faehigkeiten: (1) Consent granular simulieren — Purposes/Services(+IDs)/Vendoren einzeln toggelbar, vorbelegt aus gtmPurposes/gtmServices/gtmVendors + Live-Consent, per-Host persistiert, benannte Presets; Grant installiert temporaeren consent_check-Stub + run_cc(update) => echter Library-Pfad reset->check->chelp->gtmConsent->inject->replay. (2) Deny/Reset. (3) CMP-Mock (persistenter Stub, restorable via aGTM.f.__inspOrigCC-Backup). (4) Event feuern (aGTM.f.fire, editierbares JSON + _noConsent/_noDLPush/_post + Verlauf). (5) inject() erzwingen. Live-Effekt-Panel. reader.js bleibt reiner Reader. Builder ES5-safe + unit-getestet (test/devtools/sim.test.js). 564 Tests gruen.",
+            "status": "",
+            "priority": "P2",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": "M",
+            "agentContext": "Dateien: devtools-extension/sim.js (neu), panel.html (+nav/section/script), panel.js (render-dispatch case sim + not-loaded-Liste), reader.js (Header-Klarstellung), README.md (Simulation-Sektion + Posture), manifest.json (description), CHANGELOG.md, test/devtools/sim.test.js (neu) + panel-smoke.test.js (Ladeliste). Nicht auf ES5/build.sh-Pfad. Offen: Andis Live-Load-Verifikation in Chrome + Entscheidung ueber Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, consent-store-POST-Test). ZIP-Artefakt ggf. via scripts/pack-devtools-extension.sh neu bauen.",
+            "links": [],
+            "comments": [
+              {
+                "id": "ae8ced32-d2f9-487b-8212-f3818b84c3da",
+                "author": "Claude Opus",
+                "text": "Implementierung fertig auf dev (Commit folgt): sim.js + Verdrahtung + Doku + Tests. 564 bun-Tests gruen, sim.js node --check ok. Posture bewusst designt/dokumentiert (Write-Modus default AUS, reader.js bleibt reiner Reader, kein neues Permission). OFFEN fuer Andi: (a) Live-Load in Chrome + Durchspielen des Consent-Flows; (b) Entscheidung ueber vorgeschlagene Extra-Features (Google-Consent-Mode-gtag-Push, Cookie-Reset+Reload fuer echten Erstbesuch-Test, Szenario-Runner (deny->fire->grant, spiegelt v1.6-Roadmap), consent-store-POST-Test); (c) ZIP-Artefakt neu bauen falls gewuenscht.",
+                "created": "2026-07-26"
+              },
+              {
+                "id": "ac2b6ec2-ad50-4b2f-8497-cc8995a8e370",
+                "author": "Claude Opus",
+                "text": "Runde 2 (Andi-Feedback) umgesetzt: (1) Pro Gruppe (Kategorien/Services/Vendoren) IDs-Umschalter — Consent per ID statt Name (IDs landen im GTM-geprueften String + serviceIDs/vendorIDs/purposeIDs); Purposes haben jetzt auch ID-Feld. (2) Neue Box: vorhandene aGTM-Integration BLOCKIEREN (inject/initGTM/gtm_load->no-op, consent_check->false, reversibel per Entsperren, gesichert unter aGTM.f.__inspBlockBak). (3) Neue Box: aGTM-Integration INJIZIEREN (fuer nicht-integrierte Seiten; laeuft global via <script>-Element; Sim-Tab rendert jetzt auch OHNE geladenes aGTM). simSelection-useId-Logik + neue Builder unit-getestet, 576 Tests gruen.",
+                "created": "2026-07-26"
+              },
+              {
+                "id": "fec504c2-341b-49df-af28-069b646de25d",
+                "author": "Claude Opus",
+                "text": "Runde 3 (Andi-Feedback) + QA/Kritiker: (1) Block ist jetzt PERSISTENTE Checkbox pro Host (blockIntent) + Auto-Reapply nach Reload bei Write-Modus (reader.js exponiert blocked read-only). Script-Textarea war schon persistiert. (2) GTM-Tab entfernt -> Inhalt als Kartenblock ganz unten im Diagnose-Tab (gtmCardsHtml). (3) Adversarialer Kritiker-Sub-Agent ueber den ganzen Change: KEIN P0/P1; ES5 aller injizierten Strings, Grant-Mechanik vs aGTM.js, Escaping, Listener-Non-Leak, Posture, Auto-Block-Re-Entrancy explizit sauber. 3 nachrangige Findings behoben (F-1 P2: IDs-Modus mit leerer ID faellt jetzt auf den Namen zurueck statt still nichts zu erteilen; F-2/F-3 Aufraeumung/Test-Fidelity). 577 Tests gruen. Doku + knowledge aktualisiert. Bereit fuer QA/Live-Test durch Andi. Offene Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, consent-store-POST-Test) macht der naechste Chat.",
+                "created": "2026-07-26"
+              }
+            ],
+            "displayId": 49,
+            "columnId": "col-qa"
+          },
+          {
+            "id": "c11c5df2-4d36-4299-90f0-f4c89dd6f6b2",
+            "title": "aGTM Inspector: Diagnose-Ausbau (Consent-Timeline, Compliance-Report, Health-Score)",
+            "columnId": "col-qa",
+            "owner": "Claude Opus",
+            "complexity": "mittel",
+            "effort": 5,
+            "created": "2026-07-25",
+            "description": "Drei zusammenhaengende, read-only Diagnose-Features fuer den aGTM Inspector (ES6-Tool, off-build-path, KEIN Library-Cost — passt zur Lean/Vendor-Unabhaengigkeits-Linie):\n\n(1) Consent-Timeline / Wasserfall: Zeitachse Page-Load → CMP-Entscheidung → GTM-Inject → erster Tag-Feuer mit ms-Stempeln. Beantwortet visuell \"warum feuerte X vor Consent\" — dockt an den Pre-Consent-Leak-Detektor an.\n(2) Exportierbarer Compliance-Report: Ein-Klick-Snapshot (Markdown/JSON) aus Leaks + Consent-Flow + Config-Fallen + consent_check-Status. Teilbar mit Kunden (Beratungs-Szenario).\n(3) Health-Score-Panel: Config-Fallen + Leaks + Consent-Praesenz zu einem Pass/Fail-Ampel-Readout aggregiert (Kurzblick statt Tab-Durchklicken).\n\nQuelle: Ideen-Runde 2026-07-25 (nach F-56..F-66 + Leak-Detektor + gcs/gcd + Consent-Fingerprint). Einzeln oder gebuendelt umsetzbar.",
+            "agentContext": "devtools-extension/ (panel.js renderers, netclassify.js, consentsignals.js). Alles read-only, keine neuen Manifest-Permissions. Leak-Detektor liefert preConsent-Stempel; Config-Fallen sind in CONFIG_TRAPS; consentTs im Reader-Snapshot fuer die Timeline nutzen.",
+            "displayId": 47,
+            "comments": [
+              {
+                "id": "fdabc0f0-873f-4262-8f62-b461fc55103f",
+                "author": "Claude Opus",
+                "text": "START (2026-07-25): Diagnose-Ausbau angegangen. Umsetzung gebuendelt als neuer read-only Diagnose-Tab im aGTM Inspector: (1) Health-Score-Ampel (aggregiert CONFIG_TRAPS + Pre-Consent-Leaks + Consent-Praesenz + GTM-Injection), (2) Consent-Timeline/Waterfall (Seitenaufruf->config->CMP-Entscheidung->GTM-Inject->erster Tag-Fire aus aGTM.l/aGTM.d.dl-Timestamps + Netz-Capture), (3) exportierbarer Compliance-Report (Markdown/JSON, ein Klick). Pure Logik in neuer diagnose.js (wie netclassify.js), unit-getestet; reader.js bekommt navStart-Anker. Off-build-path, keine neuen Manifest-Permissions, kein Library-Cost.",
+                "created": "2026-07-25"
+              },
+              {
+                "id": "8946d385-9546-440b-9b87-7803c750cd42",
+                "author": "Claude Opus",
+                "text": "ERLEDIGT + selbst-QA (2026-07-25, Commit 6a1ed78, gepusht auf dev). Alle drei Features gebuendelt als neuer default Diagnose-Tab: (1) Health-Score-Ampel (pass/warn/fail, aggregiert Consent-Mechanismus/Consent-erkannt/GTM-injiziert/Pre-Consent-Leaks/Konfig-Fallen; fehlender CMP-Mechanismus oder ein Leak -> rot). (2) Consent-Timeline-Waterfall mit ms-Stempeln (Seitenaufruf->config()->CMP-Entscheidung->GTM-Inject->erster Tag-Fire) aus aGTM.l-Log-IDs + aGTM.d.dl-aGTMts + Netz-Capture, verankert an neuem read-only navStart (performance.timing.navigationStart) in reader.js. (3) Compliance-Report Ein-Klick-Export (Markdown/JSON in Zwischenablage + .md-Download). Pure Logik in neuer diagnose.js (browser-global + node-require wie netclassify.js), unit-getestet (test/devtools/diagnose.test.js, 24 Asserts) + panel-smoke-Abdeckung. Konfig-Fallen- und Leak-Logik jetzt geteilt (activeConfigTraps + leakHitFor/computeNetLeaks) zwischen Config/Netzwerk und Diagnose (keine Duplikate). Off-build-path, keine neuen Manifest-Permissions, kein Library-Cost. 518 Tests gruen. README+CHANGELOG aktualisiert, aGTM-Inspector.zip regeneriert. QA-Check offen fuer Andi: Diagnose-Tab ist jetzt Default-Tab (statt Consent) — bewusste Overview-first-Entscheidung gemaess Karten-Ziel Kurzblick statt Tab-Durchklicken; falls unerwuenscht, 1-Zeilen-Revert.",
+                "created": "2026-07-25"
+              },
+              {
+                "id": "9a7583fd-8e94-4906-bf1b-83a4c52d6315",
+                "author": "Claude Opus",
+                "text": "KRITIKER-RUNDE (2026-07-25, Commit 8c7a785). Zwei unabhaengige Sub-Agents (Korrektheit/Logik + UX/Konsistenz/Doku). KEIN P0/P1 — Uhr-Basen (alle Unix-epoch-ms), Escaping, Listener/Paint-Semantik und die leakHitFor-Refactor-Aequivalenz explizit bestaetigt; Doku exakt zum Code. 4 Findings behoben (F-70..F-73 in docs/findings.md): F-70 (P2, echte Aussenwirkung) Health-Score-Leak-Check kein falsches Gruen mehr im Kundenreport — pass nur wenn Vor-Consent-Fenster beobachtet (Navigation bezeugt ODER frueheste net.ts ~ navStart), erfasster Leak immer fail. F-71 (P2) Timeline-Marker CMP-Entscheidung ankert an erster Consent-Erkennung (m3/m2) statt consentTs (letztes Event) — kann nicht mehr hinter GTM-injiziert rutschen. F-72 (P3) Netz-Marker nutzen Request-Start (ts minus HAR-Dauer). F-73 (P3) Nullpunkt konditional benannt (anchored-Flag), Waterfall-Caption praezisiert, tote pre.report-CSS raus. Tests 142 devtools / 525 gesamt gruen. README-Caveat + CHANGELOG + knowledge/topics/devtools-inspector-extension.md aktualisiert. Karte bleibt QA. Naechster Chat: Karte kann nach Erledigt, sobald Andi visuell gegengeprueft hat (Diagnose-Tab in Chrome).",
+                "created": "2026-07-25"
+              },
+              {
+                "id": "d55e1b85-6b93-4505-9f3f-a27e55841359",
+                "author": "Claude Opus",
+                "text": "POST-QA-ITERATION (2026-07-26, Andi-Live-Feedback, Commits 23e81b5/ef95b61/f22f741/020cd49). (a) Timeline-Balken farbcodiert pro Meilenstein + Pre-Consent-Tag rot; Balken waren unsichtbar weil <span> inline (width ignoriert) -> display:block gefixt. (b) Consent-Signale (gcs/gcd) verifiziert: denied IST rot (cfp-d), nur l=unset grau + undokumentierte gcd-Buchstaben orange (bewusst); offener Folge-Task: gcd-Alphabet vollstaendig belegen (Recherche). (c) Timeline-Bug: CMP-Entscheidung-Marker wanderte (+70s, wachsend) weil Fallback consentTs=letztes consent-Event (2s-Poll schob es vor) -> neuer Reader-Wert consentFirstTs (erstes Event, stabil). (d) Neue Karte Session & IDs: sid/uid/user_id + Aenderungshistorie (F->C-Promote live sichtbar), pro-Host persistiert (localStorage), plus Session-API-Payload (echter created-Server-Timestamp + Zaehler sessionCount/pvCount/eventCount/counter). 533 Tests gruen, Doku/CHANGELOG/knowledge/ZIP aktuell. Karte weiter QA. Offene Andi-Frage: Default-Tab Diagnose vs Consent.",
+                "created": "2026-07-26"
+              },
+              {
+                "id": "544d08a6-816e-40d8-a2c9-96e7bd2e3f05",
+                "author": "Claude Opus",
+                "text": "KRITIKER-RUNDE 2 (2026-07-26, Commits d6d68e2 Library + 849a8ad P3-Fixes). Umfang seit letzter QA: farbige Timeline-Balken, Session&IDs-Karte (prominente sid/uid, Aenderungshistorie, Per-Host-Persistenz, Session-API-Stat-Tiles mit se_data-Fallback + Live-Alter), consentFirstTs/logMilestones-Timeline-Stabilitaetsfix, Wartet-auf-Block, plus 1-Zeilen-Library-Change aGTM.d.dlrepeatGate (LIVE bei fc-moto.com). Zwei unabhaengige Sub-Agents (Korrektheit/Library + UX/Doku): KEIN P0/P1/P2. Live-Library-Zeile explizit bestaetigt sicher (ES5, kann nicht werfen, verhaltensneutral, +37B im Budget, build.sh driftfrei). 7 P3 behoben/akzeptiert (F-74..F-80): created-Sek/ms-Heuristik, prefers-reduced-motion, seit->gestartet, Palette-Aussage abgeschwaecht, 2 Test-/Doku-Luecken geschlossen; bewusst nicht gefixt: stale dlrepeatPolling (F-74, Panel korrekt gegated, Live-Ripple fuer Kosmetik vermieden). 540 Tests gruen. Doku/CHANGELOG/README/knowledge/findings/ZIP aktuell. Karte weiter QA. Naechster Chat baut einen Simulations-Tab in die Extension (Andi briefed).",
+                "created": "2026-07-26"
+              },
+              {
+                "id": "b4cb1357-e8a3-47f0-87e6-005c26ae4171",
+                "author": "Claude Opus",
+                "created": "2026-07-27",
+                "text": "Lane-Korrektur (Andi 2026-07-27): Der Code dieser Karte liegt vollstaendig auf dev und geht damit mit dem v1.5-Tag raus — die Inspector-Version ist ueber scripts/inject-version.js an die Library-Version gekoppelt. Die v1.6-Lane suggerierte faelschlich eine spaetere Auslieferung. Karte daher in die v1.5-Lane verschoben; Spalte unveraendert. Konkret: Diagnose-Tab (Health-Score, Consent-Timeline, Compliance-Report, Session&IDs-Karte) ist seit 6a1ed78 auf dev, zwei Kritiker-Runden durch (F-70..F-80), Andis Live-Feedback bereits eingearbeitet (Post-QA-Iteration 2026-07-26). Bleibt in QA bis zu Andis expliziter Freigabe."
+              }
+            ],
+            "qa": true
+          },
+          {
+            "id": "agtm-inspector-sim-extra-features",
+            "title": "aGTM Inspector Simulations-Tab: Extra-Features (GCM-Push, Reset+Reload, Szenario-Runner, consent-store-POST)",
+            "description": "Folge-Features fuer den Simulations-Tab (sim.js), von Andi fuer den naechsten Chat freigegeben: (1) Google-Consent-Mode-Push — gtag(\"consent\",\"update\",{...}) direkt pushen, um GCM-Signale unabhaengig von aGTM zu testen. (2) Cookie-Reset + Reload — Consent-Cookies loeschen + Seite neu laden fuer einen echten Erstbesuch-Test (Simulation kann bereits injiziertes GTM nicht zurueckholen). (3) Szenario-Runner — Sequenz deny -> Events feuern -> grant -> Replay beobachten, ein Klick; spiegelt das v1.6-Roadmap-Item \"interaktiver Scenario-Runner\". (4) consent-store-POST-Test — den /aGTMconsent-Pfad gezielt ausloesen.",
+            "status": "",
+            "priority": "P3",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": "M",
+            "agentContext": "Baut auf sim.js auf (devtools-extension/). MUSTER strikt einhalten: pure Builder auf window.aGTMInspectorSim (self-invoking (function(){try{}catch(e){}})()-Ausdruck, gibt {ok,...} zurueck), INJIZIERTER Code ES5-only (var, keine Arrow/let/const/Template-Literals). Alle Writes durch simRun() (SIM_WRITE-Gate). Persistenz pro Host via st.* + simSave (localStorage aGTMInspector.sim). Neue Builder in test/devtools/sim.test.js gegen Fake-window.aGTM ausfuehren (Syntax+Verhalten). Szenario-Runner braucht Sequencing mit Waits zwischen Schritten — im Panel-Kontext (setTimeout ok, NICHT im injizierten Code). Cookie-Reset: document.cookie im Seitenkontext loeschen + location.reload(); Cookie-Namen aus aGTM.c/consent ableiten. consent-store-POST: aGTM.c.consent_store_url pruefen, aGTM.f.run_cc(\"update\") treibt den POST via xsend bereits — evtl. reicht ein gezielter run_cc mit geaendertem Consent-Hash. Nach Umsetzung: bun test gruen, kein build.sh noetig (off ES5-Pfad), Doku (README/CHANGELOG/knowledge devtools-inspector-extension.md) + Kritiker-Runde. Karte #49 (Basis-Sim-Tab) ist der Vorlaeufer.",
+            "links": [],
+            "comments": [
+              {
+                "id": "87ea03b8-05a0-4bd6-8389-891b680b0a5c",
+                "author": "Claude Opus",
+                "text": "Umgesetzt auf dev (c1c7a42): 4 Extra-Features in sim.js nach bestehendem Builder-Muster (ES5-injiziert, SIM_WRITE-Gate, per-Host-Persistenz). (1) GCM-Push: gtag(consent,update) als echtes arguments-Objekt in dataLayer, aGTM-unabhaengig. (2) Cookie-Reset+Reload: Name-Match ueber Pfad×Parent-Domain-Grid, opt. localStorage + Reload (leer=alle). (3) Szenario-Runner: ein Eval deny->fire(queue)->grant->inject+replay, meldet fired/queued; alreadyInjected-Flag warnt bei bereits injiziertem GTM (inject-once -> kein Replay). (4) Consent-Store-POST-Test: consent_hash leeren + run_cc(update) -> echter xsend-POST an /aGTMconsent. reader.js bleibt reiner Reader, kein neues Permission. Alle Builder gegen Fake-aGTM ausgefuehrt (sim.test.js, 52 Tests). Adversarialer Kritiker: KEIN P0/P1 (ES5/Serialisierbarkeit/Escaping/Cookie-Grid verifiziert); P2 (Szenario-Replay-No-op auf injizierter Seite) gefixt+getestet, 2 P3-Doku-Caveats ergaenzt. 595 bun-Tests gruen. README+CHANGELOG aktualisiert. build.sh bewusst nicht gelaufen (nur devtools/, nicht ES5/Build-Pfad). OFFEN fuer Andi: Live-Load in Chrome + Durchspielen (v1.5 bleibt offen, kein Release/Tag).",
+                "created": "2026-07-26"
+              },
+              {
+                "id": "0321a1bf-84f5-4f01-9ef1-2e5ef806c3b0",
+                "author": "Claude Opus",
+                "text": "QA+Kritiker \"ueber alles\" (Andi-Wunsch): 3 parallele adversariale Sub-Agents ueber den GESAMTEN Simulations-Tab (Correctness-vs-aGTM.js / Security-Posture-ES5 / Tests-Doku-Fidelity), selbst-enthaltend. KEIN P0/P1. Security-Agent: ES5, Escaping (J()/esc()), Serialisierbarkeit, Posture (jede Mutation via simRun+SIM_WRITE, reader.js read-only, permission-frei) alle sauber. Behobene Findings (Commit 5e61596): F-84 P2 \"GTM-Injection erzwingen\" war stiller No-op (inject() consent-gated aGTM.js:1186/1210) -> jetzt initGTM(false) direkt + honest error; F-85 P3 Block<->Stub-Backup-Kollision (Block->Grant->Unblock->Restore strandete deny-noop) -> stubBody sichert echtes Original aus __inspBlockBak; F-86 P3 Scenario-queued jetzt Delta statt Vor-Queue-inflationiert; F-87 P2 Consent-Store-Test bewachte Hash-Blank nicht -> Fake-Seed korrigiert; F-88 P2 buildCmpMockCode-Kommentar log (run_cc) -> korrigiert; F-89 P3 Cookie-Domain-Test/panel-smoke/README/CHANGELOG-localStorage-Caveat. fakeAGTM.inject modelliert jetzt das echte Consent-Gate. 600 bun-Tests gruen, ES5 der injizierten Strings verifiziert, ZIP neu gepackt. Doku+knowledge nachgezogen (CHANGELOG, README, knowledge/topics/devtools-inspector-extension.md, docs/findings.md F-84..F-89). v1.5 bleibt offen, kein Tag. OFFEN fuer Andi: Live-Load in Chrome + Durchspielen.",
+                "created": "2026-07-26"
+              },
+              {
+                "id": "4e7cdbc9-7b12-4e18-95f3-5bf7797ec6d6",
+                "author": "Claude Opus",
+                "text": "Folgerunde (Andi-Feedback, Commit 06b485a): (1) Uebersichts-Umbau des Sim-Tabs: flaches Layout mit 4 Abschnitts-Ueberschriften (Consent / Events / GTM & Integration / Umgebung), Write-Toggle + Live-Effekt oben angepinnt (Andi-Wahl gegen klappbare Gruppen/Unter-Tabs). (2) #3-Entscheidung getroffen: CMP-Mock-Box aufgeloest (Grant installiert ohnehin einen persistenten consent_check-Stub = mockt die CMP), Restore wandert neben Grant/Deny/Reset; buildCmpMockCode entfernt. (3) Andis GTM-Override-Idee umgesetzt: neue Box \"Anderen GTM-Container laden\" (buildLoadContainerCode) laedt Container-IDs direkt via aGTM.f.gtm_load, consent- und config-unabhaengig -> Live-Seite testweise auf Staging/Demo-Container zeigen ohne Config-Aenderung (paart mit Blockieren); IDs pro Host persistiert. 604 bun-Tests gruen, ES5 verifiziert, ZIP neu gepackt, Doku (README/CHANGELOG/knowledge) nachgezogen. v1.5 bleibt offen. Karte bleibt in QA fuer Andis Live-Durchspielen.",
+                "created": "2026-07-27"
+              },
+              {
+                "id": "2389846e-ff60-451e-9e99-922f30de008b",
+                "author": "Claude Opus",
+                "text": "Kritiker-Runde ueber den Umbau (2 Sub-Agents: Correctness/ES5/Posture + Tests/Doku, Commit dc94a96). KEIN P0/P1/P2. 4 P3 behoben (F-90..F-93): F-90 buildLoadContainerCode+buildInjectCode meldeten falschen Erfolg vor init() (gtm_load/initGTM no-oppen bei !aGTM.d.config, aGTM.js:997) -> Config-Guard, ok:false ehrlich; F-91 Fake-gtm_load fing das 6. Config-Arg nicht ein -> jetzt captured+asserted; F-92 Blank-Token/gtm_load-fehlt/no-config ungetestet + Builder trimmt Tokens nicht -> Trim + Tests; F-93 Doku-Praezisierung \"uebrige\" Config-Container. 608 bun-Tests gruen, ES5 verifiziert, ZIP neu gepackt, Doku (README/CHANGELOG/knowledge/findings F-90..93) nachgezogen. Karte bleibt in QA fuer Andis Live-Durchspielen. v1.5 offen, kein Tag.",
+                "created": "2026-07-27"
+              },
+              {
+                "id": "69c6f05e-9921-418d-a1b9-0815de289b9e",
+                "author": "Claude Opus",
+                "created": "2026-07-27",
+                "text": "Abgeschlossen: Andi hat den Simulations-Tab im Chrome-Live-Test verifiziert (Freigabe im Chat 2026-07-27). Karte QA -> Erledigt. Stand bei Abschluss: dev @ 191fbba, 608 bun-Tests gruen, Arbeitsbaum sauber, ES5-/Build-Pfad nicht beruehrt (devtools-extension ist ES6, eigener Browser-Kontext). Umfang der Karte: 4 Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, Consent-Store-POST-Test) + Layout-Umbau (flache 4-Abschnitts-Gliederung, angepinnter Write-Toggle) + GTM-Container-Override + aufgeloeste CMP-Mock-Box. QA-Historie: 3 Kritiker-Runden mit insgesamt 10 behobenen Findings (F-84..F-93), kein P0/P1 offen. v1.5 bleibt bewusst OFFEN (kein v*-Tag) - Release-Gate haengt weiter an Karte #1."
+              },
+              {
+                "id": "66cad59e-6233-4f9d-bdcf-f397b33c7aa7",
+                "author": "Claude Opus",
+                "created": "2026-07-27",
+                "text": "Lane-Korrektur (Andi 2026-07-27): Der Code dieser Karte liegt vollstaendig auf dev und geht damit mit dem v1.5-Tag raus — die Inspector-Version ist ueber scripts/inject-version.js an die Library-Version gekoppelt. Die v1.6-Lane suggerierte faelschlich eine spaetere Auslieferung. Karte daher in die v1.5-Lane verschoben; Spalte unveraendert. Karte bleibt Erledigt (Andis Chrome-Live-Test 2026-07-27)."
+              }
+            ],
+            "displayId": 50,
+            "columnId": "col-erledigt"
+          },
+          {
             "id": "b4bc6582-84a6-4592-b853-fddd8f131a2f",
             "title": "Chrome-DevTools-Extension: aGTM-Inspector (v1.5-Zusatzfeature)",
-            "columnId": "col-backlog",
+            "columnId": "col-qa",
             "owner": "Claude Opus",
             "complexity": "hoch",
             "effort": 5,
@@ -1105,48 +1248,17 @@
                 "author": "Claude Opus",
                 "text": "**Runde 2 (2026-07-25, Commit 9ec5022, dev).**\n\nNEU: (1) Consent-Fingerprint in der Listenansicht — kompakte per-Kategorie granted/denied/unset-Pills aus gcs/gcd inline im Netzwerk-Tab + auf dataLayer-consent-command-Zeilen (gcd 4 Signale bevorzugt vor gcs 2). (2) Size-Budget-Guard (test/size-budget.test.js) — bun test schlaegt fehl, wenn aGTM.min.js das Budget uebersteigt (37000/11300 raw/gzip; Ist 35932/10815); setzt \"schlank bleiben\" automatisch durch.\n\nQA/Kritiker: 2 Subagenten (Security + Logik/Plan). Security fand nichts Reales. Logik fand 3 echte Findings — ALLE behoben + Regressionstests:\n• F-67 (P1): eventTable-Aufklapp-Key nutzte Anzeige-Index → reverse dl-Liste kollabierte bei jedem neuen Event (mein F-64-Fix hatte es reintroduziert) → jetzt stabiler natuerlicher Ordinal.\n• F-68 (P2): reader dl/queue ungeschuetzt → ein Event mit DOM-Ref killte den ganzen Snapshot → jetzt per-Eintrag safeObj.\n• F-69 (P2): Pre-Consent-Leak-Stempel nicht rekonziliiert → Falsch-Positive am Consent-Uebergang → jetzt Render-Zeit-Rekonziliation gegen consentTs.\n\n493 Tests gruen, ZIP neu gepackt. Backlog-Karte #47 (Inspector Diagnose-Ausbau) + Kommentar an Standalone-Karte (vendor-neutrale Event-Schicht) angelegt. v1.5 bleibt offen.",
                 "created": "2026-07-25"
+              },
+              {
+                "id": "a4fbe09f-2412-4f52-807f-82d924d40054",
+                "author": "Claude Opus",
+                "created": "2026-07-27",
+                "text": "Spalten-Korrektur (2026-07-27): Karte stand auf Backlog, obwohl qa=true gesetzt war und der Kommentar vom 2026-07-23 den Uebergang nach QA dokumentiert (Andis Live-Smoke-Test bestaetigt, Kritiker-Gate durch, damals 398 Tests gruen). Backlog war ein Restbestand aus der Zeit vor der Bau-Freigabe. Karte jetzt korrekt in QA."
               }
             ],
             "agentContext": "PFADE: aGTM_debug.js (Log-Decode-Logik fuer aGTM.l wiederverwenden); aGTM.js (Datenspeicher-Formen aGTM.d/aGTM.c/aGTM.l); CLAUDE.md §„Data stores“ + „Session Feature“ (aGTM.d.consent/session/attribution/session_status-Semantik); .claude/skills/integration-check (Konfig-Fallen-Liste) + .claude/skills/live-inspector (was live aus aGTM.d gelesen wird). NEU: Ordner devtools-extension/ (manifest.json MV3, devtools_page + panel, content-/injected-Bridge). GOTCHAS: (1) window.aGTM lebt im MAIN world -> DevTools-Panel liest via chrome.devtools.inspectedWindow.eval ODER content-script world:MAIN + postMessage-Bridge (vermeidet breite <all_urls>-Host-Rechte -> weniger Store-Scrutiny). (2) Extension-Code ist NICHT ES5-gebunden (eigener Browser-Kontext, nicht GTM-Sandbox) -> ES6+ ok; NICHT an build.sh/terser haengen. (3) Public Repo -> keine Secrets. (4) Gegen aGTM.d.version version-gaten + defensiv lesen (aGTM.d-Form kann sich aendern). (5) Read-only: nichts in die Seite schreiben. REIHENFOLGE: Entwurf -> Andi-Freigabe -> Bau.",
             "displayId": 45,
             "qa": true
-          },
-          {
-            "id": "agtm-inspector-simulation-tab",
-            "title": "aGTM Inspector: Simulations-Tab (Write-Mode, opt-in)",
-            "description": "Neuer Simulations-Tab in devtools-extension/ (sim.js) — die EINE schreibende Ausnahme der sonst strikt read-only Extension. Treibt window.aGTM ueber denselben inspectedWindow.eval-Kanal (KEINE neue Chrome-Permission), aber via separatem sim.js-Write-Channel, gated hinter per-Session Write-Modus-Toggle (default AUS, nie persistiert). Faehigkeiten: (1) Consent granular simulieren — Purposes/Services(+IDs)/Vendoren einzeln toggelbar, vorbelegt aus gtmPurposes/gtmServices/gtmVendors + Live-Consent, per-Host persistiert, benannte Presets; Grant installiert temporaeren consent_check-Stub + run_cc(update) => echter Library-Pfad reset->check->chelp->gtmConsent->inject->replay. (2) Deny/Reset. (3) CMP-Mock (persistenter Stub, restorable via aGTM.f.__inspOrigCC-Backup). (4) Event feuern (aGTM.f.fire, editierbares JSON + _noConsent/_noDLPush/_post + Verlauf). (5) inject() erzwingen. Live-Effekt-Panel. reader.js bleibt reiner Reader. Builder ES5-safe + unit-getestet (test/devtools/sim.test.js). 564 Tests gruen.",
-            "status": "",
-            "priority": "P2",
-            "owner": "Claude Opus",
-            "qa": true,
-            "critical": false,
-            "blocked": false,
-            "complexity": "M",
-            "effort": "M",
-            "agentContext": "Dateien: devtools-extension/sim.js (neu), panel.html (+nav/section/script), panel.js (render-dispatch case sim + not-loaded-Liste), reader.js (Header-Klarstellung), README.md (Simulation-Sektion + Posture), manifest.json (description), CHANGELOG.md, test/devtools/sim.test.js (neu) + panel-smoke.test.js (Ladeliste). Nicht auf ES5/build.sh-Pfad. Offen: Andis Live-Load-Verifikation in Chrome + Entscheidung ueber Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, consent-store-POST-Test). ZIP-Artefakt ggf. via scripts/pack-devtools-extension.sh neu bauen.",
-            "links": [],
-            "comments": [
-              {
-                "id": "ae8ced32-d2f9-487b-8212-f3818b84c3da",
-                "author": "Claude Opus",
-                "text": "Implementierung fertig auf dev (Commit folgt): sim.js + Verdrahtung + Doku + Tests. 564 bun-Tests gruen, sim.js node --check ok. Posture bewusst designt/dokumentiert (Write-Modus default AUS, reader.js bleibt reiner Reader, kein neues Permission). OFFEN fuer Andi: (a) Live-Load in Chrome + Durchspielen des Consent-Flows; (b) Entscheidung ueber vorgeschlagene Extra-Features (Google-Consent-Mode-gtag-Push, Cookie-Reset+Reload fuer echten Erstbesuch-Test, Szenario-Runner (deny->fire->grant, spiegelt v1.6-Roadmap), consent-store-POST-Test); (c) ZIP-Artefakt neu bauen falls gewuenscht.",
-                "created": "2026-07-26"
-              },
-              {
-                "id": "ac2b6ec2-ad50-4b2f-8497-cc8995a8e370",
-                "author": "Claude Opus",
-                "text": "Runde 2 (Andi-Feedback) umgesetzt: (1) Pro Gruppe (Kategorien/Services/Vendoren) IDs-Umschalter — Consent per ID statt Name (IDs landen im GTM-geprueften String + serviceIDs/vendorIDs/purposeIDs); Purposes haben jetzt auch ID-Feld. (2) Neue Box: vorhandene aGTM-Integration BLOCKIEREN (inject/initGTM/gtm_load->no-op, consent_check->false, reversibel per Entsperren, gesichert unter aGTM.f.__inspBlockBak). (3) Neue Box: aGTM-Integration INJIZIEREN (fuer nicht-integrierte Seiten; laeuft global via <script>-Element; Sim-Tab rendert jetzt auch OHNE geladenes aGTM). simSelection-useId-Logik + neue Builder unit-getestet, 576 Tests gruen.",
-                "created": "2026-07-26"
-              },
-              {
-                "id": "fec504c2-341b-49df-af28-069b646de25d",
-                "author": "Claude Opus",
-                "text": "Runde 3 (Andi-Feedback) + QA/Kritiker: (1) Block ist jetzt PERSISTENTE Checkbox pro Host (blockIntent) + Auto-Reapply nach Reload bei Write-Modus (reader.js exponiert blocked read-only). Script-Textarea war schon persistiert. (2) GTM-Tab entfernt -> Inhalt als Kartenblock ganz unten im Diagnose-Tab (gtmCardsHtml). (3) Adversarialer Kritiker-Sub-Agent ueber den ganzen Change: KEIN P0/P1; ES5 aller injizierten Strings, Grant-Mechanik vs aGTM.js, Escaping, Listener-Non-Leak, Posture, Auto-Block-Re-Entrancy explizit sauber. 3 nachrangige Findings behoben (F-1 P2: IDs-Modus mit leerer ID faellt jetzt auf den Namen zurueck statt still nichts zu erteilen; F-2/F-3 Aufraeumung/Test-Fidelity). 577 Tests gruen. Doku + knowledge aktualisiert. Bereit fuer QA/Live-Test durch Andi. Offene Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, consent-store-POST-Test) macht der naechste Chat.",
-                "created": "2026-07-26"
-              }
-            ],
-            "displayId": 49,
-            "columnId": "col-qa"
           }
         ]
       },
@@ -1283,51 +1395,6 @@
             "displayId": 46
           },
           {
-            "id": "c11c5df2-4d36-4299-90f0-f4c89dd6f6b2",
-            "title": "aGTM Inspector: Diagnose-Ausbau (Consent-Timeline, Compliance-Report, Health-Score)",
-            "columnId": "col-qa",
-            "owner": "Claude Opus",
-            "complexity": "mittel",
-            "effort": 5,
-            "created": "2026-07-25",
-            "description": "Drei zusammenhaengende, read-only Diagnose-Features fuer den aGTM Inspector (ES6-Tool, off-build-path, KEIN Library-Cost — passt zur Lean/Vendor-Unabhaengigkeits-Linie):\n\n(1) Consent-Timeline / Wasserfall: Zeitachse Page-Load → CMP-Entscheidung → GTM-Inject → erster Tag-Feuer mit ms-Stempeln. Beantwortet visuell \"warum feuerte X vor Consent\" — dockt an den Pre-Consent-Leak-Detektor an.\n(2) Exportierbarer Compliance-Report: Ein-Klick-Snapshot (Markdown/JSON) aus Leaks + Consent-Flow + Config-Fallen + consent_check-Status. Teilbar mit Kunden (Beratungs-Szenario).\n(3) Health-Score-Panel: Config-Fallen + Leaks + Consent-Praesenz zu einem Pass/Fail-Ampel-Readout aggregiert (Kurzblick statt Tab-Durchklicken).\n\nQuelle: Ideen-Runde 2026-07-25 (nach F-56..F-66 + Leak-Detektor + gcs/gcd + Consent-Fingerprint). Einzeln oder gebuendelt umsetzbar.",
-            "agentContext": "devtools-extension/ (panel.js renderers, netclassify.js, consentsignals.js). Alles read-only, keine neuen Manifest-Permissions. Leak-Detektor liefert preConsent-Stempel; Config-Fallen sind in CONFIG_TRAPS; consentTs im Reader-Snapshot fuer die Timeline nutzen.",
-            "displayId": 47,
-            "comments": [
-              {
-                "id": "fdabc0f0-873f-4262-8f62-b461fc55103f",
-                "author": "Claude Opus",
-                "text": "START (2026-07-25): Diagnose-Ausbau angegangen. Umsetzung gebuendelt als neuer read-only Diagnose-Tab im aGTM Inspector: (1) Health-Score-Ampel (aggregiert CONFIG_TRAPS + Pre-Consent-Leaks + Consent-Praesenz + GTM-Injection), (2) Consent-Timeline/Waterfall (Seitenaufruf->config->CMP-Entscheidung->GTM-Inject->erster Tag-Fire aus aGTM.l/aGTM.d.dl-Timestamps + Netz-Capture), (3) exportierbarer Compliance-Report (Markdown/JSON, ein Klick). Pure Logik in neuer diagnose.js (wie netclassify.js), unit-getestet; reader.js bekommt navStart-Anker. Off-build-path, keine neuen Manifest-Permissions, kein Library-Cost.",
-                "created": "2026-07-25"
-              },
-              {
-                "id": "8946d385-9546-440b-9b87-7803c750cd42",
-                "author": "Claude Opus",
-                "text": "ERLEDIGT + selbst-QA (2026-07-25, Commit 6a1ed78, gepusht auf dev). Alle drei Features gebuendelt als neuer default Diagnose-Tab: (1) Health-Score-Ampel (pass/warn/fail, aggregiert Consent-Mechanismus/Consent-erkannt/GTM-injiziert/Pre-Consent-Leaks/Konfig-Fallen; fehlender CMP-Mechanismus oder ein Leak -> rot). (2) Consent-Timeline-Waterfall mit ms-Stempeln (Seitenaufruf->config()->CMP-Entscheidung->GTM-Inject->erster Tag-Fire) aus aGTM.l-Log-IDs + aGTM.d.dl-aGTMts + Netz-Capture, verankert an neuem read-only navStart (performance.timing.navigationStart) in reader.js. (3) Compliance-Report Ein-Klick-Export (Markdown/JSON in Zwischenablage + .md-Download). Pure Logik in neuer diagnose.js (browser-global + node-require wie netclassify.js), unit-getestet (test/devtools/diagnose.test.js, 24 Asserts) + panel-smoke-Abdeckung. Konfig-Fallen- und Leak-Logik jetzt geteilt (activeConfigTraps + leakHitFor/computeNetLeaks) zwischen Config/Netzwerk und Diagnose (keine Duplikate). Off-build-path, keine neuen Manifest-Permissions, kein Library-Cost. 518 Tests gruen. README+CHANGELOG aktualisiert, aGTM-Inspector.zip regeneriert. QA-Check offen fuer Andi: Diagnose-Tab ist jetzt Default-Tab (statt Consent) — bewusste Overview-first-Entscheidung gemaess Karten-Ziel Kurzblick statt Tab-Durchklicken; falls unerwuenscht, 1-Zeilen-Revert.",
-                "created": "2026-07-25"
-              },
-              {
-                "id": "9a7583fd-8e94-4906-bf1b-83a4c52d6315",
-                "author": "Claude Opus",
-                "text": "KRITIKER-RUNDE (2026-07-25, Commit 8c7a785). Zwei unabhaengige Sub-Agents (Korrektheit/Logik + UX/Konsistenz/Doku). KEIN P0/P1 — Uhr-Basen (alle Unix-epoch-ms), Escaping, Listener/Paint-Semantik und die leakHitFor-Refactor-Aequivalenz explizit bestaetigt; Doku exakt zum Code. 4 Findings behoben (F-70..F-73 in docs/findings.md): F-70 (P2, echte Aussenwirkung) Health-Score-Leak-Check kein falsches Gruen mehr im Kundenreport — pass nur wenn Vor-Consent-Fenster beobachtet (Navigation bezeugt ODER frueheste net.ts ~ navStart), erfasster Leak immer fail. F-71 (P2) Timeline-Marker CMP-Entscheidung ankert an erster Consent-Erkennung (m3/m2) statt consentTs (letztes Event) — kann nicht mehr hinter GTM-injiziert rutschen. F-72 (P3) Netz-Marker nutzen Request-Start (ts minus HAR-Dauer). F-73 (P3) Nullpunkt konditional benannt (anchored-Flag), Waterfall-Caption praezisiert, tote pre.report-CSS raus. Tests 142 devtools / 525 gesamt gruen. README-Caveat + CHANGELOG + knowledge/topics/devtools-inspector-extension.md aktualisiert. Karte bleibt QA. Naechster Chat: Karte kann nach Erledigt, sobald Andi visuell gegengeprueft hat (Diagnose-Tab in Chrome).",
-                "created": "2026-07-25"
-              },
-              {
-                "id": "d55e1b85-6b93-4505-9f3f-a27e55841359",
-                "author": "Claude Opus",
-                "text": "POST-QA-ITERATION (2026-07-26, Andi-Live-Feedback, Commits 23e81b5/ef95b61/f22f741/020cd49). (a) Timeline-Balken farbcodiert pro Meilenstein + Pre-Consent-Tag rot; Balken waren unsichtbar weil <span> inline (width ignoriert) -> display:block gefixt. (b) Consent-Signale (gcs/gcd) verifiziert: denied IST rot (cfp-d), nur l=unset grau + undokumentierte gcd-Buchstaben orange (bewusst); offener Folge-Task: gcd-Alphabet vollstaendig belegen (Recherche). (c) Timeline-Bug: CMP-Entscheidung-Marker wanderte (+70s, wachsend) weil Fallback consentTs=letztes consent-Event (2s-Poll schob es vor) -> neuer Reader-Wert consentFirstTs (erstes Event, stabil). (d) Neue Karte Session & IDs: sid/uid/user_id + Aenderungshistorie (F->C-Promote live sichtbar), pro-Host persistiert (localStorage), plus Session-API-Payload (echter created-Server-Timestamp + Zaehler sessionCount/pvCount/eventCount/counter). 533 Tests gruen, Doku/CHANGELOG/knowledge/ZIP aktuell. Karte weiter QA. Offene Andi-Frage: Default-Tab Diagnose vs Consent.",
-                "created": "2026-07-26"
-              },
-              {
-                "id": "544d08a6-816e-40d8-a2c9-96e7bd2e3f05",
-                "author": "Claude Opus",
-                "text": "KRITIKER-RUNDE 2 (2026-07-26, Commits d6d68e2 Library + 849a8ad P3-Fixes). Umfang seit letzter QA: farbige Timeline-Balken, Session&IDs-Karte (prominente sid/uid, Aenderungshistorie, Per-Host-Persistenz, Session-API-Stat-Tiles mit se_data-Fallback + Live-Alter), consentFirstTs/logMilestones-Timeline-Stabilitaetsfix, Wartet-auf-Block, plus 1-Zeilen-Library-Change aGTM.d.dlrepeatGate (LIVE bei fc-moto.com). Zwei unabhaengige Sub-Agents (Korrektheit/Library + UX/Doku): KEIN P0/P1/P2. Live-Library-Zeile explizit bestaetigt sicher (ES5, kann nicht werfen, verhaltensneutral, +37B im Budget, build.sh driftfrei). 7 P3 behoben/akzeptiert (F-74..F-80): created-Sek/ms-Heuristik, prefers-reduced-motion, seit->gestartet, Palette-Aussage abgeschwaecht, 2 Test-/Doku-Luecken geschlossen; bewusst nicht gefixt: stale dlrepeatPolling (F-74, Panel korrekt gegated, Live-Ripple fuer Kosmetik vermieden). 540 Tests gruen. Doku/CHANGELOG/README/knowledge/findings/ZIP aktuell. Karte weiter QA. Naechster Chat baut einen Simulations-Tab in die Extension (Andi briefed).",
-                "created": "2026-07-26"
-              }
-            ],
-            "qa": true
-          },
-          {
             "id": "ac06b129-067e-4f82-81d0-0cfe2dc91c93",
             "title": "sGTM Client: Session-API-Zaehler in aGTM.d.session durchreichen (created/counter/pv/event/sessionCount)",
             "description": "Befund (fc-moto Live-Objekt 2026-07-26, via aGTM Inspector): aGTM.d.session traegt die Session-API-Zaehler NICHT (nur uid/sid/ret/sst/vct/ga4sid/muidga4/consent/source; vct=49 != sessionCount=56). Die vollen Zaehler (created/counter/pvCount/eventCount/sessionCount/lastInteraction) liegen nur in window.se_data. Der Inspector zieht sie jetzt als read-only Fallback aus se_data (Commit 4dc4d36), aber der saubere Weg ist server-seitig: der sGTM Client soll diese Felder aus dem Session-API-Record in cfg.session -> aGTM.d.session durchreichen (wie source), damit webGTM/Integratoren sie via aGTM.d.session lesen koennen ohne se_data-Abhaengigkeit. RELEASE-SENSIBEL: aendert den in den Client eingebetteten base64-Blob / cfg.session-Shape -> rippelt in live getestete Kunden (fc-moto) mitten in der offenen v1.5. Daher NICHT im Inspector-Chat angefasst. Reserved-Key-Blacklist beachten (created/counter etc. sind KEINE reserved session keys, sollten also durchgehen - pruefen warum sie aktuell fehlen: filtert der Client sie? oder liefert die Session-API sie nur im se_data-Pfad?).",
@@ -1336,55 +1403,6 @@
             "owner": "",
             "columnId": "col-backlog",
             "displayId": 48
-          },
-          {
-            "id": "agtm-inspector-sim-extra-features",
-            "title": "aGTM Inspector Simulations-Tab: Extra-Features (GCM-Push, Reset+Reload, Szenario-Runner, consent-store-POST)",
-            "description": "Folge-Features fuer den Simulations-Tab (sim.js), von Andi fuer den naechsten Chat freigegeben: (1) Google-Consent-Mode-Push — gtag(\"consent\",\"update\",{...}) direkt pushen, um GCM-Signale unabhaengig von aGTM zu testen. (2) Cookie-Reset + Reload — Consent-Cookies loeschen + Seite neu laden fuer einen echten Erstbesuch-Test (Simulation kann bereits injiziertes GTM nicht zurueckholen). (3) Szenario-Runner — Sequenz deny -> Events feuern -> grant -> Replay beobachten, ein Klick; spiegelt das v1.6-Roadmap-Item \"interaktiver Scenario-Runner\". (4) consent-store-POST-Test — den /aGTMconsent-Pfad gezielt ausloesen.",
-            "status": "",
-            "priority": "P3",
-            "owner": "Claude Opus",
-            "qa": true,
-            "critical": false,
-            "blocked": false,
-            "complexity": "M",
-            "effort": "M",
-            "agentContext": "Baut auf sim.js auf (devtools-extension/). MUSTER strikt einhalten: pure Builder auf window.aGTMInspectorSim (self-invoking (function(){try{}catch(e){}})()-Ausdruck, gibt {ok,...} zurueck), INJIZIERTER Code ES5-only (var, keine Arrow/let/const/Template-Literals). Alle Writes durch simRun() (SIM_WRITE-Gate). Persistenz pro Host via st.* + simSave (localStorage aGTMInspector.sim). Neue Builder in test/devtools/sim.test.js gegen Fake-window.aGTM ausfuehren (Syntax+Verhalten). Szenario-Runner braucht Sequencing mit Waits zwischen Schritten — im Panel-Kontext (setTimeout ok, NICHT im injizierten Code). Cookie-Reset: document.cookie im Seitenkontext loeschen + location.reload(); Cookie-Namen aus aGTM.c/consent ableiten. consent-store-POST: aGTM.c.consent_store_url pruefen, aGTM.f.run_cc(\"update\") treibt den POST via xsend bereits — evtl. reicht ein gezielter run_cc mit geaendertem Consent-Hash. Nach Umsetzung: bun test gruen, kein build.sh noetig (off ES5-Pfad), Doku (README/CHANGELOG/knowledge devtools-inspector-extension.md) + Kritiker-Runde. Karte #49 (Basis-Sim-Tab) ist der Vorlaeufer.",
-            "links": [],
-            "comments": [
-              {
-                "id": "87ea03b8-05a0-4bd6-8389-891b680b0a5c",
-                "author": "Claude Opus",
-                "text": "Umgesetzt auf dev (c1c7a42): 4 Extra-Features in sim.js nach bestehendem Builder-Muster (ES5-injiziert, SIM_WRITE-Gate, per-Host-Persistenz). (1) GCM-Push: gtag(consent,update) als echtes arguments-Objekt in dataLayer, aGTM-unabhaengig. (2) Cookie-Reset+Reload: Name-Match ueber Pfad×Parent-Domain-Grid, opt. localStorage + Reload (leer=alle). (3) Szenario-Runner: ein Eval deny->fire(queue)->grant->inject+replay, meldet fired/queued; alreadyInjected-Flag warnt bei bereits injiziertem GTM (inject-once -> kein Replay). (4) Consent-Store-POST-Test: consent_hash leeren + run_cc(update) -> echter xsend-POST an /aGTMconsent. reader.js bleibt reiner Reader, kein neues Permission. Alle Builder gegen Fake-aGTM ausgefuehrt (sim.test.js, 52 Tests). Adversarialer Kritiker: KEIN P0/P1 (ES5/Serialisierbarkeit/Escaping/Cookie-Grid verifiziert); P2 (Szenario-Replay-No-op auf injizierter Seite) gefixt+getestet, 2 P3-Doku-Caveats ergaenzt. 595 bun-Tests gruen. README+CHANGELOG aktualisiert. build.sh bewusst nicht gelaufen (nur devtools/, nicht ES5/Build-Pfad). OFFEN fuer Andi: Live-Load in Chrome + Durchspielen (v1.5 bleibt offen, kein Release/Tag).",
-                "created": "2026-07-26"
-              },
-              {
-                "id": "0321a1bf-84f5-4f01-9ef1-2e5ef806c3b0",
-                "author": "Claude Opus",
-                "text": "QA+Kritiker \"ueber alles\" (Andi-Wunsch): 3 parallele adversariale Sub-Agents ueber den GESAMTEN Simulations-Tab (Correctness-vs-aGTM.js / Security-Posture-ES5 / Tests-Doku-Fidelity), selbst-enthaltend. KEIN P0/P1. Security-Agent: ES5, Escaping (J()/esc()), Serialisierbarkeit, Posture (jede Mutation via simRun+SIM_WRITE, reader.js read-only, permission-frei) alle sauber. Behobene Findings (Commit 5e61596): F-84 P2 \"GTM-Injection erzwingen\" war stiller No-op (inject() consent-gated aGTM.js:1186/1210) -> jetzt initGTM(false) direkt + honest error; F-85 P3 Block<->Stub-Backup-Kollision (Block->Grant->Unblock->Restore strandete deny-noop) -> stubBody sichert echtes Original aus __inspBlockBak; F-86 P3 Scenario-queued jetzt Delta statt Vor-Queue-inflationiert; F-87 P2 Consent-Store-Test bewachte Hash-Blank nicht -> Fake-Seed korrigiert; F-88 P2 buildCmpMockCode-Kommentar log (run_cc) -> korrigiert; F-89 P3 Cookie-Domain-Test/panel-smoke/README/CHANGELOG-localStorage-Caveat. fakeAGTM.inject modelliert jetzt das echte Consent-Gate. 600 bun-Tests gruen, ES5 der injizierten Strings verifiziert, ZIP neu gepackt. Doku+knowledge nachgezogen (CHANGELOG, README, knowledge/topics/devtools-inspector-extension.md, docs/findings.md F-84..F-89). v1.5 bleibt offen, kein Tag. OFFEN fuer Andi: Live-Load in Chrome + Durchspielen.",
-                "created": "2026-07-26"
-              },
-              {
-                "id": "4e7cdbc9-7b12-4e18-95f3-5bf7797ec6d6",
-                "author": "Claude Opus",
-                "text": "Folgerunde (Andi-Feedback, Commit 06b485a): (1) Uebersichts-Umbau des Sim-Tabs: flaches Layout mit 4 Abschnitts-Ueberschriften (Consent / Events / GTM & Integration / Umgebung), Write-Toggle + Live-Effekt oben angepinnt (Andi-Wahl gegen klappbare Gruppen/Unter-Tabs). (2) #3-Entscheidung getroffen: CMP-Mock-Box aufgeloest (Grant installiert ohnehin einen persistenten consent_check-Stub = mockt die CMP), Restore wandert neben Grant/Deny/Reset; buildCmpMockCode entfernt. (3) Andis GTM-Override-Idee umgesetzt: neue Box \"Anderen GTM-Container laden\" (buildLoadContainerCode) laedt Container-IDs direkt via aGTM.f.gtm_load, consent- und config-unabhaengig -> Live-Seite testweise auf Staging/Demo-Container zeigen ohne Config-Aenderung (paart mit Blockieren); IDs pro Host persistiert. 604 bun-Tests gruen, ES5 verifiziert, ZIP neu gepackt, Doku (README/CHANGELOG/knowledge) nachgezogen. v1.5 bleibt offen. Karte bleibt in QA fuer Andis Live-Durchspielen.",
-                "created": "2026-07-27"
-              },
-              {
-                "id": "2389846e-ff60-451e-9e99-922f30de008b",
-                "author": "Claude Opus",
-                "text": "Kritiker-Runde ueber den Umbau (2 Sub-Agents: Correctness/ES5/Posture + Tests/Doku, Commit dc94a96). KEIN P0/P1/P2. 4 P3 behoben (F-90..F-93): F-90 buildLoadContainerCode+buildInjectCode meldeten falschen Erfolg vor init() (gtm_load/initGTM no-oppen bei !aGTM.d.config, aGTM.js:997) -> Config-Guard, ok:false ehrlich; F-91 Fake-gtm_load fing das 6. Config-Arg nicht ein -> jetzt captured+asserted; F-92 Blank-Token/gtm_load-fehlt/no-config ungetestet + Builder trimmt Tokens nicht -> Trim + Tests; F-93 Doku-Praezisierung \"uebrige\" Config-Container. 608 bun-Tests gruen, ES5 verifiziert, ZIP neu gepackt, Doku (README/CHANGELOG/knowledge/findings F-90..93) nachgezogen. Karte bleibt in QA fuer Andis Live-Durchspielen. v1.5 offen, kein Tag.",
-                "created": "2026-07-27"
-              },
-              {
-                "id": "69c6f05e-9921-418d-a1b9-0815de289b9e",
-                "author": "Claude Opus",
-                "created": "2026-07-27",
-                "text": "Abgeschlossen: Andi hat den Simulations-Tab im Chrome-Live-Test verifiziert (Freigabe im Chat 2026-07-27). Karte QA -> Erledigt. Stand bei Abschluss: dev @ 191fbba, 608 bun-Tests gruen, Arbeitsbaum sauber, ES5-/Build-Pfad nicht beruehrt (devtools-extension ist ES6, eigener Browser-Kontext). Umfang der Karte: 4 Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, Consent-Store-POST-Test) + Layout-Umbau (flache 4-Abschnitts-Gliederung, angepinnter Write-Toggle) + GTM-Container-Override + aufgeloeste CMP-Mock-Box. QA-Historie: 3 Kritiker-Runden mit insgesamt 10 behobenen Findings (F-84..F-93), kein P0/P1 offen. v1.5 bleibt bewusst OFFEN (kein v*-Tag) - Release-Gate haengt weiter an Karte #1."
-              }
-            ],
-            "displayId": 50,
-            "columnId": "col-erledigt"
           }
         ]
       },
