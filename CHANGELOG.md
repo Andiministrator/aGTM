@@ -44,6 +44,10 @@ The result of a reset also survives the reload it triggers. It used to be shown 
 before the page reloaded, so the most useful feedback — which cookies actually went —
 was gone before it could be read.
 
+The effect panel is now pinned while scrolling. It sits at the top of the Simulation
+tab while the buttons reach far below it, so an action's result was reported off-screen
+— which reads exactly like nothing having happened.
+
 Buttons that are disabled because write-mode is off now explain themselves on hover. A disabled button swallows the click silently, so "I clicked and nothing happened" was the only feedback — and since write-mode resets to off on every panel open, that is the normal state right after reloading the extension.
 
 ### Added — aGTM Inspector: exception details in the network list

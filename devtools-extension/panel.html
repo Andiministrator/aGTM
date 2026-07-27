@@ -105,6 +105,9 @@
   /* Exception preview in the network list: readable, but not shouting — the row is
      still a network row, not an error banner. Left rule + muted red carries "problem"
      without the weight of a chip. */
+  /* The effect panel stays in view while you scroll the (long) Simulation tab, so an
+     action's result is never reported off-screen. */
+  .sim-live-card { position: sticky; top: 0; z-index: 6; box-shadow: 0 6px 12px -8px rgba(0,0,0,.6); }
   .net-exc { margin-top: 3px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap;
              border-left: 2px solid var(--err); padding-left: 6px; }
   .net-exc-t { font-size: 10px; font-weight: 600; color: var(--err); white-space: nowrap; }

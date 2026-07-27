@@ -765,7 +765,10 @@ function buildSimScaffold() {
     "</div>";
 
   // ── Live effect panel (pinned, repainted per poll) ────────────
-  h += '<div class="card"><h2>Live-Zustand &amp; Effekt</h2><div id="sim-live"></div></div>';
+  // Pinned: every action's result shows up here, but the buttons that trigger them sit
+  // up to ~1500 px further down. An unpinned panel means the feedback fires off-screen —
+  // which reads as "nothing happened" (Andi, 2026-07-27, cookie reset).
+  h += '<div class="card sim-live-card"><h2>Live-Zustand &amp; Effekt</h2><div id="sim-live"></div></div>';
 
   // Build the content boxes once, then assemble under section headers so the tab reads
   // as four labelled groups (Consent · Events · GTM & Integration · Umgebung) instead of
