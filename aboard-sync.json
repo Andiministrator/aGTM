@@ -1375,10 +1375,16 @@
                 "author": "Claude Opus",
                 "text": "Kritiker-Runde ueber den Umbau (2 Sub-Agents: Correctness/ES5/Posture + Tests/Doku, Commit dc94a96). KEIN P0/P1/P2. 4 P3 behoben (F-90..F-93): F-90 buildLoadContainerCode+buildInjectCode meldeten falschen Erfolg vor init() (gtm_load/initGTM no-oppen bei !aGTM.d.config, aGTM.js:997) -> Config-Guard, ok:false ehrlich; F-91 Fake-gtm_load fing das 6. Config-Arg nicht ein -> jetzt captured+asserted; F-92 Blank-Token/gtm_load-fehlt/no-config ungetestet + Builder trimmt Tokens nicht -> Trim + Tests; F-93 Doku-Praezisierung \"uebrige\" Config-Container. 608 bun-Tests gruen, ES5 verifiziert, ZIP neu gepackt, Doku (README/CHANGELOG/knowledge/findings F-90..93) nachgezogen. Karte bleibt in QA fuer Andis Live-Durchspielen. v1.5 offen, kein Tag.",
                 "created": "2026-07-27"
+              },
+              {
+                "id": "69c6f05e-9921-418d-a1b9-0815de289b9e",
+                "author": "Claude Opus",
+                "created": "2026-07-27",
+                "text": "Abgeschlossen: Andi hat den Simulations-Tab im Chrome-Live-Test verifiziert (Freigabe im Chat 2026-07-27). Karte QA -> Erledigt. Stand bei Abschluss: dev @ 191fbba, 608 bun-Tests gruen, Arbeitsbaum sauber, ES5-/Build-Pfad nicht beruehrt (devtools-extension ist ES6, eigener Browser-Kontext). Umfang der Karte: 4 Extra-Features (GCM-Push, Cookie-Reset+Reload, Szenario-Runner, Consent-Store-POST-Test) + Layout-Umbau (flache 4-Abschnitts-Gliederung, angepinnter Write-Toggle) + GTM-Container-Override + aufgeloeste CMP-Mock-Box. QA-Historie: 3 Kritiker-Runden mit insgesamt 10 behobenen Findings (F-84..F-93), kein P0/P1 offen. v1.5 bleibt bewusst OFFEN (kein v*-Tag) - Release-Gate haengt weiter an Karte #1."
               }
             ],
             "displayId": 50,
-            "columnId": "col-qa"
+            "columnId": "col-erledigt"
           }
         ]
       },
