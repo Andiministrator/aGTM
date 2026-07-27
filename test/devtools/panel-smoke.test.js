@@ -539,14 +539,17 @@ describe("feedback fixes", () => {
     expect(html).toContain("page_title");         // STILL open — key did not shift with the append
     P.setExpanded({});
   });
-  // ── Kritiker R2 P2: leak stamp reconciled against consentTs ────────────────
-  test("a tracker that fired at/after the consent grant is NOT a leak (snapshot-lag reconcile)", () => {
+  // ── Kritiker R2 P2 + card #52: leak stamp reconciled against the CONSENT MOMENT ──
+  // sampleSnap: logMilestones.consent = 2000 (the anchor), consentFirstTs = 1800,
+  // consentTs = 5000 (the LAST consent event — deliberately NOT the anchor, see
+  // consentMomentTs: the 2s CMP poll keeps moving it forward).
+  test("a tracker that fired at/after the consent moment is NOT a leak (snapshot-lag reconcile)", () => {
     const P = globalThis.__panel;
-    const snap = sampleSnap(); // consent.gtmConsent=true, consentTs=5000
+    const snap = sampleSnap();
     P.setSnap(snap);
     P.setNet([
-      { id: 21, url: "https://connect.facebook.net/tr?id=1", host: "connect.facebook.net", method: "GET", status: 200, ts: 6000, propId: "", evName: "", preConsent: true }, // after grant → legit
-      { id: 22, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 4000, propId: "", evName: "", preConsent: true }  // before grant → leak
+      { id: 21, url: "https://connect.facebook.net/tr?id=1", host: "connect.facebook.net", method: "GET", status: 200, ts: 4000, time: 0, propId: "", evName: "", preConsent: true }, // after the moment → legit
+      { id: 22, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 1500, time: 0, propId: "", evName: "", preConsent: true }  // before the moment → leak
     ]);
     P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
     P.setTab("network"); P.render();
@@ -698,7 +701,8 @@ describe("Diagnose tab", () => {
   test("a pre-consent leak flips the overall score to FAIL", () => {
     const P = globalThis.__panel;
     P.setSnap(sampleSnap());
-    P.setNet([{ id: 1, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 4000, propId: "", evName: "", preConsent: true }]);
+    // ts BEFORE the consent moment (logMilestones.consent = 2000) → a genuine leak
+    P.setNet([{ id: 1, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 1500, time: 0, propId: "", evName: "", preConsent: true }]);
     P.setTab("diagnose"); P.render();
     const html = globalThis.document.getElementById("tab-diagnose")._html;
     expect(html).toContain("score-fail");
@@ -1190,5 +1194,100 @@ describe("Simulation tab — effect panel + polled Ist-Zustand line", () => {
     const line = globalThis.__nodes["sim-gcm-status"]._html;
     expect(line).toContain("(update)");
     expect(line).not.toContain("offen");
+  });
+});
+
+/* ==================================================================== *
+ *  Card #52 — pre-consent leak reconcile anchored on the consent MOMENT *
+ * ==================================================================== */
+
+describe("Pre-consent leak reconcile (card #52 — victors.de false positives)", () => {
+  // Reproduces the reported case: aGTM.js at t+0, then gtm.js/gtag.js ~1.2s later.
+  // All three were stamped preConsent because the 700ms snapshot poll had not caught
+  // up yet — but consent WAS already there (aGTM only injects GTM after gtmConsent).
+  function victorsSnap() {
+    const snap = sampleSnap();
+    snap.logMilestones = { config: 1000, pending: 0, consent: 1400, inject: 1500 };
+    snap.consentFirstTs = 1400;
+    // The last consent event, pushed forward by the library's 2s CMP poll. Anchoring on
+    // this is what kept the stamps stuck (the actual bug).
+    snap.consentTs = 90000;
+    return snap;
+  }
+  const gtmReqs = [
+    { id: 1, url: "https://rp.victors.de/gtm.js?id=victors", host: "rp.victors.de", method: "GET", status: 200, ts: 1600, time: 0, propId: "", evName: "", preConsent: true },
+    { id: 2, url: "https://www.googletagmanager.com/gtag/js?id=AW-17009335996", host: "www.googletagmanager.com", method: "GET", status: 200, ts: 1750, time: 0, propId: "", evName: "", preConsent: true }
+  ];
+
+  afterAll(() => { globalThis.__panel.setNet([]); globalThis.__panel.setSnap(sampleSnap()); });
+
+  test("GTM loads that started AFTER the consent moment are no longer flagged", () => {
+    const P = globalThis.__panel;
+    P.setSnap(victorsSnap());
+    P.setNet(gtmReqs.slice());
+    P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
+    P.setTab("network"); P.render();
+    const html = globalThis.document.getElementById("tab-network")._html;
+    expect(html).toContain("gtm.js");            // the rows ARE rendered …
+    expect(html).toContain("gtag/js");
+    expect(html).not.toContain("pre-consent");   // … just without the badge
+    expect(html).not.toContain("Pre-Consent-Leak");
+  });
+
+  test("anchoring on consentTs (the LAST consent event) would still flag them — the bug", () => {
+    // Guards the fix itself: with the old anchor every request is compared against
+    // t=90000, so nothing can ever reconcile. If someone reverts consentMomentTs to
+    // snap.consentTs, the test above fails and this one documents why.
+    const snap = victorsSnap();
+    expect(snap.consentTs).toBeGreaterThan(gtmReqs[1].ts);      // the trap
+    expect(snap.logMilestones.consent).toBeLessThan(gtmReqs[0].ts); // the correct anchor
+  });
+
+  test("a real leak BEFORE the consent moment is still reported", () => {
+    const P = globalThis.__panel;
+    P.setSnap(victorsSnap());
+    P.setNet([
+      { id: 3, url: "https://connect.facebook.net/tr?id=1", host: "connect.facebook.net", method: "GET", status: 200, ts: 1100, time: 0, propId: "", evName: "", preConsent: true }
+    ].concat(gtmReqs));
+    P.netSet("netOnlyAGTM", false);
+    P.setTab("network"); P.render();
+    const html = globalThis.document.getElementById("tab-network")._html;
+    expect(html).toContain("Pre-Consent-Leak");
+    expect(html).toContain("Meta Pixel");
+    expect(html).not.toContain("Google Tag Manager");   // the GTM loads were reconciled away
+  });
+
+  test("a slow request that STARTED before consent stays a leak (start, not finish, counts)", () => {
+    // Finished at 2200 (after the 1400 moment) but left at 900 — pre-consent.
+    // Comparing e.ts alone would clear it; reqStartTs subtracts the HAR duration.
+    const P = globalThis.__panel;
+    P.setSnap(victorsSnap());
+    P.setNet([{ id: 4, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 2200, time: 1300, propId: "", evName: "", preConsent: true }]);
+    P.netSet("netOnlyAGTM", false);
+    P.setTab("network"); P.render();
+    const html = globalThis.document.getElementById("tab-network")._html;
+    expect(html).toContain("Pre-Consent-Leak");
+    expect(html).toContain("TikTok");
+  });
+
+  test("the health score follows the same reconcile (no false red in a customer report)", () => {
+    const P = globalThis.__panel;
+    P.setSnap(victorsSnap());
+    P.setNet(gtmReqs.slice());
+    P.setTab("diagnose"); P.render();
+    const html = globalThis.document.getElementById("tab-diagnose")._html;
+    expect(html).not.toContain("score-fail");
+  });
+
+  test("without any consent anchor the stamp stands (conservative, no silent all-clear)", () => {
+    const P = globalThis.__panel;
+    const snap = victorsSnap();
+    snap.logMilestones = { config: 1000, pending: 0, consent: 0, inject: 0 };
+    snap.consentFirstTs = 0;
+    P.setSnap(snap);
+    P.setNet(gtmReqs.slice());
+    P.netSet("netOnlyAGTM", false);
+    P.setTab("network"); P.render();
+    expect(globalThis.document.getElementById("tab-network")._html).toContain("Pre-Consent-Leak");
   });
 });

@@ -1014,13 +1014,45 @@ var DIAG = window.aGTMInspectorDiag || {
 };
 var netSeq = 0;
 
+// The moment consent actually became available — the anchor the leak reconcile is
+// measured against. Same resolution order as the Consent-Timeline's `consent`
+// milestone (timelineSignals), deliberately: two views that judge "was there consent
+// at time X" must not answer differently (the F-95/F-96 lesson).
+//
+// Why NOT snap.consentTs: the reader computes that as the LAST consent event, and the
+// library's 2s CMP poll (start_consent_poll → run_cc('update')) keeps pushing it
+// forward. Measuring against it means a request that fired 200 ms after the decision is
+// compared to a timestamp minutes later, so the reconcile can never fire and a
+// capture-time stamp sticks forever — the victors.de false positives on gtm.js/gtag.js
+// (card #52). The Consent-Timeline was moved off consentTs for the same reason (F-71);
+// this path was missed then.
+//
+// `inject` is the last fallback and rests on an aGTM invariant: aGTM injects GTM only
+// once gtmConsent is true, so a GTM injection proves consent existed by that point.
+function consentMomentTs() {
+  var s = state.snap || {};
+  var lm = s.logMilestones || {};
+  return lm.consent || s.consentFirstTs || lm.inject || 0;
+}
+// A request's START time. e.ts is when the request FINISHED (onRequestFinished), so a
+// slow request that left before the decision would look post-consent. Subtract the HAR
+// duration, exactly like the timeline markers do (F-72).
+function reqStartTs(e) {
+  return e.ts - Math.round(e.time || 0);
+}
 // Decide whether a captured request is a pre-consent leak: a tracking hit stamped
-// preConsent at capture time, reconciled against the CURRENT consent timestamp (a
-// tracker that fired at/after the grant moment is legit, see Kritiker Runde 2, P2).
+// preConsent at capture time, reconciled against the consent moment (a tracker that
+// fired at/after the grant is legit, see Kritiker Runde 2, P2).
+//
+// The capture-time stamp alone is unavoidably coarse: it is taken against the last
+// polled snapshot (700 ms), so everything in the window between the real decision and
+// the next poll gets stamped. The reconcile is what makes the flag trustworthy — which
+// is why it must use a stable anchor.
+//
 // Returns the trackingHit ({vendor}) or null. Shared by renderNetwork + computeNetLeaks.
 function leakHitFor(e, cls, consentGranted, consentTs) {
   if (!(e.preConsent && NET.trackingHit)) return null;
-  var reconciledLegit = consentGranted && consentTs && e.ts >= consentTs;
+  var reconciledLegit = consentGranted && consentTs && reqStartTs(e) >= consentTs;
   if (reconciledLegit) return null;
   return NET.trackingHit(e.url, cls);
 }
@@ -1029,7 +1061,7 @@ function computeNetLeaks() {
   var s = state.snap || {};
   var scope = NET.sgtmScope(state.net, s.config), pageHost = s.pageHost || "";
   var consentGranted = !!(s.consent && truthy(s.consent.gtmConsent));
-  var consentTs = s.consentTs || 0;
+  var consentTs = consentMomentTs();
   var out = [];
   state.net.forEach(function (e) {
     var hit = leakHitFor(e, NET.classify(e.url, scope, pageHost), consentGranted, consentTs);
@@ -1445,15 +1477,16 @@ function renderNetwork() {
   var cfg = state.snap && state.snap.config;
   var pageHost = (state.snap && state.snap.pageHost) || "";
   var scope = NET.sgtmScope(state.net, cfg);
-  // Reconcile the capture-time preConsent stamp against the current consent timestamp:
-  // the stamp is read from a snapshot up to POLL_MS stale, so a tracker that legitimately
-  // fired right after "Accept" (before the next poll flips gtmConsent) would otherwise stay
-  // flagged forever. If consent is NOW granted and the request happened at/after the grant
-  // moment (consentTs), it is post-consent — not a leak. If consent is still absent/denied,
-  // the stamp stands (a tracker firing then IS a leak). (Kritiker Runde 2, P2.)
+  // Reconcile the capture-time preConsent stamp against the consent moment: the stamp is
+  // read from a snapshot up to POLL_MS stale, so a tracker that legitimately fired right
+  // after "Accept" (before the next poll flips gtmConsent) would otherwise stay flagged
+  // forever. If consent is NOW granted and the request STARTED at/after the consent
+  // moment, it is post-consent — not a leak. If consent is still absent/denied, the stamp
+  // stands (a tracker firing then IS a leak). See consentMomentTs() for why this must not
+  // be snap.consentTs (Kritiker Runde 2, P2; anchor corrected in card #52).
   var snap = state.snap || {};
   var consentGranted = !!(snap.consent && truthy(snap.consent.gtmConsent));
-  var consentTs = snap.consentTs || 0;
+  var consentTs = consentMomentTs();
   var mapped = state.net.map(function (e) {
     var cls = NET.classify(e.url, scope, pageHost);
     return { e: e, cls: cls, leak: leakHitFor(e, cls, consentGranted, consentTs) }; // leak = tracking request that fired before consent
