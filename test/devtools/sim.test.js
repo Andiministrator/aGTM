@@ -12,7 +12,7 @@ import {
   buildResetCode, buildRestoreCode, buildFireCode, buildInjectCode, buildProbeCode,
   buildBlockCode, buildUnblockCode, buildInjectIntegrationCode, simSelection,
   buildGcmPushCode, buildCookieResetCode, buildScenarioCode, buildConsentStoreTestCode,
-  buildLoadContainerCode, GCM_SIGNALS, GCM_MODES, hasCls
+  buildLoadContainerCode, GCM_SIGNALS, GCM_MODES, hasCls, SIM_COOKIE_DEFAULT
 } from "../../devtools-extension/sim.js";
 
 // Run a builder's self-invoking expression against a supplied fake window and
@@ -896,5 +896,53 @@ describe("buildGcmPushCode — critic round: guard completeness and purity", () 
     expect(res.ok).toBe(true);
     expect(res.late).toBe(true);
     expect(w.dataLayer.length).toBe(1);
+  });
+});
+
+describe("Cookie reset — pattern coverage for real CMPs", () => {
+  // Fake jar: getter returns the current cookie string, setter expires a named cookie.
+  function jar(cookieStr) {
+    var store = {};
+    cookieStr.split(";").forEach(function (c) {
+      var i = c.indexOf("="); if (i < 0) return;
+      store[c.slice(0, i).replace(/^\s+/, "")] = c.slice(i + 1);
+    });
+    var w = { location: { hostname: "www.victors.de", pathname: "/", reload: function () {} } };
+    w.document = {
+      get cookie() {
+        return Object.keys(store).map(function (k) { return k + "=" + store[k]; }).join("; ");
+      },
+      set cookie(v) {
+        var name = v.slice(0, v.indexOf("="));
+        if (/expires=[^;]*19[789]\d|expires=Thu, 01 Jan 1970/.test(v)) delete store[name];
+      }
+    };
+    w.__store = store;
+    return w;
+  }
+
+  test("the default patterns catch Consentmanager's __cmp family (the victors.de case)", () => {
+    // Real names from the report: __cmpccu45430 / __cmpconsent45430. The old list had
+    // "cmpsettings", which does NOT substring-match either of them.
+    var w = jar("__cmpccu45430=a; __cmpconsent45430=b; _ga=keep; PHPSESSID=keep");
+    var pats = splitTokens(SIM_COOKIE_DEFAULT);
+    var res = run(buildCookieResetCode(pats, {}), w);
+    expect(res.ok).toBe(true);
+    expect(res.cleared).toContain("__cmpccu45430");
+    expect(res.cleared).toContain("__cmpconsent45430");
+    expect(Object.keys(w.__store).sort()).toEqual(["PHPSESSID", "_ga"]);
+  });
+  test("a pattern list that matches nothing reports zero — not silent success", () => {
+    var w = jar("__cmpccu45430=a");
+    var res = run(buildCookieResetCode(["does-not-exist"], {}), w);
+    expect(res.ok).toBe(true);
+    expect(res.clearedCount).toBe(0);        // the panel turns this into a warning
+    expect(Object.keys(w.__store)).toEqual(["__cmpccu45430"]);
+  });
+  test("the old default list would have missed Consentmanager (regression guard)", () => {
+    var w = jar("__cmpccu45430=a; __cmpconsent45430=b");
+    var old = "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm";
+    var res = run(buildCookieResetCode(splitTokens(old), {}), w);
+    expect(res.clearedCount).toBe(0);
   });
 });

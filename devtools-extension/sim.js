@@ -447,9 +447,18 @@ function simDefaultGcm() {
     personalization_storage: "denied", security_storage: "granted"
   };
 }
-// Curated default cookie-name fragments for the reset box (common CMP/consent cookies +
-// aGTM's own). Empty field = match ALL cookies (nuclear) — spelled out in the UI hint.
-var SIM_COOKIE_DEFAULT = "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm";
+// Curated default cookie-name fragments for the reset box. Matching is a plain
+// substring test, so PREFIXES are the efficient form: "__cmp" covers Consentmanager's
+// whole family (__cmpconsent<id>, __cmpccu<id>, __cmpcvcx…), which the earlier entry
+// "cmpsettings" did NOT match — Consentmanager sites were silently unaffected by a
+// reset (found on victors.de, 2026-07-27).
+var SIM_COOKIE_DEFAULT = "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm";
+// Earlier default lists. A user who never edited the field still carries the old string
+// in localStorage, so an exact match is lifted to the current default instead of
+// leaving them with a list that misses their CMP.
+var SIM_COOKIE_DEFAULTS_PAST = [
+  "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm"
+];
 
 function simState() {
   if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), gcmMode: "update", gcmWait: "", gcmRegions: "", cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, scenarioText: "", containerIds: "" };
@@ -480,7 +489,9 @@ function simLoad(host) {
       if (typeof e.gcmMode === "string" && simGcmModes().indexOf(e.gcmMode) >= 0) st.gcmMode = e.gcmMode;
       if (typeof e.gcmWait === "string") st.gcmWait = e.gcmWait;
       if (typeof e.gcmRegions === "string") st.gcmRegions = e.gcmRegions;
-      if (typeof e.cookiePats === "string") st.cookiePats = e.cookiePats;
+      if (typeof e.cookiePats === "string") {
+        st.cookiePats = (SIM_COOKIE_DEFAULTS_PAST.indexOf(e.cookiePats) >= 0) ? SIM_COOKIE_DEFAULT : e.cookiePats;
+      }
       if (typeof e.cookieReload === "boolean") st.cookieReload = e.cookieReload;
       if (typeof e.cookieLS === "boolean") st.cookieLS = e.cookieLS;
       if (typeof e.scenarioText === "string") st.scenarioText = e.scenarioText;
@@ -696,7 +707,7 @@ function buildSimScaffold() {
     "</div></div>";
 
   var boxCookie = '<div class="card"><h2>Cookies zurücksetzen + neu laden</h2>' +
-    '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“.</div>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“. <b>Grenze:</b> gelöscht werden kann nur, was auf der <b>eigenen Domain</b> liegt — die Kopien mancher CMPs auf deren eigener Domain (z. B. <code>.consentmanager.net</code>) sind für die Seite unerreichbar und können den Zustand nach dem Reload wiederherstellen.</div>' +
     '<input type="text" id="sim-cookie-pats" spellcheck="false" placeholder="Cookie-Namen-Muster, kommagetrennt (leer = alle)" value="' + esc(typeof st.cookiePats === "string" ? st.cookiePats : "") + '" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">' +
     '<div class="toolbar" style="margin-top:8px">' +
     simFlag("sim-cookie-ls", "localStorage auch leeren", st.cookieLS) +
@@ -1060,7 +1071,14 @@ function updateSimLive() {
         det += " · ⚠ zu spät gepusht (Guard übergangen) — wirkungslos für den bereits verarbeiteten Zustand.";
       }
     } else if (typeof SIM_LAST.clearedCount === "number") {
-      det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "") + (SIM_LAST.reloading ? " · lädt neu…" : "");
+      if (!SIM_LAST.clearedCount && !SIM_LAST.lsCleared) {
+        // A reset that matched nothing used to report plain success — the user could not
+        // tell the difference between "cleared" and "your CMP is not in the pattern list"
+        // (that is how Consentmanager slipped through, see SIM_COOKIE_DEFAULT).
+        det = "⚠ Kein Cookie passte auf die Muster — nichts gelöscht. Cookie-Namen im Application-Tab prüfen und ein passendes Fragment ergänzen (leeres Feld = alle Cookies).";
+      } else {
+        det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "") + (SIM_LAST.reloading ? " · lädt neu…" : "");
+      }
     } else if (SIM_LAST.loadedContainers && SIM_LAST.loadedContainers.length) {
       det = "Container geladen: " + SIM_LAST.loadedContainers.join(", ");
     } else if (SIM_LAST.consentStoreUrl) {
@@ -1342,3 +1360,7 @@ if (typeof module !== "undefined" && module.exports) module.exports.simSelection
 // (card #51) — pure and worth a regression test of its own.
 if (typeof window !== "undefined" && window.aGTMInspectorSim) window.aGTMInspectorSim.hasCls = hasCls;
 if (typeof module !== "undefined" && module.exports) module.exports.hasCls = hasCls;
+// The curated cookie-name defaults, so the test asserts against the SHIPPED list
+// instead of a copy that silently drifts from it.
+if (typeof window !== "undefined" && window.aGTMInspectorSim) window.aGTMInspectorSim.SIM_COOKIE_DEFAULT = SIM_COOKIE_DEFAULT;
+if (typeof module !== "undefined" && module.exports) module.exports.SIM_COOKIE_DEFAULT = SIM_COOKIE_DEFAULT;

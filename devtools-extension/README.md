@@ -121,7 +121,7 @@ persisted per host):
   rule lives in `consentsignals.js` and is shared with the Consent tab, so the two views
   cannot disagree.
 - **Cookie reset + reload** — expires cookies whose name contains one of the given
-  patterns (across the `/` + current-path × parent-domain grid), optionally clears
+  patterns (the shipped list leads with prefixes such as `__cmp`, which covers Consentmanager's whole `__cmpconsent…`/`__cmpccu…` family; a run that matches nothing says so instead of reporting success, and **only the page's own domain can be cleared** — a CMP's copy on its own domain, e.g. `.consentmanager.net`, is out of reach and may restore the state after the reload) (across the `/` + current-path × parent-domain grid), optionally clears
   matching `localStorage` keys, then optionally reloads — the real first-visit re-test
   that plain reset can't do. **Empty pattern field = match every cookie** (nuclear;
   spelled out in-UI) — and, combined with "clear localStorage", that wipes the

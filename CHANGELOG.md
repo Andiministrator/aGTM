@@ -2,6 +2,22 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — aGTM Inspector: cookie reset missed Consentmanager
+
+The Simulation tab's cookie reset matches cookie names by substring, and the shipped
+pattern list carried `cmpsettings` — which does not match Consentmanager's actual names
+(`__cmpconsent<id>`, `__cmpccu<id>`). On a Consentmanager site the reset therefore cleared
+nothing while still reporting success, so a first-visit re-test silently kept the old
+consent.
+
+The list now leads with the `__cmp` prefix (covering the whole family) plus entries for
+Complianz, CookieYes, Didomi, Osano, Termly, Orestbida, Matomo and Shopify. A stored
+pattern list that is byte-identical to a previous default is lifted to the current one, so
+users who never edited the field get the fix. A run that matches nothing now says so
+instead of reporting plain success, and the UI states the hard limit: only cookies on the
+page's own domain can be cleared — a CMP's copy on its own domain (`.consentmanager.net`)
+is unreachable and can restore the state after the reload.
+
 ### Added — aGTM Inspector: exception details in the network list
 
 An `exception` hit now shows its **type and message directly in the list row**. The event
