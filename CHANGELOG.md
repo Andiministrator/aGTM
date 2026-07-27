@@ -26,6 +26,19 @@ names the removed cookies instead of only counting them, and a "restore the defa
 list" link appears whenever the field differs from the shipped patterns — an edited
 field is never migrated automatically, so this is the way back.
 
+The reset can now also run **inside third-party CMP frames**. A CMP such as
+Consentmanager keeps its own copy of the consent state in its own origin — cookies on
+`.consentmanager.net` plus a `localStorage` under `cdn.consentmanager.net` — which the
+page cannot touch under the same-origin policy. A top-frame-only reset therefore left the
+CMP able to restore everything, and the banner never came back. DevTools can evaluate
+inside a frame via `inspectedWindow.eval({frameURL})` **without any manifest permission**,
+and the frames are discovered from `getResources()`; the extension still declares no
+permissions.
+
+The result of a reset also survives the reload it triggers. It used to be shown ~80 ms
+before the page reloaded, so the most useful feedback — which cookies actually went —
+was gone before it could be read.
+
 Buttons that are disabled because write-mode is off now explain themselves on hover. A disabled button swallows the click silently, so "I clicked and nothing happened" was the only feedback — and since write-mode resets to off on every panel open, that is the normal state right after reloading the extension.
 
 ### Added — aGTM Inspector: exception details in the network list
