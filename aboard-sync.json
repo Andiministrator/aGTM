@@ -1379,6 +1379,31 @@
             ],
             "displayId": 53,
             "columnId": "col-erledigt"
+          },
+          {
+            "id": "agtm-inspector-cookiereset-thirdparty",
+            "title": "aGTM Inspector: Cookie-Reset erreicht die CMP-Kopie im Drittanbieter-Origin nicht",
+            "owner": "Claude Opus",
+            "complexity": "M",
+            "effort": "M",
+            "description": "ANDIS PRIORITAET fuer den naechsten Chat (2026-07-27): \"wichtiger waere mir das mit den cookies loeschen\".\n\nSTAND / WAS BEREITS GILT:\n- Der Reset im HAUPT-Frame funktioniert nachweislich: Muster-Match (Teilstring + `*`-Platzhalter), Domain-/Pfad-Grid, localStorage nach denselben Mustern. Verifiziert per Unit-Test gegen ein echtes Cookie-Jar mit Andis exakter Musterliste: __cmpccu45430, __cmpconsent45430, _tpf werden gefunden (F-107, F-109).\n- Die Default-Musterliste fuehrt mit dem Praefix __cmp und enthaelt _tpf (aGTMs eigenes User-ID-Cookie). Eine EDITIERTE Liste wird bewusst nicht migriert; dafuer gibt es den Link \"Standardliste wiederherstellen\", der erscheint sobald das Feld abweicht.\n- 0 Treffer werden als Warnung gemeldet, die geloeschten Namen werden aufgezaehlt, und das Ergebnis ueberlebt den vom Reset ausgeloesten Reload (F-111).\n\nDAS UNGELOESTE PROBLEM: Viele CMPs (bei Andi: Consentmanager) halten eine ZWEITE Kopie des Consent-Zustands im eigenen iframe-Origin - Cookies auf .consentmanager.net UND localStorage unter https://cdn.consentmanager.net (beides per Screenshot belegt). Die Seite kann darauf per Same-Origin-Policy nicht zugreifen, das CMP stellt den Consent nach dem Reload daraus wieder her, und ein echter Erstbesuch-Test ist damit im normalen Fenster unmoeglich.\n\nWAS BEREITS GESCHEITERT IST (nicht nochmal so versuchen!): chrome.devtools.inspectedWindow.eval(code, {frameURL}) - siehe F-115. frameURL adressiert einen Frame ueber seine EXAKTE DOKUMENT-URL, nicht ueber einen Origin; ein Origin liefert \"evaluate: there is no frame with URL ...\". Zusaetzlich wurden die Kandidaten aus getResources() gezogen, also jede Ressourcen-Herkunft (Font-CDNs, facebook.net, googletagmanager.com) - das sind ueberwiegend gar keine Frames und erzeugte ~20 rote Extension-Fehler pro Klick in Andis Console. Vollstaendig zurueckgebaut (Commit d23d304).\n\nMOEGLICHE ANSAETZE FUER DEN NAECHSTEN VERSUCH (offen, bitte VORHER verifizieren statt blind bauen - Lehre aus F-115):\n(a) Echte Frame-Dokument-URLs statt Origins: im Top-Frame read-only die iframes auslesen (document.querySelectorAll(\"iframe\") -> src) und DIESE URLs an frameURL geben. Ungeklaert bleibt, ob eval in einem CROSS-ORIGIN-Frame ueberhaupt erlaubt ist - genau das zuerst mit EINEM Frame und einem trivialen Ausdruck (z.B. \"location.href\") pruefen, bevor irgendwas gebaut wird.\n(b) chrome.browsingData / chrome.cookies API - loest es sicher, verlangt aber Manifest-Permissions und bricht damit die \"null Permissions\"-Posture der Extension. Das ist eine Architektur-Entscheidung fuer Andi, kein Implementierungsdetail: die permissionsfreie Posture ist ein beworbenes Merkmal (README/CLAUDE.md).\n(c) Es bei der dokumentierten Grenze belassen und den Inkognito-Weg als offizielle Antwort fuehren (aktueller Stand, funktioniert - die #51-Abnahme lief so).\n\nWICHTIG: Der Cookie-Reset ist ein HILFSMITTEL, kein Kernfeature. Diese Session hat ~10 Testrunden daran verbraucht, waehrend der eigentliche Pruefgegenstand wartete. Bitte Aufwand begrenzen und bei (b) zuerst Andi fragen.",
+            "labels": [],
+            "comments": [],
+            "critical": true,
+            "displayId": 54,
+            "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-inspector-declare-verify",
+            "title": "GCM-declare: prüfen ob ein dataLayer-declare vom Google-Tag überhaupt verarbeitet wird",
+            "owner": "Claude Opus",
+            "complexity": "S",
+            "effort": "S",
+            "description": "Offen aus der #51-Abnahme (2026-07-27): Andi hat declare live geprueft - \"geht irgendwie noch nicht\", aber ausdruecklich als NICHT wichtig eingestuft.\n\nWAS BEKANNT IST: Beim ersten Versuch war der Consent bereits erteilt, der Timing-Guard hat den Push also korrekt abgelehnt (\"kommt zu spaet\") - das war KEIN Befund. Ein zweiter Versuch im offenen Fenster brachte ebenfalls keine declare-Herkunft im Ist-Zustand.\n\nDIE FRAGE: Verarbeitet das Google-Tag ein per dataLayer gepushtes ['consent','declare',{...}] ueberhaupt? Offiziell dokumentiert sind nur update und default; declare ist primaer GTM-Template-API (declareConsentState). Dass reader.js ein declare-Feld in google_tag_data.ics.entries LIEST (F-66), beweist nur, dass CMP-Templates es setzen - nicht, dass der dataLayer-Weg funktioniert.\n\nPRUEFUNG: frische Seite VOR der Consent-Entscheidung (Inkognito), Modus declare, pushen, Herkunft-Spalte im Ist-Zustand ansehen. Taucht dort kein (declare) auf, ist der dataLayer-Weg tot.\n\nENTSCHEIDUNG DANN: Modus aus GCM_MODES entfernen (Tests/README/CHANGELOG mitziehen) - oder drin lassen mit dem bestehenden UI-Hinweis, der die Unsicherheit bereits ausdruecklich benennt und auf die Herkunft-Spalte als Live-Probe verweist. Andis Wunsch war urspruenglich, declare mit anzubieten.",
+            "labels": [],
+            "comments": [],
+            "displayId": 55,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -1606,7 +1631,7 @@
         ]
       }
     ],
-    "nextDisplayId": 54,
+    "nextDisplayId": 56,
     "attachments": [],
     "background": null,
     "templates": [],
