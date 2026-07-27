@@ -443,6 +443,30 @@
 var SIM_WRITE = false;
 var SIM_LS = "aGTMInspector.sim";
 var SIM_LAST = null; // last write action result {ok,...} for the effect panel
+var SIM_LAST_LS = "aGTMInspector.simLast";
+// What the third-party-frame pass removed, folded into the next effect line.
+var SIM_FRAME_EXTRA = null;
+// The cookie reset reloads the page ~80 ms after it ran, which is exactly when its
+// result would be shown — so the most important feedback ("which cookies went?") was
+// gone before it could be read. Persist the last result briefly and restore it on the
+// next render, so it survives the reload it triggered itself.
+function simLastSave() {
+  try {
+    if (typeof localStorage === "undefined" || !SIM_LAST) return;
+    localStorage.setItem(SIM_LAST_LS, JSON.stringify(SIM_LAST));
+  } catch (e) { /* ignore */ }
+}
+function simLastRestore() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    var raw = localStorage.getItem(SIM_LAST_LS);
+    if (!raw) return;
+    var v = JSON.parse(raw);
+    // Only a RECENT result — an hour-old message would be misleading noise.
+    if (v && typeof v === "object" && v.ts && (nowMs() - v.ts) < 30000) SIM_LAST = v;
+    localStorage.removeItem(SIM_LAST_LS);
+  } catch (e) { /* ignore */ }
+}
 
 // Default GCM signal map: a denied-by-default baseline (storage that needs consent is
 // denied; the two always-allowed functional/security signals granted) — the safe start
@@ -470,7 +494,7 @@ var SIM_COOKIE_DEFAULTS_PAST = [
 ];
 
 function simState() {
-  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), gcmMode: "update", gcmWait: "", gcmRegions: "", cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, scenarioText: "", containerIds: "" };
+  if (!state.sim) state.sim = { consent: null, presets: [], events: [], fireText: "", flags: {}, injectCode: "", blockIntent: false, active: false, host: null, _blockApplying: false, gcm: simDefaultGcm(), gcmMode: "update", gcmWait: "", gcmRegions: "", cookiePats: SIM_COOKIE_DEFAULT, cookieReload: true, cookieLS: false, cookieFrames: true, scenarioText: "", containerIds: "" };
   return state.sim;
 }
 
@@ -481,7 +505,7 @@ function simLoad(host) {
   st.consent = null; st.presets = []; st.events = []; st.fireText = ""; st.flags = {}; st.injectCode = ""; st.blockIntent = false;
   st.gcm = simDefaultGcm(); st.gcmMode = "update"; st.gcmWait = ""; st.gcmRegions = "";
   st.gcmForce = false; // never persisted — see the force checkbox handler
-  st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.scenarioText = ""; st.containerIds = "";
+  st.cookiePats = SIM_COOKIE_DEFAULT; st.cookieReload = true; st.cookieLS = false; st.cookieFrames = true; st.scenarioText = ""; st.containerIds = "";
   try {
     if (typeof localStorage === "undefined") return;
     var all = JSON.parse(localStorage.getItem(SIM_LS) || "{}");
@@ -503,6 +527,7 @@ function simLoad(host) {
       }
       if (typeof e.cookieReload === "boolean") st.cookieReload = e.cookieReload;
       if (typeof e.cookieLS === "boolean") st.cookieLS = e.cookieLS;
+      if (typeof e.cookieFrames === "boolean") st.cookieFrames = e.cookieFrames;
       if (typeof e.scenarioText === "string") st.scenarioText = e.scenarioText;
       if (typeof e.containerIds === "string") st.containerIds = e.containerIds;
     }
@@ -529,6 +554,7 @@ function simSave() {
       cookiePats: typeof st.cookiePats === "string" ? st.cookiePats : SIM_COOKIE_DEFAULT,
       cookieReload: !!st.cookieReload,
       cookieLS: !!st.cookieLS,
+      cookieFrames: !!st.cookieFrames,
       scenarioText: st.scenarioText || "",
       containerIds: st.containerIds || ""
     };
@@ -608,6 +634,7 @@ function simRun(code, label) {
       } else {
         SIM_LAST = result || { ok: false, error: "no result" };
         SIM_LAST.label = label; SIM_LAST.ts = nowMs();
+        if (SIM_LAST.reloading) simLastSave();   // survive the reload we just triggered
         if (typeof SIM_LAST.simActive === "boolean") simState().active = SIM_LAST.simActive;
         // snap.blocked (from reader.js) is authoritative for the block state.
       }
@@ -619,6 +646,49 @@ function simRun(code, label) {
     updateSimLive();
   }
 }
+// Third-party CMP frames (Consentmanager, Usercentrics, Cookiebot …) keep their OWN
+// copy of the consent state in their OWN origin: cookies on their domain plus a
+// localStorage under e.g. https://cdn.consentmanager.net. The page cannot touch either
+// — same-origin policy — so a reset run only in the top frame leaves the CMP able to
+// restore everything on the next load, and the banner never reappears.
+//
+// DevTools can reach into a frame WITHOUT any manifest permission:
+// inspectedWindow.eval accepts { frameURL }, and getResources() lists what the page
+// loaded. We collect the distinct third-party ORIGINS from those resources and run the
+// same reset expression once per frame (never with `reload` — that is the top frame's
+// job). Frames that are gone or refuse evaluation just report an error we ignore.
+function simFrameOrigins(cb) {
+  var out = [];
+  try {
+    if (!chrome.devtools.inspectedWindow.getResources) { cb(out); return; }
+    chrome.devtools.inspectedWindow.getResources(function (resources) {
+      var pageHost = (state.snap && state.snap.pageHost) || "";
+      var seen = {};
+      (resources || []).forEach(function (r) {
+        var u = r && r.url;
+        if (!u || u.indexOf("http") !== 0) return;
+        var origin, host;
+        try { var U = new URL(u); origin = U.origin; host = U.host; } catch (e) { return; }
+        if (!origin || seen[origin]) return;
+        // Same registrable-ish domain as the page → already covered by the top-frame run.
+        if (pageHost && (host === pageHost || host.indexOf("." + pageHost) >= 0 ||
+            pageHost.indexOf("." + host) >= 0)) return;
+        seen[origin] = 1;
+        out.push(origin);
+      });
+      cb(out);
+    });
+  } catch (e) { cb(out); }
+}
+// Run an expression inside a specific frame. Errors are swallowed: a frame may have
+// been removed between discovery and execution, which is normal, not a failure.
+function simRunInFrame(code, origin, done) {
+  try {
+    chrome.devtools.inspectedWindow.eval(code, { frameURL: origin + "/" }, function (result, err) {
+      done(!err && result && result.ok ? result : null);
+    });
+  } catch (e) { done(null); }
+}
 function nowMs() { try { return Date.now(); } catch (e) { return 0; } }
 
 /* ---------- render ---------- */
@@ -629,6 +699,7 @@ function renderSim() {
   var host = (snap && snap.pageHost) || "";
   var st = simState();
   if (st.host !== host) { simLoad(host); }
+  if (!SIM_LAST) simLastRestore();
 
   // Rebuild the scaffold only when it isn't currently in the section (first
   // activation, or after the not-loaded branch paint()ed a placeholder over it).
@@ -722,6 +793,7 @@ function buildSimScaffold() {
     (st.cookiePats !== SIM_COOKIE_DEFAULT ? ' <a href="#" id="sim-cookie-reset-pats" style="color:var(--accent)">Standardliste wiederherstellen</a>' : "") + "</div>" +
     '<div class="toolbar" style="margin-top:8px">' +
     simFlag("sim-cookie-ls", "localStorage auch leeren", st.cookieLS) +
+    simFlag("sim-cookie-frames", "auch in Drittanbieter-Frames (CMP)", st.cookieFrames) +
     simFlag("sim-cookie-reload", "danach neu laden", st.cookieReload) +
     '<span class="spacer" style="flex:1"></span>' +
     simBtn("sim-cookie-reset", "Cookies löschen", "warn") + "</div></div>";
@@ -1097,7 +1169,13 @@ function updateSimLive() {
         var nm = (SIM_LAST.cleared || []).slice(0, 8).join(", ");
         var more = (SIM_LAST.cleared || []).length > 8 ? " …" : "";
         det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (nm ? " (" + nm + more + ")" : "") +
-          (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "") + (SIM_LAST.reloading ? " · lädt neu…" : "");
+          (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "");
+        if (SIM_FRAME_EXTRA) {
+          det += " · Drittanbieter-Frames: " + SIM_FRAME_EXTRA.frames +
+            (SIM_FRAME_EXTRA.cookies.length ? " → " + SIM_FRAME_EXTRA.cookies.slice(0, 6).join(", ") : " → nichts gefunden") +
+            (SIM_FRAME_EXTRA.ls ? " · localStorage: " + SIM_FRAME_EXTRA.ls : "");
+        }
+        det += (SIM_LAST.reloading ? " · lädt neu…" : "");
       }
     } else if (SIM_LAST.loadedContainers && SIM_LAST.loadedContainers.length) {
       det = "Container geladen: " + SIM_LAST.loadedContainers.join(", ");
@@ -1309,6 +1387,8 @@ function attachSimListeners() {
   // Cookie reset flag checkboxes + button
   var ckLs = el("sim-cookie-ls");
   if (ckLs) ckLs.addEventListener("change", function () { simState().cookieLS = ckLs.checked; simSave(); });
+  var ckFr = el("sim-cookie-frames");
+  if (ckFr) ckFr.addEventListener("change", function () { simState().cookieFrames = ckFr.checked; simSave(); });
   var ckRl = el("sim-cookie-reload");
   if (ckRl) ckRl.addEventListener("change", function () { simState().cookieReload = ckRl.checked; simSave(); });
   bindClick("sim-cookie-reset-pats", function (ev) {
@@ -1321,7 +1401,35 @@ function attachSimListeners() {
     var input = el("sim-cookie-pats");
     var raw = input ? input.value : (st.cookiePats || "");
     var pats = window.aGTMInspectorSim.splitTokens(raw);
-    simRun(window.aGTMInspectorSim.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: !!st.cookieReload }), "Cookies zurückgesetzt");
+    var SIMB = window.aGTMInspectorSim;
+    // Third-party CMP frames first, THEN the top frame — the top-frame run is the one
+    // that may reload, and a reload would cut the frame work short.
+    if (!st.cookieFrames) {
+      simRun(SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: !!st.cookieReload }), "Cookies zurückgesetzt");
+      return;
+    }
+    var frameCode = SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: false });
+    simFrameOrigins(function (origins) {
+      var pending = origins.length, hits = [], lsHits = 0;
+      function finish() {
+        var res = simRun(SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: !!st.cookieReload }), "Cookies zurückgesetzt");
+        // Fold the frame results into the effect line once the top-frame call returns.
+        SIM_FRAME_EXTRA = hits.length || lsHits
+          ? { frames: origins.length, cookies: hits, ls: lsHits }
+          : (origins.length ? { frames: origins.length, cookies: [], ls: 0 } : null);
+        return res;
+      }
+      if (!pending) { finish(); return; }
+      origins.forEach(function (o) {
+        simRunInFrame(frameCode, o, function (r) {
+          if (r) {
+            (r.cleared || []).forEach(function (n) { if (hits.indexOf(n) < 0) hits.push(n); });
+            lsHits += (r.lsCleared | 0);
+          }
+          if (--pending === 0) finish();
+        });
+      });
+    });
   });
 
   // Scenario runner

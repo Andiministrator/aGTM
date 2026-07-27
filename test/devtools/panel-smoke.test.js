@@ -106,7 +106,8 @@ beforeAll(() => {
     "  decodeParams: decodeParams," +
     "  exceptionInfo: exceptionInfo," +
     "  setSimWrite: function(v){ SIM_WRITE = v; }," +
-    "  getSimWrite: function(){ return SIM_WRITE; }" +
+    "  getSimWrite: function(){ return SIM_WRITE; }," +
+    "  simFrameOrigins: simFrameOrigins" +
     "};";
   (0, eval)(src);
 });
@@ -1593,5 +1594,59 @@ describe("Simulation tab — action buttons actually reach the page", () => {
     clickSim("sim-cookie-reset");                  // stubbed eval returns clearedCount 0
     P.updateSimLive();
     expect(globalThis.__nodes["sim-live"]._html).toContain("Kein Cookie passte");
+  });
+});
+
+describe("Third-party CMP frames — discovery and reset", () => {
+  function withResources(list, fn) {
+    const prev = globalThis.chrome.devtools.inspectedWindow.getResources;
+    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) { cb(list); };
+    try { fn(); } finally { globalThis.chrome.devtools.inspectedWindow.getResources = prev; }
+  }
+  function origins(list, pageHost) {
+    const P = globalThis.__panel;
+    const snap = sampleSnap(); snap.pageHost = pageHost || "www.victors.de";
+    P.setSnap(snap);
+    let got = null;
+    withResources(list, () => { P.simFrameOrigins(function (o) { got = o; }); });
+    return got;
+  }
+  afterAll(() => { globalThis.__panel.setSnap(sampleSnap()); });
+
+  test("finds the CMP origin and skips the page's own", () => {
+    const o = origins([
+      { url: "https://www.victors.de/index.html" },
+      { url: "https://www.victors.de/layout/js/main.js" },
+      { url: "https://cdn.consentmanager.net/delivery/cmp.js" },
+      { url: "https://cdn.consentmanager.net/other.js" }   // same origin, once only
+    ]);
+    expect(o).toEqual(["https://cdn.consentmanager.net"]);
+  });
+  test("subdomains of the page host count as the page's own", () => {
+    const o = origins([
+      { url: "https://rp.victors.de/aGTM.js" },
+      { url: "https://cdn.consentmanager.net/x.js" }
+    ], "victors.de");
+    expect(o).toEqual(["https://cdn.consentmanager.net"]);
+  });
+  test("non-http resources and junk are ignored", () => {
+    const o = origins([
+      { url: "chrome-extension://abc/panel.js" },
+      { url: "data:text/html,x" },
+      { url: null },
+      {},
+      { url: "not a url" },
+      { url: "https://cdn.consentmanager.net/x.js" }
+    ]);
+    expect(o).toEqual(["https://cdn.consentmanager.net"]);
+  });
+  test("no resources API available → empty list, never throws", () => {
+    const P = globalThis.__panel;
+    const prev = globalThis.chrome.devtools.inspectedWindow.getResources;
+    delete globalThis.chrome.devtools.inspectedWindow.getResources;
+    let got = null;
+    P.simFrameOrigins(function (o) { got = o; });
+    expect(got).toEqual([]);
+    globalThis.chrome.devtools.inspectedWindow.getResources = prev;
   });
 });
