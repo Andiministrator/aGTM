@@ -26,19 +26,15 @@ names the removed cookies instead of only counting them, and a "restore the defa
 list" link appears whenever the field differs from the shipped patterns — an edited
 field is never migrated automatically, so this is the way back.
 
-The reset can now also run **inside third-party CMP frames**. A CMP such as
-Consentmanager keeps its own copy of the consent state in its own origin — cookies on
-`.consentmanager.net` plus a `localStorage` under `cdn.consentmanager.net` — which the
-page cannot touch under the same-origin policy. A top-frame-only reset therefore left the
-CMP able to restore everything, and the banner never came back. DevTools can evaluate
-inside a frame via `inspectedWindow.eval({frameURL})` **without any manifest permission**,
-and the frames are discovered from `getResources()`; the extension still declares no
-permissions.
-
-The frame pass is strictly best-effort: the top-frame reset fires after at most 1.2 s
-regardless of whether the frame calls come back, so the optional extra can never block
-the feature itself. If the frames cannot be reached, the effect line says so and points
-at an incognito window for a genuine first visit.
+**Third-party CMP frames stay out of reach.** A CMP such as Consentmanager keeps a
+second copy of the consent state in its own iframe origin — cookies on
+`.consentmanager.net` plus that origin's `localStorage` — which the page cannot touch
+under the same-origin policy, and which restores consent on the next load. An attempt to
+reach it through DevTools' `inspectedWindow.eval({frameURL})` was built and **removed
+again**: that option addresses a frame by its exact document URL, so an origin does not
+resolve (`there is no frame with URL …`), and probing every loaded origin produced a
+screenful of extension errors per click. The box now says plainly that a genuine
+first-visit test needs an **incognito window**, which was the honest answer all along.
 
 The result of a reset also survives the reload it triggers. It used to be shown ~80 ms
 before the page reloaded, so the most useful feedback — which cookies actually went —

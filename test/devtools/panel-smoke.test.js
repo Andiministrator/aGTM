@@ -107,8 +107,7 @@ beforeAll(() => {
     "  exceptionInfo: exceptionInfo," +
     "  setSimWrite: function(v){ SIM_WRITE = v; }," +
     "  getSimWrite: function(){ return SIM_WRITE; }," +
-    "  simFrameOrigins: simFrameOrigins," +
-    "  setFrameExtra: function(v){ SIM_FRAME_EXTRA = v; }" +
+    "  noop: function(){}" +
     "};";
   (0, eval)(src);
 });
@@ -1598,175 +1597,39 @@ describe("Simulation tab — action buttons actually reach the page", () => {
   });
 });
 
-describe("Third-party CMP frames — discovery and reset", () => {
-  function withResources(list, fn) {
-    const prev = globalThis.chrome.devtools.inspectedWindow.getResources;
-    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) { cb(list); };
-    try { fn(); } finally { globalThis.chrome.devtools.inspectedWindow.getResources = prev; }
-  }
-  function origins(list, pageHost) {
-    const P = globalThis.__panel;
-    const snap = sampleSnap(); snap.pageHost = pageHost || "www.victors.de";
-    P.setSnap(snap);
-    let got = null;
-    withResources(list, () => { P.simFrameOrigins(function (o) { got = o; }); });
-    return got;
-  }
-  afterAll(() => { globalThis.__panel.setSnap(sampleSnap()); });
-
-  test("finds the CMP origin and skips the page's own", () => {
-    const o = origins([
-      { url: "https://www.victors.de/index.html" },
-      { url: "https://www.victors.de/layout/js/main.js" },
-      { url: "https://cdn.consentmanager.net/delivery/cmp.js" },
-      { url: "https://cdn.consentmanager.net/other.js" }   // same origin, once only
-    ]);
-    expect(o).toEqual(["https://cdn.consentmanager.net"]);
-  });
-  test("subdomains of the page host count as the page's own", () => {
-    const o = origins([
-      { url: "https://rp.victors.de/aGTM.js" },
-      { url: "https://cdn.consentmanager.net/x.js" }
-    ], "victors.de");
-    expect(o).toEqual(["https://cdn.consentmanager.net"]);
-  });
-  test("non-http resources and junk are ignored", () => {
-    const o = origins([
-      { url: "chrome-extension://abc/panel.js" },
-      { url: "data:text/html,x" },
-      { url: null },
-      {},
-      { url: "not a url" },
-      { url: "https://cdn.consentmanager.net/x.js" }
-    ]);
-    expect(o).toEqual(["https://cdn.consentmanager.net"]);
-  });
-  test("no resources API available → empty list, never throws", () => {
-    const P = globalThis.__panel;
-    const prev = globalThis.chrome.devtools.inspectedWindow.getResources;
-    delete globalThis.chrome.devtools.inspectedWindow.getResources;
-    let got = null;
-    P.simFrameOrigins(function (o) { got = o; });
-    expect(got).toEqual([]);
-    globalThis.chrome.devtools.inspectedWindow.getResources = prev;
-  });
-});
-
-describe("Cookie reset is never blocked by the frame pass (regression)", () => {
-  // The frame pass is an optional EXTRA layered on top of the reset. It is fully async
-  // (getResources → N frame evals) and any of it may never call back — as happened live:
-  // the whole reset silently stopped working. The watchdog must still fire the top-frame
-  // reset. This test hangs every async step on purpose.
-  var evals, timers;
+describe("Cookie reset button reaches the page", () => {
+  // The frame-pass experiment that once wrapped this path is gone (frameURL does not
+  // address cross-origin CMP frames — see F-115). The reset is a straight call again;
+  // this guards that it stays one.
+  var evals;
   function clickReset() {
     const node = globalThis.__nodes["sim-cookie-reset"];
     const ls = (node.__listeners && node.__listeners.click) || [];
     ls[ls.length - 1]({});
   }
   beforeAll(() => {
-    evals = []; timers = [];
-    globalThis.__savedTimeout = globalThis.setTimeout;
-    globalThis.setTimeout = function (fn) { timers.push(fn); return 0; };
+    evals = [];
     globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
       var cb = typeof a === "function" ? a : b;
       evals.push(code);
       if (cb) cb({ ok: true, cleared: ["x"], clearedCount: 1, lsCleared: 0 }, null);
     };
     const P = globalThis.__panel;
-    P.setSnap(sampleSnap()); P.setTab("sim"); P.render();
-    P.setSimWrite(true);
+    P.setSnap(sampleSnap()); P.setTab("sim"); P.render(); P.setSimWrite(true);
   });
   afterAll(() => {
-    globalThis.setTimeout = globalThis.__savedTimeout;
     globalThis.__panel.setSimWrite(false);
     globalThis.chrome.devtools.inspectedWindow.eval = function () {};
-    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) { cb([]); };
   });
 
-  test("getResources never calling back → the watchdog still runs the reset", () => {
+  test("the click sends the reset synchronously, with the patterns from the field", () => {
     const P = globalThis.__panel;
-    globalThis.chrome.devtools.inspectedWindow.getResources = function () { /* hangs */ };
-    P.simState().cookieFrames = true;
     P.buildSimScaffold();
-    globalThis.__nodes["sim-cookie-pats"].value = "__cmp";
-    evals.length = 0; timers.length = 0;
+    globalThis.__nodes["sim-cookie-pats"].value = P.simState().cookiePats;
+    evals.length = 0;
     clickReset();
-    expect(evals.length).toBe(0);          // nothing yet — the frame pass is pending
-    expect(timers.length).toBeGreaterThan(0);
-    timers.forEach(function (fn) { fn(); });   // watchdog fires
-    expect(evals.filter(function (c) { return c.indexOf("__cmp") !== -1; }).length).toBe(1);
-  });
-  test("a frame eval that never calls back → the watchdog still runs the reset", () => {
-    const P = globalThis.__panel;
-    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) {
-      cb([{ url: "https://cdn.consentmanager.net/cmp.js" }]);
-    };
-    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
-      var cb = typeof a === "function" ? a : b;
-      evals.push(code);
-      if (a && a.frameURL) return;         // frame call hangs
-      if (cb) cb({ ok: true, cleared: ["x"], clearedCount: 1, lsCleared: 0 }, null);
-    };
-    P.buildSimScaffold();
-    globalThis.__nodes["sim-cookie-pats"].value = "__cmp";
-    evals.length = 0; timers.length = 0;
-    clickReset();
-    timers.forEach(function (fn) { fn(); });
-    // Two evals carrying the pattern: the hung frame one and the top-frame one.
-    expect(evals.filter(function (c) { return c.indexOf("__cmp") !== -1; }).length).toBe(2);
-  });
-  test("with the frame pass switched off the reset runs synchronously as before", () => {
-    const P = globalThis.__panel;
-    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
-      var cb = typeof a === "function" ? a : b;
-      evals.push(code);
-      if (cb) cb({ ok: true, cleared: ["x"], clearedCount: 1, lsCleared: 0 }, null);
-    };
-    P.simState().cookieFrames = false;
-    P.buildSimScaffold();
-    globalThis.__nodes["sim-cookie-pats"].value = "__cmp";
-    evals.length = 0; timers.length = 0;
-    clickReset();
-    expect(evals.filter(function (c) { return c.indexOf("__cmp") !== -1; }).length).toBe(1);
-    P.simState().cookieFrames = true;
-  });
-});
-
-describe("Effect line reports the frame pass in BOTH outcomes", () => {
-  // Regression: the third-party-frame result was appended only in the "cleared
-  // something" branch. So in the one case where the frame pass matters most — the top
-  // frame found nothing, e.g. because the CMP only keeps its copy on its own domain —
-  // the user was told nothing about it at all.
-  function lineFor(last, frameExtra) {
-    const P = globalThis.__panel;
-    P.setSnap(sampleSnap());
-    P.setSimLast(last);
-    P.setFrameExtra(frameExtra);
-    P.updateSimLive();
-    return globalThis.__nodes["sim-live"]._html;
-  }
-  afterAll(() => { globalThis.__panel.setSimLast(null); globalThis.__panel.setFrameExtra(null); });
-
-  test("nothing cleared in the top frame, but the frames were searched", () => {
-    const html = lineFor(
-      { ok: true, label: "Cookies zurückgesetzt", ts: 1, clearedCount: 0, cleared: [], lsCleared: 0 },
-      { frames: 1, cookies: ["__cmpccu45430"], ls: 4 }
-    );
-    expect(html).toContain("passte kein Cookie");
-    expect(html).toContain("Drittanbieter-Frames: 1");
-    expect(html).toContain("__cmpccu45430");
-    expect(html).toContain("localStorage-Einträge: 4");
-  });
-  test("frames unreachable is stated in the nothing-cleared case too", () => {
-    const html = lineFor(
-      { ok: true, label: "x", ts: 1, clearedCount: 0, cleared: [], lsCleared: 0 },
-      { frames: 0, cookies: [], ls: 0, failed: true }
-    );
-    expect(html).toContain("nicht erreichbar");
-    expect(html).toContain("Inkognito");
-  });
-  test("frame pass switched off is stated, not silently omitted", () => {
-    const html = lineFor({ ok: true, label: "x", ts: 1, clearedCount: 2, cleared: ["a", "b"], lsCleared: 0 }, null);
-    expect(html).toContain("nicht durchsucht");
+    const hit = evals.filter(function (c) { return c.indexOf("__cmp") !== -1; });
+    expect(hit.length).toBe(1);
+    expect(hit[0]).toContain("_tpf");
   });
 });
