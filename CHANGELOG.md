@@ -2,6 +2,31 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — aGTM Inspector: pre-consent leak false positives
+
+The Netzwerk tab flagged `gtm.js`/`gtag.js` as pre-consent leaks on pages where consent
+was already in place — reported from a live site, and wrong: aGTM injects GTM only after
+`gtmConsent` is true, so a container load it performed cannot predate the decision.
+
+Two things combined. The `preConsent` stamp is taken when a request is captured, against
+the last polled snapshot (700 ms), so everything in the window between the real decision
+and the next poll gets stamped. That is unavoidable — the reconcile is what corrects it.
+But the reconcile compared each request against `consentTs`, which the reader computes as
+the **last** consent event, and the library's 2 s CMP poll keeps pushing that forward. A
+request that fired 200 ms after the decision was therefore measured against a timestamp
+minutes later, the reconcile could never fire, and the stamp stuck for good.
+
+The reconcile now anchors on the **consent moment** — the same value the Consent-Timeline
+uses (`aGTM.l` consent milestone → first consent event → GTM injection). The Consent-
+Timeline was moved off `consentTs` for exactly this reason in an earlier round; the leak
+path was missed then. The comparison also uses each request's **start** time (finish time
+minus its duration), so a slow request that left before the decision is no longer cleared
+by finishing after it. With no usable anchor the stamp stands, so the check never goes
+quietly green.
+
+This also corrects the Health-Score and the Compliance-Report, which both derive from the
+same leak list and could show a false red for a customer.
+
 ### Added — aGTM Inspector: Consent Mode push covers `default` and `declare`
 
 The Simulation tab's **Google Consent Mode push** box could only send

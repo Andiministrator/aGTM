@@ -1,6 +1,6 @@
 # aGTM - Integration with STAPE.io
 
-<img title="" src="file:///data/_Projects/aGTM/ext/stapeio/assets/agtm-stapeio-250px.png" alt="aGTM - STAPE.io Integration" data-align="inline">
+<img title="" src="assets/agtm-stapeio-250px.png" alt="aGTM - STAPE.io Integration" data-align="inline">
 
 ## Table of Contents
 
