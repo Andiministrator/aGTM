@@ -1091,3 +1091,83 @@ describe("formatFramePass — the frame pass is always reported", () => {
     expect(s).not.toContain("Inkognito");   // it worked — no need to send the user away
   });
 });
+
+// ── Cross-site cookies (the CMP's own) ──────────────────────────────────────
+// A CMP's cookies are cross-site cookies: SameSite=None; Secure. Inside its
+// third-party frame Chrome REJECTS a document.cookie write that would default to
+// SameSite=Lax — so an expiry written bare never lands and the cookie survives, which
+// is exactly what happened on victors.de (localStorage gone, __cmpccu45430 and
+// __cmpconsent45430 on .consentmanager.net still there).
+describe("buildCookieResetCode — third-party cookie attributes and verification", () => {
+  // Cookie jar of a CROSS-SITE frame: a write is only accepted when it carries
+  // SameSite=None (Chrome's rule), mirroring the CMP frame.
+  function crossSiteJar(cookieStr, opts) {
+    opts = opts || {};
+    var store = {};
+    cookieStr.split(";").forEach(function (c) {
+      var i = c.indexOf("="); if (i < 0) return;
+      store[c.slice(0, i).replace(/^\s+/, "")] = c.slice(i + 1);
+    });
+    var w = { location: { hostname: "cdn.consentmanager.net", pathname: "/delivery/cmp.php", reload: function () {} } };
+    w.document = {
+      get cookie() {
+        return Object.keys(store).map(function (k) { return k + "=" + store[k]; }).join("; ");
+      },
+      set cookie(v) {
+        if (!/SameSite=None/i.test(v)) return;              // cross-site: rejected
+        if (opts.httpOnly && v.indexOf(opts.httpOnly) === 0) return;   // not ours to delete
+        var name = v.slice(0, v.indexOf("="));
+        if (/expires=Thu, 01 Jan 1970/.test(v)) delete store[name];
+      }
+    };
+    w.__store = store;
+    return w;
+  }
+  const CMP = "__cmpccu45430=a; __cmpconsent45430=b; other=keep";
+
+  test("the CMP's cross-site cookies are actually removed", () => {
+    const w = crossSiteJar(CMP);
+    const res = run(buildCookieResetCode(["__cmp"], {}), w);
+    expect(res.cleared.sort()).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(res.failed).toEqual([]);
+    expect(Object.keys(w.__store)).toEqual(["other"]);
+  });
+  test("the expiry is written for .consentmanager.net with SameSite=None; Secure", () => {
+    const code = buildCookieResetCode(["__cmp"], {});
+    expect(code).toContain("SameSite=None; Secure");
+    // Both variants are written — the bare one still has to work on ordinary cookies.
+    expect(code).toContain("attrs=['','; SameSite=None; Secure']");
+  });
+  test("what could NOT be deleted is reported as such, never as cleared", () => {
+    // HttpOnly-ish: visible in this fake jar but not removable from JS. The point is the
+    // report — a deletion that did not happen must not be announced as one.
+    const w = crossSiteJar(CMP, { httpOnly: "__cmpconsent45430" });
+    const res = run(buildCookieResetCode(["__cmp"], {}), w);
+    expect(res.cleared).toEqual(["__cmpccu45430"]);
+    expect(res.failed).toEqual(["__cmpconsent45430"]);
+    expect(res.clearedCount).toBe(1);
+    expect(res.attempted).toBe(2);
+  });
+  test("nothing matching → nothing claimed, nothing blamed", () => {
+    const res = run(buildCookieResetCode(["zzz"], {}), crossSiteJar(CMP));
+    expect(res.cleared).toEqual([]);
+    expect(res.failed).toEqual([]);
+    expect(res.attempted).toBe(0);
+  });
+});
+
+describe("formatFramePass — cookies that survived the frame pass", () => {
+  test("a surviving cookie is named and sends the user to incognito", () => {
+    const s = formatFramePass({
+      checked: 1, reached: 1, cookies: [], ls: 2, fails: [],
+      stuck: ["cdn.consentmanager.net:__cmpconsent45430"]
+    });
+    expect(s).toContain("__cmpconsent45430");
+    expect(s).toContain("Inkognito");
+  });
+  test("a clean pass stays quiet about survivors", () => {
+    const s = formatFramePass({ checked: 1, reached: 1, cookies: ["a:b"], ls: 0, fails: [], stuck: [] });
+    expect(s).not.toContain("blieben liegen");
+    expect(s).not.toContain("Inkognito");
+  });
+});

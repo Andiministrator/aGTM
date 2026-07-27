@@ -337,10 +337,28 @@
       "for(var h=0;h<host.length-1;h++){var dd=host.slice(h).join('.');domains.push('; domain='+dd);domains.push('; domain=.'+dd);}" +
       "var paths=['/'];var pp=loc.pathname||'/';if(paths.indexOf(pp)<0)paths.push(pp);" +
       "var exp='=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=';" +
-      "for(var n=0;n<names.length;n++){for(var p=0;p<paths.length;p++){for(var q=0;q<domains.length;q++){try{d.cookie=names[n]+exp+paths[p]+domains[q];}catch(ec){}}}}" +
+      // Each expiry is written TWICE: bare, and with `SameSite=None; Secure`. A CMP's own
+      // cookies are cross-site cookies and carry exactly those attributes — and inside its
+      // third-party frame Chrome REJECTS a document.cookie write that would default to
+      // SameSite=Lax. Without the second variant the expiry never lands and the cookie
+      // survives (observed on victors.de: __cmpccu45430/__cmpconsent45430 on
+      // .consentmanager.net stayed while that frame's localStorage was already cleared).
+      // SameSite/Secure are not part of the cookie's identity, so the extra write is
+      // harmless everywhere else — on http it is simply rejected, and the bare one applies.
+      "var attrs=['','; SameSite=None; Secure'];" +
+      "for(var n=0;n<names.length;n++){for(var p=0;p<paths.length;p++){for(var q=0;q<domains.length;q++){" +
+      "for(var a=0;a<attrs.length;a++){try{d.cookie=names[n]+exp+paths[p]+domains[q]+attrs[a];}catch(ec){}}}}}" +
+      // VERIFY instead of assume: re-read the jar and report what is actually gone. A
+      // reported deletion that did not happen is worse than none — it is what made the
+      // reset look like it worked while the CMP restored its consent (F-107/F-117).
+      // A name that survives is typically HttpOnly or otherwise not ours to remove.
+      "var still={};var raw2=(d.cookie||'').split(';');" +
+      "for(var r2=0;r2<raw2.length;r2++){var nm2=raw2[r2].split('=')[0].replace(/^\\s+|\\s+$/g,'');if(nm2)still[nm2]=1;}" +
+      "var gone=[],failed=[];" +
+      "for(var g=0;g<names.length;g++){if(still[names[g]]===1)failed.push(names[g]);else gone.push(names[g]);}" +
       "var lsCleared=0;" +
       (opts.clearStorage ? "try{var ls=w.localStorage;if(ls){var rm=[];for(var k=0;k<ls.length;k++){var key=ls.key(k);if(key&&match(key))rm.push(key);}for(var m=0;m<rm.length;m++){ls.removeItem(rm[m]);}lsCleared=rm.length;}}catch(el){}" : "") +
-      "var out={ok:true,cleared:names,clearedCount:names.length,lsCleared:lsCleared};" +
+      "var out={ok:true,cleared:gone,clearedCount:gone.length,failed:failed,attempted:names.length,lsCleared:lsCleared};" +
       (opts.reload ? "out.reloading=true;try{if(typeof w.setTimeout==='function'){w.setTimeout(function(){try{loc.reload();}catch(e2){}},80);}else{loc.reload();}}catch(er){}" : "") +
       "return out;" +
       "}catch(e){return{ok:false,error:String(e)};}})()";
@@ -486,10 +504,16 @@
       return " · ⚠ Fremde Frames" + (f.checked > 1 ? " (" + f.checked + ")" : "") + " nicht erreichbar" +
         (why ? " — " + why : "") + ". Die CMP-Kopie auf ihrer Domain bleibt liegen." + INK;
     }
-    var cookies = f.cookies || [];
-    if (!cookies.length && !f.ls) return head + ", dort passte aber nichts auf die Muster — falls die CMP ihren Consent trotzdem wiederherstellt:" + INK;
+    var cookies = f.cookies || [], stuck = f.stuck || [];
+    // Matched inside the frame but still there afterwards — the frame result is verified
+    // against its own jar, so this names exactly what the CMP keeps.
+    var left = stuck.length ? " · ⚠ blieben liegen: " + stuck.slice(0, 4).join(", ") + (stuck.length > 4 ? " …" : "") : "";
+    if (!cookies.length && !f.ls) {
+      if (stuck.length) return head + left + " — die CMP-Kopie überlebt damit." + INK;
+      return head + ", dort passte aber nichts auf die Muster — falls die CMP ihren Consent trotzdem wiederherstellt:" + INK;
+    }
     return head + " → " + cookies.slice(0, 6).join(", ") + (cookies.length > 6 ? " …" : "") +
-      (f.ls ? " · localStorage: " + f.ls : "");
+      (f.ls ? " · localStorage: " + f.ls : "") + left + (stuck.length ? INK : "");
   }
   SIM.formatFramePass = formatFramePass;
 
@@ -746,7 +770,7 @@ function simRunInFrame(code, doc, done) {
       if (err && (err.isError || err.isException)) {
         done({ host: doc.host, ok: false, why: String(err.description || err.code || err.value || "Fehler") });
       } else if (result && result.ok) {
-        done({ host: doc.host, ok: true, cleared: result.cleared || [], lsCleared: result.lsCleared | 0 });
+        done({ host: doc.host, ok: true, cleared: result.cleared || [], failed: result.failed || [], lsCleared: result.lsCleared | 0 });
       } else {
         done({ host: doc.host, ok: false, why: (result && result.error) || "keine Antwort" });
       }
@@ -1237,7 +1261,8 @@ function updateSimLive() {
         det += " · ⚠ zu spät gepusht (Guard übergangen) — wirkungslos für den bereits verarbeiteten Zustand.";
       }
     } else if (typeof SIM_LAST.clearedCount === "number") {
-      if (!SIM_LAST.clearedCount && !SIM_LAST.lsCleared) {
+      var stuck = SIM_LAST.failed || [];
+      if (!SIM_LAST.clearedCount && !SIM_LAST.lsCleared && !stuck.length) {
         // A reset that matched nothing used to report plain success — the user could not
         // tell the difference between "cleared" and "your CMP is not in the pattern list"
         // (that is how Consentmanager slipped through, see SIM_COOKIE_DEFAULT).
@@ -1250,6 +1275,12 @@ function updateSimLive() {
         var more = (SIM_LAST.cleared || []).length > 8 ? " …" : "";
         det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (nm ? " (" + nm + more + ")" : "") +
           (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "");
+        // Matched but still there after the write — the result is VERIFIED against the
+        // jar, so this is the honest counterpart to the deleted list, not a guess.
+        if (stuck.length) {
+          det += " · ⚠ blieben liegen: " + stuck.slice(0, 6).join(", ") + (stuck.length > 6 ? " …" : "") +
+            " (vermutlich HttpOnly — nur server- oder browserseitig löschbar)";
+        }
         det += window.aGTMInspectorSim.formatFramePass(SIM_LAST.frames);
         det += (SIM_LAST.reloading ? " · lädt neu…" : "");
       }
@@ -1492,7 +1523,7 @@ function attachSimListeners() {
     // optional one is exactly how this broke once before.
     var frameCode = SIMB.buildCookieResetCode(pats, { clearStorage: !!st.cookieLS, reload: false });
     var settled = false;
-    var acc = { checked: 0, reached: 0, cookies: [], ls: 0, fails: [] };
+    var acc = { checked: 0, reached: 0, cookies: [], stuck: [], ls: 0, fails: [] };
     function finish() {
       if (settled) return;
       settled = true;
@@ -1512,6 +1543,10 @@ function attachSimListeners() {
             (r.cleared || []).forEach(function (n) {
               var tag = r.host + ":" + n;
               if (acc.cookies.indexOf(tag) < 0) acc.cookies.push(tag);
+            });
+            (r.failed || []).forEach(function (n) {
+              var tag = r.host + ":" + n;
+              if (acc.stuck.indexOf(tag) < 0) acc.stuck.push(tag);
             });
           } else if (r) {
             acc.fails.push({ host: r.host, why: r.why });

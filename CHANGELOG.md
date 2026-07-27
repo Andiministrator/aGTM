@@ -51,6 +51,16 @@ always worked, can never be held up by it — and can be switched off. Where no 
 frame carries the copy, the effect line still points at an **incognito window** as the
 reliable way to a genuine first visit.
 
+Two follow-ups from the first live run, where the CMP frame's `localStorage` was cleared
+but its two cookies stayed: a CMP's own cookies are **cross-site** cookies
+(`SameSite=None; Secure`), and inside its third-party frame Chrome rejects a
+`document.cookie` write that would default to `SameSite=Lax` — so the expiry never
+landed. Every expiry is now written twice, bare and with `SameSite=None; Secure`
+(neither attribute is part of a cookie's identity, so the extra write is harmless
+elsewhere and simply rejected over http). And the reset no longer *claims* a deletion:
+it re-reads the jar afterwards and reports only what is verifiably gone, naming what
+stayed behind — typically `HttpOnly`, which JavaScript cannot remove at all.
+
 The result of a reset also survives the reload it triggers. It used to be shown ~80 ms
 before the page reloaded, so the most useful feedback — which cookies actually went —
 was gone before it could be read.
