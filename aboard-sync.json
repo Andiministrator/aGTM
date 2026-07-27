@@ -1381,6 +1381,18 @@
             "columnId": "col-erledigt"
           },
           {
+            "id": "agtm-inspector-declare-verify",
+            "title": "GCM-declare: prüfen ob ein dataLayer-declare vom Google-Tag überhaupt verarbeitet wird",
+            "owner": "Claude Opus",
+            "complexity": "S",
+            "effort": "S",
+            "description": "Offen aus der #51-Abnahme (2026-07-27): Andi hat declare live geprueft - \"geht irgendwie noch nicht\", aber ausdruecklich als NICHT wichtig eingestuft.\n\nWAS BEKANNT IST: Beim ersten Versuch war der Consent bereits erteilt, der Timing-Guard hat den Push also korrekt abgelehnt (\"kommt zu spaet\") - das war KEIN Befund. Ein zweiter Versuch im offenen Fenster brachte ebenfalls keine declare-Herkunft im Ist-Zustand.\n\nDIE FRAGE: Verarbeitet das Google-Tag ein per dataLayer gepushtes ['consent','declare',{...}] ueberhaupt? Offiziell dokumentiert sind nur update und default; declare ist primaer GTM-Template-API (declareConsentState). Dass reader.js ein declare-Feld in google_tag_data.ics.entries LIEST (F-66), beweist nur, dass CMP-Templates es setzen - nicht, dass der dataLayer-Weg funktioniert.\n\nPRUEFUNG: frische Seite VOR der Consent-Entscheidung (Inkognito), Modus declare, pushen, Herkunft-Spalte im Ist-Zustand ansehen. Taucht dort kein (declare) auf, ist der dataLayer-Weg tot.\n\nENTSCHEIDUNG DANN: Modus aus GCM_MODES entfernen (Tests/README/CHANGELOG mitziehen) - oder drin lassen mit dem bestehenden UI-Hinweis, der die Unsicherheit bereits ausdruecklich benennt und auf die Herkunft-Spalte als Live-Probe verweist. Andis Wunsch war urspruenglich, declare mit anzubieten.",
+            "labels": [],
+            "comments": [],
+            "displayId": 55,
+            "columnId": "col-backlog"
+          },
+          {
             "id": "agtm-inspector-cookiereset-thirdparty",
             "title": "aGTM Inspector: Cookie-Reset erreicht die CMP-Kopie im Drittanbieter-Origin nicht",
             "owner": "Claude Opus",
@@ -1398,19 +1410,7 @@
             ],
             "critical": true,
             "displayId": 54,
-            "columnId": "col-backlog"
-          },
-          {
-            "id": "agtm-inspector-declare-verify",
-            "title": "GCM-declare: prüfen ob ein dataLayer-declare vom Google-Tag überhaupt verarbeitet wird",
-            "owner": "Claude Opus",
-            "complexity": "S",
-            "effort": "S",
-            "description": "Offen aus der #51-Abnahme (2026-07-27): Andi hat declare live geprueft - \"geht irgendwie noch nicht\", aber ausdruecklich als NICHT wichtig eingestuft.\n\nWAS BEKANNT IST: Beim ersten Versuch war der Consent bereits erteilt, der Timing-Guard hat den Push also korrekt abgelehnt (\"kommt zu spaet\") - das war KEIN Befund. Ein zweiter Versuch im offenen Fenster brachte ebenfalls keine declare-Herkunft im Ist-Zustand.\n\nDIE FRAGE: Verarbeitet das Google-Tag ein per dataLayer gepushtes ['consent','declare',{...}] ueberhaupt? Offiziell dokumentiert sind nur update und default; declare ist primaer GTM-Template-API (declareConsentState). Dass reader.js ein declare-Feld in google_tag_data.ics.entries LIEST (F-66), beweist nur, dass CMP-Templates es setzen - nicht, dass der dataLayer-Weg funktioniert.\n\nPRUEFUNG: frische Seite VOR der Consent-Entscheidung (Inkognito), Modus declare, pushen, Herkunft-Spalte im Ist-Zustand ansehen. Taucht dort kein (declare) auf, ist der dataLayer-Weg tot.\n\nENTSCHEIDUNG DANN: Modus aus GCM_MODES entfernen (Tests/README/CHANGELOG mitziehen) - oder drin lassen mit dem bestehenden UI-Hinweis, der die Unsicherheit bereits ausdruecklich benennt und auf die Herkunft-Spalte als Live-Probe verweist. Andis Wunsch war urspruenglich, declare mit anzubieten.",
-            "labels": [],
-            "comments": [],
-            "displayId": 55,
-            "columnId": "col-backlog"
+            "columnId": "col-qa"
           }
         ]
       },
