@@ -102,6 +102,14 @@
   .cfp-u { background: var(--chip); color: var(--muted); }
   .cfp-x { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
   .net-en { margin-top: 2px; font-family: ui-monospace, monospace; font-size: 10px; color: var(--accent); }
+  /* Exception preview in the network list: readable, but not shouting — the row is
+     still a network row, not an error banner. Left rule + muted red carries "problem"
+     without the weight of a chip. */
+  .net-exc { margin-top: 3px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap;
+             border-left: 2px solid var(--err); padding-left: 6px; }
+  .net-exc-t { font-size: 10px; font-weight: 600; color: var(--err); white-space: nowrap; }
+  .net-exc-m { font-family: ui-monospace, monospace; font-size: 11px; color: var(--fg);
+               opacity: .85; word-break: break-word; }
   .net-id { margin-top: 1px; font-family: ui-monospace, monospace; font-size: 10px; color: var(--muted); }
   .net-search { flex: 1; min-width: 120px; max-width: 320px; background: var(--bg); color: var(--fg);
     border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font: inherit; }
