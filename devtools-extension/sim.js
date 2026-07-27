@@ -323,7 +323,14 @@
     return "(function(){try{" +
       "var w=window,d=w.document,loc=w.location;if(!d||!loc)return{ok:false,error:'no document/location'};" +
       "var pats=" + J(pats) + ";" +
-      "function match(n){if(!pats.length)return true;for(var i=0;i<pats.length;i++){if(n.indexOf(pats[i])>=0)return true;}return false;}" +
+      // Matching: a plain fragment is a SUBSTRING match (unchanged), and `*` acts as a
+      // wildcard so a pattern can be anchored — "__cmp*" = starts with, "*consent" = ends
+      // with, "__cmp*45430" = both ends fixed. Everything else in the pattern is escaped,
+      // so a dot in "_ga.foo" stays literal instead of matching any character.
+      "function toRe(p){var e=p.replace(/[.+?^${}()|[\\]\\\\]/g,'\\\\$&').replace(/\\*/g,'[\\\\s\\\\S]*');" +
+      "return new RegExp(p.indexOf('*')<0?e:('^'+e+'$'));}" +
+      "var res=[];for(var pi=0;pi<pats.length;pi++){try{res.push(toRe(pats[pi]));}catch(er0){}}" +
+      "function match(n){if(!res.length)return true;for(var i=0;i<res.length;i++){if(res[i].test(n))return true;}return false;}" +
       "var raw=(d.cookie||'').split(';');var names=[];" +
       "for(var r=0;r<raw.length;r++){var nm=raw[r].split('=')[0].replace(/^\\s+|\\s+$/g,'');if(nm&&match(nm)&&names.indexOf(nm)<0)names.push(nm);}" +
       "var host=String(loc.hostname||'').split('.');var domains=[''];" +
@@ -711,6 +718,8 @@ function buildSimScaffold() {
   var boxCookie = '<div class="card"><h2>Cookies zurücksetzen + neu laden</h2>' +
     '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“. <b>Grenze:</b> gelöscht werden kann nur, was auf der <b>eigenen Domain</b> liegt — die Kopien mancher CMPs auf deren eigener Domain (z. B. <code>.consentmanager.net</code>) sind für die Seite unerreichbar und können den Zustand nach dem Reload wiederherstellen.</div>' +
     '<input type="text" id="sim-cookie-pats" spellcheck="false" placeholder="Cookie-Namen-Muster, kommagetrennt (leer = alle)" value="' + esc(typeof st.cookiePats === "string" ? st.cookiePats : "") + '" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">' +
+    '<div class="muted" style="margin-top:4px;font-size:11px">Ein Muster trifft als <b>Teilstring</b> (<code>__cmp</code> trifft <code>__cmpccu45430</code>). <code>*</code> ist ein Platzhalter zum Verankern: <code>__cmp*</code> = beginnt mit, <code>*consent</code> = endet auf, <code>*</code> = alles.' +
+    (st.cookiePats !== SIM_COOKIE_DEFAULT ? ' <a href="#" id="sim-cookie-reset-pats" style="color:var(--accent)">Standardliste wiederherstellen</a>' : "") + "</div>" +
     '<div class="toolbar" style="margin-top:8px">' +
     simFlag("sim-cookie-ls", "localStorage auch leeren", st.cookieLS) +
     simFlag("sim-cookie-reload", "danach neu laden", st.cookieReload) +
@@ -1083,7 +1092,12 @@ function updateSimLive() {
         // (that is how Consentmanager slipped through, see SIM_COOKIE_DEFAULT).
         det = "⚠ Kein Cookie passte auf die Muster — nichts gelöscht. Cookie-Namen im Application-Tab prüfen und ein passendes Fragment ergänzen (leeres Feld = alle Cookies).";
       } else {
-        det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "") + (SIM_LAST.reloading ? " · lädt neu…" : "");
+        // Name the cookies, not just the count — that is what tells you whether YOUR
+        // CMP was actually covered by the patterns.
+        var nm = (SIM_LAST.cleared || []).slice(0, 8).join(", ");
+        var more = (SIM_LAST.cleared || []).length > 8 ? " …" : "";
+        det = "Cookies gelöscht: " + SIM_LAST.clearedCount + (nm ? " (" + nm + more + ")" : "") +
+          (SIM_LAST.lsCleared ? " · localStorage: " + SIM_LAST.lsCleared : "") + (SIM_LAST.reloading ? " · lädt neu…" : "");
       }
     } else if (SIM_LAST.loadedContainers && SIM_LAST.loadedContainers.length) {
       det = "Container geladen: " + SIM_LAST.loadedContainers.join(", ");
@@ -1297,6 +1311,11 @@ function attachSimListeners() {
   if (ckLs) ckLs.addEventListener("change", function () { simState().cookieLS = ckLs.checked; simSave(); });
   var ckRl = el("sim-cookie-reload");
   if (ckRl) ckRl.addEventListener("change", function () { simState().cookieReload = ckRl.checked; simSave(); });
+  bindClick("sim-cookie-reset-pats", function (ev) {
+    if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
+    var st = simState();
+    st.cookiePats = SIM_COOKIE_DEFAULT; simSave(); buildSimScaffold();
+  });
   bindClick("sim-cookie-reset", function () {
     var st = simState();
     var input = el("sim-cookie-pats");

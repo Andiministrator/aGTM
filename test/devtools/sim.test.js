@@ -946,3 +946,55 @@ describe("Cookie reset — pattern coverage for real CMPs", () => {
     expect(res.clearedCount).toBe(0);
   });
 });
+
+describe("Cookie reset — wildcard patterns", () => {
+  function jar(cookieStr) {
+    var store = {};
+    cookieStr.split(";").forEach(function (c) {
+      var i = c.indexOf("="); if (i < 0) return;
+      store[c.slice(0, i).replace(/^\s+/, "")] = c.slice(i + 1);
+    });
+    var w = { location: { hostname: "www.victors.de", pathname: "/", reload: function () {} } };
+    w.document = {
+      get cookie() { return Object.keys(store).map(function (k) { return k + "=" + store[k]; }).join("; "); },
+      set cookie(v) { var n = v.slice(0, v.indexOf("=")); if (/1970/.test(v)) delete store[n]; }
+    };
+    w.__store = store;
+    return w;
+  }
+  var JAR = "__cmpccu45430=a; __cmpconsent45430=b; _ga=x; my_consent_flag=c; PHPSESSID=y";
+  function cleared(pattern) {
+    return run(buildCookieResetCode(splitTokens(pattern), {}), jar(JAR)).cleared.sort();
+  }
+
+  test("a plain fragment still matches as a substring (unchanged behaviour)", () => {
+    expect(cleared("__cmp")).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+  });
+  test("trailing * anchors the start", () => {
+    expect(cleared("__cmp*")).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(cleared("consent*")).toEqual([]);          // does NOT match my_consent_flag
+  });
+  test("leading * anchors the end", () => {
+    expect(cleared("*45430")).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(cleared("*flag")).toEqual(["my_consent_flag"]);
+  });
+  test("* in the middle fixes both ends", () => {
+    expect(cleared("__cmp*45430")).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(cleared("__cmp*nope")).toEqual([]);
+  });
+  test("a lone * matches everything, like an empty list", () => {
+    expect(cleared("*").length).toBe(5);
+  });
+  test("regex metacharacters in a pattern stay literal", () => {
+    // "_ga." must not match "_gax" — without escaping, the dot would be "any char".
+    var w = jar("_ga.x=1; _gax=2");
+    var res = run(buildCookieResetCode(["_ga."], {}), w);
+    expect(res.cleared).toEqual(["_ga.x"]);
+  });
+  test("an unusable pattern is skipped without killing the run", () => {
+    var w = jar(JAR);
+    var res = run(buildCookieResetCode(["__cmp", "["], {}), w);
+    expect(res.ok).toBe(true);
+    expect(res.cleared).toContain("__cmpccu45430");
+  });
+});
