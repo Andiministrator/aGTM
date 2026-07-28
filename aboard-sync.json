@@ -965,51 +965,6 @@
             ]
           },
           {
-            "id": "agtm-v15-cmp-template-sync",
-            "title": "sGTM-Client: eingebettete CMP-consent_check-Codes syncen (F-52, P1)",
-            "description": "sgtmClient/template.tpl bettet 23 CMP consent_check-Codes als minifizierte SELECT-Werte ein (Produktions-Kopie fuer sGTM-Client-Nutzer wie fc-moto; Client injiziert den gewaehlten Code inline in /aGTM.js). build.sh syncht sie NICHT aus cmp/*.js -> Drift. Beleg: Usercentrics v2 im Template hat noch name.replace-single-comma (F-51-Bug), cmp/cc_usercentrics.js ist schon /,/g. Folge: CMP-Fixes erreichen Client-Nutzer nicht bis manuell nachgezogen. Analog F-43 (base64-Drift) aber ohne jeden Sync.",
-            "complexity": "mittel",
-            "effort": 3,
-            "owner": "Claude Opus",
-            "critical": true,
-            "agentContext": "PLAN (naechster Chat, P1): (1) Sync-Schritt in scripts/update-sgtm-template.js der die 23 SELECT-value-Strings aus cmp/cc_*.min.js regeneriert. HERAUSFORDERUNG: Mapping cmp-Dateiname <-> Template-displayValue (Template nutzt Anzeigenamen: Usercentrics v2, Usercentrics v3 and newer Cookiebot, Shopware 5 Cookie, Shopify Consent Tool, Perspective Funnel Consent Banner, Secure Privacy, ...). Ausserdem: manche Template-Optionen buendeln mehrere (z.B. \"Usercentrics v3 and newer Cookiebot\"). Erst Mapping klaeren, ggf. Mapping-Tabelle in scripts/. (2) Einmalig alle 23 aus den GEFIXTEN cmp/*.min.js resyncen (F-51 + evtl. weitere Drifts). (3) Diff verifizieren, ./build.sh sauber. (4) Client-Re-Import durch Andi -> dann sind F-49/F-50/F-51 client-seitig live. VORSICHT: Hand-Patch einzelner Blobs = Frankenstein-Teilfix; Automatisierung bevorzugt. Auch: das geplante 24-CMP-Test-Harness (test/cmp/, Cookiebot-Muster steht) parallel weiterfuehren, um Drift kuenftig per Test zu fangen.",
-            "displayId": 42,
-            "columnId": "col-qa",
-            "comments": [
-              {
-                "id": "311173b4-a598-4744-a884-8265bcb2eb8e",
-                "author": "Claude Opus",
-                "text": "Von Andi 2026-07-15 aufgedeckt: die CMP-min-Codes sind im sGTM-Client enthalten. Verifiziert: 23 eingebettete consent_check-Codes in template.tpl SELECT-values, kein build-Sync, F-51-Drift belegt (Usercentrics v2 Template noch single-comma). KRITISCH weil dies der Produktionspfad fuer sGTM-Client-Nutzer ist -> F-49/F-50/F-51 sind fuer fc-moto & Co client-seitig NICHT live bis Sync + Re-Import. Findings F-52. Test-Harness (test/cmp/harness.js + cookiebot.test.js) als Fundament committet (3629aa7).",
-                "created": "2026-07-15"
-              },
-              {
-                "id": "a1c3703c-eb7c-4218-aed2-6f96aaa93824",
-                "author": "Claude Opus",
-                "created": "2026-07-16",
-                "text": "F-52 umgesetzt + Kritiker-FREIGABE JA (nur P3-Notizen, eine direkt eingearbeitet: konsistente ERROR-Meldung bei nicht-lesbarer Quelldatei). Sync automatisiert in scripts/update-sgtm-template.js via geteilte scripts/cmp-sync-lib.js (CMP_MAP displayValue->cc_<name>, Prefix-Strip ab aGTM.f.consent_check=function, GTM-Encoder =/&/</>->u00xx). Mapping empirisch belegt: 18/23 byte-identisch vor Sync (Round-Trip-Encoder verifiziert), 5 echte Drifts resynct (Consentmanager/CookieFirst/Sourcepoint/Usercentrics v2 [F-51-Komma]/Shopify). Writer failt loud bei unmapped Option / nicht-lesbarer Datei / fehlendem Marker. Drift-Guard test/cmp/template-sync.test.js (26 Tests) asserted embedded==min.js; Negativ-Beweis gefuehrt. Build idempotent, Diff minimal (5 Value-Zeilen), Sandbox-Sync-Invariante byte-identisch, 377 Tests gruen. Commit c0edacc auf dev gepusht. REST=operativ (Andi): Client-Re-Import fuer fc-moto -> dann F-49 (falls gtm* gesetzt)/F-51 client-seitig live, danach Karte -> Erledigt. Nebenbefund F-53 (findings): Arrow-Function in cc_shopify_consent.js (ES5, P3, vorbestehend)."
-              },
-              {
-                "id": "8e94d8ad-cf76-480a-96d4-45470edfc30c",
-                "author": "Claude Opus",
-                "created": "2026-07-16",
-                "text": "Nebenbefund F-53 (waehrend F-52-Analyse gefunden) gleich mit-gefixt: Arrow-Function in cmp/cc_shopify_consent.js (ES5-Verstoss) -> function-Expression. terser (--ecma 5) transpiliert NICHT, daher lief die Arrow bis in min.js + eingebetteten Template-Value durch. ./build.sh resynchte den Shopify-Template-Wert AUTOMATISCH via F-52 (End-to-End-Beweis des Sync-Mechanismus). ES6-Sweep ueber alle cmp/*.js + aGTM.js + sGTM-Client-Source: sonst sauber. Kritiker-Sub-Agent: FREIGABE JA (verhaltensgleich, kein this/arguments; kein Befund >= P2). Commit 4b88db7 auf dev. F-53 teilt die Re-Import-Abhaengigkeit mit F-52. Knowledge aktualisiert (projekt-konventionen: terser-transpiliert-nicht; cmp-layer-test-und-drift: F-52-Sync-Mechanismus + F-53)."
-              },
-              {
-                "id": "71087773-9467-4947-947d-c8686abb3867",
-                "author": "Claude Opus",
-                "created": "2026-07-16",
-                "text": "F-51b (Rest der Komma-Klasse) auf Andis Zeichen komplett geschlossen: /,/g-Strip + String-Guard in Matomo, Shopware5, Usercentrics3, jtl_eu_cookie, Shopware Acris (letzterer defensiv, Kritiker-P3). Damit strippen ALLE CMPs, die menschenlesbare Namen in den Consent-String schreiben (Klaro/Borlabs safe = Object-Keys). build.sh resynchte 4 eingebettete Template-Werte automatisch via F-52 (jtl nicht eingebettet). Neuer test/cmp/comma_strip.test.js (3 diskriminierende Tests). Kritiker-Sub-Agent: FREIGABE JA (throw-sicher, keine Regression, ES5). 380 Tests gruen. Commit 552719f auf dev. Teilt die Re-Import-Abhaengigkeit mit F-52/F-53. findings F-51b + knowledge/CHANGELOG aktualisiert."
-              },
-              {
-                "id": "e967a409-be20-4f7b-9f5a-b304c0b05107",
-                "author": "Claude Opus",
-                "created": "2026-07-16",
-                "text": "Holistischer Release-Kritiker ueber den kumulativen Session-Diff (F-52+F-53+F-51b): FREIGABE JA fuer den Session-Beitrag zu v1.5. Verifiziert: 380 Tests gruen, Build idempotent, alle Artefakt-Sync-Invarianten byte-identisch (Sandbox-Block==src, const-agtm-base64==aGTM.base64 in template+src, alle min.js frisch), ES5 repo-weit sauber, Doku/CHANGELOG/CLAUDE.md konsistent. EIN P1 (Hygiene, kein Funktionsdefekt): ein skriptbasierter Header-Bump hatte 3 CMP-Dateien (matomo/uc3/acris) versehentlich CRLF->LF geflippt -> Ganzdatei-Diff. BEHOBEN (Commit a46a827): CRLF wiederhergestellt (Netto-Diff vs Session-Start jetzt nur ~semantische Komma-Zeilen), ROADMAP-Testzahl 346->380 gesynct (F-26-Rest; nur CHANGELOG-in-development-Label bleibt bis Tag). Lehre in knowledge/projekt-konventionen (Zeilenenden bei Skript-Edits bewahren; .gitattributes = v1.6-Kandidat). dev jetzt clean + diff-minimal. Alle 3 Themen der Session freigegeben."
-              }
-            ],
-            "qa": true
-          },
-          {
             "id": "agtm-v15-konfigurator-inbiz",
             "title": "Konfigurator v2.1.3 (InBiz/Marco) mit v1.5 releasen — ZIP-Klaerung + v1.5-Feature-Gap",
             "description": "Marco Brenn (InBiz) liefert den aGTM-Konfigurator (Single-File-HTML-Wizard, sea-suite.de-Branding) und will ihn mit v1.5 released haben. ZIP tmp/agtm-konfigurator-v2_1_3.zip geprueft (2026-07-16). BEFUND: (1) Der ZIP ist NICHTS Neues — byte-identisch zur bereits auf dev liegenden configurator/index.html MINUS 5 Fixes aus Commit e43ac8f (agtmv 1.4.2 statt 1.5, <title> v2.1.2 statt v2.1.3, 3x basis.kunde-Dateinamen-Bug statt kundenname, README 1.4.x). => ZIP ist Marcos Vor-Patch-Original (08.04.), dev-Stand (16.04.) ist strikt besser. ZIP NICHT importieren (Regression). Andi fragt bei Marco nach, ob evtl. falsche/alte Datei verwechselt. (2) FEATURE-GAP: der Konfigurator exponiert KEINE echten v1.5-Config-Optionen (0 Treffer fuer transport_url/consent_store_url/user_id/_noConsent/_post/_noDLPush/session_salt/consent_poll_ms/session) — er laedt die v1.5-Library, erzeugt aber nur v1.4-Feature-Configs. e43ac8f vermerkte das als Gap fuer Konfigurator v2.2. Andi entscheidet: so mit v1.5 mitgehen oder v2.2-Karte fuer die v1.5-Felder. (3) Live/main haelt noch die alte v1.x (395 Zeilen, aGTM One-File Konfig-Generator) — der v2.1.3-dev-Stand geht mit dem v1.5-dev->main-Merge automatisch live.",
@@ -1435,6 +1390,63 @@
             "critical": true,
             "displayId": 54,
             "columnId": "col-erledigt",
+            "qa": true
+          },
+          {
+            "id": "agtm-v15-cmp-template-sync",
+            "title": "sGTM-Client: eingebettete CMP-consent_check-Codes syncen (F-52, P1)",
+            "description": "sgtmClient/template.tpl bettet 23 CMP consent_check-Codes als minifizierte SELECT-Werte ein (Produktions-Kopie fuer sGTM-Client-Nutzer wie fc-moto; Client injiziert den gewaehlten Code inline in /aGTM.js). build.sh syncht sie NICHT aus cmp/*.js -> Drift. Beleg: Usercentrics v2 im Template hat noch name.replace-single-comma (F-51-Bug), cmp/cc_usercentrics.js ist schon /,/g. Folge: CMP-Fixes erreichen Client-Nutzer nicht bis manuell nachgezogen. Analog F-43 (base64-Drift) aber ohne jeden Sync.",
+            "complexity": "mittel",
+            "effort": 3,
+            "owner": "Claude Opus",
+            "critical": true,
+            "agentContext": "PLAN (naechster Chat, P1): (1) Sync-Schritt in scripts/update-sgtm-template.js der die 23 SELECT-value-Strings aus cmp/cc_*.min.js regeneriert. HERAUSFORDERUNG: Mapping cmp-Dateiname <-> Template-displayValue (Template nutzt Anzeigenamen: Usercentrics v2, Usercentrics v3 and newer Cookiebot, Shopware 5 Cookie, Shopify Consent Tool, Perspective Funnel Consent Banner, Secure Privacy, ...). Ausserdem: manche Template-Optionen buendeln mehrere (z.B. \"Usercentrics v3 and newer Cookiebot\"). Erst Mapping klaeren, ggf. Mapping-Tabelle in scripts/. (2) Einmalig alle 23 aus den GEFIXTEN cmp/*.min.js resyncen (F-51 + evtl. weitere Drifts). (3) Diff verifizieren, ./build.sh sauber. (4) Client-Re-Import durch Andi -> dann sind F-49/F-50/F-51 client-seitig live. VORSICHT: Hand-Patch einzelner Blobs = Frankenstein-Teilfix; Automatisierung bevorzugt. Auch: das geplante 24-CMP-Test-Harness (test/cmp/, Cookiebot-Muster steht) parallel weiterfuehren, um Drift kuenftig per Test zu fangen.",
+            "displayId": 42,
+            "columnId": "col-erledigt",
+            "comments": [
+              {
+                "id": "311173b4-a598-4744-a884-8265bcb2eb8e",
+                "author": "Claude Opus",
+                "text": "Von Andi 2026-07-15 aufgedeckt: die CMP-min-Codes sind im sGTM-Client enthalten. Verifiziert: 23 eingebettete consent_check-Codes in template.tpl SELECT-values, kein build-Sync, F-51-Drift belegt (Usercentrics v2 Template noch single-comma). KRITISCH weil dies der Produktionspfad fuer sGTM-Client-Nutzer ist -> F-49/F-50/F-51 sind fuer fc-moto & Co client-seitig NICHT live bis Sync + Re-Import. Findings F-52. Test-Harness (test/cmp/harness.js + cookiebot.test.js) als Fundament committet (3629aa7).",
+                "created": "2026-07-15"
+              },
+              {
+                "id": "a1c3703c-eb7c-4218-aed2-6f96aaa93824",
+                "author": "Claude Opus",
+                "created": "2026-07-16",
+                "text": "F-52 umgesetzt + Kritiker-FREIGABE JA (nur P3-Notizen, eine direkt eingearbeitet: konsistente ERROR-Meldung bei nicht-lesbarer Quelldatei). Sync automatisiert in scripts/update-sgtm-template.js via geteilte scripts/cmp-sync-lib.js (CMP_MAP displayValue->cc_<name>, Prefix-Strip ab aGTM.f.consent_check=function, GTM-Encoder =/&/</>->u00xx). Mapping empirisch belegt: 18/23 byte-identisch vor Sync (Round-Trip-Encoder verifiziert), 5 echte Drifts resynct (Consentmanager/CookieFirst/Sourcepoint/Usercentrics v2 [F-51-Komma]/Shopify). Writer failt loud bei unmapped Option / nicht-lesbarer Datei / fehlendem Marker. Drift-Guard test/cmp/template-sync.test.js (26 Tests) asserted embedded==min.js; Negativ-Beweis gefuehrt. Build idempotent, Diff minimal (5 Value-Zeilen), Sandbox-Sync-Invariante byte-identisch, 377 Tests gruen. Commit c0edacc auf dev gepusht. REST=operativ (Andi): Client-Re-Import fuer fc-moto -> dann F-49 (falls gtm* gesetzt)/F-51 client-seitig live, danach Karte -> Erledigt. Nebenbefund F-53 (findings): Arrow-Function in cc_shopify_consent.js (ES5, P3, vorbestehend)."
+              },
+              {
+                "id": "8e94d8ad-cf76-480a-96d4-45470edfc30c",
+                "author": "Claude Opus",
+                "created": "2026-07-16",
+                "text": "Nebenbefund F-53 (waehrend F-52-Analyse gefunden) gleich mit-gefixt: Arrow-Function in cmp/cc_shopify_consent.js (ES5-Verstoss) -> function-Expression. terser (--ecma 5) transpiliert NICHT, daher lief die Arrow bis in min.js + eingebetteten Template-Value durch. ./build.sh resynchte den Shopify-Template-Wert AUTOMATISCH via F-52 (End-to-End-Beweis des Sync-Mechanismus). ES6-Sweep ueber alle cmp/*.js + aGTM.js + sGTM-Client-Source: sonst sauber. Kritiker-Sub-Agent: FREIGABE JA (verhaltensgleich, kein this/arguments; kein Befund >= P2). Commit 4b88db7 auf dev. F-53 teilt die Re-Import-Abhaengigkeit mit F-52. Knowledge aktualisiert (projekt-konventionen: terser-transpiliert-nicht; cmp-layer-test-und-drift: F-52-Sync-Mechanismus + F-53)."
+              },
+              {
+                "id": "71087773-9467-4947-947d-c8686abb3867",
+                "author": "Claude Opus",
+                "created": "2026-07-16",
+                "text": "F-51b (Rest der Komma-Klasse) auf Andis Zeichen komplett geschlossen: /,/g-Strip + String-Guard in Matomo, Shopware5, Usercentrics3, jtl_eu_cookie, Shopware Acris (letzterer defensiv, Kritiker-P3). Damit strippen ALLE CMPs, die menschenlesbare Namen in den Consent-String schreiben (Klaro/Borlabs safe = Object-Keys). build.sh resynchte 4 eingebettete Template-Werte automatisch via F-52 (jtl nicht eingebettet). Neuer test/cmp/comma_strip.test.js (3 diskriminierende Tests). Kritiker-Sub-Agent: FREIGABE JA (throw-sicher, keine Regression, ES5). 380 Tests gruen. Commit 552719f auf dev. Teilt die Re-Import-Abhaengigkeit mit F-52/F-53. findings F-51b + knowledge/CHANGELOG aktualisiert."
+              },
+              {
+                "id": "e967a409-be20-4f7b-9f5a-b304c0b05107",
+                "author": "Claude Opus",
+                "created": "2026-07-16",
+                "text": "Holistischer Release-Kritiker ueber den kumulativen Session-Diff (F-52+F-53+F-51b): FREIGABE JA fuer den Session-Beitrag zu v1.5. Verifiziert: 380 Tests gruen, Build idempotent, alle Artefakt-Sync-Invarianten byte-identisch (Sandbox-Block==src, const-agtm-base64==aGTM.base64 in template+src, alle min.js frisch), ES5 repo-weit sauber, Doku/CHANGELOG/CLAUDE.md konsistent. EIN P1 (Hygiene, kein Funktionsdefekt): ein skriptbasierter Header-Bump hatte 3 CMP-Dateien (matomo/uc3/acris) versehentlich CRLF->LF geflippt -> Ganzdatei-Diff. BEHOBEN (Commit a46a827): CRLF wiederhergestellt (Netto-Diff vs Session-Start jetzt nur ~semantische Komma-Zeilen), ROADMAP-Testzahl 346->380 gesynct (F-26-Rest; nur CHANGELOG-in-development-Label bleibt bis Tag). Lehre in knowledge/projekt-konventionen (Zeilenenden bei Skript-Edits bewahren; .gitattributes = v1.6-Kandidat). dev jetzt clean + diff-minimal. Alle 3 Themen der Session freigegeben."
+              },
+              {
+                "id": "dcf790b3-0e06-4f28-8b5c-bba3fa3e2413",
+                "author": "Claude Opus",
+                "created": "2026-07-28",
+                "text": "ABGENOMMEN + GESCHLOSSEN (2026-07-28). Andi hat die Abnahme-Entscheidung delegiert; ich habe den Sync-Invariant vorher unabhaengig gegengeprueft statt das Protokoll zu glauben:\n\n(1) 762 bun-Tests gruen (0 fail, 37 Dateien). (2) ./build.sh sauber, meldet \"In sync: all 23 embedded CMP consent_check codes\"; einziger Arbeitsbaum-Diff war der @lastupdate-Datumsstempel in aGTM.js -> zurueckgesetzt, Build ist idempotent. (3) DRIFT-GUARD FRISCH ALS DISKRIMINIEREND BEWIESEN, nicht aus dem Protokoll uebernommen: kuenstliche Drift in cmp/cc_cookiebot.min.js eingebaut -> test/cmp/template-sync.test.js faellt (1 fail von 26); nach Restore wieder 26/26 gruen. Der Guard faengt also wirklich, was er faengt soll. (4) Artefakt-Beleg fuer die urspruengliche F-51-Drift: der eingebettete Usercentrics-v2-Wert (template.tpl Zeile 242) enthaelt 2x /,/g und 0x single-comma-replace -> genau der Bug, der die Karte ausgeloest hat, ist im Produktionspfad weg. (5) Sandbox-Sync-Invariante: 760/760 Zeilen byte-identisch zu sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (einziger Diff = fehlender Trailing-Newline meiner Extraktion). (6) base64-Blob in template.tpl UND src/*.js identisch zu aGTM.base64.\n\nENTSCHEIDUNGSBEGRUENDUNG fuer das Schliessen trotz offenem Re-Import: Der Kartenauftrag ist der Sync-MECHANISMUS im Repo — der ist fertig und belegt. Der Client-Re-Import in fc-motos Container ist ein operativer Deploy-Schritt ausserhalb des Repos und dieselbe Abhaengigkeit, mit der F-49, F-51 und F-53 bereits geschlossen wurden; eine Karte deswegen in QA festzuhalten waere inkonsistent und wuerde das Board vor dem v1.5-Gate verstopfen.\n\nOFFEN UND BEWUSST UEBERGEBEN (Andis Zug, NICHT Teil dieser Karte): Solange das sGTM-Client-Template nicht in fc-motos Container re-importiert ist, sind F-49 (falls gtm*-Requirements gesetzt), F-51/F-51b, F-52 und F-53 dort client-seitig NICHT live. Ab jetzt gilt aber: jeder kuenftige CMP-Fix landet automatisch im eingebetteten Template-Wert (build.sh) und ein un-gesynctes Ergebnis failt bun test — die Drift-Klasse selbst ist geschlossen."
+              },
+              {
+                "id": "fadf4988-33e1-48cc-9de2-f9ab44aa2c57",
+                "author": "Claude Opus",
+                "created": "2026-07-28",
+                "text": "KORREKTUR zum Kommentar davor: der Client-Re-Import ist NICHT offen — Andi hat ihn am 2026-07-23 durchgefuehrt (aus dem Sitzungsgedaechtnis, Andis eigene Meldung: laeuft seitdem aktiv auf fc-moto). Damit sind F-49 (fail-closed), F-51/F-51b (globaler Komma-Strip), F-52 (eingebettete CMP-consent_check-Codes gesynct), F-53 (Shopify-Arrow, gefixt 2026-07-16, also vor dem Import) und der Bot-Check-base64url-Fix F-54 client-seitig LIVE.\n\nDie Karte ist damit nicht nur technisch, sondern auch operativ vollstaendig abgeschlossen — es gibt keine offene Restpflicht. Mein vorheriger Absatz \"OFFEN UND BEWUSST UEBERGEBEN\" ist gegenstandslos; die technische Gegenpruefung darueber (762 Tests, Drift-Guard-Negativbeweis, Usercentrics-v2-Artefaktbeleg, 760/760 Sandbox-Sync, base64-Blob) bleibt unveraendert gueltig."
+              }
+            ],
             "qa": true
           }
         ]
