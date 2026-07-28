@@ -102,6 +102,19 @@ anything else applies.
   `aGTM.d.dl`/`aGTM.l`).
 - A custom dataLayer name (`gdl`) mismatch → you're inspecting the wrong array.
 
+**"It works on a first visit" — but the test was never a first visit:** a re-test in the
+same tab proves nothing (GTM cannot be un-injected once `aGTM.d.init` is `true`), and
+clearing the site's consent cookie is rarely the whole state. Also in play: the page's own
+`localStorage` (`cc_matomo`, `cc_jtl_consent`, `cc_tramino`, `cc_perspectivefunnel` read
+their decision from there), aGTM's own user-id cookie (`_TPU` by default on the sGTM-Client
+path — if it survives, the Client returns the stored consent and GTM injects with no
+banner), and, for third-party-hosted CMPs (Consentmanager, Usercentrics, Cookiebot,
+OneTrust, Sourcepoint), a second copy in **their** origin that the page cannot reach at
+all. So "consent is already there although I deleted the cookies" is this, not an aGTM
+bug — work through those in that order. Re-test in a **new incognito window**; the repo's
+aGTM Inspector extension also clears foreign frame documents, as far as the CMP has a
+frame open at that moment.
+
 **Other traps:**
 - Deprecated `vPageview` in use instead of `aPageview`.
 - Custom `consent_check`/config code with ES6 (arrow/`let`/`const`/…) placed where
