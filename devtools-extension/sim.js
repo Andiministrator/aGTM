@@ -227,19 +227,24 @@
   // 'default' seeds the pre-consent baseline and is only read while the Google tag has
   // not yet processed its consent state, hence the timing guard below (card #51).
   //
-  // 'declare' is deliberately NOT here (card #55). It exists in the tag, but the
-  // dataLayer path to it is closed by design — verified against Google's shipped code
-  // (gtm.js of a real container and gtag.js carry the byte-identical dispatcher):
+  // 'declare' is deliberately NOT here (card #55). The verb exists in the tag, but a
+  // push from this tab cannot reach it honestly — verified against Google's shipped
+  // code (gtm.js of a real container and gtag.js carry the byte-identical dispatcher):
   //     d==="default" ? So(e) : d==="update" ? Uo(e,c)
   //   : d==="declare" && b.fromContainerExecution && Ro(e)
-  // Every site that sets `fromContainerExecution:!0` is container-internal (the
-  // container's own message enqueue, registerChild, load_google_tags); a push from the
-  // page never carries it — the same line uses the flag as exactly that discriminator
-  // one clause earlier (`b.fromContainerExecution||(…P(139)…P(140))`). So a page-level
-  // `['consent','declare',{…}]` is dropped without a trace: the push would look like it
-  // worked and change nothing, which is the one thing this tab must never do. `declare`
-  // stays fully visible on the READ side (reader.js/ics, the Ist-Zustand column) —
-  // CMP/vendor TEMPLATES reach it via declareConsentState, and seeing that matters.
+  // The flag is stamped on messages the container itself enqueues (its message queue,
+  // registerChild, load_google_tags); the same line uses it as exactly that
+  // page-vs-container discriminator one clause earlier
+  // (`b.fromContainerExecution||(…P(139)…P(140))`). An ordinary push — array or plain
+  // object — therefore carries no flag and its declare is dropped without a trace.
+  // It is not strictly unforgeable: the unwrapper duck-types on the presence of
+  // `getUntrustedMessageValue`, so a NON-plain object exposing that method would be
+  // taken for container output. But that same flag switches on Google's
+  // container-execution model handling and suppresses its own page-push diagnostics —
+  // a tool whose job is to OBSERVE the page must not lie to the tag about where a
+  // message came from. So: no declare button. `declare` stays fully visible on the
+  // READ side (reader.js reads it from google_tag_data.ics; the Consent tab has a
+  // declare column and a declare step row) — CMP/vendor templates do set it.
   var GCM_MODES = ["update", "default"];
   SIM.GCM_MODES = GCM_MODES;
 
@@ -1100,11 +1105,13 @@ var SIM_GCM_MODE_HINT = {
 // Why there is no 'declare' button (card #55). Shown once under the mode row: the verb
 // is real and appears in the Ist-Zustand above, so its absence here needs explaining —
 // otherwise the next person assumes it was forgotten and re-adds a dead button.
-var SIM_GCM_NO_DECLARE = "Nur update und default sind von der Seite aus pushbar. " +
-  "declare verwirft das Google-Tag still, wenn es nicht aus einer Container-Ausführung " +
-  "kommt (geprüft in gtm.js/gtag.js: declare läuft nur mit fromContainerExecution) — " +
-  "dorthin kommen nur GTM-Templates über declareConsentState. Ein declare, das eine " +
-  "CMP so gesetzt hat, siehst du weiterhin im Ist-Zustand oben.";
+var SIM_GCM_NO_DECLARE = "Nur update und default sind von hier aus sinnvoll pushbar. " +
+  "Ein declare verwirft das Google-Tag still, wenn die Nachricht nicht aus einer " +
+  "Container-Ausführung stammt (geprüft in gtm.js/gtag.js: declare läuft nur mit " +
+  "fromContainerExecution). Diese Herkunft ließe sich zwar vortäuschen — das würde " +
+  "aber Googles internes Nachrichten-Handling mitverbiegen, und ein Werkzeug zum " +
+  "Beobachten darf das Tag nicht über die Herkunft belügen. Ein declare, das ein " +
+  "CMP-Template gesetzt hat, siehst du im Consent-Tab (Spalte declare).";
 function simGcmModeRow(mode) {
   var modes = simGcmModes(), h = '<div class="toolbar" style="margin:8px 0 6px;gap:12px">';
   for (var i = 0; i < modes.length; i++) {

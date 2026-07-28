@@ -989,7 +989,9 @@ describe("Simulation tab — GCM push modes (card #51)", () => {
     expect(html).not.toContain('value="declare"');
   });
   test("the absence of 'declare' is explained instead of looking like an oversight", () => {
-    expect(renderSimWithMode("update")).toContain("declareConsentState");
+    // Assert on the load-bearing reason, not on a wording detail: the mode row has to
+    // name the condition Google actually gates the verb on.
+    expect(renderSimWithMode("update")).toContain("fromContainerExecution");
   });
   test("the button label follows the selected mode", () => {
     expect(renderSimWithMode("update")).toContain("consent update pushen");
@@ -1109,9 +1111,11 @@ describe("Simulation tab — delegated change handlers (F-94)", () => {
   });
   test("an unchecked radio (the one being deselected) is ignored", () => {
     const P = globalThis.__panel;
-    P.simState().gcmMode = "declare";
+    // Neutral sentinel: any mode != the pushed radio value works, and "default" avoids
+    // being mistaken for a declare-fallback test (that one lives further up).
+    P.simState().gcmMode = "default";
     fireChange(el({ className: "sim-gcm-mode", value: "update", checked: false }));
-    expect(P.simState().gcmMode).toBe("declare");
+    expect(P.simState().gcmMode).toBe("default");
   });
   test("a signal checkbox still toggles its own signal", () => {
     const P = globalThis.__panel;

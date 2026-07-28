@@ -557,9 +557,12 @@ if (!o.c.cm_update && o.c.cm_regions!='all' && o.c.cm_regions) {
 // Fire Consent Mode dataLayer Event
 if (o.c.cm_event) {
   const c_ev = { event:'aGTM_consent_mode', cm_signals:o.d.cm };
-  // Deliberately aGTM.f.fire and not a raw dataLayer push: fire() applies the consent
-  // gate, the queue and the event log, so the signal event behaves like every other
-  // aGTM event. This is also why the template needs no dataLayer access at all.
+  // Uses aGTM.f.fire rather than a raw dataLayer push, so the signal event lands in
+  // aGTM's event log and goes out through sendnaus() with its dataLayer-hook protection.
+  // Note it is NOT consent-gated or queued: fire() lets any event whose name starts with
+  // "aGTM" past both, which is what this signal needs — it has to reach GTM before the
+  // consent decision. That is also why the template needs no access_globals grant on the
+  // global dataLayer (gtagSet's writes are covered by write_data_layer instead).
   callInWindow('aGTM.f.fire', c_ev);
 }
 
@@ -1411,13 +1414,13 @@ This template sets the Google (and Microsoft) Consent Mode signals for GTM.
   `createQueue('dataLayer')` (used only in a commented-out line, superseded by
   `aGTM.f.fire`) and `makeTableMap` (never used at all).
 - Permissions narrowed: with the dead `createQueue('dataLayer')` gone, the template no
-  longer needs read/write access to the global `dataLayer` at all, so that entry was
-  dropped from `access_globals`. `write_data_layer` stays — that is the permission
-  `gtagSet` requires for `url_passthrough` / `ads_data_redaction`.
-- No behaviour change: the consent signals still go out through the sanctioned
-  `setDefaultConsentState` / `updateConsentState` template APIs, which is also why a
-  page-level `dataLayer.push(['consent','declare',…])` never played a role here (the
-  Google tag only honours `declare` from inside container execution).
+  longer needs a direct read/write `access_globals` grant on the global `dataLayer`, so
+  that entry was dropped. `write_data_layer` stays — that is the permission `gtagSet`
+  requires for `url_passthrough` / `ads_data_redaction`, and its `keyPatterns` cover
+  exactly those two keys.
+- No behaviour change: the consent signals still go out through the
+  `setDefaultConsentState` / `updateConsentState` template APIs.
+- Note when re-importing: GTM will show the narrower permission set as a permission diff.
 
 ## Changes in 1.4
 

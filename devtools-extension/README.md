@@ -25,7 +25,7 @@ It is the human-facing companion to the `live-inspector` Claude Code skill.
 | **Session** | `aGTM.d.session`, `aGTM.d.attribution.<method>.*`, `window.se_data` | Session source & attribution, syntax-highlighted. Falls back to a site's `window.se_data` object when `aGTM.d.session` is empty |
 | **Config** | `aGTM.c` + highlighted config traps | The **effective** config in effect after `config()` (defaults + integrator + sGTM-Client injection), syntax-highlighted, plus known config-trap warnings and a **runtime-diff** (first snapshot → current) showing what aGTM derived/changed at runtime |
 | **Netzwerk** | `chrome.devtools.network` | gtm.js / `/aGTMconsent` / `/aGTM.js` / sources / GA hits, **plus** event/collect POSTs to the sGTM (aEvents pipeline) — matched by host + learned path-prefix so first-party traffic isn't swept in under reverse-proxy setups. A **pre-consent leak banner** flags any tracking/marketing request (Google tags + Meta/TikTok/UET/LinkedIn/Pinterest/Criteo/Snap/X/Clarity/… pixels) that fired while `gtmConsent` was still false, with a per-row `⚠ pre-consent` badge. The capture-time stamp is taken against the last polled snapshot (700 ms), so it is deliberately coarse; what makes the flag trustworthy is the **reconcile** against the *consent moment* (the same anchor the Consent-Timeline uses: the `aGTM.l` consent milestone, else the first consent event, else the GTM injection — never the *last* consent event, which the library's 2 s CMP poll keeps pushing forward). The comparison uses each request's **start** time, so a slow request that left before the decision stays flagged. Without any usable anchor the stamp stands, so the check never goes quietly green — though a stamp younger than two poll intervals with no anchor yet counts as *undecided*, so the banner no longer flashes red during page load while the reconcile is still catching up. A **consent fingerprint** — a compact per-category granted/denied/unset pill cluster decoded from the request's `gcs`/`gcd` params — is shown inline in the list (also on dataLayer consent-command rows). A **search box** (prefix `-` to exclude, e.g. `-clarity`) + per-host checkboxes to filter, **smart URL** (dimmed host, emphasised path, key params as chips), the request's **event name** (`en`) and **property/measurement/stream ID** (`id`/`tid`) under the type badge, **exception hits show their `type` and message inline** (from a GA4 query string, a GA4 POST body or a decoded aEvents payload) — an event named `exception` says nothing on its own, so what actually broke is readable without expanding the row, with the full text on hover, a **payload preview** (gzip bodies auto-decompressed via `DecompressionStream`; **aEvents** `?e=`/`?q=` payloads decoded — obfuscated ones by brute-forcing the 63 Caesar shifts, no salt needed), and rows **click-to-expand** into separate collapsible sub-sections (General · **Consent-Signale gcs/gcd decoded** · Query-String · Request-/Response-Header · Payload · aEvents entschlüsselt). Query-string values are **URL-decoded** for display — Chrome hands them over raw, so a GA4 error text arrives as `Uncaught%20ReferenceError%3A%20…` and an ID list as `%2C50%2C39`. Decoding is one level deep and per-value fault-tolerant (a value containing a literal `%` keeps its raw form instead of breaking the row), and the section header states how many values were decoded — including how many were **double-encoded**, which is surfaced rather than silently unwrapped because it is usually a real tagging bug |
-| **Simulation** | **writes** `window.aGTM` via `inspectedWindow.eval` (opt-in) | **The one write-enabled tab.** Drive the page to exercise the flow instead of clicking a real banner. Laid out as four labelled groups — **Consent · Events · GTM & Integration · Umgebung** — under a pinned write-toggle + live-effect panel. **Consent:** simulate a decision with granular control (toggle exactly which **purposes / services / vendors** are granted, each with an **ID field** and a per-group **"IDs" toggle** to express consent by ID instead of name — pre-filled from `gtmPurposes`/`gtmServices`/`gtmVendors` — persisted per host, saveable as **named presets**), plus **deny / reset / restore** (Grant installs a persistent `consent_check` stub = mocks the CMP; Restore undoes it). **Events:** **fire an event** (`aGTM.f.fire` with editable JSON + `_noConsent`/`_noDLPush`/`_post` flags + history) and a one-click **scenario runner** (deny→fire→grant→replay). **GTM & Integration:** **load a different GTM container** than the config (staging/demo), **force GTM injection** (consent-independent `initGTM`), a **consent-store POST test** (`/aGTMconsent`), **block an existing aGTM integration** (reversible), and **inject an aGTM integration snippet** into a page with no aGTM. **Umgebung:** **push a Google Consent Mode command** (`update` / `default` — a page-pushed `declare` is dropped by Google's tag, see below; with a timing guard that refuses a `default` that would arrive too late) and **reset cookies + reload** (both aGTM-independent). A live effect panel shows the resulting `gtmConsent`/injection/dataLayer state. Everything is gated behind a per-session **Write-Modus** toggle (default **off**, never persisted). See below. |
+| **Simulation** | **writes** `window.aGTM` via `inspectedWindow.eval` (opt-in) | **The one write-enabled tab.** Drive the page to exercise the flow instead of clicking a real banner. Laid out as four labelled groups — **Consent · Events · GTM & Integration · Umgebung** — under a pinned write-toggle + live-effect panel. **Consent:** simulate a decision with granular control (toggle exactly which **purposes / services / vendors** are granted, each with an **ID field** and a per-group **"IDs" toggle** to express consent by ID instead of name — pre-filled from `gtmPurposes`/`gtmServices`/`gtmVendors` — persisted per host, saveable as **named presets**), plus **deny / reset / restore** (Grant installs a persistent `consent_check` stub = mocks the CMP; Restore undoes it). **Events:** **fire an event** (`aGTM.f.fire` with editable JSON + `_noConsent`/`_noDLPush`/`_post` flags + history) and a one-click **scenario runner** (deny→fire→grant→replay). **GTM & Integration:** **load a different GTM container** than the config (staging/demo), **force GTM injection** (consent-independent `initGTM`), a **consent-store POST test** (`/aGTMconsent`), **block an existing aGTM integration** (reversible), and **inject an aGTM integration snippet** into a page with no aGTM. **Umgebung:** **push a Google Consent Mode command** (`update` / `default` — an ordinary page-pushed `declare` is dropped by Google's tag, see below; with a timing guard that refuses a `default` that would arrive too late) and **reset cookies + reload** (both aGTM-independent). A live effect panel shows the resulting `gtmConsent`/injection/dataLayer state. Everything is gated behind a per-session **Write-Modus** toggle (default **off**, never persisted). See below. |
 
 ## How it works (and why it needs no permissions)
 
@@ -102,20 +102,34 @@ persisted per host):
     this verb: **`wait_for_update`** (ms) and **`region`** (comma-separated; one push =
     one region scope, push again for another).
 
-  **Why there is no `declare` button.** The verb is real, but the dataLayer path to it is
-  closed by design. Google's shipped code — `gtm.js` of a real container and `gtag.js`,
+  **Why there is no `declare` button.** The verb is real, but this tab cannot reach it
+  honestly. Google's shipped code — `gtm.js` of a real container and `gtag.js`,
   byte-identical — dispatches consent commands as
-  `d==="default" ? … : d==="update" ? … : d==="declare" && b.fromContainerExecution && …`,
-  and every site that sets `fromContainerExecution` is *container-internal* (the
-  container's own message enqueue, `registerChild`, `load_google_tags`). A push from the
-  page never carries the flag, so a page-level `['consent','declare',{…}]` is dropped
-  without a trace. `declare` is reachable only from a GTM template, via
-  `declareConsentState`. It stays fully visible on the **read** side — the Ist-Zustand
-  line below has a `declare` column, because a CMP template setting one is worth seeing.
+  `d==="default" ? … : d==="update" ? … : d==="declare" && b.fromContainerExecution && …`.
+  That flag is stamped on messages the container itself enqueues (its message queue,
+  `registerChild`, `load_google_tags`), and the same line uses it as exactly that
+  page-vs-container discriminator one clause earlier. An ordinary page push — array or
+  plain object — carries no flag, so its `declare` is dropped without a trace.
 
-  **Timing guard.** `default` is only read while the Google tag has not
-  yet evaluated consent; pushed later it lands in the dataLayer and changes nothing. The
-  box therefore **refuses** a late `default` and says why, instead of reporting
+  It is not strictly unforgeable: the unwrapper duck-types on the presence of
+  `getUntrustedMessageValue`, so a non-plain object exposing that method would be taken
+  for container output. But the flag also switches on Google's container-execution model
+  handling and suppresses its own page-push diagnostics — a tool whose job is to
+  *observe* the page must not lie to the tag about where a message came from. In
+  practice the verb belongs to Google's own and whitelisted CMP/vendor templates, which
+  reach it through the **internal** API `internal.declareConsentState`; a custom template
+  cannot `require()` that.
+
+  `declare` stays fully visible on the **read** side: the reader captures it from
+  `google_tag_data.ics`, and the **Consent** tab keeps both a `declare` column in its
+  per-category table and a `declare` step row in the sequence — so a CMP template's
+  declare stays visible even once a later `default`/`update` outranks it. In the
+  Ist-Zustand line below it appears as a state's *origin*, which by precedence
+  (`update > default > implicit > declare`) only happens when nothing else is set.
+
+  **Timing guard.** `default` is only read while the Google tag has not yet evaluated
+  consent; pushed later it lands in the dataLayer and changes nothing. The box therefore
+  **refuses** a late `default` and says why, instead of reporting
   a success that did not happen — "too late" is detected via `google_tag_data.ics` or,
   on an aGTM page, `aGTM.d.init`. On a typical aGTM page both are false until consent is
   given, which is exactly why a `default` push is useful here. A **"trotzdem pushen"**
