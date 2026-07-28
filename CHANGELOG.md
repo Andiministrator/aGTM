@@ -2,6 +2,36 @@
 
 ## Version 1.5 — *in development*
 
+### Changed — aGTM Inspector: the Simulation tab no longer offers a `declare` push
+
+The Google Consent Mode box offered three verbs — `update`, `default` and `declare`. The
+first two work; the third never could, and the box reported a success anyway.
+
+`declare` was checked against Google's shipped code rather than its documentation. The
+consent-command dispatcher is byte-identical in `gtm.js` (of a real container) and
+`gtag.js`:
+
+```js
+d==="default" ? So(e) : d==="update" ? Uo(e,c) : d==="declare" && b.fromContainerExecution && Ro(e)
+```
+
+`default` and `update` run unconditionally; `declare` runs only when the command carries
+`fromContainerExecution`. Every place that sets that flag is container-internal — the
+container's own message enqueue, `registerChild`, `load_google_tags` — and a push from the
+page never carries it. The same line uses the flag as exactly that discriminator one
+clause earlier (`b.fromContainerExecution||(…P(139)…P(140))`). So a page-level
+`dataLayer.push(['consent','declare',{…}])` is dropped without a trace: the verb is
+reachable only from a GTM template, through `declareConsentState`.
+
+A button that is guaranteed to do nothing while reporting success is the failure mode this
+tab exists to avoid, so the verb is gone from the push modes. The mode row now explains its
+absence, otherwise the next reader takes it for an oversight and adds the dead button back.
+
+**Nothing changes on the read side.** `declare` is still captured by the reader from
+`google_tag_data.ics`, still has its own column in the Ist-Zustand line and the Consent
+tab's Google-Consent-Mode sequence, and still sits last in the precedence
+`update > default > implicit > declare` — a CMP template that sets one is worth seeing.
+
 ### Fixed — aGTM Inspector: cookie reset missed Consentmanager
 
 The Simulation tab's cookie reset matches cookie names by substring, and the shipped

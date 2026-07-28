@@ -710,12 +710,26 @@ describe("buildLoadContainerCode — load a different GTM container than the con
 });
 
 /* ==================================================================== *
- *  Card #51 — GCM push modes (update / default / declare)              *
+ *  Card #51 — GCM push modes (update / default)                        *
+ *  Card #55 — 'declare' removed: not pushable from the page            *
  * ==================================================================== */
 
 describe("buildGcmPushCode — mode switch", () => {
-  test("GCM_MODES is the single source of truth for the three verbs", () => {
-    expect(GCM_MODES).toEqual(["update", "default", "declare"]);
+  test("GCM_MODES is the single source of truth for the two pushable verbs", () => {
+    expect(GCM_MODES).toEqual(["update", "default"]);
+  });
+  test("'declare' is not offered — Google drops a page-pushed declare (card #55)", () => {
+    // Verified against Google's shipped code: gtm.js (real container) and gtag.js carry
+    // the identical dispatcher `d==="declare" && b.fromContainerExecution && Ro(e)`, and
+    // fromContainerExecution is only ever set inside container execution. A declare
+    // pushed from the page therefore changes nothing — so the builder must not emit one
+    // while claiming success. It falls back to 'update' like any unknown verb.
+    expect(GCM_MODES).not.toContain("declare");
+    var w = { dataLayer: [] };
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", { mode: "declare" }), w);
+    expect(res.mode).toBe("update");
+    expect(w.dataLayer[0][1]).toBe("update");
+    expect(w.dataLayer[0][1]).not.toBe("declare");
   });
   test("no opts → 'update' (unchanged behaviour for existing callers)", () => {
     var w = { dataLayer: [] };
@@ -738,12 +752,6 @@ describe("buildGcmPushCode — mode switch", () => {
     expect(w.dataLayer[0][1]).toBe("default");
     expect(w.dataLayer[0][2].ad_storage).toBe("denied");
   });
-  test("'declare' pushes the declare verb", () => {
-    var w = { dataLayer: [] };
-    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", { mode: "declare" }), w);
-    expect(res.pushed).toBe(true);
-    expect(w.dataLayer[0][1]).toBe("declare");
-  });
 });
 
 describe("buildGcmPushCode — timing guard (the point of card #51)", () => {
@@ -765,12 +773,13 @@ describe("buildGcmPushCode — timing guard (the point of card #51)", () => {
     expect(res.ics).toBe(false);
     expect(w.dataLayer.length).toBe(0);
   });
-  test("'declare' is guarded exactly like 'default'", () => {
-    var w = { dataLayer: [], google_tag_data: { ics: {} } };
-    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", { mode: "declare" }), w);
+  test("a rejected push does not even create window[dl] as a side effect", () => {
+    // The guard returns BEFORE `w[dl]=w[dl]||[]` — otherwise refusing a push would still
+    // leave a dataLayer behind on a page that had none.
+    var w = { google_tag_data: { ics: { entries: {} } } };
+    var res = run(buildGcmPushCode({ ad_storage: "denied" }, "", { mode: "default" }), w);
     expect(res.ok).toBe(false);
-    expect(res.late).toBe(true);
-    expect(w.dataLayer.length).toBe(0);
+    expect(w.dataLayer).toBeUndefined();
   });
   test("'update' is NEVER guarded — revising consent later is its whole purpose", () => {
     var w = { dataLayer: [], google_tag_data: { ics: { entries: {} } }, aGTM: { d: { init: true } } };
@@ -828,15 +837,13 @@ describe("buildGcmPushCode — wait_for_update / region (default-only)", () => {
     var res = run(buildGcmPushCode({}, "", { mode: "default", regions: ["", "  "] }), w);
     expect(res.signals.region).toBeUndefined();
   });
-  test("update/declare never carry wait_for_update or region — they are default-only in the gtag API", () => {
+  test("update never carries wait_for_update or region — they are default-only in the gtag API", () => {
     var w = { dataLayer: [] };
-    ["update", "declare"].forEach(function (m) {
-      var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", {
-        mode: m, waitForUpdate: 500, regions: ["DE"], force: true
-      }), w);
-      expect(res.signals.wait_for_update).toBeUndefined();
-      expect(res.signals.region).toBeUndefined();
-    });
+    var res = run(buildGcmPushCode({ ad_storage: "granted" }, "", {
+      mode: "update", waitForUpdate: 500, regions: ["DE"], force: true
+    }), w);
+    expect(res.signals.wait_for_update).toBeUndefined();
+    expect(res.signals.region).toBeUndefined();
   });
   test("signal whitelist still applies in default mode", () => {
     var w = { dataLayer: [] };
