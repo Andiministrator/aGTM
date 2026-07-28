@@ -462,10 +462,8 @@ const Object = require('Object');
 const copyFromWindow = require('copyFromWindow');
 const setInWindow = require('setInWindow');
 const callInWindow = require('callInWindow');
-const dataLayerPush = require('createQueue')('dataLayer');
 const gtagSet = require('gtagSet');
 const makeNumber = require('makeNumber');
-const makeTableMap = require('makeTableMap');
 const createQueue = require('createQueue');
 const setDefaultConsentState = require('setDefaultConsentState');
 const updateConsentState = require('updateConsentState');
@@ -559,7 +557,9 @@ if (!o.c.cm_update && o.c.cm_regions!='all' && o.c.cm_regions) {
 // Fire Consent Mode dataLayer Event
 if (o.c.cm_event) {
   const c_ev = { event:'aGTM_consent_mode', cm_signals:o.d.cm };
-  //dataLayerPush(c_ev);
+  // Deliberately aGTM.f.fire and not a raw dataLayer push: fire() applies the consent
+  // gate, the queue and the event log, so the signal event behaves like every other
+  // aGTM event. This is also why the template needs no dataLayer access at all.
   callInWindow('aGTM.f.fire', c_ev);
 }
 
@@ -687,45 +687,6 @@ ___WEB_PERMISSIONS___
           "value": {
             "type": 2,
             "listItem": [
-              {
-                "type": 3,
-                "mapKey": [
-                  {
-                    "type": 1,
-                    "string": "key"
-                  },
-                  {
-                    "type": 1,
-                    "string": "read"
-                  },
-                  {
-                    "type": 1,
-                    "string": "write"
-                  },
-                  {
-                    "type": 1,
-                    "string": "execute"
-                  }
-                ],
-                "mapValue": [
-                  {
-                    "type": 1,
-                    "string": "dataLayer"
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": false
-                  }
-                ]
-              },
               {
                 "type": 3,
                 "mapKey": [
@@ -1436,13 +1397,27 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.4
+- Version 1.5
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 13.07.2026
+- Last Update: 28.07.2026
 
 ## Description
 
 This template sets the Google (and Microsoft) Consent Mode signals for GTM.
+
+## Changes in 1.5
+
+- Cleanup: removed two dead `require()`s that the F-42 permission sweep had missed —
+  `createQueue('dataLayer')` (used only in a commented-out line, superseded by
+  `aGTM.f.fire`) and `makeTableMap` (never used at all).
+- Permissions narrowed: with the dead `createQueue('dataLayer')` gone, the template no
+  longer needs read/write access to the global `dataLayer` at all, so that entry was
+  dropped from `access_globals`. `write_data_layer` stays — that is the permission
+  `gtagSet` requires for `url_passthrough` / `ads_data_redaction`.
+- No behaviour change: the consent signals still go out through the sanctioned
+  `setDefaultConsentState` / `updateConsentState` template APIs, which is also why a
+  page-level `dataLayer.push(['consent','declare',…])` never played a role here (the
+  Google tag only honours `declare` from inside container execution).
 
 ## Changes in 1.4
 
