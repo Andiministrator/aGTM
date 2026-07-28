@@ -194,6 +194,35 @@
     out.push("- **vendors:** " + longVal(c.vendors));
     out.push("");
 
+    // Bot-check verdict — belongs in a hand-off report: "auffällig, aber
+    // durchgelassen" is exactly the kind of thing a client should see in
+    // writing rather than only in a live panel. Omitted entirely when the
+    // Client sent no verdict, so a report from a page without the check reads
+    // no differently than before.
+    var bs = botSummary(snap.bot);
+    if (bs.state !== "absent") {
+      out.push("## Bot-Check");
+      out.push("");
+      out.push("- **Urteil:** " + longVal(bs.label));
+      out.push("- **score:** " + (bs.score === null ? "—" : String(bs.score)));
+      out.push("- **band:** " + longVal(bs.band));
+      out.push("- **primarySignal:** " + longVal(bs.primary));
+      if (bs.signals.length) {
+        out.push("");
+        out.push("| category | type | score | confirmed |");
+        out.push("| --- | --- | --- | --- |");
+        for (var bi = 0; bi < bs.signals.length; bi++) {
+          var sg = bs.signals[bi] || {};
+          out.push("| " + longVal(sg.category) + " | " + longVal(sg.type) + " | " +
+            (typeof sg.score === "number" ? String(sg.score) : "—") + " | " +
+            (sg.confirmed === true ? "ja" : "—") + " |");
+        }
+      }
+      out.push("");
+      out.push("> " + bs.note);
+      out.push("");
+    }
+
     out.push("## Consent-Timeline");
     out.push("");
     if (tl.ok && tl.rows.length) {
@@ -273,6 +302,7 @@
         purposes: c.purposes || "",
         vendors: c.vendors || ""
       },
+      bot: botSummary(snap.bot),
       timeline: tl.ok ? tl.rows.map(function (r) { return { key: r.key, label: r.label, relMs: r.rel }; }) : [],
       leaks: arr(ctx.leaks).map(function (l) { return { vendor: l.vendor, url: l.url }; }),
       traps: arr(ctx.traps).map(function (t) { return { key: t.key, msg: t.msg }; }),
@@ -280,7 +310,54 @@
     }, null, 2);
   }
 
+  /**
+   * Classify the sGTM Client's bot-check verdict (aGTM.d.bot) for display.
+   *
+   * The verdict only ever reaches a NON-blocked visitor: a definitive bot is
+   * answered with HTTP 403 and never receives the library. So `isBot: true`
+   * here is not "you are a bot" but a contradiction worth naming — the Client
+   * served the page despite its own verdict. `score`/`band`/`signals` never
+   * block by themselves; a scored-but-clean visitor is the case this whole
+   * passthrough exists for (mark it in webGTM, e.g. a traffic_type dimension).
+   *
+   * @param bot aGTM.d.bot, may be {} / undefined
+   * @returns {{state:string, level:string, label:string, note:string,
+   *            score:(number|null), band:string, primary:string, signals:Array}}
+   *          state: "absent" | "clean" | "scored" | "bot"
+   */
+  function botSummary(bot) {
+    bot = (bot && typeof bot === "object") ? bot : {};
+    var has = typeof bot.isBot === "boolean";
+    var score = typeof bot.score === "number" ? bot.score : null;
+    var band = typeof bot.band === "string" ? bot.band : "";
+    var primary = typeof bot.primarySignal === "string" ? bot.primarySignal : "";
+    var signals = arr(bot.signals);
+    if (!has) {
+      return {
+        state: "absent", level: "info", label: "kein Urteil", score: null, band: "", primary: "", signals: [],
+        note: "Der Bot-Check ist im sGTM Client aus, hat nicht geantwortet, oder der Client ist älter als v1.5."
+      };
+    }
+    if (bot.isBot === true) {
+      return {
+        state: "bot", level: "warn", label: "als Bot eingestuft", score: score, band: band, primary: primary, signals: signals,
+        note: "Widerspruch: ein definitiv erkannter Bot bekommt 403 und gar keine Library. Dass dieses Urteil im Browser sichtbar ist, heißt, der Client hat trotz eigenem Urteil ausgeliefert."
+      };
+    }
+    if ((score !== null && score > 0) || primary || signals.length) {
+      return {
+        state: "scored", level: "info", label: "auffällig, aber durchgelassen", score: score, band: band, primary: primary, signals: signals,
+        note: "Zusatzsignale blocken nie selbst. Ob daraus etwas folgt (z. B. eine traffic_type-Dimension), entscheidet webGTM."
+      };
+    }
+    return {
+      state: "clean", level: "ok", label: "unauffällig", score: score, band: band, primary: primary, signals: signals,
+      note: "Kein Signal ausgelöst."
+    };
+  }
+
   var api = {
+    botSummary: botSummary,
     healthChecks: healthChecks,
     overallLevel: overallLevel,
     buildTimeline: buildTimeline,

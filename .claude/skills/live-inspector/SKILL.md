@@ -61,7 +61,11 @@ JSON.stringify({
   queued:     (window.aGTM && aGTM.d.f) ? aGTM.d.f.length : null,
   dlLen:      window.dataLayer ? window.dataLayer.length : null,
   gtmInDom:   document.querySelectorAll('script[src*="/gtm.js"]').length,
-  sessStatus: (window.aGTM && aGTM.d.session_status) || ''
+  sessStatus: (window.aGTM && aGTM.d.session_status) || '',
+  // Bot-check verdict from the sGTM Client (v1.5+). '' when the check is off,
+  // did not answer, or the Client predates the passthrough. Marking only — it
+  // never blocks; a detected bot never gets the library in the first place.
+  botBand:    (window.aGTM && aGTM.d.bot && aGTM.d.bot.band) || ''
 })
 ```
 

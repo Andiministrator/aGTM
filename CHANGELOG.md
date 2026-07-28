@@ -2,6 +2,128 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — sGTM Client: the bot check let every bot through (F-127)
+
+The response handler only parsed the body when the status was `2xx`:
+
+```js
+if (r.statusCode >= 200 && r.statusCode < 300 && r.body) { … if (o.isBot) bot = true; }
+```
+
+The filter service couples the HTTP status to the verdict — **403 when `isBot`, 200
+otherwise**. So the one response that reports a bot is exactly the one the gate skipped:
+the body was never read, `bot` stayed at its initial `false`, and the visitor was served
+normally. Every detected bot passed.
+
+The gate arrived with the v1.5 single-session refactor (`9d302d7`) and does not exist in
+v1.4.2/v1.4.3pre, which parse the body whenever it is a non-empty string — those versions
+block correctly. This is a v1.5-only regression, and since v1.5 is unreleased it has only
+ever run in the setups already using the current client.
+
+The gate is gone. `sendHttpGet` resolves for any completed response, so the verdict is now
+read from the body regardless of status. `test/sgtm/botcheck.test.js` fails if it comes
+back.
+
+> **Live effect:** the bot check starts blocking again where it silently did nothing. Setups
+> that grew used to the broken behaviour will see traffic drop by whatever the filter
+> rejects. This lands with the next client re-import, not before.
+
+### Added — sGTM Client: `Bot Check Mode` and an opt-out for publishing the verdict
+
+Two new template fields, both only shown when the bot check is enabled.
+
+**`Bot Check Mode`** (`block` by default, or `mark`). `mark` reports the verdict without
+blocking anything. It exists because of an asymmetry the fix above creates: a blocked
+visitor is *invisible*. No library, no `aGTM.d.bot`, no way to tell a correctly blocked bot
+from a false positive — and a `/aGTM.js` answered with 403 also makes any page code that
+calls `aGTM.f.fire(...)` unconditionally throw. Turning blocking back on for a site that
+has been running without it is therefore worth measuring first: run `mark`, count
+`aGTM.d.bot.isBot === true` in webGTM, then switch to `block`.
+
+Only the literal `mark` disables blocking; anything else — unset field, macro garbage —
+falls back to `block`, so a misconfiguration cannot silently switch the filter off.
+
+**`Pass the verdict to the browser`** (on unless unchecked). `aGTM.d` is readable by every
+script on the page and is written *before* any consent decision, so "filter server-side,
+but don't publish the classification" has to be expressible. Existing configurations
+without the field keep publishing.
+
+### Changed — hardening from the review round on the two entries above
+
+- **A 5xx whose body happens to parse is no longer reported as a clean visitor.** `isBot`
+  is only accepted as a real boolean; `{"error":"upstream down"}` now yields no verdict at
+  all instead of `{isBot:false}`.
+- **A filter outage is distinguishable from a clean result.** On a transport error the
+  Client sets `band: 'unknown'`. Without it, a webGTM traffic-type variable would silently
+  answer `'regular'` for 100% of traffic for as long as the outage lasted.
+- **Forwarded strings are length-capped at 64 characters.** A whitelist of *keys* does not
+  stop an existing key whose value the service later widens — a `primarySignal` refined
+  from `asn_spam` to `asn_spam:AS55967/Baidu/76ip` would have carried exactly the detail
+  that is stripped elsewhere.
+- **The Session API counters are on the Sources API blacklist.** `fireSources()` runs after
+  the counters are set and writes every non-meta field into the same object, so a Sources
+  response carrying its own `created` would have overwritten the session record's value.
+- **The signals loop no longer uses `for…of`.** The array duck-check accepts any object
+  with a numeric `length` (the sandbox has no `Array.isArray`), which `for…of` rejects with
+  a `TypeError` — and with no `try/catch` in the server sandbox that would have aborted the
+  entire `/aGTM.js` response for every visitor.
+- The verdict is held in a `const` container mutated by property rather than a rebound
+  top-level `let`, matching the pattern already proven in this file.
+- The Inspector's compliance report (Markdown and JSON) now carries the verdict — "flagged
+  but passed" belongs in a written hand-off, not only in a live panel.
+
+### Added — sGTM Client: bot-check verdict reaches the browser as `aGTM.d.bot`
+
+The check used to read a single field, `isBot`, and discard the rest. The service also
+reports `score`, `band`, `signals[]` and `primarySignal` for the ambiguous range that
+never blocks by itself — deciding what to do with those is the tenant's job, and until
+now the browser never saw them.
+
+A non-blocked visitor now receives the verdict as `cfg.bot` → **`aGTM.d.bot`**, readable
+in webGTM through a plain JS Variable:
+
+```javascript
+function() {
+  var b = (window.aGTM && aGTM.d && aGTM.d.bot) || {};
+  if (b.band === 'bot') return 'bot';
+  if (b.primarySignal === 'asn_spam') return 'spam';
+  return 'regular';
+}
+```
+
+It is its own top-level key rather than a field of `session`: the check runs before and
+independently of the Session API, so a session outage must not drop it, and it must not
+open the library's session preset gate.
+
+The forwarded shape is a **whitelist**, the opposite of the Sources API capture, which
+blacklists known keys and passes the rest. This payload is readable by every script on the
+page, so a field the service adds later must be opted in by a code change instead of
+leaking on the next API deploy. Forwarded are `isBot`, `score`, `band`, `primarySignal`
+and `signals[]` reduced to `{type, category, score, confirmed}`, capped at 10 entries.
+
+**`signals[].detail` stays server-side.** For the ASN-reputation signal it carries
+tenant-wide aggregates about *other* visitors' traffic — ASN number and org, unique-IP
+and request counts, window counts. That is not something every script on the page should
+be able to read.
+
+### Added — sGTM Client: Session API counters reach the browser
+
+`aGTM.d.session` carried `uid`/`sid`/`ret`/`sst`/`vct`/`ga4sid`/`muidga4` and dropped the
+rest of the record. `created`, `lastInteraction`, `pvCount`, `eventCount` and
+`sessionCount` now come through under their API names, so webGTM can read them without
+depending on a page-local `se_data` object.
+
+`counter` is not repeated — it already ships as `vct`, its aGTM name since v1.0.
+`customerId`/`user` are dropped as redundant (the tenant is configured, `user` is `uid`).
+
+Note the field that has been quietly misleading: **`vct` counts requests within the current
+session, not visits.** The visit count is `sessionCount` (observed live: `vct` 49 vs.
+`sessionCount` 56 on the same session). `ret`/`vct` keep their meaning regardless, because `ret` gates the
+server-side consent auto-denial and redefining it would move a live consent gate.
+
+`README-for-Integrators.md` documented a session field named `counter`, which the client
+has never emitted; the table now lists the fields that actually arrive.
+
 ### Changed — aGTM Inspector: the Simulation tab does not offer a `declare` push
 
 The Google Consent Mode box briefly offered a third verb next to `update` and `default`.

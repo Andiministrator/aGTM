@@ -319,6 +319,10 @@
         raw: safeObj(session) || {}
       },
       seData: seData,
+      // Bot-check verdict forwarded by the sGTM Client (aGTM.d.bot, v1.5+). Only ever
+      // present for a NON-blocked visitor — a detected bot gets a 403 and no library,
+      // so the panel never sees isBot:true from a real page load.
+      bot: safeObj(d.bot) || {},
       gcm: gcm,
       // Guard-relevant facts that are NOT aGTM's own state (see the helpers at the top):
       // whether the Google tag published an ics object at all, and whether any GTM

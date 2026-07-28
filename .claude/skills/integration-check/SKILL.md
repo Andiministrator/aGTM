@@ -52,6 +52,10 @@ aGTM.d.dl
 aGTM.d.f
 // 6. Session / consent-store status (v1.5)
 JSON.stringify({ status: aGTM.d.session_status, session: aGTM.d.session })
+// 6b. Bot-check verdict, if the sGTM Client runs one (v1.5+). {} = check off /
+//     no answer / older Client. isBot is effectively always false here — a
+//     detected bot gets a 403 and never receives the library at all.
+JSON.stringify(aGTM.d.bot)
 // 7. The real dataLayer (use aGTM.c.gdl's value if custom, default 'dataLayer')
 window.dataLayer
 // 8. Is a GTM script tag actually in the DOM?  NOTE: matches any *.gtm.js load;

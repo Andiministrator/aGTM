@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 27.07.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 28.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -44,6 +44,7 @@ aGTM.f.objinit = function() {
     [aGTM.d, "dl", []],
     [aGTM.d, "session", {}],
     [aGTM.d, "session_status", ""],
+    [aGTM.d, "bot", {}],
     [aGTM.d, "consent_hash", ""],
     [aGTM.d, "last_consent_hash", ""],
     [aGTM.d, "attribution", {}],
@@ -358,6 +359,18 @@ aGTM.f.config = function (cfg) {
       aGTM.d.session_status = 'preset';
       aGTM.f.log('m_session_preset', cfg.session);
     }
+  }
+
+  // Bot-check verdict, pre-populated by the sGTM Client (cfg.bot). Kept apart
+  // from cfg.session on purpose: the check runs before and independently of the
+  // Session API, so it must survive a session outage and must not influence the
+  // session preset gate above. Only ever present for a NON-blocked visitor (a
+  // detected bot never receives the library). Shape: {isBot, score, band,
+  // primarySignal, signals[]} — read it in webGTM via a JS variable, e.g.
+  // aGTM.d.bot.band for a traffic-type dimension.
+  if (cfg.bot && typeof cfg.bot === 'object' && typeof cfg.bot.isBot === 'boolean') {
+    aGTM.d.bot = JSON.parse(aGTM.f.sStrf(cfg.bot));
+    aGTM.f.log('m_bot_preset', aGTM.d.bot);
   }
 
   // Consent configuration
