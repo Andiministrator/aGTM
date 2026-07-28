@@ -92,6 +92,11 @@
       ? { key: "traps", label: "Konfig-Fallen", status: "warn", detail: traps.length + " mögliche Falle(n)" }
       : { key: "traps", label: "Konfig-Fallen", status: "pass", detail: "keine bekannten Fallen" });
 
+    // 6) Bot check — only when the Client actually sent a verdict, so pages
+    //    without the feature read exactly as before.
+    var botCheck = botCheckStatus(snap);
+    if (botCheck) checks.push(botCheck);
+
     return checks;
   }
 
@@ -203,7 +208,14 @@
     if (bs.state !== "absent") {
       out.push("## Bot-Check");
       out.push("");
+      // Provenance line, not decoration: this verdict is about the machine that
+      // generated the report — the consultant's IP, UA and ASN — not about the
+      // site's traffic. In a document headed "Seite: shop.example.com" an
+      // `asn_spam` line reads as a finding about the customer unless it says so.
+      out.push("> Urteil über **den Rechner, der diesen Report erzeugt hat** (dessen IP/User-Agent/ASN) — *keine* Aussage über den Verkehr der Seite.");
+      out.push("");
       out.push("- **Urteil:** " + longVal(bs.label));
+      if (bs.mode) out.push("- **Modus:** " + longVal(bs.mode) + (bs.mode === "mark" ? " (meldet nur, blockt nicht)" : " (blockt erkannte Bots)"));
       out.push("- **score:** " + (bs.score === null ? "—" : String(bs.score)));
       out.push("- **band:** " + longVal(bs.band));
       out.push("- **primarySignal:** " + longVal(bs.primary));
@@ -331,33 +343,68 @@
     var score = typeof bot.score === "number" ? bot.score : null;
     var band = typeof bot.band === "string" ? bot.band : "";
     var primary = typeof bot.primarySignal === "string" ? bot.primarySignal : "";
+    var mode = (bot.mode === "mark" || bot.mode === "block") ? bot.mode : "";
     var signals = arr(bot.signals);
+    var base = { score: score, band: band, primary: primary, mode: mode, signals: signals };
+    function out(state, level, label, note) {
+      return { state: state, level: level, label: label, note: note,
+        score: base.score, band: base.band, primary: base.primary, mode: base.mode, signals: base.signals };
+    }
     if (!has) {
-      return {
-        state: "absent", level: "info", label: "kein Urteil", score: null, band: "", primary: "", signals: [],
-        note: "Der Bot-Check ist im sGTM Client aus, hat nicht geantwortet, oder der Client ist älter als v1.5."
-      };
+      return out("absent", "info", "kein Urteil",
+        "Der Bot-Check ist im sGTM Client aus, hat nicht geantwortet, oder der Client ist älter als v1.5.");
+    }
+    // The Client sets band 'unknown' when the filter answered unusably or not at
+    // all. Without this branch it fell through to "unauffällig / kein Signal" —
+    // an outage rendered green, in the panel AND in the exported report.
+    if (band === "unknown") {
+      return out("unknown", "warn", "kein verwertbares Urteil",
+        "Der Bot-Check hat nicht (verwertbar) geantwortet — Ausfall oder Timeout. Das ist NICHT dasselbe wie „unauffällig\": eine traffic_type-Variable, die nur auf band==='bot' prüft, meldet in diesem Zustand stumm „regular\" für den gesamten Traffic.");
     }
     if (bot.isBot === true) {
-      return {
-        state: "bot", level: "warn", label: "als Bot eingestuft", score: score, band: band, primary: primary, signals: signals,
-        note: "Widerspruch: ein definitiv erkannter Bot bekommt 403 und gar keine Library. Dass dieses Urteil im Browser sichtbar ist, heißt, der Client hat trotz eigenem Urteil ausgeliefert."
-      };
+      // Under `mark` this is the configured, intended state — not a
+      // contradiction. Saying otherwise reported the correct operation of a
+      // deliberate mode as a misconfiguration, in a document meant for clients.
+      return mode === "mark"
+        ? out("bot", "warn", "als Bot eingestuft — nicht geblockt (Modus „mark\")",
+            "Der Client läuft im Modus „mark\": er meldet das Urteil und blockt nicht. Unter „block\" hätte dieser Besucher 403 bekommen und gar keine Library.")
+        : out("bot", "warn", "als Bot eingestuft",
+            "Widerspruch: unter „block\" bekommt ein erkannter Bot 403 und gar keine Library. Dass dieses Urteil im Browser steht, heißt entweder, der Client lief im Modus „mark\" (dann fehlt hier nur das mode-Feld eines älteren Client-Builds), oder er hat trotz eigenem Urteil ausgeliefert.");
     }
     if ((score !== null && score > 0) || primary || signals.length) {
-      return {
-        state: "scored", level: "info", label: "auffällig, aber durchgelassen", score: score, band: band, primary: primary, signals: signals,
-        note: "Zusatzsignale blocken nie selbst. Ob daraus etwas folgt (z. B. eine traffic_type-Dimension), entscheidet webGTM."
-      };
+      return out("scored", "info", "auffällig, aber durchgelassen",
+        "Zusatzsignale blocken nie selbst. Ob daraus etwas folgt (z. B. eine traffic_type-Dimension), entscheidet webGTM.");
     }
-    return {
-      state: "clean", level: "ok", label: "unauffällig", score: score, band: band, primary: primary, signals: signals,
-      note: "Kein Signal ausgelöst."
-    };
+    return out("clean", "ok", "unauffällig", "Kein Signal ausgelöst.");
+  }
+
+  // Health check for the bot check — the mode is otherwise invisible. `mark`
+  // looks exactly like `block` until a bot shows up, so a filter left switched
+  // off after a rollout measurement would never be noticed again.
+  function botCheckStatus(snap) {
+    var b = botSummary((snap || {}).bot);
+    if (b.state === "absent") return null;
+    if (b.mode === "mark") {
+      return { key: "bot", label: "Bot-Check", status: "warn",
+        detail: "Modus „mark\" — der Filter meldet nur und blockt NICHTS. Für eine Messphase korrekt, als Dauerzustand nicht." };
+    }
+    if (b.state === "unknown") {
+      return { key: "bot", label: "Bot-Check", status: "warn",
+        detail: "Kein verwertbares Urteil — Filter-Ausfall oder Timeout." };
+    }
+    if (b.state === "bot") {
+      return { key: "bot", label: "Bot-Check", status: "warn", detail: "Als Bot eingestuft, aber ausgeliefert." };
+    }
+    if (b.state === "scored") {
+      return { key: "bot", label: "Bot-Check", status: "pass",
+        detail: "auffällig (" + (b.primary || "Signal") + "), durchgelassen — Markierung in webGTM möglich" };
+    }
+    return { key: "bot", label: "Bot-Check", status: "pass", detail: "unauffällig" };
   }
 
   var api = {
     botSummary: botSummary,
+    botCheckStatus: botCheckStatus,
     healthChecks: healthChecks,
     overallLevel: overallLevel,
     buildTimeline: buildTimeline,

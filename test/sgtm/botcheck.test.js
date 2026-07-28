@@ -29,19 +29,36 @@ function extractSource(name) {
   return SRC.slice(start + ('const ' + name + ' = ').length, end + 3).replace(/;$/, '');
 }
 
-/** @param deps other top-level Client helpers the extracted function calls. */
-function extractFn(name, deps = []) {
+/** Pulls a single-line `const NAME = {...};` table out of the Client source. */
+function extractConst(name) {
+  const m = SRC.match(new RegExp('^const ' + name + ' = (\\{.*\\});$', 'm'));
+  if (!m) throw new Error('const table not found in Client source: ' + name);
+  return 'const ' + name + ' = ' + m[1] + ';';
+}
+
+/**
+ * @param deps   other top-level helper functions the extracted one calls
+ * @param tables single-line `const X = {…}` lookup tables it reads
+ */
+function extractFn(name, deps = [], tables = []) {
   const sandboxJSON = {
     parse: function (s) { try { return JSON.parse(s); } catch (e) { return undefined; } },
     stringify: JSON.stringify
   };
-  const preamble = deps.map((d) => 'const ' + d + ' = ' + extractSource(d) + ';').join('\n');
+  const preamble = tables.map(extractConst)
+    .concat(deps.map((d) => 'const ' + d + ' = ' + extractSource(d) + ';'))
+    .join('\n');
   return new Function('JSON', preamble + '\nreturn (' + extractSource(name) + ');')(sandboxJSON);
 }
 
-// botStr is the shared length-cap helper — extract it too, otherwise the
-// harness would silently test a different function than the Client runs.
-const botFieldsFromResponse = extractFn('botFieldsFromResponse', ['botStr']);
+// The value-whitelist helpers and their vocabulary tables come from the source
+// too — otherwise the harness would silently test a different function than the
+// Client runs.
+const botFieldsFromResponse = extractFn(
+  'botFieldsFromResponse', ['botEnum', 'botScore'], ['BOT_BANDS', 'BOT_CATEGORIES', 'BOT_TYPES']
+);
+const botEnum = extractFn('botEnum');
+const botScore = extractFn('botScore');
 
 // api4filter response contract (2026-07-14). Verbatim from the service docs.
 const CLEAN = '{"isBot":false,"score":0,"band":"clean","signals":[],"primarySignal":null}';
@@ -139,18 +156,73 @@ describe('botFieldsFromResponse — whitelist', () => {
     expect(botFieldsFromResponse('{"score":40,"band":"clean"}')).toEqual({});
   });
 
-  test('caps forwarded string values so a widened field cannot leak detail', () => {
-    const long = 'asn_spam:AS55967/Beijing Baidu Netcom Science and Technology Co., Ltd./76ip/82req';
+  test('collapses a widened value to "other" instead of forwarding it', () => {
+    // The exact case the value whitelist exists for. A length cap would NOT
+    // have caught this — the string is 27 characters.
+    const widened = 'asn_spam:AS55967/Baidu/76ip';
     const r = botFieldsFromResponse(JSON.stringify({
-      isBot: false, band: long, primarySignal: long,
-      signals: [{ type: long, category: long }]
+      isBot: false, band: widened, primarySignal: widened,
+      signals: [{ type: widened, category: widened }]
     }));
-    expect(r.band.length).toBe(64);
-    expect(r.primarySignal.length).toBe(64);
-    expect(r.signals[0].type.length).toBe(64);
-    expect(r.signals[0].category.length).toBe(64);
-    // Short, well-formed values must pass through untouched
+    expect(r.band).toBe('other');
+    expect(r.primarySignal).toBe('other');
+    expect(r.signals[0].type).toBe('other');
+    expect(r.signals[0].category).toBe('other');
+    // Nothing of the widened payload survives anywhere
+    expect(JSON.stringify(r)).not.toContain('AS55967');
+    expect(JSON.stringify(r)).not.toContain('Baidu');
+  });
+
+  test('passes the contract vocabulary through untouched', () => {
     expect(botFieldsFromResponse('{"isBot":false,"band":"clean"}').band).toBe('clean');
+    expect(botFieldsFromResponse('{"isBot":true,"band":"bot"}').band).toBe('bot');
+    expect(botFieldsFromResponse('{"isBot":false,"band":"unknown"}').band).toBe('unknown');
+    expect(botFieldsFromResponse('{"isBot":false,"primarySignal":"known_bot"}').primarySignal).toBe('known_bot');
+    expect(botFieldsFromResponse(BORDERLINE).signals[0].type).toBe('asn_reputation');
+    expect(botFieldsFromResponse(BORDERLINE).signals[0].category).toBe('asn_spam');
+  });
+
+  test('botEnum: every whitelisted value round-trips, everything else is "other"', () => {
+    for (const v of ['clean', 'suspicious', 'bot', 'unknown']) {
+      expect(botEnum(v, { clean: 1, suspicious: 1, bot: 1, unknown: 1 })).toBe(v);
+    }
+    expect(botEnum('nope', { clean: 1 })).toBe('other');
+    expect(botEnum('', { clean: 1 })).toBe('');
+    expect(botEnum(42, { clean: 1 })).toBe('');
+    // Prototype keys must not count as whitelisted values
+    expect(botEnum('toString', { clean: 1 })).toBe('other');
+    expect(botEnum('constructor', { clean: 1 })).toBe('other');
+  });
+
+  test('botScore clamps to 0..100 and floors, so the field carries a score and nothing else', () => {
+    expect(botScore(0)).toBe(0);
+    expect(botScore(40)).toBe(40);
+    expect(botScore(100)).toBe(100);
+    expect(botScore(-5)).toBe(0);
+    expect(botScore(1e999)).toBe(100);        // Infinity would reach the browser as null
+    expect(botScore(-1e999)).toBe(0);
+    expect(botScore(40.123456789012345)).toBe(40); // ~15 digits of free payload, gone
+    expect(botScore(NaN)).toBeNull();
+    expect(botScore('40')).toBeNull();
+    expect(botScore(undefined)).toBeNull();
+  });
+
+  test('an out-of-range score never reaches the payload', () => {
+    const r = botFieldsFromResponse('{"isBot":false,"score":1e999,"signals":[{"category":"asn_spam","score":-7.5}]}');
+    expect(r.score).toBe(100);
+    expect(r.signals[0].score).toBe(0);
+    expect(JSON.stringify(r)).not.toContain('null');
+  });
+
+  test('bounds the WORK, not only the output — a length-only object cannot stall /aGTM.js', () => {
+    // {"length":50000000} passes the duck-check and never grows `sig`, so the
+    // output cap alone would spin 50 million times while /aGTM.js — and with it
+    // the GTM load — waits. ~40 bytes of response body.
+    const start = performance.now();
+    const r = botFieldsFromResponse('{"isBot":false,"signals":{"length":50000000}}');
+    const ms = performance.now() - start;
+    expect(r.signals).toEqual([]);
+    expect(ms).toBeLessThan(50);
   });
 
   test('a duck-typed non-array signals object does not throw (no try/catch in the sandbox)', () => {
@@ -204,7 +276,41 @@ describe('bot-check call site — structural guards', () => {
   });
 
   test('the error path sets an explicit "no verdict" band instead of looking clean', () => {
-    expect(SRC).toContain("botState.verdict = {isBot: false, band: 'unknown'};");
+    expect(SRC).toContain("band: 'unknown'");
+    // Both halves of the failure surface: transport error AND a response that
+    // arrived without a usable verdict (5xx with a JSON error body).
+    expect(SRC).toContain("if (typeof botState.verdict.isBot !== 'boolean') botState.verdict = {isBot: false, band: 'unknown'};");
+  });
+
+  test('the mode travels with the verdict — otherwise "mark" is invisible', () => {
+    expect(SRC).toContain('botState.verdict.mode = CFG.botCheckMode;');
+  });
+
+  test('"mark" also refuses to block on the missing-client-IP path', () => {
+    // This branch used to send 403 unconditionally, which made the field's own
+    // help text ("nothing is blocked") untrue for exactly the visitors whose IP
+    // header fails to resolve.
+    expect(SRC).toContain("const botNoIpBlocks = CFG.botCheckMode === 'block';");
+    expect(SRC).toContain('if (!clientIP && botNoIpBlocks) {');
+    expect(SRC).toContain('} else if (!clientIP) {');
+  });
+
+  test('mark + passthrough off is warned about instead of running as a silent no-op', () => {
+    expect(SRC).toContain("CFG.botCheckMode === 'mark' && !CFG.botCheckExpose");
+  });
+
+  test('buildAndSend is declared before its callers (no forward reference)', () => {
+    // A `const` function expression referenced before its declaration is a
+    // temporal-dead-zone error. Every synchronous serve path (no Session API,
+    // or an empty session uid) reached buildAndSend that way and killed the
+    // whole /aGTM.js response; only the async path masked it.
+    const decl = SRC.indexOf('const buildAndSend = function(');
+    const firstCall = SRC.indexOf('buildAndSend(sessionData)');
+    expect(decl).toBeGreaterThan(-1);
+    expect(firstCall).toBeGreaterThan(-1);
+    expect(decl).toBeLessThan(firstCall);
+    // and before both of its indirect callers
+    expect(decl).toBeLessThan(SRC.indexOf('const afterBotCheck = function('));
   });
 
   test('mode and expose are normalized against an unset/garbage template field', () => {

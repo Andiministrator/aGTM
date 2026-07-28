@@ -6,7 +6,7 @@
 // "scored but passed" — and "bot", which is a contradiction worth naming.
 
 import { test, expect, describe } from "bun:test";
-import { botSummary, buildReportMarkdown, buildReportJSON } from "../../devtools-extension/diagnose.js";
+import { botSummary, botCheckStatus, healthChecks, overallLevel, buildReportMarkdown, buildReportJSON } from "../../devtools-extension/diagnose.js";
 
 describe("botSummary", () => {
   test("absent when the check is off / the Client is older than v1.5", () => {
@@ -67,6 +67,80 @@ describe("botSummary", () => {
   test("isBot must be strictly boolean — a truthy string is not a verdict", () => {
     expect(botSummary({ isBot: "true" }).state).toBe("absent");
     expect(botSummary({ isBot: 1 }).state).toBe("absent");
+  });
+
+  test("band 'unknown' is an outage, not a clean visitor", () => {
+    // The Client sets this when the filter answered unusably or not at all.
+    // Falling through to "unauffällig / kein Signal" would render an outage
+    // green — in the panel and in the exported customer report.
+    const r = botSummary({ isBot: false, band: "unknown" });
+    expect(r.state).toBe("unknown");
+    expect(r.level).toBe("warn");
+    expect(r.label).not.toContain("unauffällig");
+    expect(r.note).toContain("regular");
+  });
+
+  test("isBot:true under 'mark' is the configured state, not a contradiction", () => {
+    const marked = botSummary({ isBot: true, band: "bot", mode: "mark" });
+    expect(marked.state).toBe("bot");
+    expect(marked.mode).toBe("mark");
+    expect(marked.label).toContain("nicht geblockt");
+    expect(marked.note).not.toContain("Widerspruch");
+    // Without a mode (older Client build) the contradiction reading is right,
+    // but it must name the mark alternative rather than assert malfunction.
+    const bare = botSummary({ isBot: true, band: "bot" });
+    expect(bare.note).toContain("Widerspruch");
+    expect(bare.note).toContain("mark");
+  });
+
+  test("the mode is carried through every state", () => {
+    expect(botSummary({ isBot: false, band: "clean", mode: "block" }).mode).toBe("block");
+    expect(botSummary({ isBot: false, band: "unknown", mode: "mark" }).mode).toBe("mark");
+    expect(botSummary({ isBot: false, score: 40, mode: "mark" }).mode).toBe("mark");
+    // Only the two known values — a page-supplied string is not echoed
+    expect(botSummary({ isBot: false, mode: "<script>" }).mode).toBe("");
+  });
+});
+
+describe("botCheckStatus — health check", () => {
+  test("absent when the Client sent no verdict, so unaffected pages read as before", () => {
+    expect(botCheckStatus({})).toBeNull();
+    expect(botCheckStatus({ bot: {} })).toBeNull();
+  });
+
+  test("'mark' is a warning — a filter left switched off must not look healthy", () => {
+    const c = botCheckStatus({ bot: { isBot: false, band: "clean", mode: "mark" } });
+    expect(c.status).toBe("warn");
+    expect(c.detail).toContain("blockt NICHTS");
+  });
+
+  test("an outage is a warning", () => {
+    expect(botCheckStatus({ bot: { isBot: false, band: "unknown", mode: "block" } }).status).toBe("warn");
+  });
+
+  test("a clean or scored verdict under 'block' passes", () => {
+    expect(botCheckStatus({ bot: { isBot: false, band: "clean", mode: "block" } }).status).toBe("pass");
+    const scored = botCheckStatus({ bot: { isBot: false, score: 40, primarySignal: "asn_spam", mode: "block" } });
+    expect(scored.status).toBe("pass");
+    expect(scored.detail).toContain("asn_spam");
+  });
+
+  test("the check appears in healthChecks only when there is a verdict", () => {
+    // Otherwise-healthy page, so the overall level moves only because of the bot check.
+    const healthy = {
+      hasConsentCheck: true, init: true, gtmScripts: [{ id: "x" }],
+      consent: { hasResponse: true, gtmConsent: true }
+    };
+    expect(overallLevel(healthChecks(healthy, [], [], true)).level).toBe("pass");
+    expect(healthChecks(healthy, [], [], true).map((c) => c.key)).not.toContain("bot");
+
+    const withBlock = healthChecks({ ...healthy, bot: { isBot: false, band: "clean", mode: "block" } }, [], [], true);
+    expect(withBlock.map((c) => c.key)).toContain("bot");
+    expect(overallLevel(withBlock).level).toBe("pass");
+
+    // `mark` drags the overall level down — that is the whole point
+    const withMark = healthChecks({ ...healthy, bot: { isBot: false, band: "clean", mode: "mark" } }, [], [], true);
+    expect(overallLevel(withMark).level).toBe("warn");
   });
 });
 

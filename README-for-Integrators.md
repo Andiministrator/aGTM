@@ -217,11 +217,12 @@ typically a `traffic_type` dimension towards GA4.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `isBot` | boolean | The definitive verdict. In the browser this is effectively always `false` (see above). |
+| `isBot` | boolean | The definitive verdict. Under the Client's default `block` mode this is effectively always `false` in the browser (see above); under `mark` nothing is blocked, so `true` can and does appear. |
 | `score` | number | 0–100. Higher = more suspicious. Never blocks on its own. |
-| `band` | string | Coarse class, e.g. `"clean"` / `"bot"`. `"bot"` holds exactly when `isBot === true`. |
+| `band` | string | Coarse class: `"clean"`, `"suspicious"`, `"bot"`, or `"unknown"`. `"bot"` holds exactly when `isBot === true`. **`"unknown"` means the filter did not answer usably** — an outage, *not* a clean visitor. Treat it as its own case. |
 | `primarySignal` | string | Category of the highest-scoring signal, e.g. `"asn_spam"`, `"known_bot"`. Absent when nothing triggered. |
 | `signals` | array | One entry per evaluated signal: `{type, category, score, confirmed?}`. Empty array when nothing triggered; capped at 10 entries. |
+| `mode` | string | `"block"` or `"mark"` — what the Client does with a positive verdict. Under `"mark"` it reports but never blocks. |
 
 `category` is a stable, language-neutral key — branch on it rather than on any
 display text.
@@ -230,6 +231,9 @@ display text.
 // webGTM JS Variable — "traffic type" dimension
 function() {
   var b = (window.aGTM && aGTM.d && aGTM.d.bot) || {};
+  // Handle the outage case FIRST. Without this line a filter outage answers
+  // 'regular' for 100% of traffic and looks exactly like a healthy day.
+  if (b.band === 'unknown') return 'unknown';
   if (b.band === 'bot') return 'bot';
   if (b.primarySignal === 'asn_spam') return 'spam';
   return 'regular';

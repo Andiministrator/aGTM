@@ -500,9 +500,29 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
 - **`botCheckExpose`** (CHECKBOX, opt-out: absent ⇒ on) — whether the verdict is published to
   the page at all. `aGTM.d` is readable by every script on the page and is written *before*
   any consent decision, so "filter yes, publish no" has to be expressible.
-- Only a real boolean `isBot` counts as a verdict — a 5xx whose body happens to parse must not
-  reach the browser as `{isBot:false}` ("clean visitor"). On a transport error the Client sets
-  `{isBot:false, band:'unknown'}` so an outage stays distinguishable from a clean verdict.
+- Only a real boolean `isBot` counts as a verdict. Anything else — a 5xx whose body happens to
+  parse, an empty body, a transport error — becomes `{isBot:false, band:'unknown'}`, so an
+  outage stays distinguishable from a clean visitor. Without that, a webGTM traffic-type
+  variable reports `regular` for 100% of traffic for as long as the filter is down.
+- The verdict carries **`mode`** (`block`/`mark`). Otherwise `mark` is invisible: a page under
+  `mark` looks exactly like one under `block` until a bot shows up, and nothing reminds anyone
+  that the filter is off. The Inspector renders it as a chip and raises a **health-check
+  warning** while `mark` is active.
+- **Values are whitelisted, not just keys** (`botEnum` against `BOT_BANDS`/`BOT_CATEGORIES`/
+  `BOT_TYPES`; `botScore` clamps to 0–100 and floors). A key whitelist alone does not stop an
+  existing key whose value the service later widens — `primarySignal: "asn_spam:AS55967/Baidu/76ip"`
+  is 27 characters and would sail through any length cap. Unknown values collapse to `'other'`:
+  still visible as "something fired", but unable to carry a payload. The lookup uses `=== 1`,
+  not truthiness, so `toString`/`constructor` cannot inherit their way past it.
+- The signals loop bounds **the work, not only the output**: `{"length": 50000000}` passes the
+  duck-check and never grows the result, so an output-only cap would spin 50 million times and
+  stall `/aGTM.js` — and with it the GTM load — on ~40 bytes of response body.
+- `buildAndSend` is declared **before** its callers. It used to sit at the end of the file,
+  making every *synchronous* serve path (no Session API, or an unresolvable session uid) a
+  forward reference to a `const` function expression — a temporal-dead-zone error that killed
+  the whole response. The async path masked it, which is why it survived from `9d302d7` to
+  F-130. `test/sgtm/serve-paths.test.js` runs the real source against stubbed server APIs and
+  asserts every path reaches a response.
 - Otherwise the verdict is forwarded to the browser as **`c.bot`** → `aGTM.d.bot`, so webGTM
   can mark borderline traffic (e.g. a `traffic_type` dimension) instead of only hard-blocking.
 - **Own top-level config key, not part of `session`**: the check runs before and independently
