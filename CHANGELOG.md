@@ -15,9 +15,7 @@ Complianz, CookieYes, Didomi, Osano, Termly, Orestbida, Matomo, Shopify and `_tp
 aGTM's own user-id cookie, which the `aGTM`/`agtm` fragments do not match either. A stored
 pattern list that is byte-identical to a previous default is lifted to the current one, so
 users who never edited the field get the fix. A run that matches nothing now says so
-instead of reporting plain success, and the UI states the hard limit: only cookies on the
-page's own domain can be cleared — a CMP's copy on its own domain (`.consentmanager.net`)
-is unreachable and can restore the state after the reload.
+instead of reporting plain success.
 
 Cookie patterns now support `*` as a wildcard, so a pattern can be anchored — `__cmp*`
 (starts with), `*consent` (ends with), `*` (everything). A plain fragment keeps matching
@@ -46,10 +44,15 @@ which is the top frame's job — and the effect line reports that pass **per hos
 was removed, or which frame refused and why. Nothing in this needs a Chrome permission:
 DevTools gates frame evaluation on schemes, `chrome://`, Web-Store and enterprise-policy
 hosts, not on the extension's `host_permissions`, so the extension still declares none.
-The pass is a best-effort extra behind a 1.2 s watchdog — the top-frame reset, which
-always worked, can never be held up by it — and can be switched off. Where no foreign
-frame carries the copy, the effect line still points at an **incognito window** as the
-reliable way to a genuine first visit.
+The pass is a best-effort extra behind a 1.2 s watchdog — it can delay the top-frame
+reset by at most that, never prevent it — and can be switched off. Because it writes into
+third-party origins it obeys the same write-mode gate as every other action, and it is
+skipped entirely when the pattern field is empty: "delete every cookie" is a reasonable
+thing to ask for on your own domain and an unreasonable one to do to an embedded payment,
+SSO or chat widget. The effect line reports the pass per host — what went, which frame
+refused and why, which had not answered inside the time limit — independently of how the
+top-frame call ended, and points at an **incognito window** whenever the CMP's copy may
+have survived.
 
 Two follow-ups from the first live run, where the CMP frame's `localStorage` was cleared
 but its two cookies stayed: a CMP's own cookies are **cross-site** cookies
