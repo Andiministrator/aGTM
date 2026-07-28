@@ -1342,18 +1342,6 @@
             "columnId": "col-erledigt"
           },
           {
-            "id": "agtm-inspector-declare-verify",
-            "title": "GCM-declare: prüfen ob ein dataLayer-declare vom Google-Tag überhaupt verarbeitet wird",
-            "owner": "Claude Opus",
-            "complexity": "S",
-            "effort": "S",
-            "description": "Offen aus der #51-Abnahme (2026-07-27): Andi hat declare live geprueft - \"geht irgendwie noch nicht\", aber ausdruecklich als NICHT wichtig eingestuft.\n\nWAS BEKANNT IST: Beim ersten Versuch war der Consent bereits erteilt, der Timing-Guard hat den Push also korrekt abgelehnt (\"kommt zu spaet\") - das war KEIN Befund. Ein zweiter Versuch im offenen Fenster brachte ebenfalls keine declare-Herkunft im Ist-Zustand.\n\nDIE FRAGE: Verarbeitet das Google-Tag ein per dataLayer gepushtes ['consent','declare',{...}] ueberhaupt? Offiziell dokumentiert sind nur update und default; declare ist primaer GTM-Template-API (declareConsentState). Dass reader.js ein declare-Feld in google_tag_data.ics.entries LIEST (F-66), beweist nur, dass CMP-Templates es setzen - nicht, dass der dataLayer-Weg funktioniert.\n\nPRUEFUNG: frische Seite VOR der Consent-Entscheidung (Inkognito), Modus declare, pushen, Herkunft-Spalte im Ist-Zustand ansehen. Taucht dort kein (declare) auf, ist der dataLayer-Weg tot.\n\nENTSCHEIDUNG DANN: Modus aus GCM_MODES entfernen (Tests/README/CHANGELOG mitziehen) - oder drin lassen mit dem bestehenden UI-Hinweis, der die Unsicherheit bereits ausdruecklich benennt und auf die Herkunft-Spalte als Live-Probe verweist. Andis Wunsch war urspruenglich, declare mit anzubieten.",
-            "labels": [],
-            "comments": [],
-            "displayId": 55,
-            "columnId": "col-backlog"
-          },
-          {
             "id": "agtm-inspector-cookiereset-thirdparty",
             "title": "aGTM Inspector: Cookie-Reset erreicht die CMP-Kopie im Drittanbieter-Origin nicht",
             "owner": "Claude Opus",
@@ -1448,6 +1436,25 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "agtm-inspector-declare-verify",
+            "title": "GCM-declare: prüfen ob ein dataLayer-declare vom Google-Tag überhaupt verarbeitet wird",
+            "owner": "Claude Opus",
+            "complexity": "S",
+            "effort": "S",
+            "description": "Offen aus der #51-Abnahme (2026-07-27): Andi hat declare live geprueft - \"geht irgendwie noch nicht\", aber ausdruecklich als NICHT wichtig eingestuft.\n\nWAS BEKANNT IST: Beim ersten Versuch war der Consent bereits erteilt, der Timing-Guard hat den Push also korrekt abgelehnt (\"kommt zu spaet\") - das war KEIN Befund. Ein zweiter Versuch im offenen Fenster brachte ebenfalls keine declare-Herkunft im Ist-Zustand.\n\nDIE FRAGE: Verarbeitet das Google-Tag ein per dataLayer gepushtes ['consent','declare',{...}] ueberhaupt? Offiziell dokumentiert sind nur update und default; declare ist primaer GTM-Template-API (declareConsentState). Dass reader.js ein declare-Feld in google_tag_data.ics.entries LIEST (F-66), beweist nur, dass CMP-Templates es setzen - nicht, dass der dataLayer-Weg funktioniert.\n\nPRUEFUNG: frische Seite VOR der Consent-Entscheidung (Inkognito), Modus declare, pushen, Herkunft-Spalte im Ist-Zustand ansehen. Taucht dort kein (declare) auf, ist der dataLayer-Weg tot.\n\nENTSCHEIDUNG DANN: Modus aus GCM_MODES entfernen (Tests/README/CHANGELOG mitziehen) - oder drin lassen mit dem bestehenden UI-Hinweis, der die Unsicherheit bereits ausdruecklich benennt und auf die Herkunft-Spalte als Live-Probe verweist. Andis Wunsch war urspruenglich, declare mit anzubieten.",
+            "labels": [],
+            "comments": [
+              {
+                "id": "6483563c-0619-49f2-8fc7-fc7cb6ac8009",
+                "author": "Claude Opus",
+                "created": "2026-07-28",
+                "text": "BEANTWORTET + UMGESETZT auf dev (Commit a6c5e1c) -> QA. Die Frage der Karte ist entschieden — nicht per Live-Probe, sondern an Googles ausgeliefertem Code. Das ist die staerkere Autoritaet und war in Minuten machbar.\n\nBEFUND: Der dataLayer-Weg fuer declare ist by design geschlossen. Der Consent-Command-Dispatcher ist in gtm.js eines ECHTEN Containers (410 KB) und in gtag.js (417 KB) BYTE-IDENTISCH:\n  d===\"default\"?So(e):d===\"update\"?Uo(e,c):d===\"declare\"&&b.fromContainerExecution&&Ro(e)\ndefault und update laufen unbedingt, declare NUR mit fromContainerExecution. Alle vier Stellen, die dieses Flag setzen, sind container-intern (Message-Enqueue der Container-Ausfuehrung, registerChild, load_google_tags) — ein Push von der Seite traegt es nie. Dieselbe Zeile benutzt das Flag eine Klausel frueher als genau diesen Diskriminator: b.fromContainerExecution||(…P(139)…P(140)), also -wenn NICHT aus dem Container, logge Diagnose-. Ein dataLayer.push von [consent, declare, {…}] wird somit spurlos verworfen; erreichbar ist das Verb nur aus einem GTM-Template ueber declareConsentState. Deine Live-Beobachtung -geht irgendwie noch nicht- war korrekt und kein Zufall.\n\nENTSCHEIDUNG: Modus entfernt (die Karte liess beide Wege offen). Begruendung: die Option -drin lassen mit dem UI-Hinweis- war auf UNSICHERHEIT gebaut, und die ist jetzt weg. Der Hinweis muesste nun -tut garantiert nichts- sagen, und ein Button mit dieser Eigenschaft hat keinen Grund zu existieren. Der Timing-Guard schuetzte hier NICHT: er verweigert nur SPAETE Pushes; ein frueher declare meldete ok:true/pushed:true und aenderte nichts — exakt die F-84/F-90-Klasse, die dieser Tab vermeiden soll.\n\nLESE-SEITE UNVERAENDERT: reader.js erfasst declare weiter aus google_tag_data.ics, die Ist-Zustand-Spalte und die GCM-Sequenz im Consent-Tab zeigen es, Praezedenz update > default > implicit > declare bleibt. Ein von einem CMP-TEMPLATE gesetztes declare ist sehenswert — nur pushen kann man es nicht.\n\nMITGEZOGEN: Die Modus-Zeile erklaert jetzt die Abwesenheit (sonst haelt der naechste Leser sie fuer ein Versehen und baut den toten Button nach). Zwei USER-SICHTBARE Zeitfenster-Meldungen sagten weiter -default/declare- und sind korrigiert, dazu 5 Kommentare. README + CHANGELOG + docs/findings.md (F-124).\n\nTESTS: 2 neue diskriminierende (Builder + Panel-Render), 3 bestehende umgeschrieben, Fallback eines stale persistierten gcmMode=declare auf update abgesichert. MUTATIONSTEST: declare zurueck in GCM_MODES ⇒ 4 Tests fallen ueber BEIDE Schichten. 764 Tests gruen, ./build.sh sauber, ZIP neu gepackt.\n\nOFFEN FUER DICH: nur der Blick in den Sim-Tab, ob die Modus-Zeile mit ihrer Erklaerung gut aussieht (zwei Radios statt drei). KEIN Kritiker-Sub-Agent gelaufen — in dieser Session ist das Spawnen von Sub-Agents deaktiviert; die Absicherung lief stattdessen ueber den Mutationstest."
+              }
+            ],
+            "displayId": 55,
+            "columnId": "col-qa"
           }
         ]
       },
