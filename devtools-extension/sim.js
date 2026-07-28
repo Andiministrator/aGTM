@@ -223,11 +223,24 @@
     "security_storage"];
   SIM.GCM_SIGNALS = GCM_SIGNALS;
 
-  // The three gtag consent verbs we can push. 'update' revises consent at any time;
-  // 'default' seeds the pre-consent baseline and 'declare' announces an already-known
-  // state — both of those are only read while the Google tag has not yet processed its
-  // consent state, hence the timing guard below (card #51).
-  var GCM_MODES = ["update", "default", "declare"];
+  // The two gtag consent verbs a PAGE can push. 'update' revises consent at any time;
+  // 'default' seeds the pre-consent baseline and is only read while the Google tag has
+  // not yet processed its consent state, hence the timing guard below (card #51).
+  //
+  // 'declare' is deliberately NOT here (card #55). It exists in the tag, but the
+  // dataLayer path to it is closed by design — verified against Google's shipped code
+  // (gtm.js of a real container and gtag.js carry the byte-identical dispatcher):
+  //     d==="default" ? So(e) : d==="update" ? Uo(e,c)
+  //   : d==="declare" && b.fromContainerExecution && Ro(e)
+  // Every site that sets `fromContainerExecution:!0` is container-internal (the
+  // container's own message enqueue, registerChild, load_google_tags); a push from the
+  // page never carries it — the same line uses the flag as exactly that discriminator
+  // one clause earlier (`b.fromContainerExecution||(…P(139)…P(140))`). So a page-level
+  // `['consent','declare',{…}]` is dropped without a trace: the push would look like it
+  // worked and change nothing, which is the one thing this tab must never do. `declare`
+  // stays fully visible on the READ side (reader.js/ics, the Ist-Zustand column) —
+  // CMP/vendor TEMPLATES reach it via declareConsentState, and seeing that matters.
+  var GCM_MODES = ["update", "default"];
   SIM.GCM_MODES = GCM_MODES;
 
   // (1) Push a Google Consent Mode command straight to the (GTM) dataLayer, exactly
@@ -239,12 +252,12 @@
   // 'dataLayer'. Independent of aGTM → its own wrapper (not wrap()).
   //
   // `opts` (card #51):
-  //   mode          'update' (default) | 'default' | 'declare'
+  //   mode          'update' (default) | 'default'   ('declare' is not pushable, see above)
   //   waitForUpdate number → wait_for_update (ms); 'default' only, per Google's API
   //   regions       array of region codes → region: [...]; 'default' only
-  //   force         push a late default/declare anyway (the guard reports, not blocks)
+  //   force         push a late default anyway (the guard reports, not blocks)
   //
-  // TIMING GUARD — the point of the whole feature. 'default'/'declare' are only read
+  // TIMING GUARD — the point of the whole feature. 'default' is only read
   // BEFORE the Google tag evaluates consent; afterwards the push lands in the dataLayer
   // and changes nothing, which would make a success message a lie (the F-84/F-90 class
   // of bug: a button that reports success while silently no-op'ing). We detect "too
@@ -263,7 +276,7 @@
       if (v === "granted" || v === "denied") sig[k] = v;
     }
     // wait_for_update / region are 'default'-only in Google's API — silently sending
-    // them with update/declare would suggest an effect that does not exist.
+    // them with update would suggest an effect that does not exist.
     var extra = {};
     if (mode === "default") {
       var wfu = Number(opts.waitForUpdate);
@@ -1072,7 +1085,7 @@ function simFlag(id, label, on) {
 
 // The builder owns the mode list; the panel never hard-codes it.
 function simGcmModes() {
-  return (window.aGTMInspectorSim && window.aGTMInspectorSim.GCM_MODES) || ["update", "default", "declare"];
+  return (window.aGTMInspectorSim && window.aGTMInspectorSim.GCM_MODES) || ["update", "default"];
 }
 function simGcmMode(st) {
   var m = st && st.gcmMode;
@@ -1082,13 +1095,16 @@ function simGcmMode(st) {
 // is spelled out per mode instead of hidden in a tooltip.
 var SIM_GCM_MODE_HINT = {
   update: "Revidiert den Consent-Zustand — wirkt jederzeit, auch nach dem GTM-Load. Der Normalfall nach einer CMP-Entscheidung.",
-  "default": "Setzt den Ausgangszustand VOR dem Consent. Wirkt nur, solange das Google-Tag den Zustand noch nicht verarbeitet hat — auf einer aGTM-Seite also, solange der consent-gesteuerte GTM-Load noch nicht gelaufen ist.",
-  // Honest caveat: 'default' and 'update' are the documented gtag verbs. 'declare' is
-  // primarily a GTM-template API (declareConsentState); that a dataLayer-pushed
-  // declare command is dispatched by the Google tag is NOT documented. The Ist-Zustand
-  // line's declare column is how you check whether it actually arrived.
-  "declare": "Meldet einen bereits bekannten Zustand — genutzt von CMP-/Vendor-Templates. Gleiche Timing-Regel wie default. Achtung: offiziell dokumentiert sind nur update und default; ob ein per dataLayer gepushtes declare vom Google-Tag verarbeitet wird, zeigt dir die Herkunft-Spalte im Ist-Zustand oben."
+  "default": "Setzt den Ausgangszustand VOR dem Consent. Wirkt nur, solange das Google-Tag den Zustand noch nicht verarbeitet hat — auf einer aGTM-Seite also, solange der consent-gesteuerte GTM-Load noch nicht gelaufen ist."
 };
+// Why there is no 'declare' button (card #55). Shown once under the mode row: the verb
+// is real and appears in the Ist-Zustand above, so its absence here needs explaining —
+// otherwise the next person assumes it was forgotten and re-adds a dead button.
+var SIM_GCM_NO_DECLARE = "Nur update und default sind von der Seite aus pushbar. " +
+  "declare verwirft das Google-Tag still, wenn es nicht aus einer Container-Ausführung " +
+  "kommt (geprüft in gtm.js/gtag.js: declare läuft nur mit fromContainerExecution) — " +
+  "dorthin kommen nur GTM-Templates über declareConsentState. Ein declare, das eine " +
+  "CMP so gesetzt hat, siehst du weiterhin im Ist-Zustand oben.";
 function simGcmModeRow(mode) {
   var modes = simGcmModes(), h = '<div class="toolbar" style="margin:8px 0 6px;gap:12px">';
   for (var i = 0; i < modes.length; i++) {
@@ -1098,8 +1114,10 @@ function simGcmModeRow(mode) {
       (m === mode ? " checked" : "") + "> <code>" + esc(m) + "</code></label>";
   }
   h += "</div>";
-  return h + '<div class="muted" style="font-size:11px;margin-bottom:8px">' +
-    esc(SIM_GCM_MODE_HINT[mode] || "") + "</div>";
+  return h + '<div class="muted" style="font-size:11px;margin-bottom:4px">' +
+    esc(SIM_GCM_MODE_HINT[mode] || "") + "</div>" +
+    '<div class="muted" style="font-size:11px;margin-bottom:8px;opacity:.75">' +
+    esc(SIM_GCM_NO_DECLARE) + "</div>";
 }
 // A wait_for_update the builder will drop: text was entered, but it is not a number > 0.
 // Mirrors the builder's own `isFinite(wfu) && wfu > 0` test (sim.js buildGcmPushCode).
@@ -1157,10 +1175,10 @@ function simGcmStatusInner(snap) {
       return "<b>Ist-Zustand:</b> noch keine Kategorie-Werte lesbar, aber GTM ist bereits am Werk " +
         (snap.icsPresent ? "(<code>google_tag_data.ics</code> vorhanden)"
           : (snap.init ? "(aGTM hat den consent-gesteuerten Load ausgeführt)" : "(<code>google_tag_manager</code> vorhanden)")) +
-        " → das Zeitfenster für <code>default</code>/<code>declare</code> ist <b>geschlossen</b>, nur <code>update</code> wirkt noch.";
+        " → das Zeitfenster für <code>default</code> ist <b>geschlossen</b>, nur <code>update</code> wirkt noch.";
     }
     return "<b>Ist-Zustand:</b> kein <code>google_tag_data.ics</code> — das Google-Tag hat noch keinen Consent-Zustand verarbeitet. " +
-      "Ohne <code>default</code> gilt Googles <b>impliziter</b> Zustand (granted). Das Zeitfenster für <code>default</code>/<code>declare</code> ist <b>offen</b>.";
+      "Ohne <code>default</code> gilt Googles <b>impliziter</b> Zustand (granted). Das Zeitfenster für <code>default</code> ist <b>offen</b>.";
   }
   var h = '<b>Ist-Zustand</b> <span class="muted">(effektiv, Herkunft in Klammern)</span>' +
     '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 10px">';
@@ -1318,7 +1336,7 @@ function updateSimLive() {
       var parts = [];
       for (var sk in SIM_LAST.signals) if (Object.prototype.hasOwnProperty.call(SIM_LAST.signals, sk)) parts.push(sk + "=" + SIM_LAST.signals[sk]);
       det = "consent " + (SIM_LAST.mode || "update") + " → " + (SIM_LAST.dataLayer || "dataLayer") + ": " + (parts.join(", ") || "—");
-      // A default/declare that went out AFTER the tag settled was forced past the guard —
+      // A default that went out AFTER the tag settled was forced past the guard —
       // it is in the dataLayer but changes nothing. Say so rather than leave a green OK.
       if (SIM_LAST.late && SIM_LAST.mode && SIM_LAST.mode !== "update") {
         det += " · ⚠ zu spät gepusht (Guard übergangen) — wirkungslos für den bereits verarbeiteten Zustand.";

@@ -979,17 +979,28 @@ describe("Simulation tab — GCM push modes (card #51)", () => {
   }
   afterAll(() => { globalThis.__panel.simState().gcmMode = "update"; });
 
-  test("all three verbs are offered as radios", () => {
+  test("both pushable verbs are offered as radios — and 'declare' is not (card #55)", () => {
     const html = renderSimWithMode("update");
     expect(html).toContain('class="sim-gcm-mode"');
     expect(html).toContain('value="update"');
     expect(html).toContain('value="default"');
-    expect(html).toContain('value="declare"');
+    // Google drops a page-pushed declare (dispatcher gates it on fromContainerExecution),
+    // so offering the radio would be a button that cannot work.
+    expect(html).not.toContain('value="declare"');
+  });
+  test("the absence of 'declare' is explained instead of looking like an oversight", () => {
+    expect(renderSimWithMode("update")).toContain("declareConsentState");
   });
   test("the button label follows the selected mode", () => {
     expect(renderSimWithMode("update")).toContain("consent update pushen");
     expect(renderSimWithMode("default")).toContain("consent default pushen");
-    expect(renderSimWithMode("declare")).toContain("consent declare pushen");
+  });
+  test("a stale persisted 'declare' mode falls back to update, it does not render a dead verb", () => {
+    // Older sessions persisted gcmMode:"declare"; the state loader validates against
+    // GCM_MODES, but the renderer must not trust its input either.
+    const html = renderSimWithMode("declare");
+    expect(html).toContain("consent update pushen");
+    expect(html).not.toContain("consent declare pushen");
   });
   test("wait_for_update/region exist ONLY in default mode (they are default-only in the gtag API)", () => {
     const dflt = renderSimWithMode("default");
@@ -998,9 +1009,6 @@ describe("Simulation tab — GCM push modes (card #51)", () => {
     const upd = renderSimWithMode("update");
     expect(upd).not.toContain('id="sim-gcm-wait"');
     expect(upd).not.toContain('id="sim-gcm-regions"');
-    const dec = renderSimWithMode("declare");
-    expect(dec).not.toContain('id="sim-gcm-wait"');
-    expect(dec).not.toContain('id="sim-gcm-regions"');
   });
   test("an unparsable wait_for_update is flagged at the field instead of silently dropped", () => {
     const P = globalThis.__panel;
@@ -1012,9 +1020,8 @@ describe("Simulation tab — GCM push modes (card #51)", () => {
     P.simState().gcmWait = "";                      // empty = deliberately unset, no warning
     expect(renderSimWithMode("default")).not.toContain("wird NICHT mitgesendet");
   });
-  test("the force override is offered for default/declare but not for update", () => {
+  test("the force override is offered for default but not for update", () => {
     expect(renderSimWithMode("default")).toContain("sim-gcm-force");
-    expect(renderSimWithMode("declare")).toContain("sim-gcm-force");
     expect(renderSimWithMode("update")).not.toContain("sim-gcm-force");
   });
   test("the Ist-Zustand line reports effective state AND origin from the ics snapshot", () => {
