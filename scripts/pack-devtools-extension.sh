@@ -42,9 +42,18 @@ mkdir -p "$STAGE/$NAME"
       cp "$f" "$STAGE/$NAME/$f"
     done )
 
+# Make the archive byte-reproducible. -X alone is not enough: it strips the extra
+# attribute fields but keeps each entry's mtime, and `cp` above stamps those with the
+# time of the run — so two packs of identical sources produced different bytes and the
+# tracked 130 KB binary churned on every re-pack. Two sources of noise to remove:
+#   1. timestamps — pin every staged entry to a fixed date (override via SOURCE_DATE_EPOCH)
+#   2. entry order — `zip -r` walks in filesystem order, so feed it a sorted list instead
+: "${SOURCE_DATE_EPOCH:=1577836800}"   # 2020-01-01 00:00:00 UTC
+find "$STAGE" -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
+
 rm -f "$OUT"
 # -X strips extra file attributes for a leaner, more stable archive.
-( cd "$STAGE" && zip -rqX "$OUT" "$NAME" )
+( cd "$STAGE" && find "$NAME" -type f | LC_ALL=C sort | zip -qX "$OUT" -@ )
 
 echo "Wrote $OUT  (aGTM Inspector v${VERSION:-?})"
 echo "Contents:"

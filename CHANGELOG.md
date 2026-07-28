@@ -2,12 +2,13 @@
 
 ## Version 1.5 — *in development*
 
-### Changed — aGTM Inspector: the Simulation tab no longer offers a `declare` push
+### Changed — aGTM Inspector: the Simulation tab does not offer a `declare` push
 
-The Google Consent Mode box offered three verbs — `update`, `default` and `declare`. The
-first two work; the third never could, and the box reported a success anyway.
+The Google Consent Mode box briefly offered a third verb next to `update` and `default`.
+It never shipped in a release, and it is gone again: a `declare` pushed from the page
+does nothing, while the box reported a success.
 
-`declare` was checked against Google's shipped code rather than its documentation. The
+The verb was checked against Google's shipped code rather than its documentation. The
 consent-command dispatcher is byte-identical in `gtm.js` (of a real container) and
 `gtag.js`:
 
@@ -15,22 +16,44 @@ consent-command dispatcher is byte-identical in `gtm.js` (of a real container) a
 d==="default" ? So(e) : d==="update" ? Uo(e,c) : d==="declare" && b.fromContainerExecution && Ro(e)
 ```
 
-`default` and `update` run unconditionally; `declare` runs only when the command carries
-`fromContainerExecution`. Every place that sets that flag is container-internal — the
-container's own message enqueue, `registerChild`, `load_google_tags` — and a push from the
-page never carries it. The same line uses the flag as exactly that discriminator one
-clause earlier (`b.fromContainerExecution||(…P(139)…P(140))`). So a page-level
-`dataLayer.push(['consent','declare',{…}])` is dropped without a trace: the verb is
-reachable only from a GTM template, through `declareConsentState`.
+`default` and `update` run unconditionally; `declare` runs only when the message carries
+`fromContainerExecution` — the flag the container stamps on its own enqueued messages,
+and which the same line uses one clause earlier as precisely the page-vs-container
+discriminator. An ordinary page push carries no flag, so its `declare` is dropped
+without a trace. The flag is not strictly unforgeable, but faking it would also switch on
+Google's container-execution model handling and silence its page-push diagnostics — a
+tool built to *observe* the page must not lie to the tag about where a message came from.
+In practice the verb belongs to Google's own and whitelisted CMP/vendor templates, which
+reach it through the internal API `internal.declareConsentState` that custom templates
+cannot `require()`.
 
-A button that is guaranteed to do nothing while reporting success is the failure mode this
-tab exists to avoid, so the verb is gone from the push modes. The mode row now explains its
-absence, otherwise the next reader takes it for an oversight and adds the dead button back.
+A button that cannot take effect while reporting success is the failure mode this tab
+exists to avoid. The mode row now explains the verb's absence, otherwise the next reader
+takes it for an oversight and adds the dead button back.
 
 **Nothing changes on the read side.** `declare` is still captured by the reader from
-`google_tag_data.ics`, still has its own column in the Ist-Zustand line and the Consent
-tab's Google-Consent-Mode sequence, and still sits last in the precedence
+`google_tag_data.ics`; the **Consent** tab keeps its `declare` column and its `declare`
+step row, and the verb still sits last in the precedence
 `update > default > implicit > declare` — a CMP template that sets one is worth seeing.
+
+### Changed — GTM template "Consent Mode": two dead requires removed, permissions narrowed (1.4 → 1.5)
+
+The systemic least-privilege sweep further down this release checked for unused
+identifiers, but not for ones whose only use is commented out — so two survived it:
+
+- `require('createQueue')('dataLayer')`, called only in a commented-out line that
+  `callInWindow('aGTM.f.fire', …)` had replaced;
+- `require('makeTableMap')`, never used at all.
+
+The first was not merely dead code. `createQueue` demands `access_globals` **readwrite**
+on its path, so the tag held read and write on the global `dataLayer` for a call it never
+made. That entry is gone from `access_globals`; the eight that remain each have an active
+user. `write_data_layer` stays — that is the permission `gtagSet` requires for
+`url_passthrough` / `ads_data_redaction`, and its `keyPatterns` cover exactly those two.
+
+No behaviour change: the consent signals still go out through the `setDefaultConsentState`
+/ `updateConsentState` template APIs. Re-import the template to pick up the narrower
+permission set; GTM will show the difference as a permission diff.
 
 ### Fixed — aGTM Inspector: cookie reset missed Consentmanager
 
@@ -177,15 +200,15 @@ flashed red on every page load before the reconcile caught up. A leak on a page 
 consent never arrives is still reported once the window passes — only the flash is gone,
 never a finding.
 
-### Added — aGTM Inspector: Consent Mode push covers `default` and `declare`
+### Added — aGTM Inspector: Consent Mode push covers `default`
 
 The Simulation tab's **Google Consent Mode push** box could only send
-`gtag('consent','update',…)`. It now offers all three verbs — `update`, `default` and
-`declare` — plus the two fields that exist only on `default`: `wait_for_update` (ms) and
+`gtag('consent','update',…)`. It now offers `update` and `default`, plus the two fields
+that exist only on `default`: `wait_for_update` (ms) and
 `region` (comma-separated).
 
-The point of the addition is the **timing guard**: `default`/`declare` are only read
-while the Google tag has not yet evaluated consent, so pushing them afterwards changes
+The point of the addition is the **timing guard**: `default` is only read
+while the Google tag has not yet evaluated consent, so pushing it afterwards changes
 nothing. The box now detects that state (via `google_tag_data.ics`, or `aGTM.d.init` on
 an aGTM page) and **refuses the push with a reason** instead of reporting a success that
 did not happen. On a typical aGTM page the window is genuinely open until consent is
@@ -249,8 +272,8 @@ Four further tools on the Simulation tab (same opt-in Write-Modus gate, persiste
 host, ES5-safe injected builders, unit-tested):
 
 - **Google Consent Mode push** — a `gtag('consent',<verb>,{…})` straight into the
-  dataLayer (initially `update` only; `default`/`declare` were added later — see the
-  entry at the top of this release) (a genuine `arguments` object, as `gtag()` pushes) to test GCM signals
+  dataLayer (initially `update` only; `default` was added later — see the entry above)
+  (a genuine `arguments` object, as `gtag()` pushes) to test GCM signals
   **independently of aGTM**; one checkbox per canonical signal.
 - **Cookie reset + reload** — expire cookies whose name matches a pattern (across the
   path × parent-domain grid), optionally clear matching `localStorage`, then optionally

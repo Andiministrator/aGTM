@@ -721,8 +721,8 @@ describe("buildGcmPushCode — mode switch", () => {
   test("'declare' is not offered — Google drops a page-pushed declare (card #55)", () => {
     // Verified against Google's shipped code: gtm.js (real container) and gtag.js carry
     // the identical dispatcher `d==="declare" && b.fromContainerExecution && Ro(e)`, and
-    // fromContainerExecution is only ever set inside container execution. A declare
-    // pushed from the page therefore changes nothing — so the builder must not emit one
+    // that flag is stamped on messages the container enqueues itself. An ordinary page
+    // push carries none, so its declare changes nothing — the builder must not emit one
     // while claiming success. It falls back to 'update' like any unknown verb.
     expect(GCM_MODES).not.toContain("declare");
     var w = { dataLayer: [] };
