@@ -505,6 +505,38 @@ describe("feedback fixes", () => {
     expect(html).not.toContain("Keine (nennenswerten)");
     expect(html).toContain("json-"); // the raw preview is rendered
   });
+  // ── F-128: bot-check verdict card in the Session tab ───────────────────────
+  test("F-128: the bot card reports 'kein Urteil' when aGTM.d.bot is empty", () => {
+    const snap = sampleSnap();
+    snap.bot = {};
+    const html = renderTab("session", snap);
+    expect(html).toContain("Bot-Check");
+    expect(html).toContain("kein Urteil");
+  });
+  test("F-128: a scored-but-passed visitor shows the signal table without detail", () => {
+    const snap = sampleSnap();
+    snap.bot = {
+      isBot: false, score: 40, band: "clean", primarySignal: "asn_spam",
+      signals: [{ type: "asn_reputation", category: "asn_spam", score: 40, confirmed: true }]
+    };
+    const html = renderTab("session", snap);
+    expect(html).toContain("auffällig, aber durchgelassen");
+    expect(html).toContain("asn_spam");
+    expect(html).toContain("asn_reputation");
+    // The detail block never leaves the server — the card says so explicitly
+    expect(html).toContain("nicht</strong> in den Browser");
+  });
+  test("F-128: the bot card escapes page-derived values (no HTML injection)", () => {
+    const snap = sampleSnap();
+    snap.bot = {
+      isBot: false, score: 1, band: '<img src=x onerror=alert(1)>', primarySignal: "x",
+      signals: [{ type: "<script>bad()</script>", category: "c" }]
+    };
+    const html = renderTab("session", snap);
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("<script>bad()");
+    expect(html).toContain("&lt;img src=x");
+  });
   // ── new feature: pre-consent leak detector ─────────────────────────────────
   test("pre-consent leak: a tracker fired before consent raises the banner + row badge", () => {
     const P = globalThis.__panel;
@@ -906,16 +938,32 @@ describe("Diagnose tab", () => {
     expect(html).toContain("window.se_data");         // source note (transparency)
     P.clearIds();
   });
-  test("Session & IDs: discovery lists numeric aGTM.d.session fields when no known counters (fc-moto vct)", () => {
+  test("Session & IDs: vct renders as the Requests tile, not as an unknown field (F-128)", () => {
     const P = globalThis.__panel;
     P.clearIds();
     const snap = sampleSnap();
-    // fc-moto shape without se_data counters: only ids + vct in aGTM.d.session, nothing in se_data
+    // fc-moto shape without se_data counters: only ids + vct in aGTM.d.session
     snap.session = { source: "none", sid: "s1", uid: "C.1", raw: { uid: "C.1", ret: true, vct: 49 } };
     snap.seData = {};
     const html = renderTab("diagnose", snap);
-    expect(html).toContain("Numerische Felder"); // discovery aid
-    expect(html).toContain("vct=49");             // the real numeric field surfaced
+    expect(html).toContain("49");
+    // vct is the Session API's `counter` — requests within the session, NOT visits.
+    // The label has to say so; "Sitzung #49" would be a wrong reading of the number.
+    expect(html).toContain("Requests");
+    expect(html).toContain("diese Session (vct)");
+    expect(html).not.toContain("Wiederkehrer");
+    expect(html).not.toContain("Numerische Felder"); // recognised now, no discovery aid
+    P.clearIds();
+  });
+  test("Session & IDs: discovery aid still lists genuinely unknown numeric fields", () => {
+    const P = globalThis.__panel;
+    P.clearIds();
+    const snap = sampleSnap();
+    snap.session = { source: "none", sid: "s1", uid: "C.1", raw: { uid: "C.1", ret: true, weirdCount: 7 } };
+    snap.seData = {};
+    const html = renderTab("diagnose", snap);
+    expect(html).toContain("Numerische Felder");
+    expect(html).toContain("weirdCount=7");
     P.clearIds();
   });
   test("Session & IDs: first visit (sessionCount 1) is labelled Erstbesuch", () => {

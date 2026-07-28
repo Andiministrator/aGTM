@@ -41,6 +41,15 @@ aGTM.d.logmap = aGTM.d.logmap || {
   ,m7:  { type:'msg', msg:'Event prepared for dataLayer.push' }
   ,m8:  { type:'msg', msg:'Consent Setup called, but consent not (yet) available' }
   ,m9:  { type:'msg', msg:'Event fired to dataLayer' }
+  ,m_session_preset:         { type:'msg', msg:'Session preset accepted from cfg.session (no usable consent block)' }
+  ,m_session_preset_consent: { type:'msg', msg:'Session preset accepted from cfg.session, incl. a valid consent block' }
+  ,m_bot_preset:             { type:'msg', msg:'Bot-check verdict accepted from cfg.bot into aGTM.d.bot' }
+  ,m_consent_store_post:     { type:'msg', msg:'Consent diff POSTed to consent_store_url' }
+  ,m_consent_store_synced:   { type:'msg', msg:'Consent store POST confirmed by the server (2xx)' }
+  ,m_uid_promoted:           { type:'msg', msg:'Server promoted the user ID (F.* fingerprint to C.* cookie), adopted' }
+  ,e_consent_store:          { type:'err', msg:'Consent store POST failed (non-2xx response)' }
+  ,e_consent_store_parse:    { type:'err', msg:'Consent store response could not be parsed as JSON' }
+  ,e_xsend:                  { type:'err', msg:'aGTM.f.xsend Error, request could not be sent' }
 };
 
 /**

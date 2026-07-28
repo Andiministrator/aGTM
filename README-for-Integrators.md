@@ -21,6 +21,7 @@
 3. [`aGTM.d` — runtime data reference](#3-agtmd--runtime-data-reference)
 4. [Reading aGTM data in webGTM and sGTM](#4-reading-agtm-data-in-webgtm-and-sgtm)
 5. [Session data](#5-session-data)
+   - [Bot-check verdict](#5b-bot-check-verdict)
 6. [Consent data — reading and setting](#6-consent-data--reading-and-setting)
 7. [Sources & Attribution](#7-sources--attribution)
 8. [DataLayer events the client observes](#8-datalayer-events-the-client-observes)
@@ -83,6 +84,7 @@ authoritative shape** an integrator can rely on.
 | `aGTM.d.consent_hash` | string | `run_cc()` | Serialized consent at the **last successful** consent-store POST (diff gate). |
 | `aGTM.d.last_consent_hash` | string | `run_cc()` | Serialized consent from the **previous** `run_cc()` (event/callback gate). |
 | `aGTM.d.attribution` | object | `config()` via `resolveAttribution` | Keyed-by-method attribution (`{}` if none). See [§7](#7-sources--attribution). |
+| `aGTM.d.bot` | object | `config()` from `cfg.bot` | Bot-check verdict from the sGTM Client (`{}` if the check is off). See [§5b](#5b-bot-check-verdict). |
 | `aGTM.d.f` | array | `fire()` / `inject()` | Queue of events fired **before** consent; replayed as `hastyEvents`. |
 | `aGTM.d.dl` | array | `fire()` | Internal log of **every** event that passed through `aGTM.f.fire()`. |
 | `aGTM.d.init` | boolean | `inject()` | `true` once GTM has been injected into the DOM. |
@@ -171,7 +173,14 @@ that only carries an affiliate `source` still populates `aGTM.d.session.source` 
 | `uid` | string | User ID. Prefix `C.*` marks an upgraded stable cookie user, `F.*` a fingerprint user (both browser-observable in the cookie). Included in the consent-store POST; the library adopts a `C.*` value returned by the server. |
 | `ga4sid` | string | GA4-compatible session ID — usable **as-is** for the GA4 `sid` parameter. |
 | `muidga4` | string | GA4-compatible user ID — usable **as-is** for the GA4 `cid` parameter. |
-| `counter` | number | Visit counter. Consumed **server-side** (auto-denial decision); no client-side branch. |
+| `vct` | number | The Session API's `counter` under its aGTM name: requests **within the current session**, not visits. Consumed **server-side** (auto-denial decision); no client-side branch. |
+| `ret` | boolean | `vct > 0` — not the first request of this session. Drives the server-side consent auto-denial. |
+| `sst` | boolean | Always `true` — marks the session block as server-set. |
+| `created` | number | Unix seconds — when the current session record was created. |
+| `lastInteraction` | number | Unix seconds — last interaction recorded for this session. |
+| `pvCount` | number | Pageviews counted in the current session. |
+| `eventCount` | number | Events counted in the current session. |
+| `sessionCount` | number | **Visit** counter across sessions — this, not `vct`, is what "returning visitor, nth visit" means. |
 | `source` | string | Flat affiliate source (last-cookie-wins). See [§7](#7-sources--attribution). |
 | `consent` | object | Server-known consent. If valid, seeds `aGTM.d.consent` and triggers **synchronous** GTM injection. See [§6](#preset-consent-returning-visitors). |
 | `attribution` | object | Keyed-by-method attribution object. Re-activates the library's HYBRID merge. See [§7](#7-sources--attribution). |
@@ -182,13 +191,55 @@ that only carries an affiliate `source` still populates `aGTM.d.session.source` 
 ```javascript
 aGTM.d.session.sid        // session ID
 aGTM.d.session.uid        // user ID
-aGTM.d.session.ga4sid     // → GA4 `sid`
-aGTM.d.session.muidga4    // → GA4 `cid`
-aGTM.d.session.source     // affiliate source
-aGTM.d.session_status     // lifecycle (see §6)
+aGTM.d.session.ga4sid       // → GA4 `sid`
+aGTM.d.session.muidga4      // → GA4 `cid`
+aGTM.d.session.source       // affiliate source
+aGTM.d.session.sessionCount // visit count (NOT vct — see the table above)
+aGTM.d.session_status       // lifecycle (see §6)
 ```
 
 Wrap each in the [defensive JS Variable pattern](#webgtm--the-javascript-variable-pattern).
+
+---
+
+## 5b. Bot-check verdict
+
+`aGTM.d.bot` carries the verdict of the sGTM Client's optional bot check (an
+`api4filter`-style service). It is a deep-copy of `cfg.bot` and is `{}` when the
+check is disabled or did not answer.
+
+**You only ever see a verdict as a non-blocked visitor.** A definitive bot is
+answered with HTTP 403 and never receives the library at all, so `aGTM.d.bot`
+exists exclusively in the "clean or borderline" case. Its purpose is *marking*,
+not blocking: a borderline visitor (e.g. a request from an ASN with a bot-pool
+reputation) is served normally, and you decide in webGTM what to do with that —
+typically a `traffic_type` dimension towards GA4.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `isBot` | boolean | The definitive verdict. In the browser this is effectively always `false` (see above). |
+| `score` | number | 0–100. Higher = more suspicious. Never blocks on its own. |
+| `band` | string | Coarse class, e.g. `"clean"` / `"bot"`. `"bot"` holds exactly when `isBot === true`. |
+| `primarySignal` | string | Category of the highest-scoring signal, e.g. `"asn_spam"`, `"known_bot"`. Absent when nothing triggered. |
+| `signals` | array | One entry per evaluated signal: `{type, category, score, confirmed?}`. Empty array when nothing triggered; capped at 10 entries. |
+
+`category` is a stable, language-neutral key — branch on it rather than on any
+display text.
+
+```javascript
+// webGTM JS Variable — "traffic type" dimension
+function() {
+  var b = (window.aGTM && aGTM.d && aGTM.d.bot) || {};
+  if (b.band === 'bot') return 'bot';
+  if (b.primarySignal === 'asn_spam') return 'spam';
+  return 'regular';
+}
+```
+
+> **Not forwarded on purpose:** each signal's `detail` block (ASN number, ASN
+> org, unique-IP and request counts) stays server-side. Those are tenant-wide
+> aggregates about *other* visitors' traffic and have no business being readable
+> by every script on the page. If you need them, read them in sGTM, not here.
 
 ---
 
@@ -568,10 +619,12 @@ Handler responsibilities (the parts the **library** observes or depends on):
 
 ```javascript
 aGTM.d.session.sid / .uid / .ga4sid / .muidga4 / .source   // session & IDs
+aGTM.d.session.sessionCount / .pvCount / .eventCount        // Session API counters (vct = requests, NOT visits)
 aGTM.d.session_status                                       // "", preset, preset_with_consent, synced, confirmed
 aGTM.d.consent.gtmConsent                                   // GTM-load decision (boolean)
 aGTM.d.consent.services / .purposes / .vendors              // grant strings (comma-wrapped)
 aGTM.d.attribution.<method>.sou / .cam / .med / …           // structured attribution
+aGTM.d.bot.band / .score / .primarySignal                   // bot-check verdict (marking, never blocking)
 ```
 
 **React in webGTM (dataLayer triggers):**

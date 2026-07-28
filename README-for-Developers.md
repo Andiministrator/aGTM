@@ -558,11 +558,38 @@ The sGTM Client receives session data from the api4sgtm service and forwards it 
 |---|---|---|
 | `sessionId` / `sid` | string | Session ID |
 | `uid` | string | User ID (typically the sGTM Client cookie value or fingerprint) |
-| `counter` | number | Visit counter (used server-side by the sGTM Client for the auto-denial decision; not branched on client-side) |
+| `vct` | number | The API's `counter` under its aGTM name: **requests within the current session, not visits.** Used server-side by the sGTM Client for the auto-denial decision; not branched on client-side. The Client emits `vct` — never `counter`. |
+| `ret` | boolean | `vct > 0` — not the first request of this session. Gates the server-side consent auto-denial. |
+| `sst` | boolean | Always `true`; marks the block as server-set |
+| `created` | number | Unix seconds — when the session record was created |
+| `lastInteraction` | number | Unix seconds — last interaction on this session |
+| `pvCount` | number | Pageviews in the current session |
+| `eventCount` | number | Events in the current session |
+| `sessionCount` | number | **Visit** counter across sessions. This — not `vct` — is what "returning visitor, nth visit" means. |
 | `ga4sid` | string | GA4-compatible session ID — usable as-is for the GA4 `sid` parameter |
 | `muidga4` | string | GA4-compatible mapped user ID — usable as-is for the GA4 `cid` parameter |
+| `source` | string | Flat affiliate source from the Sources API (last-cookie-wins) |
+| `attribution` | object | Keyed-by-method attribution; re-activates `resolveAttribution` |
 | `consent` | object | If present and valid, seeds `aGTM.d.consent` + `aGTM.d.consent_hash` and triggers synchronous GTM injection |
 | *(any)* | * | Additional fields are stored as-is in `aGTM.d.session` |
+
+> `customerId` and `user` from the API record are deliberately **not** forwarded — the
+> tenant is configured in the Client and `user` is `uid`.
+
+### Bot-check payload (`cfg.bot` → `aGTM.d.bot`)
+
+Separate from `cfg.session`, because the sGTM Client's bot check runs *before* and
+independently of the Session API: a session outage must not drop the verdict, and the
+verdict must not open the session preset gate. Only ever present for a **non-blocked**
+visitor — a detected bot is answered with HTTP 403 and never receives the library.
+
+| Field | Type | Description |
+|---|---|---|
+| `isBot` | boolean | The definitive verdict. Effectively always `false` in the browser (see above), unless the Client runs in "only mark" mode. |
+| `score` | number | 0–100. Never blocks on its own. |
+| `band` | string | Coarse class, e.g. `clean` / `bot`. `bot` holds exactly when `isBot === true`. The Client sets `unknown` when the filter service did not answer, so an outage is distinguishable from a clean visitor. |
+| `primarySignal` | string | Category of the highest-scoring signal (`asn_spam`, `known_bot`, …) |
+| `signals` | array | `{type, category, score, confirmed}` per evaluated signal; capped at 10, strings capped at 64 chars. Each signal's `detail` block stays server-side. |
 
 ### Accessing session data
 
@@ -826,6 +853,10 @@ bun test
 | `test/consent_store.test.js` | Consent diff/store mechanism in `run_cc()` — diff detection, dedup, retry on POST failure, `consent_id`-change regression check, `gtmConsent`-only mutation excluded from hash |
 | `test/run_cc.test.js` | `aGTM.f.run_cc()` — `blocked` flag deletion + B2 field-reset on `update` |
 | `test/fire_salt.test.js` | `aGTM.f.fire()` — POST salt fallback chain |
+| `test/bot_preset.test.js` | `cfg.bot` preset — deep-copy into `aGTM.d.bot`, `isBot`-must-be-boolean guard, and the assertion that it does **not** touch the session preset gate |
+| `test/sgtm/botcheck.test.js` | sGTM Client bot check: the `botFieldsFromResponse` whitelist (extracted from the Client source and run against a sandbox-like `JSON.parse` that returns `undefined` instead of throwing), plus structural guards over the surrounding code — no 2xx status gate (F-127), the blocking decision, the `SOURCES_META` protection, and the `template.tpl` ↔ source byte-identity invariant |
+| `test/devtools/botsummary.test.js` | Inspector: `botSummary()` verdict classification (absent / clean / scored / contradictory `isBot:true`) |
+| `test/devtools/reader-snapshot.test.js` | Inspector: `reader.js` is actually *fed* — `aGTM.d.bot` and the Session API counters reach the snapshot (a pure-helper test alone would not catch a missing wire) |
 
 **Helpers:**
 

@@ -426,8 +426,9 @@ aGTM.f.inject()
 | `aGTM.d.consent_hash` | Phase 3: stable serialization of `aGTM.d.consent` (blacklist of `gtmConsent`/`blocked`) at the **last successful consent-store POST**. Used to gate the diff/POST in `run_cc()` and to support retry on 5xx (advances only on 2xx). |
 | `aGTM.d.last_consent_hash` | State-change hash, advanced on **every** `run_cc()` regardless of POST success. Used to gate `sendnaus(aGTM_consent_update)` + `consent_callback` so the periodic CMP poll does not flood when the consent state is stable. |
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
-| `aGTM.d.session` | Session & user data pre-populated from `cfg.session` (sGTM Client injection — see Session Feature below) |
+| `aGTM.d.session` | Session & user data pre-populated from `cfg.session` (sGTM Client injection — see Session Feature below). Carries the Session API record: `uid`/`sid`/`ret`/`sst`/`vct`/`ga4sid`/`muidga4`, the counters `created`/`lastInteraction`/`pvCount`/`eventCount`/`sessionCount`, plus `consent`, `source` and `attribution` when present. **`vct` is the API's `counter` (requests within the session), NOT the visit count — that is `sessionCount`.** `counter` is not repeated under its own name; `customerId`/`user` are dropped as redundant. `ret`/`vct` semantics stay as they are because `ret` gates the server-side consent auto-denial. |
 | `aGTM.d.session_status` | Consent-sync lifecycle: `""` (no preset), `"preset"` (cfg.session accepted, no usable consent — this also covers a source-/attribution-only delivery that carries no `sid`), `"preset_with_consent"` (preset consent seeded into `aGTM.d.consent`), `"synced"` (CMP decision diffed and POSTed to `consent_store_url`), `"confirmed"` (CMP decision matches the preset, no POST needed). |
+| `aGTM.d.bot` | Bot-check verdict from the sGTM Client (`cfg.bot`), `{}` when the check is off. Shape `{isBot, score, band, primarySignal, signals[]}`. Only ever present for a **non-blocked** visitor — a definitive bot gets HTTP 403 and no library. Meant for *marking* (a webGTM `traffic_type` dimension), never for blocking. See "Bot check" below. |
 | `aGTM.d.attribution` | Keyed-by-method attribution object populated at end of `config()` from `aGTM.d.session.attribution` merged with current URL/referrer. Empty `{}` when no preset is supplied. Read e.g. `aGTM.d.attribution.last_touch.sou`. See `internal/api/integration-guide.md` §7 (gitignored maintainer reference). |
 | `aGTM.d.dlrepeatDone` / `dlrepeatPolling` / `dlrepeatGate` | DL-Repeat state: replay already ran once · a gate poll is currently active · the gate spec (`cfg.gateEvents`) being awaited, exposed read-only for the aGTM Inspector. Consumers of `dlrepeatPolling` must also check `!dlrepeatDone` — the flag is not cleared after a successful replay (F-74). |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
@@ -477,6 +478,44 @@ aGTM.f.inject()
 - **`_noConsent`** event property — bypasses the consent gate for both DL push and POST; the property remains visible in the dataLayer event; use for functional/legal events that must be tracked regardless of consent
 - **`_noDLPush`** event property — skips `sendnaus()`/`iFrameFire()` so the event is **not** pushed to the GTM dataLayer; the event is still recorded in `aGTM.d.dl` and `aGTM.l`, and POST transport still fires; use with `_noConsent` for pre-consent events that should not trigger GTM tags
 
+### Bot check (sGTM Client only)
+
+Optional. Before any session/cookie work, the Client GETs `{botCheck}/{base64url payload}`
+with `{UserAgent, ClientIP}` and reads the verdict from the response body.
+
+- **No status-code gate** (F-127). The filter service couples the HTTP status to the
+  verdict — **403 when `isBot`, 200 otherwise** — so a `2xx only` gate skips the body of
+  exactly the responses that report a bot. Such a gate existed from the v1.5 single-session
+  refactor (`9d302d7`) until F-127 and silently let **every** bot through; v1.4.x had none.
+  `sendHttpGet` resolves for any completed response, so the body is read regardless of status.
+  `test/sgtm/botcheck.test.js` guards this structurally.
+- `isBot === true` → 403 + `returnResponse()`, no library is served. `isBot` is the **sole**
+  block trigger (definitive signals only); `score`/`band`/`signals` never block by themselves.
+- **`botCheckMode`** (SELECT, default `block`) — `mark` reports the verdict but never blocks.
+  It exists because a blocked visitor is *invisible*: no library, no `aGTM.d.bot`, no way to
+  count false positives. Recommended rollout on an existing site: `mark` first, count
+  `aGTM.d.bot.isBot === true` in webGTM, then switch to `block`. Normalized so that only the
+  literal `'mark'` disables blocking — a misconfigured SELECT can never silently switch the
+  filter off (F-29 lesson).
+- **`botCheckExpose`** (CHECKBOX, opt-out: absent ⇒ on) — whether the verdict is published to
+  the page at all. `aGTM.d` is readable by every script on the page and is written *before*
+  any consent decision, so "filter yes, publish no" has to be expressible.
+- Only a real boolean `isBot` counts as a verdict — a 5xx whose body happens to parse must not
+  reach the browser as `{isBot:false}` ("clean visitor"). On a transport error the Client sets
+  `{isBot:false, band:'unknown'}` so an outage stays distinguishable from a clean verdict.
+- Otherwise the verdict is forwarded to the browser as **`c.bot`** → `aGTM.d.bot`, so webGTM
+  can mark borderline traffic (e.g. a `traffic_type` dimension) instead of only hard-blocking.
+- **Own top-level config key, not part of `session`**: the check runs before and independently
+  of the Session API, so a session outage must not drop the verdict, and the verdict must not
+  open the library's session preset gate (which drives `session_status`).
+- `botFieldsFromResponse()` is a **whitelist** — the opposite of the Sources API capture,
+  which blacklists. This payload is readable by every script on the page, so a field the
+  service adds later must be opted in by a code change instead of leaking on the next API
+  deploy. Forwarded: `isBot`, `score`, `band`, `primarySignal`, and `signals[]` reduced to
+  `{type, category, score, confirmed}` (capped at 10). **`signals[].detail` is deliberately
+  dropped** — for `asn_reputation` it carries tenant-wide aggregates about *other* visitors
+  (`asn`, `asnOrg`, `uniqueIps`, `requests`, `consecutiveWindows`).
+
 ### Sources API integration (sGTM Client only)
 
 Server-side POST to a Sources API (`api4sources`) on every aGTM.js request. The POST is the Client's; its **response** flows into the library: every non-meta field is captured into `cfg.session.*`, which the library deep-copies into `aGTM.d.session.*` so webGTM can read it via a plain JS variable.
@@ -485,7 +524,7 @@ Server-side POST to a Sources API (`api4sources`) on every aGTM.js request. The 
 - `page_location` and `referrer` come from the integration code's `?c=` base64 payload; `user_id` is the resolved session uid; tenant is reused from the existing `tenant_id` config.
 - **URL build:** `sources_api_url` holds the bare base **WITHOUT** tenant or query (e.g. `…/tp/sources`); the Client appends `/{tenant}` at runtime (same convention as the session/consent/promote endpoints). With attribution on, `?attribution=true&method=<…>` is appended **after** the tenant. Putting tenant/query into the field produces a malformed URL like `…/tp/sources/fcm/?attribution=true/fcm` (double tenant).
 - Race-free with api4sources' Redis lookup (`customer_sessions:{tenant}:{user_id}`) — the Session API write happened first within the same Client request.
-- **Sequential before `buildAndSend`** (changed from fire-and-forget): the POST is awaited because its response carries tracking payload. On 2xx, the Client copies **every non-meta top-level field** of the response into `sessionData` (meta = `ok`/`tenant`/`session_id`/`ts`/`skipped`/`reason`; reserved session keys `uid`/`sid`/`consent`/… are blacklisted too so the API cannot clobber the session; empty/null values are skipped). The flat affiliate `source` (last-cookie-win, e.g. `"it_webgains"`) thus lands at `aGTM.d.session.source`. On timeout/error/non-2xx nothing is captured and delivery proceeds. Adds one internal round-trip to /aGTM.js latency — **operational caveat:** an api4sources outage now blocks `/aGTM.js` (and GTM loading) by up to the 1500 ms timeout for every visitor while `sources_enabled` is on; monitor api4sources latency.
+- **Sequential before `buildAndSend`** (changed from fire-and-forget): the POST is awaited because its response carries tracking payload. On 2xx, the Client copies **every non-meta top-level field** of the response into `sessionData` (meta = `ok`/`tenant`/`session_id`/`ts`/`skipped`/`reason`; reserved session keys `uid`/`sid`/`consent`/… **and the Session API counters** `created`/`lastInteraction`/`pvCount`/`eventCount`/`sessionCount` are blacklisted too so the API cannot clobber the session — `fireSources()` runs *after* the Session API step has filled those in and writes into the same object; empty/null values are skipped). **Note the deliberate asymmetry to the bot check:** the Sources response is payload the tenant configured and wants in the browser, so a new field there is a feature and the filter is a blacklist. The bot-check response is a classifier's verdict about the visitor, so a new field there is a leak and the filter is a whitelist (see §"Bot check"). The flat affiliate `source` (last-cookie-win, e.g. `"it_webgains"`) thus lands at `aGTM.d.session.source`. On timeout/error/non-2xx nothing is captured and delivery proceeds. Adds one internal round-trip to /aGTM.js latency — **operational caveat:** an api4sources outage now blocks `/aGTM.js` (and GTM loading) by up to the 1500 ms timeout for every visitor while `sources_enabled` is on; monitor api4sources latency.
 - **Attribution (inline, opt-in):** with `sources_attribution` on, the POST appends `?attribution=true&method=<sources_method>` and api4sources returns an `attribution` object **in the same response** (no separate request). The Client wraps it by method — `sessionData.attribution = { <method>: <obj> }` — which **re-activates** the library's attribution machinery: `config()` runs `resolveAttribution` per method (HYBRID merge: current URL wins for browser-derivable fields like utm/click-IDs, API wins for cross-session memory like `afs`/`lcs`/`fss`). webGTM reads e.g. `aGTM.d.attribution.last_touch.sou`. Note: the inline attribution reflects the state **before** this request (ClickHouse Materialized-View lag); the HYBRID merge compensates this only for the browser-derivable fields (via the fresh URL) — the pure API fields `afs`/`lcs`/`fss` have no URL fallback and can lag on the first request of a new session's source. The POST is single-method (`method=`), so `sources_method` is a single SELECT.
 - **webGTM read path:** a standard GTM "JavaScript Variable" — `aGTM.d.session.source` for the affiliate source, `aGTM.d.attribution.<method>.<field>` for attribution. No custom template needed. The preset gate (Client + library) accepts a session carrying only a **non-empty** `source`/`attribution`, so the value survives even a degraded Session API response (no `sid`/`consent`). (An empty `source` is skipped at capture, so it does not by itself keep an otherwise-empty session.)
 - Template options (sGTM Client): `sources_enabled` (boolean, default false), `sources_api_url` (text, bare base), `sources_attribution` (boolean, default false), `sources_method` (SELECT: `last_touch`/`first_touch`/`last_click`/`first_click`/`last_non_direct_click`, default `last_touch`). Tenant reused from `tenant_id`.

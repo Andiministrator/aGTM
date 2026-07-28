@@ -863,6 +863,38 @@ function renderDataLayer() {
 }
 
 /* ---------- Session / Attribution ---------- */
+/**
+ * Bot-check verdict card (aGTM.d.bot). Classification lives in diagnose.js so it
+ * is unit-testable; this only renders it.
+ */
+function botCard(bot) {
+  var b = DIAG.botSummary(bot);
+  var chipCls = b.level === "warn" ? "warn" : (b.level === "ok" ? "ok" : "acc");
+  var html = '<div class="card"><h2>Bot-Check — aGTM.d.bot</h2>' +
+    '<div class="grid">' +
+    '<div class="k">Urteil</div><div class="v"><span class="chip ' + chipCls + '">' + esc(b.label) + "</span></div>";
+  if (b.state !== "absent") {
+    html += '<div class="k">score</div><div class="v mono">' + (b.score === null ? '<span class="muted">—</span>' : esc(String(b.score))) + "</div>" +
+      '<div class="k">band</div><div class="v mono">' + (b.band ? esc(b.band) : '<span class="muted">—</span>') + "</div>" +
+      '<div class="k">primarySignal</div><div class="v mono">' + (b.primary ? esc(b.primary) : '<span class="muted">—</span>') + "</div>";
+  }
+  html += "</div>";
+  if (b.signals.length) {
+    html += '<table class="compact" style="margin-top:8px"><thead><tr><th>category</th><th>type</th><th class="fit">score</th><th class="fit">confirmed</th></tr></thead><tbody>';
+    b.signals.forEach(function (sg) {
+      sg = sg || {};
+      html += "<tr><td class=\"mono\">" + esc(String(sg.category || "—")) + "</td>" +
+        '<td class="mono">' + esc(String(sg.type || "—")) + "</td>" +
+        '<td class="fit mono">' + esc(sg.score === undefined ? "—" : String(sg.score)) + "</td>" +
+        '<td class="fit">' + (sg.confirmed === true ? '<span class="chip ok">ja</span>' : '<span class="muted">—</span>') + "</td></tr>";
+    });
+    html += "</tbody></table>" +
+      '<div class="muted" style="margin-top:6px;font-size:11px">Das <code>detail</code>-Objekt eines Signals (ASN, ASN-Org, unique IPs, Requests) wird vom sGTM Client bewusst <strong>nicht</strong> in den Browser gereicht — es sind tenant-weite Aggregate über andere Besucher. Bei Bedarf serverseitig lesen.</div>';
+  }
+  html += '<div class="muted" style="margin-top:8px">' + esc(b.note) + "</div></div>";
+  return html;
+}
+
 function renderSession() {
   var s = state.snap, se = s.session || {};
   var raw = se.raw || {};
@@ -893,6 +925,12 @@ function renderSession() {
       "</div>" +
       '<pre class="jsonview">' + JV.highlight(s.seData) + "</pre></div>";
   }
+
+  // Bot-check verdict (sGTM Client, v1.5+). Only ever populated for a NON-blocked
+  // visitor — a detected bot receives a 403 and no library at all, so isBot:true here
+  // would mean the Client served the page despite its own verdict. Say so rather than
+  // rendering it as a neutral value.
+  html += botCard(s.bot || {});
 
   var attr = s.attribution || {};
   html += '<div class="card"><h2>Attribution — aGTM.d.attribution</h2>';
@@ -1010,6 +1048,7 @@ var DIAG = window.aGTMInspectorDiag || {
   healthChecks: function () { return []; }, overallLevel: function () { return { level: "pass", counts: {} }; },
   buildTimeline: function () { return { ok: false, rows: [] }; },
   buildReportMarkdown: function () { return ""; }, buildReportJSON: function () { return "{}"; },
+  botSummary: function () { return { state: "absent", level: "info", label: "kein Urteil", note: "", score: null, band: "", primary: "", signals: [] }; },
   STATUS_ICON: {}
 };
 var netSeq = 0;
@@ -1936,17 +1975,20 @@ function renderDiagnose() {
   // smart derivations. IMPORTANT: the counters are a SNAPSHOT at page load — they do NOT
   // advance during the page (the reader keeps reading the same aGTM.d.session). Only the
   // Session-Alter is live (derived from the authentic `created` timestamp).
-  // Prefer aGTM.d.session; fall back to window.se_data (some sites — e.g. fc-moto — expose the
-  // Session-API counters there but NOT yet in aGTM.d.session; the sGTM Client should pass them
-  // through — Andi 2026-07-26). Track whether any value came from the se_data backup.
+  // Prefer aGTM.d.session; fall back to window.se_data. Since F-128 the sGTM Client
+  // forwards the counters in aGTM.d.session, so the fallback only kicks in on a page
+  // still served by an older Client build. Track whether any value came from it.
   var se = s.seData || {};
   var fromSe = false;
-  var metric = function (k) {
+  var metric = function (k, alt) {
     if (typeof raw[k] === "number") return raw[k];
+    // `counter` ships as `vct` in aGTM.d.session (its aGTM name since v1.0) but under
+    // its API name in se_data — check both before falling back.
+    if (alt && typeof raw[alt] === "number") return raw[alt];
     if (typeof se[k] === "number") { fromSe = true; return se[k]; }
     return null;
   };
-  var sc = metric("sessionCount"), pv = metric("pvCount"), ec = metric("eventCount"), cnt = metric("counter");
+  var sc = metric("sessionCount"), pv = metric("pvCount"), ec = metric("eventCount"), cnt = metric("counter", "vct");
   var createdVal = 0;
   if (typeof raw.created === "number" && raw.created > 0) createdVal = raw.created;
   else if (typeof se.created === "number" && se.created > 0) { createdVal = se.created; fromSe = true; }
@@ -1955,7 +1997,9 @@ function renderDiagnose() {
   if (pv !== null) tiles.push({ num: String(pv), lab: "Seitenaufrufe", sub: "diese Session" });
   if (ec !== null) tiles.push({ num: String(ec), lab: "Events", sub: "diese Session" });
   if (ec !== null && pv) tiles.push({ num: (ec / pv).toFixed(1).replace(/\.0$/, ""), lab: "Events / Aufruf", sub: "Engagement" });
-  else if (cnt !== null) tiles.push({ num: String(cnt), lab: "Counter", sub: "aGTM-intern" });
+  // `counter`/`vct` counts REQUESTS within the current session — it is not the visit
+  // count (that is sessionCount). The two are routinely confused, so the tile says so.
+  else if (cnt !== null) tiles.push({ num: String(cnt), lab: "Requests", sub: "diese Session (vct)" });
   if (createdVal > 0) {
     // `created` is Unix seconds per the Session-API contract; accept ms defensively too
     // (a >1e12 value is already ms) so a future data source can't show a nonsense age.
@@ -1970,7 +2014,7 @@ function renderDiagnose() {
     });
     html += "</div>" +
       '<div class="muted" style="margin-top:6px;font-size:11px">Die Zähler sind ein <strong>Server-Stand vom Seitenaufruf</strong> (<code>/aGTM.js</code>) und laufen während der Seite <strong>nicht</strong> weiter. Nur das Session-Alter aktualisiert sich live.' +
-      (fromSe ? ' <br>Quelle: <code>window.se_data</code> (Fallback — <code>aGTM.d.session</code> liefert diese Zähler noch nicht).' : "") + "</div>";
+      (fromSe ? ' <br>Quelle: <code>window.se_data</code> (Fallback) — <code>aGTM.d.session</code> liefert diese Zähler nicht. Seit F-128 reicht der sGTM Client sie durch; diese Seite läuft also auf einem älteren Client-Build.' : "") + "</div>";
   } else {
     // Discovery aid: no known counters found → show which numeric fields DO exist in
     // aGTM.d.session, so a differently-named Session-API payload is immediately visible.

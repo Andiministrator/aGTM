@@ -1486,6 +1486,27 @@
             "displayId": 55,
             "columnId": "col-erledigt",
             "qa": true
+          },
+          {
+            "id": "197e5147-94fb-4194-8253-64b08476013c",
+            "title": "Bot-Check: 403-Gate-Fix (F-127) + Bot-/Session-Felder nach aGTM.d (F-128)",
+            "description": "F-127 (P1, Regression): Der sGTM-Client parste die Bot-Check-Antwort nur bei 2xx. api4filter koppelt den Status ans Urteil (403 bei isBot, sonst 200) - laut Service-README vom 2026-07-14 schriftlich zugesichert -, also wurde genau die Bot-Antwort nie gelesen und JEDER erkannte Bot durchgelassen. Gate kam mit 9d302d7 (v1.5-Refactor); v1.4.2/v1.4.3pre blocken korrekt. Gate ersatzlos entfernt.\n\nF-128 (P2): Neues cfg.bot -> aGTM.d.bot (isBot/score/band/primarySignal/signals[], Whitelist, signals[].detail bleibt serverseitig weil tenant-weite Aggregate ueber andere Besucher). Eigener Top-Level-Key statt session-Feld, damit ein Session-Ausfall das Urteil nicht verschluckt und das Session-Preset-Gate nicht geoeffnet wird. Dazu die Session-API-Zaehler created/lastInteraction/pvCount/eventCount/sessionCount in aGTM.d.session (loest Karte #48 mit ab). Inspector + Skills + Doku nachgezogen; 8 fehlende logmap-IDs ergaenzt.\n\nRELEASE-SENSIBEL: aendert den in den Client eingebetteten Blob -> braucht Client-Re-Import; danach blockt der Bot-Check wieder, wo er faktisch nichts tat.",
+            "priority": "P1",
+            "status": "in-progress",
+            "owner": "Claude Opus",
+            "columnId": "col-qa",
+            "complexity": "mittel",
+            "effort": "M",
+            "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (botFieldsFromResponse, afterBotCheck, buildAndSend, sd-Aufbau) + sgtmClient/template.tpl (Sandboxed-Block MUSS byte-identisch bleiben, build.sh synct nur den base64-Blob). aGTM.js: aGTM.d.bot im objinit + Deep-Copy in config(). Tests: test/sgtm/botcheck.test.js, test/bot_preset.test.js, test/devtools/botsummary.test.js. Findings F-127/F-128. Sandbox-Fallen: kein Array.isArray, kein try/catch, JSON.parse gibt undefined statt zu werfen.",
+            "displayId": 56,
+            "comments": [
+              {
+                "id": "6819453a-a5d1-4c22-9938-9c5115f1e23f",
+                "author": "Claude Opus",
+                "text": "Zwei unabhaengige Pruefrunden durch (QA + Kritiker, F-129). Kein P0, beide FREIGABE JA fuer dev - der Kritiker aber ausdruecklich NEIN fuer den Client-Re-Import in der urspruenglichen Form.\\n\\nQA fand zwei echte Bugs, die ich uebersehen hatte: (1) SOURCES_META kannte die 5 neuen Zaehler nicht - fireSources() laeuft NACH afterSession() und haette sie mit einer Sources-Antwort ueberschrieben; (2) for...of ueber den duck-getypten signals-Check wirft TypeError, und ohne try/catch im Server-Sandbox stirbt damit die komplette /aGTM.js-Antwort fuer JEDEN Besucher. Dazu zwei ueberlebende Mutationen (Blockade-Entscheidung und die reader.js-Bruecke waren ungetestet) - beide Luecken geschlossen, alle 4 Mutationen werden jetzt gefangen.\\n\\nKritiker-Kern: Blocken und Beobachten kamen im selben Schritt. Ein geblockter Besucher ist unsichtbar (keine Library, kein aGTM.d.bot) - die False-Positive-Rate war also nicht messbar, ausgerechnet beim Wiederscharfschalten. Deshalb neu: botCheckMode (block|mark, Default block) und botCheckExpose (Opt-out fuer die Browser-Weitergabe).\\n\\nSelbst gefunden: das rebinding eines top-level let aus einem Closure hatte im Server-Sandbox keinen Praezedenzfall - auf const-Container + Property-Mutation umgestellt (das live erprobte Muster).\\n\\n821 Tests gruen (+51), build.sh sauber, Sandboxed-Block byte-identisch, Template-Parameter semantisch unveraendert ausser den zwei neuen Feldern. Karte geht nach QA; der Re-Import bleibt Andis Entscheidung (Rollout mark -> messen -> block)."
+              }
+            ],
+            "qa": true
           }
         ]
       },
@@ -1629,7 +1650,27 @@
             "status": "todo",
             "owner": "",
             "columnId": "col-backlog",
-            "displayId": 48
+            "displayId": 48,
+            "comments": [
+              {
+                "id": "8e3ac03b-da70-4280-bc7c-0b5dea508747",
+                "author": "Claude Opus",
+                "text": "Mit F-128 erledigt: der sGTM Client reicht created/lastInteraction/pvCount/eventCount/sessionCount jetzt in aGTM.d.session durch. counter wird NICHT dupliziert (faehrt schon als vct), customerId/user als redundant verworfen. Die im Kartentext vermutete Ursache war richtig: es lag am Client, nicht an der Session-API - sd wurde schlicht nur aus sieben Feldern gebaut. Wichtig fuer Leser: vct ist die API-counter (Requests je Session), NICHT die Besuchszahl - das ist sessionCount (fc-moto 49 vs 56). ret/vct blieben absichtlich unangetastet, weil ret die serverseitige Consent-Auto-Denial gated. Der Inspector zieht die Zaehler jetzt aus aGTM.d.session; der se_data-Fallback bleibt fuer Seiten auf aelterem Client-Build. Siehe neue Karte im v1.5-Sprint."
+              }
+            ]
+          },
+          {
+            "id": "ea2ef521-ed2d-4e36-85f0-6381eceb40e1",
+            "title": "aGTM.d.session.vct umbenennen/aufloesen - Requests vs. Besuche (Schuld aus F-128)",
+            "description": "vct ist die counter der Session-API: Requests innerhalb der laufenden Session. Der Name und die alte Doku legten Besuchszahl nahe - die steht in sessionCount (fc-moto live: 49 vs 56). Die Falle hat schon zugeschlagen (Karte #48, Inspector-Kacheltext).\\n\\nIn F-128 bewusst NICHT angefasst: ret = vct > 0 gated die serverseitige Consent-Auto-Denial im sGTM Client; eine Umdeutung waehrend ein Live-Kunde auf dem unreleasten v1.5 laeuft, waere genau die Nebenwirkung, die man nicht mitfahren laesst. Der Kritiker hat das bestaetigt, aber zu Recht angemerkt: ein Code-Kommentar dokumentiert die Schuld, er tilgt sie nicht.\\n\\nZu klaeren: sprechenderer Name (requestCount?) mit Alias-Uebergangszeit, oder vct behalten und nur die Semantik ueberall hart dokumentieren. Braucht Migrationsnotiz, weil Integratoren aGTM.d.session.vct lesen koennen.",
+            "priority": "P3",
+            "status": "todo",
+            "owner": "",
+            "columnId": "col-backlog",
+            "complexity": "klein",
+            "effort": "S",
+            "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (sd.vct = r.counter, sd.ret = sd.vct > 0, und der Auto-Denial-Zweig der daran haengt). README-for-Integrators.md §5, README-for-Developers.md Session-Tabelle, devtools-extension/panel.js metric(\"counter\",\"vct\"). Findings F-128/F-129.",
+            "displayId": 57
           }
         ]
       },
@@ -1713,7 +1754,7 @@
         ]
       }
     ],
-    "nextDisplayId": 56,
+    "nextDisplayId": 58,
     "attachments": [],
     "background": null,
     "templates": [],
