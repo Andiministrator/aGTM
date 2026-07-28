@@ -45,8 +45,11 @@ falls back to `block`, so a misconfiguration cannot silently switch the filter o
 
 **`Pass the verdict to the browser`** (on unless unchecked). `aGTM.d` is readable by every
 script on the page and is written *before* any consent decision, so "filter server-side,
-but don't publish the classification" has to be expressible. Existing configurations
-without the field keep publishing.
+but don't publish the classification" has to be expressible. It defaults to on not for
+backwards compatibility — nothing published this before, the whole passthrough is new in
+this release — but because the verdict is the only thing that can be measured: under
+`mark` a switched-off passthrough makes the check a paid no-op, which the Client now warns
+about.
 
 ### Changed — hardening from the review round on the two entries above
 
@@ -70,7 +73,46 @@ without the field keep publishing.
 - The verdict is held in a `const` container mutated by property rather than a rebound
   top-level `let`, matching the pattern already proven in this file.
 - The Inspector's compliance report (Markdown and JSON) now carries the verdict — "flagged
-  but passed" belongs in a written hand-off, not only in a live panel.
+  but passed" belongs in a written hand-off, not only in a live panel. It leads with a
+  provenance line: the verdict describes **the machine that generated the report**, not the
+  site's traffic. Without that, a consultant on a VPN turns an `asn_spam` line into what
+  reads like a finding about the customer.
+
+### Fixed — a second review round on the entries above
+
+- **`/aGTM.js` died on every synchronous serve path.** `buildAndSend` sat at the end of the
+  file while each synchronous path reached it first — a forward reference to a `const`
+  function expression, i.e. a temporal-dead-zone error, i.e. no response at all. It hit the
+  default configuration of a freshly created tag (no Session API) and any visitor whose
+  session uid could not be resolved (fingerprinting off, no cookie). Only the async path
+  masked it, which is why it survived since the v1.5 session refactor. The function is now
+  declared before its callers, and `test/sgtm/serve-paths.test.js` runs the real Client
+  source against stubbed server APIs to keep every path honest — a test genre this repo
+  did not have.
+- **`mark` blocked after all when the client IP was missing.** That branch sent 403 without
+  consulting the mode, making the field's own help text untrue for exactly the visitors
+  whose IP header fails to resolve — an infrastructure problem turned into a hard outage,
+  during the rollout step that is supposed to be safe.
+- **The value whitelist is a whitelist of values, not only of keys.** The first attempt
+  capped strings at 64 characters, which does not defend the case its own comment cited:
+  `asn_spam:AS55967/Baidu/76ip` is 27 characters. `band`, `primarySignal`, `type` and
+  `category` are now matched against the contract's vocabulary and collapse to `other`
+  otherwise; `score` is clamped to 0–100 and floored. The lookup compares `=== 1` rather
+  than testing truthiness, so `toString` and `constructor` cannot inherit past it.
+- **The signals loop bounds the work, not just the output.** `{"length": 50000000}` passes
+  the array duck-check and never grows the result, so the output cap alone would spin fifty
+  million times — ~40 bytes of response body stalling `/aGTM.js`, and with it the GTM load,
+  for every visitor.
+- **A 5xx with a parseable body is an outage, not a clean visitor.** Only the transport-error
+  path set `band: 'unknown'` before; the more common failure — the service answers, but with
+  an error object — fell through to "no verdict", indistinguishable from "check disabled".
+- **The Inspector stopped calling the `mark` mode a malfunction.** `isBot: true` under `mark`
+  is the configured state; reporting it as a contradiction put a fault claim about a
+  correctly configured system into the customer report. `band: 'unknown'` no longer renders
+  as a green "unauffällig" either, and the mode surfaces as a chip and a health check, so a
+  filter left in `mark` after a measurement does not stay invisible.
+- The Session API counters are on the Sources API blacklist, so a Sources response carrying
+  its own `created` can no longer overwrite the session record.
 
 ### Added — sGTM Client: bot-check verdict reaches the browser as `aGTM.d.bot`
 

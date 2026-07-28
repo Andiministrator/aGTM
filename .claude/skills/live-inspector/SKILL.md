@@ -63,9 +63,12 @@ JSON.stringify({
   gtmInDom:   document.querySelectorAll('script[src*="/gtm.js"]').length,
   sessStatus: (window.aGTM && aGTM.d.session_status) || '',
   // Bot-check verdict from the sGTM Client (v1.5+). '' when the check is off,
-  // did not answer, or the Client predates the passthrough. Marking only — it
-  // never blocks; a detected bot never gets the library in the first place.
-  botBand:    (window.aGTM && aGTM.d.bot && aGTM.d.bot.band) || ''
+  // did not answer, or the Client predates the passthrough. 'unknown' means the
+  // filter did not answer usably — an outage, NOT a clean visitor. botMode says
+  // whether the Client blocks ('block') or only reports ('mark'); under 'block'
+  // a detected bot never gets the library in the first place.
+  botBand:    (window.aGTM && aGTM.d.bot && aGTM.d.bot.band) || '',
+  botMode:    (window.aGTM && aGTM.d.bot && aGTM.d.bot.mode) || ''
 })
 ```
 

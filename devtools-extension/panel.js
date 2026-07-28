@@ -873,6 +873,12 @@ function botCard(bot) {
   var html = '<div class="card"><h2>Bot-Check — aGTM.d.bot</h2>' +
     '<div class="grid">' +
     '<div class="k">Urteil</div><div class="v"><span class="chip ' + chipCls + '">' + esc(b.label) + "</span></div>";
+  // The mode is the one thing nobody can infer from the page: `mark` looks
+  // exactly like `block` until a bot shows up.
+  if (b.mode) {
+    html += '<div class="k">Modus</div><div class="v"><span class="chip ' + (b.mode === "mark" ? "warn" : "ok") + '">' +
+      esc(b.mode) + "</span> " + (b.mode === "mark" ? '<span class="muted">meldet nur, blockt nicht</span>' : '<span class="muted">blockt erkannte Bots</span>') + "</div>";
+  }
   if (b.state !== "absent") {
     html += '<div class="k">score</div><div class="v mono">' + (b.score === null ? '<span class="muted">—</span>' : esc(String(b.score))) + "</div>" +
       '<div class="k">band</div><div class="v mono">' + (b.band ? esc(b.band) : '<span class="muted">—</span>') + "</div>" +
@@ -926,10 +932,11 @@ function renderSession() {
       '<pre class="jsonview">' + JV.highlight(s.seData) + "</pre></div>";
   }
 
-  // Bot-check verdict (sGTM Client, v1.5+). Only ever populated for a NON-blocked
-  // visitor — a detected bot receives a 403 and no library at all, so isBot:true here
-  // would mean the Client served the page despite its own verdict. Say so rather than
-  // rendering it as a neutral value.
+  // Bot-check verdict (sGTM Client, v1.5+). Under `block` this is only ever
+  // populated for a NON-blocked visitor — a detected bot receives 403 and no
+  // library. Under `mark` nothing is blocked, so isBot:true is the configured
+  // state there, not a contradiction; botSummary() tells the two apart via the
+  // `mode` field the Client sends along.
   html += botCard(s.bot || {});
 
   var attr = s.attribution || {};
