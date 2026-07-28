@@ -814,6 +814,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-28",
                 "text": "BELEG NACHGETRAGEN (Kritiker-Runde 2026-07-28, Nebenbefund): Der veraltete Export ist schlimmer als nur -alte Library-. Er enthaelt auch eine eingebettete Kopie des Consent-Mode-TEMPLATES auf altem Stand — inklusive makeTableMap, createQueue('dataLayer') und der access_globals-read+write-Permission auf den globalen dataLayer, die gerade erst entfernt wurde (F-125). Ausserdem fehlen dort der 1.4-Fail-Open-Guard (copyFromWindow('aGTM.d.consent') || {}), cm_grant_outside und der F-31c-Region-Fix; das Tag laeuft noch unter dem alten displayName -aGTM Consent Mode-.\n\nAUSSENWIRKUNG: Wer den Workspace-Export importiert, bekommt ein Consent-Mode-Tag OHNE den Fail-Open-Guard und MIT der ueberbreiten Permission. Das ist der einzige Punkt der Session mit echter Aussenwirkung — und er ist unabhaengig von den Commits dieser Session (vorbestehend seit v1.4.1, letzter Touch c919dd4 Icon-Rollout).\n\nMINIMALE ZWISCHENLOESUNG, falls der Neu-Export laenger dauert: den Export in gtm/README-gtm-templates.md als -Snapshot v1.4.1, nicht aktuell- kennzeichnen, damit ihn niemand fuer die Referenz haelt."
+              },
+              {
+                "id": "15c39ae0-d066-4a06-b87e-efe50feaa807",
+                "author": "Claude Opus",
+                "created": "2026-07-28",
+                "text": "KONTEXT-UPDATE (2026-07-28): Andi hat das Consent-Mode-Tag im webGTM und das sGTM-Client-Template im sGTM importiert, alle Tests gruen, live bei fc-moto.com. Das aendert an DIESER Karte nichts — der Workspace-Export (gtm/aGTM-GTM-Workspace-Template-18.json) wird davon NICHT beruehrt, er bleibt der veraltete Snapshot.\n\nIm Gegenteil, die Luecke wird sichtbarer: der Live-Container hat jetzt das Consent-Mode-Tag 1.5 mit der verschmaelerten Permission, waehrend der oeffentliche Workspace-Export weiter die alte Fassung ohne Fail-Open-Guard und mit dem access_globals-read+write auf den globalen dataLayer verteilt. Wer den Export importiert, faellt hinter den Live-Stand zurueck."
               }
             ]
           },
@@ -1439,6 +1445,12 @@
                 "author": "Claude Opus",
                 "created": "2026-07-28",
                 "text": "KORREKTUR zum Kommentar davor: der Client-Re-Import ist NICHT offen — Andi hat ihn am 2026-07-23 durchgefuehrt (aus dem Sitzungsgedaechtnis, Andis eigene Meldung: laeuft seitdem aktiv auf fc-moto). Damit sind F-49 (fail-closed), F-51/F-51b (globaler Komma-Strip), F-52 (eingebettete CMP-consent_check-Codes gesynct), F-53 (Shopify-Arrow, gefixt 2026-07-16, also vor dem Import) und der Bot-Check-base64url-Fix F-54 client-seitig LIVE.\n\nDie Karte ist damit nicht nur technisch, sondern auch operativ vollstaendig abgeschlossen — es gibt keine offene Restpflicht. Mein vorheriger Absatz \"OFFEN UND BEWUSST UEBERGEBEN\" ist gegenstandslos; die technische Gegenpruefung darueber (762 Tests, Drift-Guard-Negativbeweis, Usercentrics-v2-Artefaktbeleg, 760/760 Sandbox-Sync, base64-Blob) bleibt unveraendert gueltig."
+              },
+              {
+                "id": "45424bae-ab11-40d7-ad9a-e3c828a91fb6",
+                "author": "Claude Opus",
+                "created": "2026-07-28",
+                "text": "LIVE BESTAETIGT (Andi, 2026-07-28): neues sGTM-Client-Template im sGTM importiert, alle Tests gruen, live bei fc-moto.com. Damit ist der F-52-Sync-Mechanismus end-to-end in Produktion angekommen — die eingebetteten CMP-consent_check-Codes im Client stammen jetzt aus dem aktuellen Stand von cmp/*.min.js.\n\nWAS DAMIT CLIENT-SEITIG LIVE IST: F-49 (Consent-Gate fail-closed), F-51 + F-51b (globaler Komma-Strip in allen CMPs, die menschenlesbare Namen in den Consent-String schreiben), F-52 (der Sync selbst), F-53 (Shopify-Arrow/ES5). Der vorige Re-Import vom 2026-07-23 hatte den damaligen Stand gebracht; dieser bringt alles seither Gebaute nach.\n\nAB JETZT KEINE STILLE DRIFT MEHR: jeder kuenftige CMP-Fix landet per ./build.sh automatisch im eingebetteten Template-Wert, und ein un-gesynctes Ergebnis laesst bun test rot werden (Drift-Guard test/cmp/template-sync.test.js, 26 Tests). Die Klasse -CMP-Fix erreicht Client-Nutzer nicht- ist geschlossen."
               }
             ],
             "qa": true
