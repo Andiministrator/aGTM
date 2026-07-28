@@ -13,7 +13,7 @@ import {
   buildBlockCode, buildUnblockCode, buildInjectIntegrationCode, simSelection,
   buildGcmPushCode, buildCookieResetCode, buildScenarioCode, buildConsentStoreTestCode,
   buildLoadContainerCode, GCM_SIGNALS, GCM_MODES, hasCls, SIM_COOKIE_DEFAULT,
-  pickFrameDocs, formatFramePass
+  pickFrameDocs, formatFramePass, sameSite
 } from "../../devtools-extension/sim.js";
 
 // Run a builder's self-invoking expression against a supplied fake window and
@@ -1070,19 +1070,19 @@ describe("formatFramePass — the frame pass is always reported", () => {
   test("nothing deleted anywhere still points at incognito", () => {
     // The failure that matters: the user believes the reset worked, the CMP restores
     // its consent from its own origin, and the 'first visit' was never one.
-    expect(formatFramePass({ checked: 0, reached: 0, cookies: [], ls: 0, fails: [] })).toContain("Inkognito");
-    expect(formatFramePass({ checked: 1, reached: 0, cookies: [], ls: 0, fails: [{ host: "cdn.consentmanager.net", why: "Permission denied" }] }))
+    expect(formatFramePass({ discovered: true, checked: 0, reached: 0, cookies: [], ls: 0, fails: [] })).toContain("Inkognito");
+    expect(formatFramePass({ discovered: true, checked: 1, reached: 0, cookies: [], ls: 0, fails: [{ host: "cdn.consentmanager.net", why: "Permission denied" }] }))
       .toContain("Inkognito");
-    expect(formatFramePass({ checked: 1, reached: 1, cookies: [], ls: 0, fails: [] })).toContain("Inkognito");
+    expect(formatFramePass({ discovered: true, checked: 1, reached: 1, cookies: [], ls: 0, fails: [] })).toContain("Inkognito");
   });
   test("an unreachable frame names the host and the reason", () => {
-    const s = formatFramePass({ checked: 2, reached: 0, cookies: [], ls: 0, fails: [{ host: "cdn.consentmanager.net", why: "Permission denied" }] });
+    const s = formatFramePass({ discovered: true, checked: 2, reached: 0, cookies: [], ls: 0, fails: [{ host: "cdn.consentmanager.net", why: "Permission denied" }] });
     expect(s).toContain("cdn.consentmanager.net");
     expect(s).toContain("Permission denied");
   });
   test("a successful pass names what went, per host", () => {
     const s = formatFramePass({
-      checked: 2, reached: 1, ls: 3, fails: [],
+      discovered: true, checked: 2, reached: 1, ls: 3, fails: [],
       cookies: ["cdn.consentmanager.net:__cmpconsent45430", "cdn.consentmanager.net:__cmpccu45430"]
     });
     expect(s).toContain("1/2 erreicht");
@@ -1146,28 +1146,101 @@ describe("buildCookieResetCode — third-party cookie attributes and verificatio
     expect(res.cleared).toEqual(["__cmpccu45430"]);
     expect(res.failed).toEqual(["__cmpconsent45430"]);
     expect(res.clearedCount).toBe(1);
-    expect(res.attempted).toBe(2);
   });
   test("nothing matching → nothing claimed, nothing blamed", () => {
     const res = run(buildCookieResetCode(["zzz"], {}), crossSiteJar(CMP));
     expect(res.cleared).toEqual([]);
     expect(res.failed).toEqual([]);
-    expect(res.attempted).toBe(0);
   });
 });
 
 describe("formatFramePass — cookies that survived the frame pass", () => {
   test("a surviving cookie is named and sends the user to incognito", () => {
     const s = formatFramePass({
-      checked: 1, reached: 1, cookies: [], ls: 2, fails: [],
+      discovered: true, checked: 1, reached: 1, cookies: [], ls: 2, fails: [],
       stuck: ["cdn.consentmanager.net:__cmpconsent45430"]
     });
     expect(s).toContain("__cmpconsent45430");
     expect(s).toContain("Inkognito");
   });
   test("a clean pass stays quiet about survivors", () => {
-    const s = formatFramePass({ checked: 1, reached: 1, cookies: ["a:b"], ls: 0, fails: [], stuck: [] });
+    const s = formatFramePass({ discovered: true, checked: 1, reached: 1, cookies: ["a:b"], ls: 0, fails: [], stuck: [] });
     expect(s).not.toContain("blieben liegen");
     expect(s).not.toContain("Inkognito");
+  });
+});
+
+// ── same-site check ─────────────────────────────────────────────────────────
+// The frame candidates are filtered against the page's own host. The first version
+// did that with index arithmetic (`indexOf("." + b) === a.length - b.length - 1`),
+// which calls two EQUAL-LENGTH hosts the same site — indexOf's miss is -1, and so is
+// the computed offset. On such a page the CMP frame was dropped and the effect line
+// claimed there were no foreign frames at all: a silent, page-deterministic failure.
+describe("sameSite — page host vs. frame host", () => {
+  test("a foreign host that happens to be exactly as long is NOT the same site", () => {
+    expect(sameSite("cmp-serv.de", "meinshop.de")).toBe(false);   // both 11 chars
+    expect(sameSite("foobarba.de", "example.com")).toBe(false);
+    expect(pickFrameDocs([{ url: "https://cmp-serv.de/f.html", type: "document" }], "meinshop.de"))
+      .toHaveLength(1);                                            // the frame survives the filter
+  });
+  test("equal and sub-domain in both directions ARE the same site", () => {
+    expect(sameSite("victors.de", "victors.de")).toBe(true);
+    expect(sameSite("rp.victors.de", "victors.de")).toBe(true);
+    expect(sameSite("victors.de", "rp.victors.de")).toBe(true);
+  });
+  test("a suffix that is not on a label boundary is a different site", () => {
+    expect(sameSite("notvictors.de", "victors.de")).toBe(false);
+    expect(sameSite("victors.de.evil.com", "victors.de")).toBe(false);
+  });
+  test("empty input is never the same site", () => {
+    expect(sameSite("", "victors.de")).toBe(false);
+    expect(sameSite("victors.de", "")).toBe(false);
+  });
+});
+
+describe("formatFramePass — what was NOT established must not be stated", () => {
+  test("a discovery that never came back is admitted, not turned into a finding", () => {
+    const s = formatFramePass({ discovered: false, checked: 0, reached: 0, cookies: [], ls: 0, fails: [] });
+    expect(s).toContain("nicht ermittelt");
+    expect(s).not.toContain("Keine fremden Frames im Seitenbaum");   // that would be a claim
+    expect(s).toContain("Inkognito");
+  });
+  test("frames beyond the per-click cap are reported, never silently dropped", () => {
+    const s = formatFramePass({ discovered: true, checked: 8, skipped: 3, reached: 8, cookies: ["a:b"], ls: 0, fails: [], stuck: [] });
+    expect(s).toContain("3 weitere nicht geprüft");
+  });
+});
+
+describe("formatFramePass — a partial success must not hide the rest", () => {
+  test("frames that refused are named even when another one succeeded", () => {
+    // A single success used to swallow every other failure — and with it the reason a
+    // CMP copy survived. The number "1/3" alone reads like success.
+    const s = formatFramePass({
+      discovered: true, checked: 3, reached: 1, ls: 0, stuck: [],
+      cookies: ["cdn.cmp.net:__cmpX"],
+      fails: [{ host: "consent.cookiebot.com", why: "there is no frame with URL …" },
+              { host: "sso.example.com", why: "Permission denied" }]
+    });
+    expect(s).toContain("consent.cookiebot.com");
+    expect(s).toContain("Permission denied");
+    expect(s).toContain("Inkognito");
+  });
+  test("frames still busy at the timeout are 'open', not 'unreachable'", () => {
+    // They may well have deleted something — the eval keeps running in the frame. Saying
+    // "the CMP copy stays" would be an invented fact.
+    const s = formatFramePass({ discovered: true, checked: 3, pending: 2, reached: 1, cookies: ["a:b"], ls: 0, fails: [], stuck: [] });
+    expect(s).toContain("nicht rechtzeitig geantwortet");
+    expect(s).not.toContain("nicht erreichbar");
+  });
+  test("a localStorage-only hit renders without a dangling arrow", () => {
+    const s = formatFramePass({ discovered: true, checked: 1, reached: 1, cookies: [], ls: 4, fails: [], stuck: [] });
+    expect(s).toContain("localStorage: 4");
+    expect(s).not.toContain("→");
+  });
+  test("a pass that was deliberately skipped says so instead of staying silent", () => {
+    const s = formatFramePass({ off: "leeres Musterfeld" });
+    expect(s).toContain("nicht angefasst");
+    expect(s).toContain("leeres Musterfeld");
+    expect(s).toContain("Inkognito");
   });
 });

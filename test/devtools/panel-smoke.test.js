@@ -1787,3 +1787,120 @@ describe("Cookie reset — third-party CMP frame pass", () => {
     expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
   });
 });
+
+// Everything the frame pass does is a WRITE into a foreign origin. These tests pin the
+// three ways that went wrong: it ran without write-mode (the button's `disabled` was the
+// only guard — and the fake DOM proves a direct listener call bypasses that), it reported
+// its result only when the top-frame call happened to succeed, and it carried the
+// "delete every cookie" case into third-party origins.
+describe("Cookie reset — frame pass must never write unannounced", () => {
+  var calls;
+  function clickReset() {
+    const node = globalThis.__nodes["sim-cookie-reset"];
+    const ls = (node.__listeners && node.__listeners.click) || [];
+    ls[ls.length - 1]({});
+  }
+  const CMP = "https://cdn.consentmanager.net/delivery/cmp.php?id=45430";
+  const RES = [
+    { url: "https://fc-moto.com/", type: "document" },
+    { url: CMP, type: "document" }
+  ];
+  function prime(patterns) {
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap());
+    P.simState()._resetBusy = false;
+    P.buildSimScaffold();
+    globalThis.__nodes["sim-cookie-pats"].value =
+      typeof patterns === "string" ? patterns : P.simState().cookiePats;
+    calls.length = 0;
+  }
+  beforeAll(() => {
+    calls = [];
+    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) { cb(RES); };
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var opts = typeof a === "function" ? null : a;
+      var cb = typeof a === "function" ? a : b;
+      calls.push({ code: code, frameURL: opts && opts.frameURL });
+      if (cb) cb({ ok: true, cleared: ["__cmpconsent45430"], clearedCount: 1, lsCleared: 2 }, null);
+    };
+    const P = globalThis.__panel;
+    P.setSnap(sampleSnap()); P.setTab("sim"); P.render();
+  });
+  afterAll(() => {
+    globalThis.__panel.setSimWrite(false);
+    globalThis.__panel.simState()._resetBusy = false;
+    globalThis.chrome.devtools.inspectedWindow.eval = function () {};
+    delete globalThis.chrome.devtools.inspectedWindow.getResources;
+  });
+
+  test("write-mode OFF reaches no frame at all — not even the discovery", () => {
+    const P = globalThis.__panel;
+    P.setSimWrite(false);
+    let asked = false;
+    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) { asked = true; cb(RES); };
+    prime();
+    clickReset();
+    globalThis.chrome.devtools.inspectedWindow.getResources = function (cb) { cb(RES); };
+    expect(calls.filter(function (c) { return c.frameURL; }).length).toBe(0);
+    expect(asked).toBe(false);
+    expect(calls.length).toBe(0);            // the top frame stays untouched as well
+  });
+
+  test("a FAILING top-frame reset still reports what the frames gave up", () => {
+    // The frame writes happened. Hiding them because the top-frame eval threw would let
+    // the user believe nothing was touched, in someone else's origin.
+    const P = globalThis.__panel;
+    P.setSimWrite(true);
+    prime();
+    const realEval = globalThis.chrome.devtools.inspectedWindow.eval;
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var opts = typeof a === "function" ? null : a;
+      var cb = typeof a === "function" ? a : b;
+      calls.push({ code: code, frameURL: opts && opts.frameURL });
+      if (!cb) return;
+      if (opts && opts.frameURL) cb({ ok: true, cleared: ["__cmpccu45430"], clearedCount: 1, lsCleared: 2 }, null);
+      else cb(null, { isError: true, value: "Uncaught SyntaxError" });
+    };
+    clickReset();
+    globalThis.chrome.devtools.inspectedWindow.eval = realEval;
+    P.updateSimLive();
+    const html = globalThis.__nodes["sim-live"]._html;
+    expect(html).toContain("Fehler");
+    expect(html).toContain("cdn.consentmanager.net:__cmpccu45430");
+  });
+
+  test("an EMPTY pattern list stops at the page's own origin", () => {
+    // Empty = "match every cookie". In the top frame that is the documented nuclear
+    // option; carried into foreign frames it would wipe embedded payment/SSO/chat logins.
+    const P = globalThis.__panel;
+    P.setSimWrite(true);
+    prime("");
+    clickReset();
+    P.updateSimLive();
+    expect(calls.filter(function (c) { return c.frameURL; }).length).toBe(0);
+    expect(calls.filter(function (c) { return !c.frameURL; }).length).toBeGreaterThan(0);
+    expect(globalThis.__nodes["sim-live"]._html).toContain("nicht angefasst");
+  });
+
+  test("a second click during the frame pass does not start a second fan-out", () => {
+    const P = globalThis.__panel;
+    P.setSimWrite(true);
+    prime();
+    // Discovery answers, but the frame eval never does → the pass stays in flight and
+    // `_resetBusy` stays set. A second click must not fan out a second time (which would
+    // also mean a second reload).
+    const realEval = globalThis.chrome.devtools.inspectedWindow.eval;
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, a, b) {
+      var opts = typeof a === "function" ? null : a;
+      var cb = typeof a === "function" ? a : b;
+      calls.push({ code: code, frameURL: opts && opts.frameURL });
+      if (opts && opts.frameURL) return;     // frame never calls back
+      if (cb) cb({ ok: true, cleared: [], clearedCount: 0, lsCleared: 0 }, null);
+    };
+    clickReset();
+    clickReset();
+    globalThis.chrome.devtools.inspectedWindow.eval = realEval;
+    P.simState()._resetBusy = false;
+    expect(calls.filter(function (c) { return c.frameURL; }).length).toBe(1);
+  });
+});

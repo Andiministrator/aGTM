@@ -139,10 +139,15 @@ persisted per host):
   document-typed `getResources()` entries; an origin resolves to no frame at all. This
   needs **no** Chrome permission: frame evaluation is gated on schemes, `chrome://`,
   Web-Store and enterprise-policy hosts, not on `host_permissions`. The pass is
-  best-effort behind a 1.2 s watchdog (it can never delay the top-frame reset) and
-  reports **per host** what went or why a frame refused. It only reaches origins that are
-  framed at that moment — when the effect line reports nothing removed there, an
-  **incognito window** remains the reliable route to a genuine first visit.
+  best-effort behind a 1.2 s watchdog — it can delay the top-frame reset by at most that,
+  but never prevent it — and reports **per host** what went, which frame refused and why,
+  and which had not answered yet. It writes into third-party origins, so it obeys the same
+  write-mode gate as everything else here, and it is **skipped entirely when the pattern
+  field is empty**: "delete every cookie" stays on the page's own domain rather than
+  wiping embedded payment/SSO/chat widgets. It only reaches origins that are framed at
+  that moment (and document resources from removed frames simply report back as not
+  found) — when the effect line reports nothing removed there, an **incognito window**
+  remains the reliable route to a genuine first visit.
 - **Scenario runner** — one click walks the whole lifecycle: **deny** → **fire** the
   listed events (parked in `aGTM.d.f` because there's no consent) → **grant** the chosen
   consent (`run_cc('update')` → inject → replay). The effect panel reports how many
