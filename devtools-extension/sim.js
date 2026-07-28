@@ -335,7 +335,12 @@
       "for(var r=0;r<raw.length;r++){var nm=raw[r].split('=')[0].replace(/^\\s+|\\s+$/g,'');if(nm&&match(nm)&&names.indexOf(nm)<0)names.push(nm);}" +
       "var host=String(loc.hostname||'').split('.');var domains=[''];" +
       "for(var h=0;h<host.length-1;h++){var dd=host.slice(h).join('.');domains.push('; domain='+dd);domains.push('; domain=.'+dd);}" +
-      "var paths=['/'];var pp=loc.pathname||'/';if(paths.indexOf(pp)<0)paths.push(pp);" +
+      // Every path PREFIX, not just '/' and the current path: a cookie scoped to '/de/'
+      // survives a reset run on '/de/produkt/42' otherwise — and the surviving name then
+      // gets blamed on HttpOnly, which it cannot be (see the verification note below).
+      "var paths=['/'];var pp=loc.pathname||'/';var seg=pp.split('/');var acc='';" +
+      "for(var si=1;si<seg.length;si++){if(!seg[si])continue;acc+='/'+seg[si];" +
+      "if(paths.indexOf(acc)<0)paths.push(acc);if(paths.indexOf(acc+'/')<0)paths.push(acc+'/');}" +
       "var exp='=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=';" +
       // Each expiry is written TWICE: bare, and with `SameSite=None; Secure`. A CMP's own
       // cookies are cross-site cookies and carry exactly those attributes — and inside its
@@ -351,7 +356,9 @@
       // VERIFY instead of assume: re-read the jar and report what is actually gone. A
       // reported deletion that did not happen is worse than none — it is what made the
       // reset look like it worked while the CMP restored its consent (F-107/F-117).
-      // A name that survives is typically HttpOnly or otherwise not ours to remove.
+      // A surviving name is NOT HttpOnly: those never appear in document.cookie, so they
+      // never enter `names` in the first place. It is scoped to a domain or path this
+      // grid did not cover — the Application tab shows its real Path/Domain.
       // Keys are prefixed so a cookie called __proto__/constructor/toString cannot collide
       // with Object.prototype — an unprefixed map would mis-report those as deleted.
       "var still={};var raw2=(d.cookie||'').split(';');" +
@@ -607,11 +614,13 @@ function simDefaultGcm() {
 // "cmpsettings" did NOT match — Consentmanager sites were silently unaffected by a
 // reset (found on victors.de, 2026-07-27). `_tpf` is aGTM's own user-id cookie;
 // the "aGTM"/"agtm" fragments do NOT match it.
-var SIM_COOKIE_DEFAULT = "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,_tpf,aGTM,agtm";
+var SIM_COOKIE_DEFAULT = "__cmp,consent,Consent,tracking-preferences,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,termly,cc_cookie,_tracking_consent,cmpsettings,Optanon,euconsent-v2,ucData,uc_settings,_iub_cs,_tpf,_TPU,aGTM,agtm";
 // Earlier default lists. A user who never edited the field still carries the old string
 // in localStorage, so an exact match is lifted to the current default instead of
 // leaving them with a list that misses their CMP.
 var SIM_COOKIE_DEFAULTS_PAST = [
+  "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,termly,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,_tpf,_TPU,aGTM,agtm",
+  "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,_tpf,aGTM,agtm",
   "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm",
   "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm"
 ];
@@ -1332,7 +1341,7 @@ function updateSimLive() {
         // jar, so this is the honest counterpart to the deleted list, not a guess.
         if (stuck.length) {
           det += " · ⚠ blieben liegen: " + stuck.slice(0, 6).join(", ") + (stuck.length > 6 ? " …" : "") +
-            " (vermutlich HttpOnly — nur server- oder browserseitig löschbar)";
+            " (auf eine Domain/einen Pfad gesetzt, den das Raster nicht trifft — echten Path/Domain im Application-Tab prüfen)";
         }
         det += (SIM_LAST.reloading ? " · lädt neu…" : "");
       }

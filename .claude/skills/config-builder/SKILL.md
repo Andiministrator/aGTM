@@ -116,3 +116,9 @@ existing or live integration, hand off to `integration-check`):
 Point them at `integration-check` (or the manual checks there): after deploying,
 confirm `aGTM.d.consent.gtmConsent` flips to `true` after a consent decision and
 that GTM actually injects (`aGTM.d.init === true`).
+
+Tell them to check this **from a fresh incognito window**, not the browser they built
+the site in. Their own browser has already decided, GTM cannot be un-injected once it
+loaded, and the stored decision lives in more places than the site's consent cookie —
+so the usual "looks fine to me" test silently verifies the wrong state. `live-inspector`
+→ "Getting a real first visit" has the details.

@@ -35,6 +35,12 @@ one explicitly by name, e.g. `/config-builder`.
 Each skill is self-contained but points to the authoritative product docs
 (`README.md`, `README-for-Integrators.md`, `CLAUDE.md`) for the full detail.
 
+For working on an integration **by hand**, the repo also ships the **aGTM Inspector**
+Chrome DevTools panel (`devtools-extension/`, packaged as `aGTM-Inspector.zip`) — the
+human-facing counterpart to these skills, with the same diagnostics plus an opt-in
+Simulation tab that drives the consent flow. The skills point at it where it can do
+something they cannot.
+
 ## License
 
 Apache 2.0, same as the rest of aGTM.

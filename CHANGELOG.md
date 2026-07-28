@@ -54,6 +54,24 @@ refused and why, which had not answered inside the time limit — independently 
 top-frame call ended, and points at an **incognito window** whenever the CMP's copy may
 have survived.
 
+A review pass then found the reset was still missing state it should have cleared. Its
+pattern list did not cover **`_TPU`**, the sGTM Client's own user-id cookie — so on a
+Client-served site the cookie survived, the next `/aGTM.js` resolved the user, the stored
+consent came back as `cfg.session.consent` and GTM injected with no banner: a "first
+visit" that never was one. Nor did it cover the `localStorage` keys four bundled adapters
+actually read (`consent` for Matomo and JTL, `consentPermission` for Tramino,
+`perspective.tracking-preferences.<id>`), so on those CMPs the banner stayed away and the
+blame fell on the CMP's own origin. Both are in the shipped list now, which is checked by
+tests on both sides: every name aGTM's own adapters read must match, and session/login
+cookies (`PHPSESSID`, `auth_token`, `csrftoken`, …) must not.
+
+The expiry grid now also covers **every path prefix**, not just `/` and the current path —
+a cookie scoped to `/de/` was unreachable from `/de/produkt/42`. And the message about
+what survived was wrong in principle: it blamed `HttpOnly`, which cannot be the cause,
+because an `HttpOnly` cookie never appears in `document.cookie` and so never enters the
+list in the first place. A survivor is scoped to a domain or path the grid missed, and
+that is what it now says.
+
 Two follow-ups from the first live run, where the CMP frame's `localStorage` was cleared
 but its two cookies stayed: a CMP's own cookies are **cross-site** cookies
 (`SameSite=None; Secure`), and inside its third-party frame Chrome rejects a

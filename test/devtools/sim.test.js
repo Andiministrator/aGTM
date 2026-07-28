@@ -1244,3 +1244,87 @@ describe("formatFramePass — a partial success must not hide the rest", () => {
     expect(s).toContain("Inkognito");
   });
 });
+
+// ── the reset must cover aGTM's OWN user-id cookie and deeper cookie paths ──────
+describe("buildCookieResetCode — coverage gaps found by review", () => {
+  function jarAt(pathname, cookieStr) {
+    // Cookies remember the path they were set for; a delete only lands when the write
+    // carries that exact path — which is what the grid has to reproduce.
+    var store = {};
+    cookieStr.split(";").forEach(function (c) {
+      var i = c.indexOf("="); if (i < 0) return;
+      var name = c.slice(0, i).replace(/^\s+/, "");
+      var v = c.slice(i + 1).split("@");
+      store[name] = { val: v[0], path: v[1] || "/" };
+    });
+    var w = { location: { hostname: "www.shop.de", pathname: pathname, reload: function () {} } };
+    w.document = {
+      get cookie() {
+        return Object.keys(store).map(function (k) { return k + "=" + store[k].val; }).join("; ");
+      },
+      set cookie(v) {
+        var name = v.slice(0, v.indexOf("="));
+        var m = /path=([^;]*)/.exec(v);
+        if (!store[name] || !/expires=Thu, 01 Jan 1970/.test(v)) return;
+        if (m && m[1] === store[name].path) delete store[name];
+      }
+    };
+    w.__store = store;
+    return w;
+  }
+
+  test("_TPU — the sGTM Client's default user-id cookie — is in the shipped patterns", () => {
+    // Missing it made the reset useless on a Client-served site: the cookie survives, the
+    // next /aGTM.js resolves the uid, the stored consent comes back as cfg.session.consent
+    // and GTM injects with no banner — a "first visit" that never was one.
+    expect(SIM_COOKIE_DEFAULT).toContain("_TPU");
+    var w = jarAt("/", "_TPU=C.1.abc; PHPSESSID=keep");
+    var res = run(buildCookieResetCode(splitTokens(SIM_COOKIE_DEFAULT), {}), w);
+    expect(res.cleared).toEqual(["_TPU"]);
+    expect(Object.keys(w.__store)).toEqual(["PHPSESSID"]);
+  });
+  test("a cookie scoped to a parent path is reached from a deep page", () => {
+    var w = jarAt("/de/produkt/42", "OptanonConsent=x@/de/; __cmpconsent1=y@/");
+    var res = run(buildCookieResetCode(["Optanon", "__cmp"], {}), w);
+    expect(res.cleared.sort()).toEqual(["OptanonConsent", "__cmpconsent1"]);
+    expect(res.failed).toEqual([]);
+  });
+  test("a cookie on an unrelated path is honestly reported as still there", () => {
+    var w = jarAt("/de/", "OptanonConsent=x@/en/shop/");
+    var res = run(buildCookieResetCode(["Optanon"], {}), w);
+    expect(res.cleared).toEqual([]);
+    expect(res.failed).toEqual(["OptanonConsent"]);
+  });
+});
+
+// The default patterns are the feature: a name they miss is a cookie that survives, and
+// the survivor then gets blamed on the CMP's own origin. These pin what must be hit and
+// what must never be — including the localStorage keys four bundled adapters read.
+describe("SIM_COOKIE_DEFAULT — coverage of what aGTM's own adapters actually read", () => {
+  const pats = SIM_COOKIE_DEFAULT.split(",");
+  const hit = (k) => pats.some((p) => k.indexOf(p) >= 0);
+
+  test("the localStorage keys of the LS-based adapters are covered", () => {
+    // cc_matomo / cc_jtl_consent read localStorage 'consent', cc_tramino
+    // 'consentPermission', cc_perspectivefunnel 'perspective.tracking-preferences.<id>'.
+    // Without these the banner never comes back and the third-party origin gets blamed.
+    expect(hit("consent")).toBe(true);
+    expect(hit("consentPermission")).toBe(true);
+    expect(hit("perspective.tracking-preferences.42")).toBe(true);
+  });
+  test("aGTM's own user-id cookie is covered on both naming paths", () => {
+    expect(hit("_TPU")).toBe(true);      // sGTM Client default (cookie_name)
+    expect(hit("_tpf")).toBe(true);
+    expect(hit("aGTMoptout")).toBe(true); // a stuck opt-out looks exactly like "aGTM broken"
+  });
+  test("the common CMP cookies are covered", () => {
+    ["__cmpconsent45430", "__cmpccu45430", "CookieConsent", "OptanonConsent",
+     "OptanonAlertBoxClosed", "mtm_consent", "_tracking_consent", "cmpsettings",
+     "consentUUID", "euconsent-v2", "ccm_consent", "_iub_cs", "didomi_token"]
+      .forEach((n) => expect([n, hit(n)]).toEqual([n, true]));
+  });
+  test("session and login cookies are NOT touched", () => {
+    ["PHPSESSID", "JSESSIONID", "sid", "cart", "auth_token", "csrftoken", "XSRF-TOKEN",
+     "wp-settings-1", "_ga", "__Secure-1PSID"].forEach((n) => expect([n, hit(n)]).toEqual([n, false]));
+  });
+});

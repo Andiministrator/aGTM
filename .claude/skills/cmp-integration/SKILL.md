@@ -135,6 +135,16 @@ Two layers — both matter:
   add nothing here unless you introduce a new embedded CMP (then it covers that
   one automatically once `CMP_MAP`, the SELECT item, and `build.sh` line up).
 
+**Verifying an adapter against the real CMP** — the unit tests run against fixtures, so
+they cannot tell you the fixture matches reality. Two runs, two different states:
+**(a) first visit** — `consent_check('init')` must return `false` and leave
+`hasResponse` false (this is the fail-open test); **(b) return visit after a decision** —
+`'init'` must map the stored decision into `aGTM.d.consent`. Only (a) needs a genuinely
+clean browser, and that is harder to get than it looks — see `live-inspector`,
+"Getting a real first visit". Capture the CMP's runtime shape in both states with
+`live-inspector` Playbook C: a fixture written from a guessed shape passes its test and
+fails in production.
+
 **Note:** `build.sh` does not run `bun test`, and there is no CI. The self-healing
 protection against template drift is the sync writer inside `build.sh` itself; the
 drift-guard test depends on you running `bun test` — always do so before committing.
