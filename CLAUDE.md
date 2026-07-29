@@ -510,12 +510,16 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
   (status `na`, not `warn` — `mark` runs for weeks by design, and weeks of WARN would wear the
   overall status out; an outage or a `bot` verdict under `mark` still warns, and those are
   checked *before* the mode so the severe finding is never hidden by it).
-- **Measuring the `mark` phase cannot be done in the browser alone.** A webGTM variable is only
-  read when a tag fires, tags need GTM, and GTM needs consent — so every marked visitor who
-  never answers the CMP (most non-human traffic) contributes nothing. The Client therefore
-  writes a **non-debug** `warn` line for each bot it sees under `mark`; that log, or the filter
-  service's own numbers, is the complete record. The browser count is a false-positive detector
-  for humans, not a rate.
+- **Measuring the `mark` phase depends on what carries the number out.** `aGTM.d.bot` itself is
+  set inside `aGTM.f.config()`, i.e. while `/aGTM.js` executes — **before** any consent
+  decision, so the value is there for every visitor. The bottleneck is the *sender*: a webGTM
+  variable is only read when a tag fires, tags need GTM, and GTM needs consent, so a
+  consent-gated tag misses every visitor who never answers the CMP (most non-human traffic).
+  A consent-free sender — a cookieless analytics call in the page, a `noConsent` container —
+  sees all of them and makes the browser count a real rate. With a consent-gated sender it is
+  a false-positive detector for humans only. The Client also writes a **non-debug** `warn` line
+  for each bot it sees under `mark`; that log, or the filter service's own numbers, is complete
+  either way.
 - A missing verdict carries **`reason`**: `no_answer` · `bad_answer` · `no_client_ip`. Lumping
   them into a bare `unknown` would hide that "the filter is down" and "the IP header did not
   resolve" call for completely different responses.
