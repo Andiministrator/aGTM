@@ -587,9 +587,11 @@ visitor — a detected bot is answered with HTTP 403 and never receives the libr
 |---|---|---|
 | `isBot` | boolean | The definitive verdict. Effectively always `false` in the browser (see above), unless the Client runs in "only mark" mode. |
 | `score` | number | 0–100. Never blocks on its own. |
-| `band` | string | Coarse class, e.g. `clean` / `bot`. `bot` holds exactly when `isBot === true`. The Client sets `unknown` when the filter service did not answer, so an outage is distinguishable from a clean visitor. |
+| `band` | string | `clean` / `suspicious` / `bot` from the service, or **`other`** when the service sent a value outside the known vocabulary (the Client collapses unknown values and logs a warning), or **`unknown`** — the Client's own marker for "no usable verdict", so an outage is distinguishable from a clean visitor. `bot` holds exactly when `isBot === true`. |
 | `primarySignal` | string | Category of the highest-scoring signal (`asn_spam`, `known_bot`, …) |
-| `signals` | array | `{type, category, score, confirmed}` per evaluated signal; capped at 10, strings capped at 64 chars. Each signal's `detail` block stays server-side. |
+| `signals` | array | `{type, category, score, confirmed}` per evaluated signal; the list is capped at 10 and the loop is bounded independently of it. Each signal's `detail` block stays server-side. |
+| `mode` | string | `"block"` or `"mark"` — what the Client does with a positive verdict. Under `"mark"` it reports but never blocks, so `isBot: true` can legitimately appear in the browser. |
+| `reason` | string | Only alongside `band: "unknown"`: `no_answer` (filter unreachable/timeout), `bad_answer` (responded without a usable verdict), `no_client_ip` (never asked — the IP header did not resolve). |
 
 ### Accessing session data
 

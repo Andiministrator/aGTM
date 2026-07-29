@@ -105,9 +105,17 @@ const hasRequiredConsent = function(services, purposes, vendors) {
 
 // ── F→C user-ID promotion helpers ────────────────────────────────────────────
 // Declared up-front because the /aGTMconsent POST handler below references
-// them, and GTM's sandboxed-JS parser rejects forward references to
-// const-bound function expressions at parse time with "Illegal variable
-// reference before declaration".
+// them from a DIRECTLY EXECUTED top-level statement, and GTM's sandboxed-JS
+// parser rejects that at parse time with "Illegal variable reference before
+// declaration" (observed on import, commit d76d073).
+//
+// Precision matters here, because the two cases fail differently: a forward
+// reference from inside a FUNCTION BODY imports fine — it only blows up at
+// runtime, when the temporal dead zone is hit on the paths that actually reach
+// it. That is what F-130 was: the container imported and ran for a live
+// customer for weeks while /aGTM.js was dead for every configuration without a
+// Session API. Parse-time rejection is the loud failure; the runtime one is the
+// expensive one. Both are avoided by the same rule: helper before caller.
 
 // Generate a stable cookie-based user ID. Format:
 //   `C.1{lim}{tenant}{lim}{rand12}.{ms}`
@@ -526,16 +534,38 @@ const botCheckUrl = data.botCheck || '';
 // to "asn_spam:AS55967/Baidu/76ip" carries exactly the detail stripped below —
 // and at 27 characters a length cap would not have stopped it. Length is a
 // volume defence; this is a content question. So the VALUES are whitelisted
-// too, against the vocabulary of the api4filter contract (2026-07-14).
-// Anything outside it collapses to 'other': a widened or invented value can
-// still be seen ("something unknown fired"), but it cannot carry a payload.
-// Adding a value to the service means adding it here — which is the point.
-const BOT_BANDS = {clean: 1, suspicious: 1, bot: 1, unknown: 1};
+// too. Anything outside the vocabulary collapses to 'other': a widened or
+// invented value can still be seen ("something unknown fired"), but it cannot
+// carry a payload. Adding a value to the service means adding it here — which
+// is the point, PROVIDED the collapse is loud. It is: botFieldsFromResponse
+// counts collapses and logs a warning, otherwise a vocabulary drift would go
+// unnoticed exactly like the bugs this whole hardening pass was about.
+//
+// HOW WELL EACH TABLE IS BACKED — do not read this as "the contract says so":
+//  - BOT_CATEGORIES: enumerated verbatim in the service spec. Solid.
+//  - BOT_BANDS: `clean` and `bot` are documented ("band==='bot' iff isBot").
+//    `suspicious` is INFERRED from the scoring description, not stated.
+//  - BOT_TYPES: only `bot_string` and `asn_reputation` appear in the spec's
+//    examples; the other four are BACK-TRANSLATED from a prose sentence
+//    ("invalid client IP, detected cache hit, CIDR blocklist, UA bot string,
+//    referrer string") and may not match the real identifiers. `type` has no
+//    enumeration in the spec at all. Consequence of a wrong guess is a silent
+//    'other' — visible in the log, not a security issue, but a loss of
+//    resolution. Get the enumerations confirmed by the service owner.
+// `unknown` is deliberately NOT a band value here: the Client uses it as its
+// own "no usable verdict" sentinel (see botState below). Keeping it in the
+// table would let a service-sent `unknown` masquerade as our outage marker.
+const BOT_BANDS = {clean: 1, suspicious: 1, bot: 1};
 const BOT_CATEGORIES = {known_bot: 1, cidr_block: 1, asn_spam: 1, invalid_request: 1};
 const BOT_TYPES = {bot_string: 1, referrer_string: 1, cidr_block: 1, asn_reputation: 1, invalid_ip: 1, detected_cache: 1};
 
+// Counts values that fell outside the whitelist during one response, so the
+// drift can be reported once per request instead of once per field.
+const botDrift = {n: 0};
+
 const botEnum = function(v, allowed) {
   if (typeof v !== 'string' || !v) return '';
+  if (allowed[v] !== 1) botDrift.n = botDrift.n + 1;
   // `=== 1`, not truthiness: a bare lookup walks the prototype chain, so
   // "toString" and "constructor" would come back truthy and be forwarded
   // verbatim — the whitelist would have a hole exactly where an attacker
@@ -545,23 +575,28 @@ const botEnum = function(v, allowed) {
   return allowed[v] === 1 ? v : 'other';
 };
 
-// Scores are clamped to the contract's 0..100 and floored to an integer, so the
-// field carries a score and nothing else. Without this, `1e999` parses to
-// Infinity, passes a bare `typeof === 'number'` guard and reaches the browser as
-// `null` via JSON.stringify; a fractional score would be ~15 significant digits
-// of free payload per signal. Returns null when there is no usable number.
+// Scores are floored to an integer and bounded to the contract's 0..100, so the
+// field carries a score and nothing else — a fractional score would otherwise be
+// ~15 significant digits of free payload per signal. Returns null when there is
+// no usable number, INCLUDING a value above 100 (see below).
 const botScore = function(v) {
   // `v !== v` is the NaN test (no isNaN needed). No Infinity literal either —
   // the clamp below swallows both infinities on its own, and Math.floor is the
   // only global here with a precedent in this file.
   if (typeof v !== 'number' || v !== v) return null;
   if (v < 0) return 0;
-  if (v > 100) return 100;
+  // A score above 100 is not "very suspicious", it is a contract violation —
+  // clamping it to 100 would hand the most incriminating legal value to a
+  // broken response, and a webGTM rule like `score >= 80 -> spam` would act on
+  // it. No verdict is the honest answer. (This also swallows +Infinity, which
+  // is why no Infinity literal is needed.)
+  if (v > 100) return null;
   return Math.floor(v);
 };
 
 const botFieldsFromResponse = function(body) {
   const out = {};
+  botDrift.n = 0;
   if (typeof body !== 'string' || !body) return out;
   // The server sandbox's JSON.parse returns undefined (it does not throw) on
   // malformed input — the guard below covers that.
@@ -572,9 +607,14 @@ const botFieldsFromResponse = function(body) {
   // clean visitor — without this guard it would arrive as {isBot:false}.
   if (typeof o.isBot !== 'boolean') return out;
   out.isBot = o.isBot;
-  if (botScore(o.score) !== null) out.score = botScore(o.score);
-  if (botEnum(o.band, BOT_BANDS)) out.band = botEnum(o.band, BOT_BANDS);
-  if (botEnum(o.primarySignal, BOT_CATEGORIES)) out.primarySignal = botEnum(o.primarySignal, BOT_CATEGORIES);
+  // Each helper is called ONCE per field and its result reused. Calling twice
+  // ("if (f(x)) out.k = f(x)") doubled the drift counter and the work.
+  const oScore = botScore(o.score);
+  if (oScore !== null) out.score = oScore;
+  const oBand = botEnum(o.band, BOT_BANDS);
+  if (oBand) out.band = oBand;
+  const oPrim = botEnum(o.primarySignal, BOT_CATEGORIES);
+  if (oPrim) out.primarySignal = oPrim;
   // Array duck-check: the sandbox has no Array.isArray. Index loop, not for…of:
   // the duck-check accepts any object with a numeric `length`, which for…of
   // would reject with a TypeError — and the sandbox has no try/catch, so that
@@ -592,9 +632,12 @@ const botFieldsFromResponse = function(body) {
       const s = o.signals[i];
       if (s && typeof s === 'object') {
         const e = {};
-        if (botEnum(s.type, BOT_TYPES)) e.type = botEnum(s.type, BOT_TYPES);
-        if (botEnum(s.category, BOT_CATEGORIES)) e.category = botEnum(s.category, BOT_CATEGORIES);
-        if (botScore(s.score) !== null) e.score = botScore(s.score);
+        const sType = botEnum(s.type, BOT_TYPES);
+        if (sType) e.type = sType;
+        const sCat = botEnum(s.category, BOT_CATEGORIES);
+        if (sCat) e.category = sCat;
+        const sScore = botScore(s.score);
+        if (sScore !== null) e.score = sScore;
         if (s.confirmed === true) e.confirmed = true;
         // `detail` is deliberately NOT forwarded. For asn_reputation it carries
         // tenant-wide aggregates about OTHER visitors (asn, asnOrg, uniqueIps,
@@ -606,8 +649,20 @@ const botFieldsFromResponse = function(body) {
     }
     out.signals = sig;
   }
+  // One line per affected request, not per field. If this ever shows up in
+  // production the service vocabulary has moved and the tables above are stale
+  // — without it the loss is completely silent, in the browser and in the log.
+  if (botDrift.n > 0) logToConsole('warn', '\u2717 Bot check: ' + botDrift.n + ' value(s) outside the known vocabulary, collapsed to "other" - the api4filter contract may have changed');
   return out;
 };
+
+// Filled by the bot check before afterBotCheck() runs; read by buildAndSend().
+// A const container mutated by property, NOT a rebound top-level `let`: writing
+// a property from inside a callback is the pattern already proven live in this
+// file (sessionData.uid in the promote callback, sessionData[k] in the sources
+// callback), whereas rebinding a top-level binding from a closure has no
+// precedent here and would be an unverified assumption in server-sandbox code.
+const botState = {verdict: null};
 
 // Declared BEFORE its callers on purpose. It used to sit at the end of the file,
 // which made every synchronous serve path a forward reference to a `const`
@@ -674,7 +729,7 @@ const buildAndSend = function(sessionData) {
   if (botCheckEnabled && CFG.botCheckExpose && botState.verdict && typeof botState.verdict.isBot === 'boolean') c.bot = botState.verdict;
   // Reachable in two clicks and otherwise silent: the check costs an HTTP round
   // trip on every /aGTM.js, blocks nothing and publishes nothing.
-  if (botCheckEnabled && CFG.botCheckMode === 'mark' && !CFG.botCheckExpose) {
+  if (botCheckEnabled && botCheckUrl && CFG.botCheckMode === 'mark' && !CFG.botCheckExpose) {
     logToConsole('warn', '\u2717 Bot check: mode=mark with the browser passthrough off - the check runs, blocks nothing and reports nothing');
   }
   // Consent-store endpoint: NOT set server-side. The browser builds the URL
@@ -728,13 +783,6 @@ const buildAndSend = function(sessionData) {
   returnResponse();
 };
 
-// Filled by the bot check before afterBotCheck() runs; read by buildAndSend().
-// A const container mutated by property, NOT a rebound top-level `let`: writing
-// a property from inside a callback is the pattern already proven live in this
-// file (sessionData.uid in the promote callback, sessionData[k] in the sources
-// callback), whereas rebinding a top-level binding from a closure has no
-// precedent here and would be an unverified assumption in server-sandbox code.
-const botState = {verdict: null};
 
 const afterBotCheck = function(isBot) {
   if (isBot) {
@@ -909,7 +957,11 @@ if (botCheckEnabled && botCheckUrl) {
     returnResponse();
   } else if (!clientIP) {
     logToConsole('warn', '\u2717 Bot check enabled but no client IP - passed through (mark mode)');
-    botState.verdict = {isBot: false, band: 'unknown', mode: CFG.botCheckMode};
+    // `reason` separates the three ways a verdict can be missing. Without it
+    // "unknown" lumps together "the filter is down", "the filter answered
+    // garbage" and "we never asked because the IP header did not resolve" —
+    // and those call for completely different responses from an operator.
+    botState.verdict = {isBot: false, band: 'unknown', reason: 'no_client_ip', mode: CFG.botCheckMode};
     afterBotCheck(false);
   } else {
     const plObj = {UserAgent: userAgent, ClientIP: clientIP};
@@ -931,7 +983,7 @@ if (botCheckEnabled && botCheckUrl) {
       // visitor — and without this it would be indistinguishable from "check
       // disabled" in the browser. Only the transport-error path was covered
       // before, which is the rarer half of the failure modes.
-      if (typeof botState.verdict.isBot !== 'boolean') botState.verdict = {isBot: false, band: 'unknown'};
+      if (typeof botState.verdict.isBot !== 'boolean') botState.verdict = {isBot: false, band: 'unknown', reason: 'bad_answer'};
       // The mode travels with the verdict. Otherwise `mark` is invisible: a
       // page under `mark` looks exactly like one under `block` for as long as
       // no bot shows up, and nothing reminds anyone that the filter is off.
@@ -939,8 +991,17 @@ if (botCheckEnabled && botCheckUrl) {
       if (CFG.debug) logToConsole('debug', 'Bot check verdict', {status: r.statusCode, bot: botState.verdict});
       // `mark` reports the verdict but never blocks. It exists because a blocked
       // visitor is invisible: no library, no aGTM.d.bot, no way to count false
-      // positives. Run `mark` first, count aGTM.d.bot.isBot in webGTM, then
-      // switch to `block`.
+      // positives.
+      //
+      // NOT debug-gated, on purpose. The browser cannot be the measurement for
+      // the mark phase: a webGTM variable is only read when a tag fires, tags
+      // only fire once GTM is injected, and GTM is only injected after consent
+      // — so every marked visitor who never answers the CMP (i.e. most
+      // non-human traffic) contributes nothing. This line is the server-side
+      // counterpart, and it is the only complete record of what `mark` saw.
+      if (botState.verdict.isBot === true && CFG.botCheckMode === 'mark') {
+        logToConsole('warn', '\u2717 Bot detected (mark mode - served anyway)', userAgent);
+      }
       afterBotCheck(CFG.botCheckMode === 'block' && botState.verdict.isBot === true);
     }, function(e) {
       logToConsole('error', '\u2717 Bot check error', e);
@@ -948,7 +1009,7 @@ if (botCheckEnabled && botCheckUrl) {
       // indistinguishable from a clean visitor in the browser, and a webGTM
       // traffic-type variable would silently report 'regular' for 100% of
       // traffic for as long as the outage lasts.
-      botState.verdict = {isBot: false, band: 'unknown', mode: CFG.botCheckMode};
+      botState.verdict = {isBot: false, band: 'unknown', reason: 'no_answer', mode: CFG.botCheckMode};
       afterBotCheck(false);
     });
   }

@@ -108,9 +108,12 @@ describe("botCheckStatus — health check", () => {
     expect(botCheckStatus({ bot: {} })).toBeNull();
   });
 
-  test("'mark' is a warning — a filter left switched off must not look healthy", () => {
+  test("'mark' is visible but does not colour the whole report", () => {
+    // `na` rather than `warn`: mark is a CHOSEN configuration that runs for
+    // weeks by design. Weeks of WARN on every exported report wears the overall
+    // status out, and the next reader skims past a real pre-consent leak.
     const c = botCheckStatus({ bot: { isBot: false, band: "clean", mode: "mark" } });
-    expect(c.status).toBe("warn");
+    expect(c.status).toBe("na");
     expect(c.detail).toContain("blockt NICHTS");
   });
 
@@ -138,9 +141,13 @@ describe("botCheckStatus — health check", () => {
     expect(withBlock.map((c) => c.key)).toContain("bot");
     expect(overallLevel(withBlock).level).toBe("pass");
 
-    // `mark` drags the overall level down — that is the whole point
+    // `mark` stays visible in the list but does not drag the overall level
     const withMark = healthChecks({ ...healthy, bot: { isBot: false, band: "clean", mode: "mark" } }, [], [], true);
-    expect(overallLevel(withMark).level).toBe("warn");
+    expect(withMark.filter((c) => c.key === "bot")[0].status).toBe("na");
+    expect(overallLevel(withMark).level).toBe("pass");
+    // an outage under mark DOES drag it down
+    const withOutage = healthChecks({ ...healthy, bot: { isBot: false, band: "unknown", mode: "mark" } }, [], [], true);
+    expect(overallLevel(withOutage).level).toBe("warn");
   });
 });
 
@@ -159,6 +166,29 @@ describe("bot verdict in the compliance report", () => {
     expect(md).toContain("## Bot-Check");
     expect(md).toContain("asn_spam");
     expect(md).toContain("auffällig, aber durchgelassen");
+  });
+
+  test("the section leads with whose machine it describes", () => {
+    // The report is headed "Seite: <host>". Without this line an asn_spam entry
+    // reads as a finding about the customer's traffic, when it is in fact about
+    // the consultant's VPN.
+    const md = buildReportMarkdown(ctx({ isBot: false, score: 40, band: "clean", primarySignal: "asn_spam", mode: "block" }));
+    expect(md).toContain("den Rechner, der diesen Report erzeugt hat");
+    expect(md).toContain("- **Modus:**");
+    // A JSON consumer gets no prose around it, so the field carries it
+    const j = JSON.parse(buildReportJSON(ctx({ isBot: false, band: "clean" })));
+    expect(j.bot.provenance).toContain("machine that generated this report");
+  });
+
+  test("mark never hides the more severe finding", () => {
+    // Checking the mode first made the outage and the bot verdict unreachable
+    // for every mark user — i.e. for the only setup that has the mode on.
+    const outage = botCheckStatus({ bot: { isBot: false, band: "unknown", mode: "mark" } });
+    expect(outage.status).toBe("warn");
+    expect(outage.detail).toContain("Kein verwertbares Urteil");
+    const asBot = botCheckStatus({ bot: { isBot: true, band: "bot", mode: "mark" } });
+    expect(asBot.status).toBe("warn");
+    expect(asBot.detail).toContain("Als Bot eingestuft");
   });
 
   test("the section is omitted when there is no verdict", () => {

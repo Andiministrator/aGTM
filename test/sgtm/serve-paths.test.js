@@ -11,10 +11,16 @@
 // live customer) masked it, and because finding F-44 had recorded the forward
 // reference as "deliberate" rather than as a defect.
 //
-// The stubs mirror the server sandbox's contracts, not Node's: JSON.parse
-// returns undefined instead of throwing, sendHttpGet resolves for any completed
-// response (including 4xx/5xx), and there is no try/catch in the sandbox — so a
-// throw here means a dead response there.
+// The stubs mirror three server-sandbox CONTRACTS that Node gets wrong:
+// JSON.parse returns undefined instead of throwing, sendHttpGet resolves for
+// any completed response (including 4xx/5xx), and returnResponse() makes later
+// writes moot. A throw here means a dead response there.
+//
+// What this file does NOT cover: the sandbox's LANGUAGE restrictions. Node
+// happily runs try/catch, parseInt, Array.isArray and `'k' in obj`, all of which
+// the sandbox rejects — a QA round mutated each of them in and watched the suite
+// stay green. Those are linted separately in sandbox-lint.test.js. Do not read
+// a green run here as "this would work in GTM".
 import { describe, test, expect } from 'bun:test';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -231,13 +237,22 @@ describe('bot check end to end', () => {
   });
 
   test('a hostile signals object cannot stall the response', () => {
+    // Measure the DELTA against an identical run with a harmless body, not the
+    // absolute time — most of runClient() is compiling ~100 KB of source, which
+    // swamped the signal and let the missing bound pass unnoticed.
+    const base = performance.now();
+    runClient({ data: botData({}), http: () => ({ statusCode: 200, body: '{"isBot":false,"signals":[]}' }) });
+    const baseline = performance.now() - base;
+
     const start = performance.now();
     const r = runClient({
       data: botData({}),
       http: () => ({ statusCode: 200, body: '{"isBot":false,"signals":{"length":50000000}}' })
     });
+    const hostile = performance.now() - start;
     expect(r.throws).toBeNull();
     expect(r.status).toBe(200);
-    expect(performance.now() - start).toBeLessThan(200);
+    // Without the `i < 50` bound this is ~100 ms of pure loop on top.
+    expect(hostile - baseline).toBeLessThan(25);
   });
 });
