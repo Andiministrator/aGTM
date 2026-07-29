@@ -347,8 +347,16 @@
    * @returns {{state:string, level:string, label:string, note:string,
    *            score:(number|null), band:string, primary:string, mode:string,
    *            reason:string, signals:Array}}
-   *          state: "absent" | "clean" | "scored" | "unknown" | "bot"
+   *          state: "absent" | "clean" | "scored" | "unknown" | "drift" | "bot"
    */
+  function hasOtherSignal(signals) {
+    for (var i = 0; i < signals.length; i++) {
+      var sg = signals[i] || {};
+      if (sg.type === "other" || sg.category === "other") return true;
+    }
+    return false;
+  }
+
   function botSummary(bot) {
     bot = (bot && typeof bot === "object") ? bot : {};
     var has = typeof bot.isBot === "boolean";
@@ -356,8 +364,13 @@
     var band = typeof bot.band === "string" ? bot.band : "";
     var primary = typeof bot.primarySignal === "string" ? bot.primarySignal : "";
     var mode = (bot.mode === "mark" || bot.mode === "block") ? bot.mode : "";
-    var REASONS = { no_answer: "Filter hat nicht geantwortet", bad_answer: "Filter-Antwort unbrauchbar", no_client_ip: "Client-IP nicht auflösbar" };
-    var reason = (typeof bot.reason === "string" && REASONS[bot.reason]) ? bot.reason : "";
+    // Explicit comparisons, not a lookup: a bare `REASONS[bot.reason]` walks the
+    // prototype chain, so "toString"/"constructor" come back truthy and a
+    // page-supplied string ends up verbatim in the exported customer report
+    // (a multi-line native-code dump, in the case of toString). Same class the
+    // Client guards against with `allowed[v] === 1`; `mode` two lines up already
+    // does it right, and the inconsistency inside one function is the defect.
+    var reason = (bot.reason === "no_answer" || bot.reason === "bad_answer" || bot.reason === "no_client_ip") ? bot.reason : "";
     var signals = arr(bot.signals);
     var base = { score: score, band: band, primary: primary, mode: mode, reason: reason, signals: signals };
     function out(state, level, label, note) {
@@ -365,7 +378,12 @@
         score: base.score, band: base.band, primary: base.primary, mode: base.mode,
         reason: base.reason, signals: base.signals };
     }
-    function reasonText() { return REASONS[base.reason] ? " Ursache laut Client: " + REASONS[base.reason] + "." : ""; }
+    function reasonText() {
+      if (base.reason === "no_answer") return " Ursache laut Client: Filter hat nicht geantwortet.";
+      if (base.reason === "bad_answer") return " Ursache laut Client: Filter-Antwort unbrauchbar.";
+      if (base.reason === "no_client_ip") return " Ursache laut Client: Client-IP nicht auflösbar.";
+      return "";
+    }
     if (!has) {
       // Literals, not the collected values: without a boolean isBot there is no
       // verdict, so echoing a score/band/mode a page happened to set would put
@@ -381,6 +399,16 @@
     if (band === "unknown") {
       return out("unknown", "warn", "kein verwertbares Urteil",
         "Der Bot-Check hat nicht (verwertbar) geantwortet." + reasonText() + " Das ist NICHT dasselbe wie „unauffällig\": eine traffic_type-Variable, die nur auf band==='bot' prüft, meldet in diesem Zustand stumm „regular\" für den gesamten Traffic.");
+    }
+    // A value the Client did not recognise. Without this branch a drifted
+    // vocabulary reads as "unauffällig" in the panel AND in the exported report
+    // — the server log would be shouting while every browser surface stayed
+    // green. It also restores the old behaviour for a service-sent `unknown`,
+    // which used to warn and would otherwise now pass (`unknown` left the band
+    // whitelist, so it arrives here as `other`).
+    if (base.band === "other" || base.primary === "other" || hasOtherSignal(signals)) {
+      return out("drift", "warn", "unbekannter Wert vom Filter-Dienst",
+        "Der Bot-Check hat einen Wert geliefert, den der sGTM Client nicht kennt — er wurde zu „other\" zusammengefaltet. Das heißt: der api4filter-Vertrag hat sich bewegt und die Vokabular-Tabellen im Client sind veraltet. Der Server-Log nennt den konkreten Wert.");
     }
     if (bot.isBot === true) {
       // Under `mark` this is the configured, intended state — not a
@@ -410,6 +438,10 @@
     // for every mark user — i.e. for the only setup that has the mode switched
     // on at all. The severe finding wins; the mode is appended to it.
     var markNote = mark ? " Modus „mark\" — es wird nichts geblockt." : "";
+    if (b.state === "drift") {
+      return { key: "bot", label: "Bot-Check", status: "warn",
+        detail: "Unbekannter Wert vom Filter-Dienst (zu „other\" gefaltet) — die Vokabular-Tabellen im sGTM Client sind veraltet." + markNote };
+    }
     if (b.state === "unknown") {
       return { key: "bot", label: "Bot-Check", status: "warn",
         detail: "Kein verwertbares Urteil — Filter-Ausfall oder Timeout." + markNote };

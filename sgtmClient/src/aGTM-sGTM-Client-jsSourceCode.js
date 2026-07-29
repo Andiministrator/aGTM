@@ -559,13 +559,24 @@ const BOT_BANDS = {clean: 1, suspicious: 1, bot: 1};
 const BOT_CATEGORIES = {known_bot: 1, cidr_block: 1, asn_spam: 1, invalid_request: 1};
 const BOT_TYPES = {bot_string: 1, referrer_string: 1, cidr_block: 1, asn_reputation: 1, invalid_ip: 1, detected_cache: 1};
 
-// Counts values that fell outside the whitelist during one response, so the
-// drift can be reported once per request instead of once per field.
-const botDrift = {n: 0};
+// Collects the values that fell outside the whitelist during one response, so
+// the drift is reported once per request instead of once per field — and with
+// the offending values, not just a count. A bare number is not actionable: an
+// operator cannot tell which field moved without reproducing the request.
+//
+// Naming the values in the SERVER log is safe and deliberate: they come from the
+// tenant's own filter service, not from the visitor. The whitelist exists to
+// keep them out of the BROWSER, which it still does. Capped at 3 so a service
+// that renames everything cannot turn one line into a payload.
+const botDrift = {vals: []};
+
+const botDriftNote = function(v) {
+  if (botDrift.vals.length < 3) botDrift.vals.push(v);
+};
 
 const botEnum = function(v, allowed) {
   if (typeof v !== 'string' || !v) return '';
-  if (allowed[v] !== 1) botDrift.n = botDrift.n + 1;
+  if (allowed[v] !== 1) botDriftNote(v);
   // `=== 1`, not truthiness: a bare lookup walks the prototype chain, so
   // "toString" and "constructor" would come back truthy and be forwarded
   // verbatim — the whitelist would have a hole exactly where an attacker
@@ -585,18 +596,23 @@ const botScore = function(v) {
   // only global here with a precedent in this file.
   if (typeof v !== 'number' || v !== v) return null;
   if (v < 0) return 0;
+  // Floor FIRST, then bound: 100.4 is a float artefact of a legal score and
+  // becomes 100; only a genuine 101+ is rejected. Testing `v > 100` before
+  // flooring made the field vanish for 100.0000001.
+  //
   // A score above 100 is not "very suspicious", it is a contract violation —
   // clamping it to 100 would hand the most incriminating legal value to a
   // broken response, and a webGTM rule like `score >= 80 -> spam` would act on
   // it. No verdict is the honest answer. (This also swallows +Infinity, which
   // is why no Infinity literal is needed.)
-  if (v > 100) return null;
-  return Math.floor(v);
+  const f = Math.floor(v);
+  if (f > 100) return null;
+  return f;
 };
 
 const botFieldsFromResponse = function(body) {
   const out = {};
-  botDrift.n = 0;
+  botDrift.vals = [];
   if (typeof body !== 'string' || !body) return out;
   // The server sandbox's JSON.parse returns undefined (it does not throw) on
   // malformed input — the guard below covers that.
@@ -652,7 +668,7 @@ const botFieldsFromResponse = function(body) {
   // One line per affected request, not per field. If this ever shows up in
   // production the service vocabulary has moved and the tables above are stale
   // — without it the loss is completely silent, in the browser and in the log.
-  if (botDrift.n > 0) logToConsole('warn', '\u2717 Bot check: ' + botDrift.n + ' value(s) outside the known vocabulary, collapsed to "other" - the api4filter contract may have changed');
+  if (botDrift.vals.length > 0) logToConsole('warn', '\u2717 Bot check: value(s) outside the known vocabulary, collapsed to "other" - the api4filter contract may have changed. Seen (max 3):', botDrift.vals.join(', '));
   return out;
 };
 
@@ -1014,6 +1030,10 @@ if (botCheckEnabled && botCheckUrl) {
     });
   }
 } else {
+  // Fourth way to end up without a verdict: the check is switched on but no URL
+  // was configured. Silent until now — and the only one with no browser-visible
+  // trace either, because `absent` is the correct reading there.
+  if (botCheckEnabled && !botCheckUrl) logToConsole('warn', '\u2717 Bot check enabled but no URL configured - no check was performed');
   afterBotCheck(false);
 }
 

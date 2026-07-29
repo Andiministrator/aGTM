@@ -78,6 +78,56 @@ about.
   site's traffic. Without that, a consultant on a VPN turns an `asn_spam` line into what
   reads like a finding about the customer.
 
+### Fixed — the two production log lines never reached production
+
+Both new `warn` calls exist for one reason: an operator has to see them in a live
+container. The vocabulary-drift alarm, and the line that records every bot seen
+while the check runs in `mark` mode — which is the only complete record of that
+phase, since the browser side depends on a consent-gated tag.
+
+The template declared the `logging` permission with `environments: "debug"`, so
+the sandbox turns every `logToConsole` in the serve path into a silent no-op
+outside preview. The intent was in the code comment, the effect was in the
+manifest, and nobody held the two against each other — until the promise had
+already been written into the customer-facing field help. The same widening had
+been done once before, for the DL-Repeat tag, for the same reason.
+
+Scoped to `all` now, and a test parses the permissions block and asserts it, so
+the promise is tied to a check rather than to a comment.
+
+The rest of the fourth review round:
+
+- **A vocabulary drift was loud on the server and green in the browser.** When
+  `unknown` left the band whitelist it started arriving as `other`, and
+  `botSummary` had no branch for that — so a service-sent `unknown`, which used
+  to warn, quietly began to pass. There is a `drift` state now, for `band`,
+  `primarySignal` and the per-signal values, and the health check reports it.
+- **`reason` was validated through the prototype chain.** `reason: "toString"`
+  came back truthy and put a multi-line native-code dump into the exported
+  Markdown report. Explicit comparisons now — the neighbouring line already did
+  it that way for `mode`, which is what made this a defect rather than a taste.
+- **The drift warning names the values.** A count alone cannot be acted on
+  without reproducing the request. The values come from the tenant's own filter
+  service, not from the visitor, and the log is server-side — the whitelist
+  exists to keep them out of the browser, which it still does. Capped at three.
+- **A score just above 100 no longer vanishes.** Flooring before bounding keeps
+  `100.4` as `100`; only a genuine `101` is rejected as a contract violation.
+- The fourth way to end up without a verdict — check enabled, no URL configured
+  — was entirely silent and now logs.
+- **The sandbox linter was attacked, not just run.** Five bypasses got through
+  it: `Array['isArray']`, the same with double quotes, `const pI = parseInt`, a
+  variable key on the `in` operator, and `require("…")` with double quotes. All
+  five are caught now. What a regex cannot see in principle — an arbitrary alias
+  — is stated in the file rather than implied to be covered.
+- **One rule was deliberately not added.** "No multi-line boolean chains" is in
+  the project notes, but the attempt immediately flagged `hasRequiredConsent` —
+  a three-line `||` chain that has been importing and running in a live
+  container for months. That refutes the blanket rule, not the code; rewriting
+  proven code to satisfy an unproven rule would be the wrong way round. The
+  counterexample is documented where the rule would have gone.
+- `test/run_cc.test.js` also leaked a consent_check stub — harmless today, same
+  class as the leak that made a fresh clone red, closed anyway.
+
 ### Fixed — a third review round: the test gate itself was wrong
 
 **`bun test` was order-dependent, and a fresh clone was red.** The new
