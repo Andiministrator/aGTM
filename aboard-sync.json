@@ -1534,6 +1534,12 @@
                 "author": "Claude Opus",
                 "text": "Vierte Pruefrunde (eng, nur der Delta ae5baf5 -> 251b1b5): F-134 (P1) + F-135. FREIGABE war NEIN, aber wieder kein Serve-Pfad-Problem und kein Rollback.\n\nWICHTIG FUER DIE LAUFENDE MESSPHASE (F-134): die logging-Permission im Client-Template stand auf environments=\"debug\". Damit sind ALLE logToConsole-Aufrufe im Serve-Pfad ausserhalb des Preview-Modus stille No-ops - auch die beiden neuen warn-Zeilen, deren ganze Begruendung Produktionssichtbarkeit war. Die mark-Messphase bei fc-moto hat also serverseitig GAR KEINEN Datensatz; die Plausible-Zahl ist derzeit die einzige Quelle. Auf \"all\" korrigiert, wirksam erst mit dem naechsten Client-Re-Import. Ein Test parst jetzt die Permissions und asserted das - die Zusage haengt nicht mehr an einem Kommentar.\n\nRegression aus der Vorrunde gefunden: als \"unknown\" die Band-Whitelist verliess, kam es als \"other\" an - und botSummary hatte dafuer keinen Zweig. Ein vom Dienst gesendetes unknown erzeugte vorher warn, danach pass. Server-Log haette geschrien, jede Browser-Oberflaeche waere gruen geblieben. Neuer drift-State (warn) fuer band/primarySignal/signals.\n\nWeiter: reason-Validierung lief ueber die Prototypenkette (reason=\"toString\" ergab einen Native-Code-Dump im exportierten Kundenreport); Drift-Warnung nennt jetzt die Werte statt nur eine Anzahl (gedeckelt auf 3); score 100.4 verschwand komplett statt auf 100 zu fallen; vierter Kein-Urteil-Pfad (enabled ohne URL) war stumm; fuenf Umgehungen im neuen Sandbox-Linter geschlossen (Array['isArray'], parseInt-Alias, Variablen-Key beim in-Operator, require mit doppelten Anfuehrungszeichen).\n\nBewusst NICHT gemacht: eine Linter-Regel gegen mehrzeilige Boolean-Ketten. Der Versuch meldete sofort hasRequiredConsent - eine dreizeilige ||-Kette, die seit Monaten live importiert ist und laeuft. Damit ist die pauschale Regel aus den Projektnotizen widerlegt, nicht der Code. Gegenbeispiel im Testfile dokumentiert.\n\nPositiv aus dem Bericht: der Einmal-Aufruf-Umbau ist beweisbar verhaltensneutral (Differentialtest, 4008 Fuzz-Faelle, 0 Output-Abweichungen), null Forward-Referenzen ueber alle 61 Top-Level-Bindings, frischer Clone 874/874 auch bei Reverse-Order und 6 Shuffles.",
                 "created": "2026-07-29"
+              },
+              {
+                "id": "4dee65f7-fcf2-45bb-9958-f27bd85b5018",
+                "author": "Claude Opus",
+                "text": "UEBERGABE an den naechsten Chat (Stand 2026-07-29, Ende der Session).\n\nCode ist fertig und gepusht (4fd5706). Vier Pruefrunden (QA + Kritiker) sind durch, alle Befunde beseitigt, Findings F-127 bis F-135 dokumentiert. 874 Tests gruen IM FRISCHEN CLONE (das ist seit F-132 das Gate - Arbeitsverzeichnis allein zaehlt nicht mehr). build.sh sauber, Sandboxed-Block byte-identisch, ZIP reproduzierbar.\n\nLIVE-STAND fc-moto: Client re-importiert und im Modus \"mark\" veroeffentlicht (blockt nichts, meldet nur). Genau ein GTM-Container, Consent Check = yes. Bot-Werte gehen nach Plausible.\n\nOFFEN - das gehoert dem naechsten Chat NICHT, sondern Andi:\n1. Andi sieht nach, ob der Plausible-Aufruf mit dem Bot-Wert im GTM-Container haengt oder direkt im Seiten-HTML. Direkt = Messung vollstaendig, Rate rechenbar. Im Container = nur Einwilligende, dann ist die Zahl nur ein Falsch-Positiv-Detektor.\n2. In 1-2 Wochen die Zahlen anschauen, dann entscheiden wir ueber \"block\". Faustregel: ueber ~1 % bot bei normalem Endkunden-Traffic ist erklaerungsbeduerftig.\n3. Beim NAECHSTEN Client-Re-Import kommen mit: das reason-Feld (no_answer/bad_answer/no_client_ip) und die logging-Permission auf \"all\" (F-134). Bis dahin ist die mark-Phase serverseitig blind - Plausible ist derzeit die einzige Quelle.\n4. Beim Service-Owner (kaiser@tracking-garden.com) die Enumerationen fuer band und signals[].type bestaetigen lassen. Vier von sechs BOT_TYPES sind aus einem Prosasatz rueckuebersetzt; solange das offen ist, ist ein \"other\"-Treffer eher wahrscheinlich als exotisch.\n\nKARTE: #56 steht auf QA mit qa=true und wartet auf Andis Abnahme. NICHT von selbst nach Erledigt schieben.\n\nRELEASE: v1.5 bleibt weiterhin offen. Kein Tag, kein Merge nach main, kein /sprint-abschluss ohne Andis ausdrueckliches Zeichen.",
+                "created": "2026-07-29"
               }
             ],
             "qa": true
@@ -1673,23 +1679,6 @@
             "displayId": 46
           },
           {
-            "id": "ac06b129-067e-4f82-81d0-0cfe2dc91c93",
-            "title": "sGTM Client: Session-API-Zaehler in aGTM.d.session durchreichen (created/counter/pv/event/sessionCount)",
-            "description": "Befund (fc-moto Live-Objekt 2026-07-26, via aGTM Inspector): aGTM.d.session traegt die Session-API-Zaehler NICHT (nur uid/sid/ret/sst/vct/ga4sid/muidga4/consent/source; vct=49 != sessionCount=56). Die vollen Zaehler (created/counter/pvCount/eventCount/sessionCount/lastInteraction) liegen nur in window.se_data. Der Inspector zieht sie jetzt als read-only Fallback aus se_data (Commit 4dc4d36), aber der saubere Weg ist server-seitig: der sGTM Client soll diese Felder aus dem Session-API-Record in cfg.session -> aGTM.d.session durchreichen (wie source), damit webGTM/Integratoren sie via aGTM.d.session lesen koennen ohne se_data-Abhaengigkeit. RELEASE-SENSIBEL: aendert den in den Client eingebetteten base64-Blob / cfg.session-Shape -> rippelt in live getestete Kunden (fc-moto) mitten in der offenen v1.5. Daher NICHT im Inspector-Chat angefasst. Reserved-Key-Blacklist beachten (created/counter etc. sind KEINE reserved session keys, sollten also durchgehen - pruefen warum sie aktuell fehlen: filtert der Client sie? oder liefert die Session-API sie nur im se_data-Pfad?).",
-            "priority": "P2",
-            "status": "todo",
-            "owner": "",
-            "columnId": "col-backlog",
-            "displayId": 48,
-            "comments": [
-              {
-                "id": "8e3ac03b-da70-4280-bc7c-0b5dea508747",
-                "author": "Claude Opus",
-                "text": "Mit F-128 erledigt: der sGTM Client reicht created/lastInteraction/pvCount/eventCount/sessionCount jetzt in aGTM.d.session durch. counter wird NICHT dupliziert (faehrt schon als vct), customerId/user als redundant verworfen. Die im Kartentext vermutete Ursache war richtig: es lag am Client, nicht an der Session-API - sd wurde schlicht nur aus sieben Feldern gebaut. Wichtig fuer Leser: vct ist die API-counter (Requests je Session), NICHT die Besuchszahl - das ist sessionCount (fc-moto 49 vs 56). ret/vct blieben absichtlich unangetastet, weil ret die serverseitige Consent-Auto-Denial gated. Der Inspector zieht die Zaehler jetzt aus aGTM.d.session; der se_data-Fallback bleibt fuer Seiten auf aelterem Client-Build. Siehe neue Karte im v1.5-Sprint."
-              }
-            ]
-          },
-          {
             "id": "ea2ef521-ed2d-4e36-85f0-6381eceb40e1",
             "title": "aGTM.d.session.vct umbenennen/aufloesen - Requests vs. Besuche (Schuld aus F-128)",
             "description": "vct ist die counter der Session-API: Requests innerhalb der laufenden Session. Der Name und die alte Doku legten Besuchszahl nahe - die steht in sessionCount (fc-moto live: 49 vs 56). Die Falle hat schon zugeschlagen (Karte #48, Inspector-Kacheltext).\\n\\nIn F-128 bewusst NICHT angefasst: ret = vct > 0 gated die serverseitige Consent-Auto-Denial im sGTM Client; eine Umdeutung waehrend ein Live-Kunde auf dem unreleasten v1.5 laeuft, waere genau die Nebenwirkung, die man nicht mitfahren laesst. Der Kritiker hat das bestaetigt, aber zu Recht angemerkt: ein Code-Kommentar dokumentiert die Schuld, er tilgt sie nicht.\\n\\nZu klaeren: sprechenderer Name (requestCount?) mit Alias-Uebergangszeit, oder vct behalten und nur die Semantik ueberall hart dokumentieren. Braucht Migrationsnotiz, weil Integratoren aGTM.d.session.vct lesen koennen.",
@@ -1701,6 +1690,30 @@
             "effort": "S",
             "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (sd.vct = r.counter, sd.ret = sd.vct > 0, und der Auto-Denial-Zweig der daran haengt). README-for-Integrators.md §5, README-for-Developers.md Session-Tabelle, devtools-extension/panel.js metric(\"counter\",\"vct\"). Findings F-128/F-129.",
             "displayId": 57
+          },
+          {
+            "id": "ac06b129-067e-4f82-81d0-0cfe2dc91c93",
+            "title": "sGTM Client: Session-API-Zaehler in aGTM.d.session durchreichen (created/counter/pv/event/sessionCount)",
+            "description": "Befund (fc-moto Live-Objekt 2026-07-26, via aGTM Inspector): aGTM.d.session traegt die Session-API-Zaehler NICHT (nur uid/sid/ret/sst/vct/ga4sid/muidga4/consent/source; vct=49 != sessionCount=56). Die vollen Zaehler (created/counter/pvCount/eventCount/sessionCount/lastInteraction) liegen nur in window.se_data. Der Inspector zieht sie jetzt als read-only Fallback aus se_data (Commit 4dc4d36), aber der saubere Weg ist server-seitig: der sGTM Client soll diese Felder aus dem Session-API-Record in cfg.session -> aGTM.d.session durchreichen (wie source), damit webGTM/Integratoren sie via aGTM.d.session lesen koennen ohne se_data-Abhaengigkeit. RELEASE-SENSIBEL: aendert den in den Client eingebetteten base64-Blob / cfg.session-Shape -> rippelt in live getestete Kunden (fc-moto) mitten in der offenen v1.5. Daher NICHT im Inspector-Chat angefasst. Reserved-Key-Blacklist beachten (created/counter etc. sind KEINE reserved session keys, sollten also durchgehen - pruefen warum sie aktuell fehlen: filtert der Client sie? oder liefert die Session-API sie nur im se_data-Pfad?).",
+            "priority": "P2",
+            "status": "todo",
+            "owner": "",
+            "columnId": "col-erledigt",
+            "displayId": 48,
+            "comments": [
+              {
+                "id": "8e3ac03b-da70-4280-bc7c-0b5dea508747",
+                "author": "Claude Opus",
+                "text": "Mit F-128 erledigt: der sGTM Client reicht created/lastInteraction/pvCount/eventCount/sessionCount jetzt in aGTM.d.session durch. counter wird NICHT dupliziert (faehrt schon als vct), customerId/user als redundant verworfen. Die im Kartentext vermutete Ursache war richtig: es lag am Client, nicht an der Session-API - sd wurde schlicht nur aus sieben Feldern gebaut. Wichtig fuer Leser: vct ist die API-counter (Requests je Session), NICHT die Besuchszahl - das ist sessionCount (fc-moto 49 vs 56). ret/vct blieben absichtlich unangetastet, weil ret die serverseitige Consent-Auto-Denial gated. Der Inspector zieht die Zaehler jetzt aus aGTM.d.session; der se_data-Fallback bleibt fuer Seiten auf aelterem Client-Build. Siehe neue Karte im v1.5-Sprint."
+              },
+              {
+                "id": "51b09515-486f-4e3d-bc88-e733e8c9bf1f",
+                "author": "Claude Opus",
+                "created": "2026-07-29",
+                "text": "Erledigt mit F-128 (Karte #56, Commit afe3036): created/lastInteraction/pvCount/eventCount/sessionCount fahren jetzt in aGTM.d.session. counter wird NICHT dupliziert (faehrt schon als vct), customerId/user als redundant verworfen. Die im Kartentext vermutete Ursache war richtig - es lag am Client, nicht an der Session-API. Offen bleibt nur die Namensfrage vct vs. sessionCount, die als eigene Karte #57 im v1.6-Sprint liegt."
+              }
+            ],
+            "qa": true
           }
         ]
       },
