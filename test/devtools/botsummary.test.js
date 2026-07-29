@@ -93,6 +93,39 @@ describe("botSummary", () => {
     expect(bare.note).toContain("mark");
   });
 
+  test("a value the Client did not recognise is a warning, not 'unauffällig'", () => {
+    // Without this the server log shouts about a vocabulary drift while every
+    // browser surface stays green — and a service-sent `unknown` (which left the
+    // band whitelist and now arrives as `other`) would silently stop warning.
+    for (const bot of [
+      { isBot: false, band: "other" },
+      { isBot: false, primarySignal: "other" },
+      { isBot: false, signals: [{ category: "other" }] },
+      { isBot: false, signals: [{ type: "other" }] }
+    ]) {
+      const r = botSummary(bot);
+      expect(r.state).toBe("drift");
+      expect(r.level).toBe("warn");
+    }
+    expect(botCheckStatus({ bot: { isBot: false, band: "other" } }).status).toBe("warn");
+    // and a normal verdict is untouched
+    expect(botSummary({ isBot: false, band: "clean" }).state).toBe("clean");
+  });
+
+  test("reason is compared explicitly — no prototype keys reach the report", () => {
+    // A bare lookup let "toString" through, and its native-code dump landed in
+    // the exported Markdown report.
+    for (const bad of ["toString", "constructor", "valueOf", "hasOwnProperty", "__proto__", "nope"]) {
+      expect(botSummary({ isBot: false, band: "unknown", reason: bad }).reason).toBe("");
+    }
+    for (const good of ["no_answer", "bad_answer", "no_client_ip"]) {
+      expect(botSummary({ isBot: false, band: "unknown", reason: good }).reason).toBe(good);
+    }
+    const r = botSummary({ isBot: false, band: "unknown", reason: "toString" });
+    expect(r.note).not.toContain("native code");
+    expect(r.note).not.toContain("Ursache");
+  });
+
   test("the mode is carried through every state", () => {
     expect(botSummary({ isBot: false, band: "clean", mode: "block" }).mode).toBe("block");
     expect(botSummary({ isBot: false, band: "unknown", mode: "mark" }).mode).toBe("mark");

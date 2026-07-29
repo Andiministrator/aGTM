@@ -519,7 +519,9 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
   sees all of them and makes the browser count a real rate. With a consent-gated sender it is
   a false-positive detector for humans only. The Client also writes a **non-debug** `warn` line
   for each bot it sees under `mark`; that log, or the filter service's own numbers, is complete
-  either way.
+  either way — the `logging` permission is scoped to **all** environments for exactly that
+  reason (`debug` would make both warn lines silent no-ops in a live container, and the field
+  help would promise a record the container cannot keep).
 - A missing verdict carries **`reason`**: `no_answer` · `bad_answer` · `no_client_ip`. Lumping
   them into a bare `unknown` would hide that "the filter is down" and "the IP header did not
   resolve" call for completely different responses.

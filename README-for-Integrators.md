@@ -218,7 +218,7 @@ typically a `traffic_type` dimension towards GA4.
 | Field | Type | Meaning |
 |---|---|---|
 | `isBot` | boolean | The definitive verdict. Under the Client's default `block` mode this is effectively always `false` in the browser (see above); under `mark` nothing is blocked, so `true` can and does appear. |
-| `score` | number | 0–100. Higher = more suspicious. Never blocks on its own. |
+| `score` | number | 0–100 integer. Higher = more suspicious. Never blocks on its own. **The field can be absent** — a value the filter sent outside 0–100 is a contract violation and is dropped rather than clamped, so `score` missing is not the same as `score: 0`. |
 | `band` | string | `"clean"`, `"suspicious"` or `"bot"` from the filter; `"bot"` holds exactly when `isBot === true`. Two values the Client itself can produce: **`"unknown"`** — the filter did not answer usably, i.e. an outage, *not* a clean visitor (see `reason`); and **`"other"`** — the filter sent something outside the vocabulary the Client knows, which means the service contract has moved. Branch on all of them, not just `"bot"`. |
 | `primarySignal` | string | Category of the highest-scoring signal, e.g. `"asn_spam"`, `"known_bot"`. Absent when nothing triggered, `"other"` when the service sent an unknown category. |
 | `signals` | array | One entry per evaluated signal: `{type, category, score, confirmed?}`. Empty array when nothing triggered; capped at 10 entries. |

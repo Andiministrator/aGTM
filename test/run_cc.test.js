@@ -1,8 +1,13 @@
 // test/run_cc.test.js — tests for blocked flag behaviour in aGTM.f.run_cc()
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { resetAGTM } from './helpers.js';
 
 describe('aGTM.f.run_cc() — blocked flag on update', () => {
+  // `aGTM.f` is shared across the whole `bun test` process — a consent_check
+  // stub left behind breaks any later file whose config() carries a session
+  // preset (the preset gate calls call_cc() synchronously). Same class as the
+  // leak that made a fresh clone red; latent here, closed anyway.
+  afterEach(() => { delete aGTM.f.consent_check; });
   beforeEach(() => {
     resetAGTM();
     aGTM.d.config = true;

@@ -59,10 +59,10 @@ const LOGS = [];
 // too — otherwise the harness would silently test a different function than the
 // Client runs.
 const botFieldsFromResponse = extractFn(
-  'botFieldsFromResponse', ['botEnum', 'botScore'],
+  'botFieldsFromResponse', ['botDriftNote', 'botEnum', 'botScore'],
   ['BOT_BANDS', 'BOT_CATEGORIES', 'BOT_TYPES', 'botDrift'], LOGS
 );
-const botEnum = extractFn('botEnum', [], ['botDrift']);
+const botEnum = extractFn('botEnum', ['botDriftNote'], ['botDrift']);
 const botScore = extractFn('botScore');
 
 // api4filter response contract (2026-07-14). Verbatim from the service docs.
@@ -210,6 +210,9 @@ describe('botFieldsFromResponse — whitelist', () => {
     // Above 100 is a contract violation, not "very suspicious" — clamping it to
     // 100 would hand the most incriminating legal value to a broken response.
     expect(botScore(101)).toBeNull();
+    // Floor first, then bound: a float artefact of a legal score survives
+    expect(botScore(100.4)).toBe(100);
+    expect(botScore(100.0000001)).toBe(100);
     expect(botScore(1e999)).toBeNull();       // +Infinity
     expect(botScore(-1e999)).toBe(0);
     expect(botScore(40.123456789012345)).toBe(40); // ~15 digits of free payload, gone
@@ -230,7 +233,9 @@ describe('botFieldsFromResponse — whitelist', () => {
     botFieldsFromResponse('{"isBot":false,"band":"brandNewBand","primarySignal":"brandNewCategory"}');
     expect(LOGS.length).toBe(1);
     expect(LOGS[0]).toContain('outside the known vocabulary');
-    expect(LOGS[0]).toContain('2 value(s)');
+    // The offending values, not just a count — a number is not actionable.
+    expect(LOGS[0]).toContain('brandNewBand');
+    expect(LOGS[0]).toContain('brandNewCategory');
     // One line per affected request, not per field
     LOGS.length = 0;
     botFieldsFromResponse(CLEAN);
@@ -307,14 +312,35 @@ describe('bot-check call site — structural guards', () => {
     expect(SRC).toContain("band: 'unknown', reason: 'no_client_ip'");
   });
 
+  test('the logging permission reaches live containers, not only debug', () => {
+    // Two warn lines exist precisely so an operator can see them in production:
+    // the vocabulary drift and the bot seen under `mark`. With the permission
+    // scoped to "debug" the sandbox turns both into silent no-ops, and the
+    // field help promises a record the container cannot keep.
+    const perms = JSON.parse(TPL.match(/___SERVER_PERMISSIONS___\n([\s\S]*?)\n___TESTS___/)[1]);
+    const logging = perms.filter((p) => p.instance && p.instance.key.publicId === 'logging')[0];
+    expect(logging).toBeDefined();
+    expect(logging.instance.param[0].value.string).toBe('all');
+  });
+
+  test('every way of ending up without a verdict leaves a trace', () => {
+    // Four of them: transport error, unusable answer, no client IP, and
+    // "enabled but no URL configured" — the last one was silent.
+    expect(SRC).toContain("Bot check enabled but no URL configured");
+  });
+
   test('a bot seen under "mark" is logged server-side, not only in debug', () => {
     // The browser cannot measure the mark phase: a webGTM variable is only read
     // when a tag fires, and tags need GTM, and GTM needs consent. Marked
     // visitors who never answer the CMP contribute nothing.
     expect(SRC).toContain("Bot detected (mark mode - served anyway)");
+    // Not inside a CFG.debug branch: walk back to the enclosing statement rather
+    // than peeking two lines up, which would miss a block opened earlier.
     const i = SRC.indexOf("Bot detected (mark mode");
-    // must not be inside a CFG.debug branch
-    expect(SRC.slice(SRC.lastIndexOf('\n', SRC.lastIndexOf('\n', i) - 1), i)).not.toContain('CFG.debug');
+    const stmt = SRC.slice(SRC.lastIndexOf('{', i), i);
+    expect(stmt).not.toContain('CFG.debug');
+    // and the guard that does wrap it is the mode check, not a debug flag
+    expect(SRC.slice(Math.max(0, i - 400), i)).toContain("CFG.botCheckMode === 'mark'");
   });
 
   test('the mode travels with the verdict — otherwise "mark" is invisible', () => {
