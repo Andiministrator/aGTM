@@ -506,10 +506,28 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
   variable reports `regular` for 100% of traffic for as long as the filter is down.
 - The verdict carries **`mode`** (`block`/`mark`). Otherwise `mark` is invisible: a page under
   `mark` looks exactly like one under `block` until a bot shows up, and nothing reminds anyone
-  that the filter is off. The Inspector renders it as a chip and raises a **health-check
-  warning** while `mark` is active.
+  that the filter is off. The Inspector renders it as a chip and adds a health-check line
+  (status `na`, not `warn` — `mark` runs for weeks by design, and weeks of WARN would wear the
+  overall status out; an outage or a `bot` verdict under `mark` still warns, and those are
+  checked *before* the mode so the severe finding is never hidden by it).
+- **Measuring the `mark` phase cannot be done in the browser alone.** A webGTM variable is only
+  read when a tag fires, tags need GTM, and GTM needs consent — so every marked visitor who
+  never answers the CMP (most non-human traffic) contributes nothing. The Client therefore
+  writes a **non-debug** `warn` line for each bot it sees under `mark`; that log, or the filter
+  service's own numbers, is the complete record. The browser count is a false-positive detector
+  for humans, not a rate.
+- A missing verdict carries **`reason`**: `no_answer` · `bad_answer` · `no_client_ip`. Lumping
+  them into a bare `unknown` would hide that "the filter is down" and "the IP header did not
+  resolve" call for completely different responses.
 - **Values are whitelisted, not just keys** (`botEnum` against `BOT_BANDS`/`BOT_CATEGORIES`/
-  `BOT_TYPES`; `botScore` clamps to 0–100 and floors). A key whitelist alone does not stop an
+  `BOT_TYPES`; `botScore` floors and rejects anything outside 0–100 — a score above 100 is a
+  contract violation, and clamping it to 100 would hand the most incriminating legal value to a
+  broken response). **How well each table is backed differs**: `BOT_CATEGORIES` is enumerated
+  verbatim in the service spec; `suspicious` in `BOT_BANDS` is inferred; four of the six
+  `BOT_TYPES` are back-translated from a prose sentence and may not match the real identifiers —
+  the spec enumerates `type` nowhere. A wrong guess costs resolution, not safety. **The collapse
+  is logged** (one `warn` per affected request), because a silent vocabulary drift would be the
+  same failure class as the bugs this hardening pass was about. A key whitelist alone does not stop an
   existing key whose value the service later widens — `primarySignal: "asn_spam:AS55967/Baidu/76ip"`
   is 27 characters and would sail through any length cap. Unknown values collapse to `'other'`:
   still visible as "something fired", but unable to carry a payload. The lookup uses `=== 1`,

@@ -1,8 +1,16 @@
 // test/call_cc.test.js — tests for aGTM.f.call_cc()
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { resetAGTM } from './helpers.js';
 
 describe('aGTM.f.call_cc()', () => {
+  // `bun test` runs every file in ONE process and `aGTM.f` is shared. Installing
+  // a consent_check stub and leaving it behind breaks any later file whose
+  // config() carries a session preset: the preset gate calls call_cc()
+  // synchronously, the leaked stub runs and wipes aGTM.d.consent. That is
+  // exactly what happened to consent_polling.test.js — a fresh-clone-only,
+  // order-dependent failure. Cleaning up on the way IN (below) protects this
+  // file; cleaning up on the way OUT protects everyone else.
+  afterEach(() => { delete aGTM.f.consent_check; });
   beforeEach(() => {
     resetAGTM();
     delete aGTM.f.consent_check; // ensure no stub bleeds in from other test files

@@ -40,7 +40,7 @@ function extractConst(name) {
  * @param deps   other top-level helper functions the extracted one calls
  * @param tables single-line `const X = {…}` lookup tables it reads
  */
-function extractFn(name, deps = [], tables = []) {
+function extractFn(name, deps = [], tables = [], sink) {
   const sandboxJSON = {
     parse: function (s) { try { return JSON.parse(s); } catch (e) { return undefined; } },
     stringify: JSON.stringify
@@ -48,16 +48,21 @@ function extractFn(name, deps = [], tables = []) {
   const preamble = tables.map(extractConst)
     .concat(deps.map((d) => 'const ' + d + ' = ' + extractSource(d) + ';'))
     .join('\n');
-  return new Function('JSON', preamble + '\nreturn (' + extractSource(name) + ');')(sandboxJSON);
+  const log = (...a) => { if (sink) sink.push(a.join(' ')); };
+  return new Function('JSON', 'logToConsole', preamble + '\nreturn (' + extractSource(name) + ');')(sandboxJSON, log);
 }
+
+// Collects the Client's warn lines so the drift alarm can be asserted.
+const LOGS = [];
 
 // The value-whitelist helpers and their vocabulary tables come from the source
 // too — otherwise the harness would silently test a different function than the
 // Client runs.
 const botFieldsFromResponse = extractFn(
-  'botFieldsFromResponse', ['botEnum', 'botScore'], ['BOT_BANDS', 'BOT_CATEGORIES', 'BOT_TYPES']
+  'botFieldsFromResponse', ['botEnum', 'botScore'],
+  ['BOT_BANDS', 'BOT_CATEGORIES', 'BOT_TYPES', 'botDrift'], LOGS
 );
-const botEnum = extractFn('botEnum');
+const botEnum = extractFn('botEnum', [], ['botDrift']);
 const botScore = extractFn('botScore');
 
 // api4filter response contract (2026-07-14). Verbatim from the service docs.
@@ -176,7 +181,10 @@ describe('botFieldsFromResponse — whitelist', () => {
   test('passes the contract vocabulary through untouched', () => {
     expect(botFieldsFromResponse('{"isBot":false,"band":"clean"}').band).toBe('clean');
     expect(botFieldsFromResponse('{"isBot":true,"band":"bot"}').band).toBe('bot');
-    expect(botFieldsFromResponse('{"isBot":false,"band":"unknown"}').band).toBe('unknown');
+    // `unknown` is NOT part of the service vocabulary — the Client owns it as
+    // its "no usable verdict" sentinel, so a service-sent one must not
+    // masquerade as our outage marker.
+    expect(botFieldsFromResponse('{"isBot":false,"band":"unknown"}').band).toBe('other');
     expect(botFieldsFromResponse('{"isBot":false,"primarySignal":"known_bot"}').primarySignal).toBe('known_bot');
     expect(botFieldsFromResponse(BORDERLINE).signals[0].type).toBe('asn_reputation');
     expect(botFieldsFromResponse(BORDERLINE).signals[0].category).toBe('asn_spam');
@@ -199,7 +207,10 @@ describe('botFieldsFromResponse — whitelist', () => {
     expect(botScore(40)).toBe(40);
     expect(botScore(100)).toBe(100);
     expect(botScore(-5)).toBe(0);
-    expect(botScore(1e999)).toBe(100);        // Infinity would reach the browser as null
+    // Above 100 is a contract violation, not "very suspicious" — clamping it to
+    // 100 would hand the most incriminating legal value to a broken response.
+    expect(botScore(101)).toBeNull();
+    expect(botScore(1e999)).toBeNull();       // +Infinity
     expect(botScore(-1e999)).toBe(0);
     expect(botScore(40.123456789012345)).toBe(40); // ~15 digits of free payload, gone
     expect(botScore(NaN)).toBeNull();
@@ -209,9 +220,21 @@ describe('botFieldsFromResponse — whitelist', () => {
 
   test('an out-of-range score never reaches the payload', () => {
     const r = botFieldsFromResponse('{"isBot":false,"score":1e999,"signals":[{"category":"asn_spam","score":-7.5}]}');
-    expect(r.score).toBe(100);
+    expect(r.score).toBeUndefined();          // dropped, not clamped to 100
     expect(r.signals[0].score).toBe(0);
     expect(JSON.stringify(r)).not.toContain('null');
+  });
+
+  test('a vocabulary collapse is reported — a silent drift would be the same bug class again', () => {
+    LOGS.length = 0;
+    botFieldsFromResponse('{"isBot":false,"band":"brandNewBand","primarySignal":"brandNewCategory"}');
+    expect(LOGS.length).toBe(1);
+    expect(LOGS[0]).toContain('outside the known vocabulary');
+    expect(LOGS[0]).toContain('2 value(s)');
+    // One line per affected request, not per field
+    LOGS.length = 0;
+    botFieldsFromResponse(CLEAN);
+    expect(LOGS.length).toBe(0);
   });
 
   test('bounds the WORK, not only the output — a length-only object cannot stall /aGTM.js', () => {
@@ -275,11 +298,23 @@ describe('bot-check call site — structural guards', () => {
     expect(handler).toContain('botFieldsFromResponse(r.body)');
   });
 
-  test('the error path sets an explicit "no verdict" band instead of looking clean', () => {
-    expect(SRC).toContain("band: 'unknown'");
-    // Both halves of the failure surface: transport error AND a response that
-    // arrived without a usable verdict (5xx with a JSON error body).
-    expect(SRC).toContain("if (typeof botState.verdict.isBot !== 'boolean') botState.verdict = {isBot: false, band: 'unknown'};");
+  test('every "no verdict" path is marked, and the three causes stay apart', () => {
+    // "unknown" alone lumps together "the filter is down", "the filter answered
+    // garbage" and "we never asked because the IP header did not resolve" —
+    // three situations an operator has to respond to differently.
+    expect(SRC).toContain("band: 'unknown', reason: 'no_answer'");
+    expect(SRC).toContain("band: 'unknown', reason: 'bad_answer'");
+    expect(SRC).toContain("band: 'unknown', reason: 'no_client_ip'");
+  });
+
+  test('a bot seen under "mark" is logged server-side, not only in debug', () => {
+    // The browser cannot measure the mark phase: a webGTM variable is only read
+    // when a tag fires, and tags need GTM, and GTM needs consent. Marked
+    // visitors who never answer the CMP contribute nothing.
+    expect(SRC).toContain("Bot detected (mark mode - served anyway)");
+    const i = SRC.indexOf("Bot detected (mark mode");
+    // must not be inside a CFG.debug branch
+    expect(SRC.slice(SRC.lastIndexOf('\n', SRC.lastIndexOf('\n', i) - 1), i)).not.toContain('CFG.debug');
   });
 
   test('the mode travels with the verdict — otherwise "mark" is invisible', () => {

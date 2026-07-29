@@ -874,8 +874,9 @@ function botCard(bot) {
     '<div class="grid">' +
     '<div class="k">Urteil</div><div class="v"><span class="chip ' + chipCls + '">' + esc(b.label) + "</span></div>";
   // The mode is the one thing nobody can infer from the page: `mark` looks
-  // exactly like `block` until a bot shows up.
-  if (b.mode) {
+  // exactly like `block` until a bot shows up. Suppressed without a verdict —
+  // a chip above the line "Urteil: kein Urteil" reads as a contradiction.
+  if (b.mode && b.state !== "absent") {
     html += '<div class="k">Modus</div><div class="v"><span class="chip ' + (b.mode === "mark" ? "warn" : "ok") + '">' +
       esc(b.mode) + "</span> " + (b.mode === "mark" ? '<span class="muted">meldet nur, blockt nicht</span>' : '<span class="muted">blockt erkannte Bots</span>') + "</div>";
   }
@@ -883,6 +884,9 @@ function botCard(bot) {
     html += '<div class="k">score</div><div class="v mono">' + (b.score === null ? '<span class="muted">—</span>' : esc(String(b.score))) + "</div>" +
       '<div class="k">band</div><div class="v mono">' + (b.band ? esc(b.band) : '<span class="muted">—</span>') + "</div>" +
       '<div class="k">primarySignal</div><div class="v mono">' + (b.primary ? esc(b.primary) : '<span class="muted">—</span>') + "</div>";
+  }
+  if (b.reason) {
+    html += '<div class="k">Ursache</div><div class="v mono">' + esc(b.reason) + "</div>";
   }
   html += "</div>";
   if (b.signals.length) {

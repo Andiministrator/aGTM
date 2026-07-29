@@ -219,10 +219,11 @@ typically a `traffic_type` dimension towards GA4.
 |---|---|---|
 | `isBot` | boolean | The definitive verdict. Under the Client's default `block` mode this is effectively always `false` in the browser (see above); under `mark` nothing is blocked, so `true` can and does appear. |
 | `score` | number | 0–100. Higher = more suspicious. Never blocks on its own. |
-| `band` | string | Coarse class: `"clean"`, `"suspicious"`, `"bot"`, or `"unknown"`. `"bot"` holds exactly when `isBot === true`. **`"unknown"` means the filter did not answer usably** — an outage, *not* a clean visitor. Treat it as its own case. |
-| `primarySignal` | string | Category of the highest-scoring signal, e.g. `"asn_spam"`, `"known_bot"`. Absent when nothing triggered. |
+| `band` | string | `"clean"`, `"suspicious"` or `"bot"` from the filter; `"bot"` holds exactly when `isBot === true`. Two values the Client itself can produce: **`"unknown"`** — the filter did not answer usably, i.e. an outage, *not* a clean visitor (see `reason`); and **`"other"`** — the filter sent something outside the vocabulary the Client knows, which means the service contract has moved. Branch on all of them, not just `"bot"`. |
+| `primarySignal` | string | Category of the highest-scoring signal, e.g. `"asn_spam"`, `"known_bot"`. Absent when nothing triggered, `"other"` when the service sent an unknown category. |
 | `signals` | array | One entry per evaluated signal: `{type, category, score, confirmed?}`. Empty array when nothing triggered; capped at 10 entries. |
-| `mode` | string | `"block"` or `"mark"` — what the Client does with a positive verdict. Under `"mark"` it reports but never blocks. |
+| `mode` | string | `"block"` or `"mark"` — what the Client does with a positive verdict. Under `"mark"` it reports but never blocks, so `isBot: true` legitimately appears in the browser. |
+| `reason` | string | Only alongside `band: "unknown"`: `"no_answer"`, `"bad_answer"` or `"no_client_ip"`. The three call for different responses — a filter outage is not an IP-header problem. |
 
 `category` is a stable, language-neutral key — branch on it rather than on any
 display text.
@@ -231,9 +232,11 @@ display text.
 // webGTM JS Variable — "traffic type" dimension
 function() {
   var b = (window.aGTM && aGTM.d && aGTM.d.bot) || {};
-  // Handle the outage case FIRST. Without this line a filter outage answers
-  // 'regular' for 100% of traffic and looks exactly like a healthy day.
-  if (b.band === 'unknown') return 'unknown';
+  // Handle the non-verdict cases FIRST. Without these lines a filter outage —
+  // or a vocabulary change at the service — answers 'regular' for 100% of
+  // traffic and looks exactly like a healthy day.
+  if (b.band === 'unknown') return 'unknown';   // outage; b.reason says which kind
+  if (b.band === 'other') return 'other';       // service sent an unknown value
   if (b.band === 'bot') return 'bot';
   if (b.primarySignal === 'asn_spam') return 'spam';
   return 'regular';

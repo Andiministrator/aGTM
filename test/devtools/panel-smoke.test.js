@@ -526,6 +526,24 @@ describe("feedback fixes", () => {
     // The detail block never leaves the server — the card says so explicitly
     expect(html).toContain("nicht</strong> in den Browser");
   });
+  test("F-131: the bot card shows the mode — the one thing the page cannot reveal", () => {
+    const snap = sampleSnap();
+    snap.bot = { isBot: false, band: "clean", mode: "mark" };
+    const html = renderTab("session", snap);
+    expect(html).toContain("Modus");
+    expect(html).toContain("meldet nur, blockt nicht");
+    // and not when there is no verdict at all
+    snap.bot = { mode: "mark" };
+    expect(renderTab("session", snap)).not.toContain("meldet nur, blockt nicht");
+  });
+  test("F-131: an outage names its cause instead of reading as clean", () => {
+    const snap = sampleSnap();
+    snap.bot = { isBot: false, band: "unknown", reason: "no_client_ip", mode: "mark" };
+    const html = renderTab("session", snap);
+    expect(html).toContain("kein verwertbares Urteil");
+    expect(html).toContain("no_client_ip");
+    expect(html).not.toContain("Kein Signal ausgelöst");
+  });
   test("F-128: the bot card escapes page-derived values (no HTML injection)", () => {
     const snap = sampleSnap();
     snap.bot = {

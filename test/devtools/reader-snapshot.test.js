@@ -8,13 +8,31 @@
 //
 // reader.js is ONE self-invoking expression that returns a JSON-serialisable
 // snapshot, so it can be evaluated here against a fake window.
-import { test, expect, describe, beforeEach } from "bun:test";
+import { test, expect, describe, beforeEach, beforeAll, afterAll } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
 
 const READER = readFileSync(
   join(import.meta.dir, "..", "..", "devtools-extension", "reader.js"), "utf8"
 );
+
+// `bun test` runs every file in ONE process, and test/setup.js installs the real
+// library on globalThis.aGTM for the library/CMP suites. Replacing it with a fake
+// and leaving it there makes every later file that calls resetAGTM() die on
+// `aGTM.f.objinit is not a function` — a failure that depends on file order, so
+// it stayed invisible in a working tree with extra untracked files and only
+// showed up in a fresh clone. Save and restore.
+let SAVED_GLOBAL, SAVED_WINDOW, HAD_WINDOW;
+beforeAll(() => {
+  SAVED_GLOBAL = globalThis.aGTM;
+  HAD_WINDOW = Object.prototype.hasOwnProperty.call(globalThis.window, "aGTM");
+  SAVED_WINDOW = globalThis.window.aGTM;
+});
+afterAll(() => {
+  globalThis.aGTM = SAVED_GLOBAL;
+  if (HAD_WINDOW) globalThis.window.aGTM = SAVED_WINDOW;
+  else delete globalThis.window.aGTM;
+});
 
 /** Evaluate reader.js against the given window.aGTM and return its snapshot. */
 function snapshot(aGTM) {

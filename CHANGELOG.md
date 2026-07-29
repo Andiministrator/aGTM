@@ -78,6 +78,57 @@ about.
   site's traffic. Without that, a consultant on a VPN turns an `asn_spam` line into what
   reads like a finding about the customer.
 
+### Fixed — a third review round: the test gate itself was wrong
+
+**`bun test` was order-dependent, and a fresh clone was red.** The new
+`reader-snapshot` test replaced the global `aGTM` that `test/setup.js` installs
+and never put it back, so every CMP suite that ran afterwards died on
+`aGTM.f.objinit is not a function`. In a working tree with extra untracked files
+the order happened to be benign; a clean checkout — CI, or a second machine —
+failed 9 tests. Every "N tests green" claim from the two previous rounds was
+therefore evidence only about one directory. The test restores what it borrows
+now, and the fresh-clone run is part of the check.
+
+The rest of this round:
+
+- **`mark` could not be measured, and the instructions said it could.** A webGTM
+  variable is only read when a tag fires, tags need GTM, and GTM needs consent —
+  so every marked visitor who never answers the CMP contributes nothing to a
+  browser-side count. The Client now writes a non-debug `warn` line for each bot
+  it sees under `mark`, which is the only complete record; the browser count is
+  a false-positive detector for humans, not a rate. The field help says so.
+- **A vocabulary drift was silent.** Values outside the whitelist collapse to
+  `other`, and nothing distinguished that from a legitimate value — so a new
+  category at the service would have made the webGTM variable answer `regular`
+  while every surface stayed green. The collapse is now counted per response and
+  logged once. `other` is documented as a value integrators must branch on.
+- **How well each table is backed is now written down.** `BOT_CATEGORIES` comes
+  verbatim from the service spec; `suspicious` is inferred; four of the six
+  `BOT_TYPES` were back-translated from a prose sentence and may not match the
+  real identifiers. Claiming all of it was "the contract's vocabulary" was wrong.
+- **A score above 100 is dropped, not clamped.** Clamping handed the most
+  incriminating legal value to a broken response, and a rule like
+  `score >= 80 → spam` would have acted on it.
+- **`unknown` says which kind.** `reason` separates `no_answer`, `bad_answer` and
+  `no_client_ip` — a filter outage and an unresolvable IP header call for
+  different responses. `unknown` also left the band whitelist, so a service-sent
+  value cannot masquerade as the Client's own outage marker.
+- **The health check no longer lets `mark` hide an outage.** Checking the mode
+  first made the outage and the `bot` verdict unreachable for exactly the setups
+  that have the mode switched on. `mark` also dropped from `warn` to `na`: it
+  runs for weeks by design, and weeks of WARN on every exported report wears the
+  overall status out until someone skims past a real pre-consent leak.
+- **The sandbox's language rules are linted.** `serve-paths.test.js` runs the
+  real source, but in Node — which happily executes `try/catch`, `parseInt`,
+  `Array.isArray` and `'k' in obj`, all of which the GTM server sandbox rejects.
+  A review mutated each of them in and the suite stayed green. `sandbox-lint.test.js`
+  closes that, and the `require()` names are checked against the known API list.
+- `botState` moved back in front of `buildAndSend` (the previous fix had inverted
+  that pair while repairing the other direction), the comment claiming the parser
+  rejects *all* forward references was narrowed to the case that is actually
+  proven, the three visibility fixes from the last round got the tests they were
+  missing, and the compliance report's provenance note reached the JSON export.
+
 ### Fixed — a second review round on the entries above
 
 - **`/aGTM.js` died on every synchronous serve path.** `buildAndSend` sat at the end of the
@@ -127,6 +178,10 @@ in webGTM through a plain JS Variable:
 ```javascript
 function() {
   var b = (window.aGTM && aGTM.d && aGTM.d.bot) || {};
+  // Handle the non-verdict cases first: 'unknown' is a filter outage and
+  // 'other' means the service vocabulary moved. Falling through to 'regular'
+  // makes both look like a healthy day.
+  if (b.band === 'unknown' || b.band === 'other') return b.band;
   if (b.band === 'bot') return 'bot';
   if (b.primarySignal === 'asn_spam') return 'spam';
   return 'regular';

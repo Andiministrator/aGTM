@@ -314,7 +314,14 @@
         purposes: c.purposes || "",
         vendors: c.vendors || ""
       },
-      bot: botSummary(snap.bot),
+      bot: (function () {
+        var b = botSummary(snap.bot);
+        // Same caveat as the Markdown section: this describes the machine that
+        // generated the report, not the site's traffic. A JSON consumer has no
+        // prose around it, so the field has to carry it.
+        b.provenance = "Verdict about the machine that generated this report (its IP/user-agent/ASN), not about the site's traffic.";
+        return b;
+      })(),
       timeline: tl.ok ? tl.rows.map(function (r) { return { key: r.key, label: r.label, relMs: r.rel }; }) : [],
       leaks: arr(ctx.leaks).map(function (l) { return { vendor: l.vendor, url: l.url }; }),
       traps: arr(ctx.traps).map(function (t) { return { key: t.key, msg: t.msg }; }),
@@ -325,17 +332,22 @@
   /**
    * Classify the sGTM Client's bot-check verdict (aGTM.d.bot) for display.
    *
-   * The verdict only ever reaches a NON-blocked visitor: a definitive bot is
-   * answered with HTTP 403 and never receives the library. So `isBot: true`
-   * here is not "you are a bot" but a contradiction worth naming — the Client
-   * served the page despite its own verdict. `score`/`band`/`signals` never
-   * block by themselves; a scored-but-clean visitor is the case this whole
-   * passthrough exists for (mark it in webGTM, e.g. a traffic_type dimension).
+   * Under the Client's `block` mode the verdict only ever reaches a NON-blocked
+   * visitor: a definitive bot is answered with HTTP 403 and never receives the
+   * library. Under `mark` nothing is blocked, so `isBot: true` is the configured
+   * state there — the `mode` field the Client sends along tells the two apart,
+   * and calling the second case a malfunction would put a fault claim about a
+   * correctly configured system into the exported customer report.
+   *
+   * `band === "unknown"` is the Client's own "no usable verdict" sentinel
+   * (filter down, unusable answer, or client IP unresolvable — `reason` says
+   * which). It must never read as "clean".
    *
    * @param bot aGTM.d.bot, may be {} / undefined
    * @returns {{state:string, level:string, label:string, note:string,
-   *            score:(number|null), band:string, primary:string, signals:Array}}
-   *          state: "absent" | "clean" | "scored" | "bot"
+   *            score:(number|null), band:string, primary:string, mode:string,
+   *            reason:string, signals:Array}}
+   *          state: "absent" | "clean" | "scored" | "unknown" | "bot"
    */
   function botSummary(bot) {
     bot = (bot && typeof bot === "object") ? bot : {};
@@ -344,22 +356,31 @@
     var band = typeof bot.band === "string" ? bot.band : "";
     var primary = typeof bot.primarySignal === "string" ? bot.primarySignal : "";
     var mode = (bot.mode === "mark" || bot.mode === "block") ? bot.mode : "";
+    var REASONS = { no_answer: "Filter hat nicht geantwortet", bad_answer: "Filter-Antwort unbrauchbar", no_client_ip: "Client-IP nicht auflösbar" };
+    var reason = (typeof bot.reason === "string" && REASONS[bot.reason]) ? bot.reason : "";
     var signals = arr(bot.signals);
-    var base = { score: score, band: band, primary: primary, mode: mode, signals: signals };
+    var base = { score: score, band: band, primary: primary, mode: mode, reason: reason, signals: signals };
     function out(state, level, label, note) {
       return { state: state, level: level, label: label, note: note,
-        score: base.score, band: base.band, primary: base.primary, mode: base.mode, signals: base.signals };
+        score: base.score, band: base.band, primary: base.primary, mode: base.mode,
+        reason: base.reason, signals: base.signals };
     }
+    function reasonText() { return REASONS[base.reason] ? " Ursache laut Client: " + REASONS[base.reason] + "." : ""; }
     if (!has) {
-      return out("absent", "info", "kein Urteil",
-        "Der Bot-Check ist im sGTM Client aus, hat nicht geantwortet, oder der Client ist älter als v1.5.");
+      // Literals, not the collected values: without a boolean isBot there is no
+      // verdict, so echoing a score/band/mode a page happened to set would put
+      // invented numbers into the report (the Client itself never sends a
+      // partial object — buildAndSend gates on the boolean).
+      return { state: "absent", level: "info", label: "kein Urteil",
+        score: null, band: "", primary: "", mode: "", reason: "", signals: [],
+        note: "Der Bot-Check ist im sGTM Client aus, hat nicht geantwortet, oder der Client ist älter als v1.5." };
     }
     // The Client sets band 'unknown' when the filter answered unusably or not at
     // all. Without this branch it fell through to "unauffällig / kein Signal" —
     // an outage rendered green, in the panel AND in the exported report.
     if (band === "unknown") {
       return out("unknown", "warn", "kein verwertbares Urteil",
-        "Der Bot-Check hat nicht (verwertbar) geantwortet — Ausfall oder Timeout. Das ist NICHT dasselbe wie „unauffällig\": eine traffic_type-Variable, die nur auf band==='bot' prüft, meldet in diesem Zustand stumm „regular\" für den gesamten Traffic.");
+        "Der Bot-Check hat nicht (verwertbar) geantwortet." + reasonText() + " Das ist NICHT dasselbe wie „unauffällig\": eine traffic_type-Variable, die nur auf band==='bot' prüft, meldet in diesem Zustand stumm „regular\" für den gesamten Traffic.");
     }
     if (bot.isBot === true) {
       // Under `mark` this is the configured, intended state — not a
@@ -384,16 +405,29 @@
   function botCheckStatus(snap) {
     var b = botSummary((snap || {}).bot);
     if (b.state === "absent") return null;
-    if (b.mode === "mark") {
-      return { key: "bot", label: "Bot-Check", status: "warn",
-        detail: "Modus „mark\" — der Filter meldet nur und blockt NICHTS. Für eine Messphase korrekt, als Dauerzustand nicht." };
-    }
+    var mark = b.mode === "mark";
+    // ORDER MATTERS. Checking `mark` first hid the outage and the bot verdict
+    // for every mark user — i.e. for the only setup that has the mode switched
+    // on at all. The severe finding wins; the mode is appended to it.
+    var markNote = mark ? " Modus „mark\" — es wird nichts geblockt." : "";
     if (b.state === "unknown") {
       return { key: "bot", label: "Bot-Check", status: "warn",
-        detail: "Kein verwertbares Urteil — Filter-Ausfall oder Timeout." };
+        detail: "Kein verwertbares Urteil — Filter-Ausfall oder Timeout." + markNote };
     }
     if (b.state === "bot") {
-      return { key: "bot", label: "Bot-Check", status: "warn", detail: "Als Bot eingestuft, aber ausgeliefert." };
+      return { key: "bot", label: "Bot-Check", status: "warn",
+        detail: mark
+          ? "Als Bot eingestuft, im Modus „mark\" bewusst ausgeliefert."
+          : "Als Bot eingestuft, aber ausgeliefert." };
+    }
+    if (mark) {
+      // `na`, not `warn`: `mark` is a CHOSEN configuration that runs for weeks
+      // by design. Dragging every exported report to WARN for that long would
+      // wear the overall status out, and the next reader would skim past a real
+      // pre-consent leak. The line stays visible in the list, which is the
+      // point — it just does not colour the whole document.
+      return { key: "bot", label: "Bot-Check", status: "na",
+        detail: "Modus „mark\" — der Filter meldet nur und blockt NICHTS. Für eine Messphase korrekt, als Dauerzustand nicht." };
     }
     if (b.state === "scored") {
       return { key: "bot", label: "Bot-Check", status: "pass",
