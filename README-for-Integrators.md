@@ -243,6 +243,13 @@ function() {
 }
 ```
 
+> **Measuring it:** `aGTM.d.bot` is written while `/aGTM.js` executes, i.e. before
+> any consent decision, so the value exists for every visitor. Whether your
+> analytics sees all of them depends on what carries it out: a consent-gated GTM
+> tag only fires after the CMP is answered, which most non-human traffic never
+> does. A consent-free sender (a cookieless analytics call in the page, or a
+> container configured `noConsent`) closes that gap.
+
 > **Not forwarded on purpose:** each signal's `detail` block (ASN number, ASN
 > org, unique-IP and request counts) stays server-side. Those are tenant-wide
 > aggregates about *other* visitors' traffic and have no business being readable
