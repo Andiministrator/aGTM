@@ -1543,6 +1543,27 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "df1a3e23-a4d5-4161-8aae-ae6f162d2714",
+            "title": "CMP-Adapter: PP Consent Manager (PixelPoint), cmp: \"ppcm\"",
+            "description": "Neuer Consent-Check cmp/cc_ppcm.js fuer window.PPConsentManager (Referenz: [redacted-host], pp-consent-manager 1.5.4). Ein Cookie pro erteilter Kategorie (ppcm-consent-category-<name>) bzw. Service (ppcm-consent-service-<name>); Kategorien -> aGTM.d.consent.purposes, Services -> .services, Integrator gatet auf gtmPurposes.\n\nWICHTIG - die Anforderung \"Cookie vorhanden = Consent\" ist so NICHT korrekt: der Cookie-Wert ist \"<consentVersion>,<epoch-sekunden>\", und die CMP akzeptiert nur einen Cookie, dessen Versionsfeld zur aktuellen consentVersion der Site passt (zweites Feld 0 = nicht erteilt). Nach einem consentVersion-Bump bleiben die alten Cookies im Browser, waehrend die CMP jede Entscheidung fuer nichtig haelt und das Banner erneut zeigt -> eine Praesenz-Pruefung wuerde Consent melden und GTM gegen das Urteil der CMP laden.\n\nDaher: Urteil pro Eintrag an die oeffentliche API der CMP delegiert (hasConsentCategory/hasConsentService, inkl. deren media-Fallback fuer versions-veraltete Services); die Cookies liefern nur die Namen, weil die CMP keine Kategorieliste exponiert. Kein CMP-Objekt = kein Urteil = false (fail closed, aGTM pollt weiter). Kein Kategoriename hartcodiert: die essentials-Kategorie kommt aus dem Banner-Template der Site und existiert als \"essential\" UND \"essentials\".",
+            "priority": "P2",
+            "status": "done",
+            "owner": "Claude Opus",
+            "columnId": "col-qa",
+            "complexity": "mittel",
+            "effort": "M",
+            "agentContext": "cmp/cc_ppcm.js (+ .min.js, gebaut) · test/cmp/ppcm.test.js (16 Faelle, Stub = getreuer Port der echten CMP-Logik) · scripts/cmp-sync-lib.js CMP_MAP-Eintrag · sgtmClient/template.tpl SELECT-Option \"PP Consent Manager (PixelPoint)\" (Wert von build.sh gefuellt, Drift-Guard test/cmp/template-sync.test.js) · cmp/README-cmp.md · CLAUDE.md CMP-Liste · CHANGELOG.md. Library-Blob UNveraendert (nur @lastupdate, wird wegminifiziert) -> bestehende Client-Installationen unberuehrt; neue Option wirkt erst nach Client-Re-Import. Commit 195f09a.",
+            "displayId": 58,
+            "comments": [
+              {
+                "id": "5c9b28de-5cf6-4702-84bc-40a81a30e682",
+                "author": "Claude Opus",
+                "created": "2026-07-30",
+                "text": "Stand: Code fertig, gepusht (195f09a). 892 Tests gruen, ./build.sh ohne Warnung, Sandboxed-Block byte-identisch, Embedded-CMP-Wert von der Sync-Schreiberin gefuellt (\"Re-synced 1 embedded CMP consent_check code(s)\").\n\nMutationstest bestanden - drei Mutationen, jede macht die Suite rot: (1) Praesenz-statt-API-Urteil, (2) fail-open wenn window.PPConsentManager fehlt, (3) hartcodierter \"essentials\"-Name als Entscheidungssignal.\n\nGEGEN DIE ECHTE CMP verifiziert (nur lesend, keine Cookies geschrieben, Seite danach aufgeraeumt): Erstbesuch-Zustand auf [redacted-host] - CMP-Objekt vorhanden, keine Cookies, init UND update liefern false, aGTM.d.consent bleibt unberuehrt (0 Keys), ungueltige Action loggt e10. Das ist der Fail-Open-Test aus dem cmp-integration-Skill, bestanden gegen die Realitaet statt gegen ein Fixture.\n\nOFFEN (Andis Zug): Zustand (b) des Skills - Rueckkehrer MIT getroffener Entscheidung. Der braucht eine Banner-Interaktion, und das ist eine Consent-Entscheidung im Namen des Nutzers, die ich nicht selbst klicke. Entweder Andi klickt (Alle akzeptieren / Nur essenzielle / Auswahl speichern) und ich lese den Zustand aus, oder er gibt mir die Freigabe zum Klicken. Erst danach ist der Adapter end-to-end belegt - bis dahin stuetzt sich der Erteilt-Pfad auf die Quelle von _setCookies plus Andis Screenshot (Wert \"1,1785231132\", exakt das erwartete Format).\n\nNebenbefund, eigene Karte wert: cc_borlabs2.js setzt am Ende hasResponse=true, hat aber KEIN return true - die Funktion liefert undefined. run_cc behandelt das wie false (Zeile 576) und verwirft das Ergebnis. Sieht nach einem echten Fehler aus, nicht nach Absicht; nicht Teil dieser Karte, deshalb hier nur vermerkt."
+              }
+            ]
           }
         ]
       },
@@ -1797,7 +1818,7 @@
         ]
       }
     ],
-    "nextDisplayId": 58,
+    "nextDisplayId": 59,
     "attachments": [],
     "background": null,
     "templates": [],
