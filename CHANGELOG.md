@@ -2,6 +2,37 @@
 
 ## Version 1.5 — *in development*
 
+### Added — CMP: PP Consent Manager (PixelPoint), `cmp: "ppcm"`
+
+New consent check `cmp/cc_ppcm.js` for the PixelPoint Consent Manager
+(`window.PPConsentManager`), verified against version 1.5.4. Granted categories go
+into `aGTM.d.consent.purposes` (`ppcm-consent-category-<name>` cookies), granted
+services into `.services` (`ppcm-consent-service-<name>`), so an integrator gates on
+`gtmPurposes`.
+
+The obvious implementation — "cookie exists, therefore consent" — is not correct for
+this CMP. The cookie value is `<consentVersion>,<epoch-seconds>`, and the CMP only
+honours a cookie whose version field matches the site's current `consentVersion`; a
+second field of `0` means not granted. After the site bumps `consentVersion`, every
+stored cookie stays in the browser while the CMP itself considers the decision void
+and re-opens the banner — a presence-only check would report consent and load GTM
+against the CMP's own verdict.
+
+So the per-item verdict is delegated to the CMP's public
+`hasConsentCategory()` / `hasConsentService()` (including its fallback that treats a
+version-stale service as granted when `media` is granted). The cookies are used only
+to *discover* which category/service names exist, because the CMP exposes no list.
+Consequences: the check returns `false` while `window.PPConsentManager` is absent
+(fail closed — aGTM keeps polling instead of guessing), and no category name is
+hardcoded, since the essentials category comes from the site's banner template and
+appears as both `essential` and `essentials`.
+
+`test/cmp/ppcm.test.js` covers 16 cases against a faithful port of the CMP's own
+logic — first visit, accept all, decline-all-but-essentials, bumped
+`consentVersion`, `,0` denial, service-only decision, renamed prefix. Mutation-checked:
+a presence-only verdict, a fail-open on a missing CMP object, and a hardcoded
+`essentials` name each turn the suite red.
+
 ### Fixed — sGTM Client: the bot check let every bot through (F-127)
 
 The response handler only parsed the body when the status was `2xx`:
