@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Borlabs Cookie
- * @version 1.2
- * @lastupdate 04.03.2024 by Hartmut Clas <hartmut@tracking-garden.com> and Andi Petzoldt <andi@tracking-garden.com>
+ * @version 1.3
+ * @lastupdate 30.07.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -80,6 +80,8 @@ aGTM.f.consent_check = function (action) {
   aGTM.d.consent.feedback = feedback;
   // Set response, run callback and return
   aGTM.d.consent.hasResponse = true;
+  if (typeof aGTM.f.log=='function') aGTM.f.log('m2', JSON.parse(JSON.stringify(aGTM.d.consent)));
+  return true;
 };
 
 //[aGTMlib.js Consentcheck]EOF

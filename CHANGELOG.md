@@ -2,6 +2,26 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — CMP: `cmp: "borlabs2"` never loaded GTM, not even with full consent
+
+`cmp/cc_borlabs2.js` set `aGTM.d.consent.hasResponse = true` and then fell off the end
+of the function, returning `undefined`. `aGTM.f.run_cc()` treats a falsy return as "no
+consent available": it discarded the whole result, logged `m8`, and on `'update'`
+restored its pre-check snapshot. So with `cmp: "borlabs2"` the GTM gate never opened —
+regardless of what the visitor consented to — and the 500 ms init poll ran for the
+lifetime of the page. Fail closed, so nothing leaked; the adapter was simply dead.
+
+The comment above the line already said "Set response, run callback and return", and
+`cc_borlabs3.js` (added later, same author) has both the `m2` log and the `return true`.
+Both are now present in v2 as well. Found by the review round on the ppcm adapter, which
+compared the new code against its neighbours. `test/cmp/borlabs2.test.js` covers the
+return value, the log entry and the opened GTM gate; removing either line again turns
+three tests red.
+
+> Borlabs v2 users: this changes behaviour from "GTM never loads" to "GTM loads once
+> consent matches your `gtmPurposes`/`gtmServices` requirement". For sGTM Client setups
+> it takes effect with the next client re-import.
+
 ### Added — CMP: PP Consent Manager (PixelPoint), `cmp: "ppcm"`
 
 New consent check `cmp/cc_ppcm.js` for the PixelPoint Consent Manager
