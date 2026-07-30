@@ -105,16 +105,20 @@ keeps polling — GTM is never loaded on a guess. No category name is hardcoded:
 always-on category comes from the site's banner template and occurs as both
 `essential` and `essentials`.
 
-Three things to check in your own setup:
+Two things to know about your own setup:
 
-- **Does your banner store an always-on category cookie?** A decision that grants
-  nothing is recognised through the version field of any stored category/service
-  cookie — including an always-on one. If your banner template writes *nothing at
-  all* when the visitor declines everything, that visitor leaves no evidence, and
-  the check cannot tell "declined" from "banner not answered": it keeps returning
-  `false`, GTM stays out (which is the safe direction) but no `declined` state is
-  reported either, and the 500 ms init poll keeps running. Verify once with your
-  own banner: decline everything and look for a `ppcm-consent-category-*` cookie.
+- **How a decline is recognised.** Any interaction with the banner — accept *or*
+  decline — stores at least the always-on essentials category (confirmed by the
+  operator of a production deployment, 2026-07-30), so a decision that grants
+  nothing still leaves evidence. The check therefore counts *any* category/service
+  cookie whose version field matches the current `consentVersion` as an answer,
+  rather than looking for a category by name: the essentials cookie qualifies
+  either way, its name differs between banner templates (`essential` /
+  `essentials`), and a name-only check would read a leftover cookie as an answer
+  after a `consentVersion` bump — exactly when the CMP re-opens the banner. If a
+  banner template ever stored nothing at all on decline, that visitor would leave
+  no evidence and the check would keep returning `false`: GTM stays out (the safe
+  direction), but no `declined` state is reported either.
 - **Consent *changes* need a trigger.** aGTM detects the first decision through its
   own init poll. Anything after that — the visitor widening their selection, or
   revoking via the revocation link — is only picked up if something calls
