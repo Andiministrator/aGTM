@@ -80,7 +80,8 @@ Use the following value for the `cmp` Parameter:
 
 ### PP Consent Manager (PixelPoint)
 
-Consent check for the PixelPoint Consent Manager (`window.PPConsentManager`, verified against version 1.5.4).
+Consent check for the PixelPoint Consent Manager (`window.PPConsentManager`). Written
+against its `filesVersion` 1.5.4 (read 2026-07-30).
 
 Use the following value for the `cmp` Parameter:
 
@@ -93,20 +94,54 @@ Granted categories end up in `aGTM.d.consent.purposes`, granted services in
 `aGTM.d.consent.services`, so configure `gtmPurposes: "statistics"` (or whichever
 category your site uses for tracking) rather than `gtmServices`.
 
-Two things are worth knowing:
+**A cookie's presence alone is not consent.** Its value is
+`<consentVersion>,<timestamp>`, and the CMP's reader honours a cookie only while its
+version field matches the site's current `consentVersion` (it also treats a second
+field of `0` as not granted). Bumping `consentVersion` therefore voids every stored
+decision and re-opens the banner. The verdict per item is delegated to the CMP's own
+`hasConsentCategory()` / `hasConsentService()`, so that rule lives in exactly one
+place; if the CMP object is not on the page (yet), the check returns `false` and aGTM
+keeps polling — GTM is never loaded on a guess. No category name is hardcoded: the
+always-on category comes from the site's banner template and occurs as both
+`essential` and `essentials`.
 
-- **A cookie's presence alone is not consent.** Its value is
-  `<consentVersion>,<timestamp>`, and the CMP only honours a cookie whose version
-  field matches the site's current `consentVersion`. When you bump
-  `consentVersion`, every stored decision is void and the banner re-appears — the
-  consent check follows the CMP and reports "no response yet" until the visitor
-  decides again. The verdict per item is delegated to the CMP's own
-  `hasConsentCategory()` / `hasConsentService()`, so this rule lives in exactly one
-  place.
-- **The check needs `window.PPConsentManager` to be present.** Until the CMP script
-  has run, the check returns `false` and aGTM keeps polling — GTM is never loaded
-  on a guess. The name of the essentials category is read from the cookies, not
-  hardcoded (site banner templates use both `essential` and `essentials`).
+Three things to check in your own setup:
+
+- **Does your banner store an always-on category cookie?** A decision that grants
+  nothing is recognised through the version field of any stored category/service
+  cookie — including an always-on one. If your banner template writes *nothing at
+  all* when the visitor declines everything, that visitor leaves no evidence, and
+  the check cannot tell "declined" from "banner not answered": it keeps returning
+  `false`, GTM stays out (which is the safe direction) but no `declined` state is
+  reported either, and the 500 ms init poll keeps running. Verify once with your
+  own banner: decline everything and look for a `ppcm-consent-category-*` cookie.
+- **Consent *changes* need a trigger.** aGTM detects the first decision through its
+  own init poll. Anything after that — the visitor widening their selection, or
+  revoking via the revocation link — is only picked up if something calls
+  `aGTM.f.run_cc('update')`. The built-in 2000 ms CMP poll (`consent_poll_ms`) only
+  starts when `consent_store_url` is set, so a standalone integration has no
+  automatic path. Either register the CMP's own change hook:
+
+  ```javascript
+  // after aGTM.f.init(); PPConsentManager._onConsentChanged is undocumented but
+  // stable in 1.5.4 — it takes a callback and is what the CMP uses internally.
+  if (window.PPConsentManager && typeof PPConsentManager._onConsentChanged === 'function') {
+    PPConsentManager._onConsentChanged(function () { aGTM.f.run_cc('update'); });
+  }
+  ```
+
+  or poll yourself: `setInterval(function () { aGTM.f.run_cc('update'); }, 2000);`
+- **A revoke deletes the cookies**, which by itself looks exactly like "never
+  answered". Within a page load the check remembers that a decision was seen
+  (`aGTM.d.ppcm_decided`) and reports the withdrawal as "decided, nothing granted",
+  so the consent update propagates and the GTM gate closes. This needs one of the
+  triggers above to be in place — and it is per page load by design: on the next
+  load there is no stored decision, so the check reports "no response" and GTM
+  stays out.
+
+For diagnostics the check writes one `m_ppcm_scan` log entry per page load naming the
+cookie prefix it searched and how many cookies matched — that is how you tell "the
+visitor has not answered" apart from "the cookie prefix no longer matches".
 
 ### Secure Privacy
 

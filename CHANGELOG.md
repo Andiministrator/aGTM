@@ -5,33 +5,56 @@
 ### Added — CMP: PP Consent Manager (PixelPoint), `cmp: "ppcm"`
 
 New consent check `cmp/cc_ppcm.js` for the PixelPoint Consent Manager
-(`window.PPConsentManager`), verified against version 1.5.4. Granted categories go
-into `aGTM.d.consent.purposes` (`ppcm-consent-category-<name>` cookies), granted
-services into `.services` (`ppcm-consent-service-<name>`), so an integrator gates on
-`gtmPurposes`.
+(`window.PPConsentManager`), written against its `filesVersion` 1.5.4. Granted
+categories go into `aGTM.d.consent.purposes` (`ppcm-consent-category-<name>` cookies),
+granted services into `.services` (`ppcm-consent-service-<name>`), so an integrator
+gates on `gtmPurposes`.
 
 The obvious implementation — "cookie exists, therefore consent" — is not correct for
-this CMP. The cookie value is `<consentVersion>,<epoch-seconds>`, and the CMP only
-honours a cookie whose version field matches the site's current `consentVersion`; a
-second field of `0` means not granted. After the site bumps `consentVersion`, every
-stored cookie stays in the browser while the CMP itself considers the decision void
-and re-opens the banner — a presence-only check would report consent and load GTM
-against the CMP's own verdict.
+this CMP. The cookie value is `<consentVersion>,<epoch-seconds>`, and the CMP's reader
+honours a cookie only while its version field matches the site's current
+`consentVersion`; it also treats a second field of `0` as not granted (a defensive
+branch we mirror rather than a value the CMP is known to write). Bumping
+`consentVersion` therefore voids every stored decision and re-opens the banner, while
+a presence-only check would still report consent and load GTM against the CMP's own
+verdict.
 
 So the per-item verdict is delegated to the CMP's public
 `hasConsentCategory()` / `hasConsentService()` (including its fallback that treats a
-version-stale service as granted when `media` is granted). The cookies are used only
+version-stale service as granted while `media` is granted). The cookies are used only
 to *discover* which category/service names exist, because the CMP exposes no list.
-Consequences: the check returns `false` while `window.PPConsentManager` is absent
-(fail closed — aGTM keeps polling instead of guessing), and no category name is
-hardcoded, since the essentials category comes from the site's banner template and
+That trades a rule that could drift and fail open for a dependency on the API's shape,
+which fails closed — but silently, so the check logs its cookie scan once per page
+(`m_ppcm_scan`: the prefix searched, how many cookies matched). No category *name* is
+hardcoded, since the always-on category comes from the site's banner template and
 appears as both `essential` and `essentials`.
 
-`test/cmp/ppcm.test.js` covers 16 cases against a faithful port of the CMP's own
-logic — first visit, accept all, decline-all-but-essentials, bumped
-`consentVersion`, `,0` denial, service-only decision, renamed prefix. Mutation-checked:
-a presence-only verdict, a fail-open on a missing CMP object, and a hardcoded
-`essentials` name each turn the suite red.
+Two consequences an integrator has to know about — both documented in
+`cmp/README-cmp.md`: a **revoke deletes the cookies**, which by itself is
+indistinguishable from "never answered", so within a page load the check remembers
+that a decision was seen and reports a withdrawal as "decided, nothing granted"
+instead of letting `run_cc()` restore the withdrawn consent; and **consent changes
+after the first decision need a trigger** (`aGTM.f.run_cc('update')` from the CMP's
+change hook, or a poll), because the built-in 2000 ms CMP poll only runs when
+`consent_store_url` is set.
+
+Names discovered from cookies are bounded to a plain slug charset and a maximum
+number of entries: any script that can write a cookie on the domain could otherwise
+put arbitrary text into `aGTM.d.consent`, the dataLayer and the consent store. The
+charset excludes commas, which is what keeps the comma-wrapped consent string intact
+(F-51) — hence no separate comma strip in this adapter. Output is sorted and
+deduplicated so the same consent state always hashes the same (a reordered cookie jar
+would otherwise look like a state change and emit a phantom update event plus POST).
+
+`test/cmp/ppcm.test.js` covers 33 cases against a faithful port of the CMP's own
+reader, plus two integration tests through the real `aGTM.f.run_cc()` that assert the
+GTM gate opens on consent and closes again on revoke. Reviewed by two independent
+agents (QA + adversarial) before release; their findings are in this entry.
+Mutation-checked: 13 of 15 mutations turn the suite red, including presence-only
+verdict, fail-open on a missing CMP object, hardcoded category name, removed revoke
+memory, removed sort/dedupe, a loosened name charset, and a deleted Inspector log-map
+entry. The two survivors are redundant defences (an inner `String()` guard covered by
+the surrounding `try/catch`), not untested behaviour.
 
 ### Fixed — sGTM Client: the bot check let every bot through (F-127)
 

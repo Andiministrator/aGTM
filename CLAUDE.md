@@ -177,9 +177,11 @@ was found un-synced in Usercentrics v2).
 `scripts/update-sgtm-template.js` now regenerates every embedded value from the
 freshly built `cmp/*.min.js` on each `./build.sh`. Mechanics (all in
 `scripts/cmp-sync-lib.js`, shared with the drift-guard test):
-- **`CMP_MAP`** maps each SELECT `displayValue` → its `cc_<name>` file. Two CMPs
-  (`cc_jtl_consent`, `cc_jtl_eu_cookie`) are **not** offered as embedded options,
-  so 23 of the 25 `cmp/` files are embedded.
+- **`CMP_MAP`** maps each SELECT `displayValue` → its `cc_<name>` file. Every
+  `cmp/` file is embedded **except** `cc_jtl_consent` and `cc_jtl_eu_cookie`,
+  which are deliberately not offered as embedded options. (Deliberately stated
+  without a count: the previous "23 of 25" went stale on the next added CMP.
+  `./build.sh` prints the current number.)
 - The embedded value is the min.js **from `aGTM.f.consent_check=function` onward**
   — the leading namespace-bootstrap prefix (`window.aGTM=…,aGTM.n=aGTM.n||{},`)
   is dropped because the Client has already initialised `aGTM`.

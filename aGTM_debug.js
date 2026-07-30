@@ -44,6 +44,7 @@ aGTM.d.logmap = aGTM.d.logmap || {
   ,m_session_preset:         { type:'msg', msg:'Session preset accepted from cfg.session (no usable consent block)' }
   ,m_session_preset_consent: { type:'msg', msg:'Session preset accepted from cfg.session, incl. a valid consent block' }
   ,m_bot_preset:             { type:'msg', msg:'Bot-check verdict accepted from cfg.bot into aGTM.d.bot' }
+  ,m_ppcm_scan:              { type:'msg', msg:'PP Consent Manager: cookie scan result (prefix searched, matching/skipped cookies)' }
   ,m_consent_store_post:     { type:'msg', msg:'Consent diff POSTed to consent_store_url' }
   ,m_consent_store_synced:   { type:'msg', msg:'Consent store POST confirmed by the server (2xx)' }
   ,m_uid_promoted:           { type:'msg', msg:'Server promoted the user ID (F.* fingerprint to C.* cookie), adopted' }
