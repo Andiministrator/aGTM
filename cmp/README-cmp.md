@@ -81,7 +81,8 @@ Use the following value for the `cmp` Parameter:
 ### PP Consent Manager (PixelPoint)
 
 Consent check for the PixelPoint Consent Manager (`window.PPConsentManager`). Written
-against its `filesVersion` 1.5.4 (read 2026-07-30).
+against its `filesVersion` 1.5.4 (read 2026-07-30) and confirmed working in a
+production integration (operator report, same day).
 
 Use the following value for the `cmp` Parameter:
 
