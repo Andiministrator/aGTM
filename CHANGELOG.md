@@ -66,6 +66,10 @@ charset excludes commas, which is what keeps the comma-wrapped consent string in
 deduplicated so the same consent state always hashes the same (a reordered cookie jar
 would otherwise look like a state change and emit a phantom update event plus POST).
 
+In production since 2026-07-30 (operator report: deployed and working), which is the
+one thing unit tests cannot establish — that the fixture assumptions hold against the
+real CMP for a returning visitor with a stored decision.
+
 `test/cmp/ppcm.test.js` covers 33 cases against a faithful port of the CMP's own
 reader, plus two integration tests through the real `aGTM.f.run_cc()` that assert the
 GTM gate opens on consent and closes again on revoke. Reviewed by two independent
