@@ -1742,6 +1742,19 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "3b84069b-96b2-4c96-8cfa-f606210a9087",
+            "title": "Consent-Update-Trigger: Poll-Kopplung an consent_store_url ueberdenken (+ ppcm-Integration pruefen)",
+            "description": "Zwei Teile, gleiche Wurzel (Kritiker-Befund K6 aus der ppcm-Doppelpruefung, 2026-07-30).\n\nTEIL A (operativ, Andi): In der produktiven ppcm-Integration pruefen, ob ueberhaupt etwas aGTM.f.run_cc(\"update\") aufruft. Wenn consent_store_url NICHT gesetzt ist, laeuft KEIN 2000-ms-Poll (start_consent_poll steigt bei fehlendem consent_store_url sofort aus). Folge: die Erstentscheidung wird durch den 500-ms-Init-Poll erkannt, aber jede spaetere AENDERUNG - Nutzer erweitert seine Auswahl oder widerruft ueber den Revocation-Link - wirkt erst beim naechsten Seitenaufbau. Dann korrekt (keine Cookies = kein Consent = GTM bleibt draussen), aber nicht sofort auf der laufenden Seite. Fix ist eine Zeile; Snippet steht in cmp/README-cmp.md.\n\nTEIL B (Library-Entscheidung, Claude): Die Kopplung selbst ueberdenken. Der Poll haengt am consent_store_url, weil er urspruenglich nur den Diff-POST speisen sollte (\"ohne Store nichts zu pushen\"). Seit die Update-Erkennung auch fuer Consent Mode, GTM-Gate und aGTM_consent_update relevant ist, ist das eine Falle fuer JEDEN Standalone-Integrator, nicht nur fuer ppcm: die Integration funktioniert beim Erstbesuch und ist danach ein Einmalschuss - und beim Testen faellt es nicht auf, weil man neu laedt. Betrifft potenziell alle CMPs, die Aenderungen nicht ueber aGTM.f.fire()/consent_events melden.\n\nOptionen: (a) Poll von consent_store_url entkoppeln und nur an consent_poll_ms haengen (Default 2000, Opt-out per 0) - kostet einen Timer pro Seite bei allen Integratoren; (b) eigenes Flag; (c) so lassen und nur dokumentieren (Status quo). Die Entscheidung gehoert in eine ADR oder nach docs/open-decisions.md, weil sie das Default-Verhalten aller Integrationen aendert.\n\nNICHT release-kritisch fuer v1.5 - der Status quo ist dokumentiert (cmp/README-cmp.md, Absatz zu Consent-Aenderungen).",
+            "priority": "P2",
+            "status": "todo",
+            "owner": "",
+            "columnId": "col-backlog",
+            "complexity": "mittel",
+            "effort": "M",
+            "agentContext": "aGTM.js: aGTM.f.start_consent_poll (~L756, steigt in der ersten Zeile aus, wenn aGTM.c.consent_store_url leer ist) - aGTM.f.consent_listener (~L730) startet den Poll erst nach erfolgreichem call_cc - aGTM.f.run_cc (~L537) ist snapshot/restore-geschuetzt, der Poll ist also gefahrlos wiederholbar. Doku-Sync bei Verhaltensaenderung PFLICHT (Core-Funktion): Call-Graph in CLAUDE.md (GTM injection & consent) + README-for-Developers.md, dazu die Config-Tabellen zu consent_poll_ms/consent_store_url in CLAUDE.md und README.md. Kunden-Workaround-Snippet: cmp/README-cmp.md, Abschnitt PP Consent Manager. Herkunft: Kritiker-Befund K6 der ppcm-Doppelpruefung, Kontext in Karte #58 und docs/findings.md F-136..F-141.",
+            "displayId": 59
           }
         ]
       },
@@ -1825,7 +1838,7 @@
         ]
       }
     ],
-    "nextDisplayId": 59,
+    "nextDisplayId": 60,
     "attachments": [],
     "background": null,
     "templates": [],
