@@ -42,11 +42,13 @@ aGTM.n = aGTM.n || {};
  *   valid cookie counts as granted while the "media" category is granted).
  *   Mirroring the CMP is the point: aGTM reports the CMP's verdict.
  * - Decision signal: any category/service cookie whose version field matches the
- *   current consentVersion (granted or not), OR any item the API confirms. That
- *   covers a decline that stores only an always-on category — but a site whose
- *   banner template stores nothing at all on "decline all" cannot be detected
- *   here, because it leaves no evidence; that case keeps returning false (fail
- *   closed) and is called out in cmp/README-cmp.md.
+ *   current consentVersion (granted or not), OR any item the API confirms. Any
+ *   banner interaction - accept or decline - stores at least the always-on
+ *   essentials category (confirmed by the operator of a production deployment,
+ *   2026-07-30), so a decline that grants nothing is still recognised. Deliberately
+ *   NOT a check for that category by name: the name differs between banner
+ *   templates, and a leftover cookie would read as an answer after a
+ *   consentVersion bump - exactly when the CMP re-opens the banner.
  * - Revoke: a full revoke DELETES every cookie, which looks exactly like "banner
  *   not answered". aGTM.f.run_cc() restores its pre-update snapshot when the
  *   check returns false, so a plain false would leave the withdrawn consent in
