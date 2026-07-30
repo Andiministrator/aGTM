@@ -78,6 +78,36 @@ Use the following value for the `cmp` Parameter:
 
 - perspectivefunnel
 
+### PP Consent Manager (PixelPoint)
+
+Consent check for the PixelPoint Consent Manager (`window.PPConsentManager`, verified against version 1.5.4).
+
+Use the following value for the `cmp` Parameter:
+
+- ppcm
+
+This CMP stores one cookie per granted item — `ppcm-consent-category-<name>` for a
+category (e.g. `statistics`, `media`, and the always-on essentials category) and
+`ppcm-consent-service-<name>` for a service/content blocker (e.g. `youtube`).
+Granted categories end up in `aGTM.d.consent.purposes`, granted services in
+`aGTM.d.consent.services`, so configure `gtmPurposes: "statistics"` (or whichever
+category your site uses for tracking) rather than `gtmServices`.
+
+Two things are worth knowing:
+
+- **A cookie's presence alone is not consent.** Its value is
+  `<consentVersion>,<timestamp>`, and the CMP only honours a cookie whose version
+  field matches the site's current `consentVersion`. When you bump
+  `consentVersion`, every stored decision is void and the banner re-appears — the
+  consent check follows the CMP and reports "no response yet" until the visitor
+  decides again. The verdict per item is delegated to the CMP's own
+  `hasConsentCategory()` / `hasConsentService()`, so this rule lives in exactly one
+  place.
+- **The check needs `window.PPConsentManager` to be present.** Until the CMP script
+  has run, the check returns `false` and aGTM keeps polling — GTM is never loaded
+  on a guess. The name of the essentials category is read from the cookies, not
+  hardcoded (site banner templates use both `essential` and `essentials`).
+
 ### Secure Privacy
 
 Consent check for Secure Privacy.
