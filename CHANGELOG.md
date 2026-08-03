@@ -20,22 +20,43 @@ session path in `/aGTM.js` and the `cookieMode='consent'` branch of the `/aGTMco
 POST handler, which still carried the fingerprint whenever no promote had run (no Session
 API configured, no explicit consent signal) or the promote had failed.
 
-- **Neither site writes an `F.*` value any more.** The stable `C.*` is created at the
-  moment consent is granted, via the existing promote path — the pre-1.5 semantics.
+- **Neither site writes an `F.*` value any more.** The cookie guard is a whitelist: only a
+  minted `C.*` may be written. That form is fixed by the api4sgtm contract, so unlike a
+  fingerprint blacklist it cannot be widened by a configuration change.
+- **The stable `C.*` is created at the moment consent is granted** — via `/promote` when a
+  Session API is configured, and **minted locally by the Client when none is**. Both
+  producers used to hang off the Session API, so without the local mint a deployment
+  running the Client on its own would never have received a user-ID cookie again, and
+  Cookie Mode / Cookie Lifetime would have quietly become dead options.
 - **A visitor who has not answered the CMP now carries no user-ID cookie**, including
   under Cookie Mode "Always". Deliberate: "always" means *set the cookie regardless of
   consent*, not *freeze a shared fingerprint*.
 - **A legacy `F.*` cookie is actively cleared** instead of being refreshed for another
-  year — but never while a promote for it was attempted and failed. A transient api4sgtm
-  outage must not turn into identity loss; the cookie stays so the next request can retry.
-- Existing `C.*` cookies keep being written and refreshed exactly as before.
+  year — but not blindly. It stays when the Session API did not answer (an outage says
+  nothing about this visitor, and deleting there would turn a service disruption into
+  irreversible identity loss) and when a promote for it failed *transiently*. A promote
+  refused for good (404 "no active session", 409) is not retried forever, because that
+  would park the fingerprint in the browser indefinitely.
+- Existing `C.*` cookies keep being written and refreshed as before. One related defect was
+  fixed on the way: a non-positive Cookie Lifetime made `/aGTM.js` emit `max-age: 0` on a
+  normal write, which is the delete instruction — such a configuration now yields a session
+  cookie, matching what the consent handler always did.
+- **`/aGTM.js` now answers with `Cache-Control: private, no-store`.** Its body inlines the
+  visitor's session — uid, sid, and for a returning visitor their recorded consent — while
+  the URL is identical for everyone. Removing the cookie writes made the response *more*
+  cacheable, because a `Set-Cookie` header is what most shared caches treat as "do not
+  store", so the guarantee now has to be stated rather than inherited.
+- Cookie Mode / Cookie Delete field help and `sgtmClient/README.md` were corrected: they
+  described the pre-fix behaviour and would have sent the next reader looking for a cookie
+  that is no longer written.
 
 Why no test caught it: the serve-path harness stubbed `setCookie` as a no-op, so the one
 thing the Client writes into a browser was the one thing the suite could not observe. The
 harness moved to `test/sgtm/client-harness.js` (shared rather than copied — two copies of
 a sandbox contract drift) and now records cookie writes. The new
-`test/sgtm/cookie-uid.test.js` pins all of the above; each of the four guards was mutated
-back out individually and every one of them is caught.
+`test/sgtm/cookie-uid.test.js` pins the behaviour above. Every guard was mutated back out
+individually — including the cache header, the outage gate, the retry distinction, the
+limiter hardening and the local mint — and the suite catches all of them.
 
 ### Added — aGTM Inspector: which consent tool is running (works without aGTM)
 
