@@ -337,6 +337,22 @@ For visitors already stored under `F.*` from earlier v1.5 deploys: at the start 
 
 The lazy path bridges the deploy boundary: existing visitors are migrated on their next page view without waiting for the cookie to expire (default 365 days).
 
+### The cookie never carries an `F.*` (F-153)
+
+The promote paths above heal the *consent* path, but until F-153 the Client kept **producing** the very state they exist to remove: both cookie write sites wrote whatever uid they had resolved, fingerprint included.
+
+- `/aGTM.js` — `continueAfterSession` wrote `sessionData.uid` unguarded. With `cookieMode='always'` and `fingerprint_allowed` both being **defaults**, every first-time visitor of a freshly created tag received an `F.*` cookie. Once written it renewed itself: `cookieAllowed` is `!!existingCookie` in consent mode, so the cookie kept proving its own admissibility.
+- `/aGTMconsent` — `writeCookieAndPersist` wrote `finalUid` in the `cookieMode='consent'` branch, which is still the fingerprint whenever no promote ran (no Session API, no explicit consent signal, auto-denial sentinel) or the promote failed.
+
+Why this is more than the format-convention violation named above: the fingerprint is derived from IP + UA + client hints + ASN/geo, so it is **not per-visitor**. Two people behind the same NAT running the same browser share it. Without a cookie that collision is transient (rolling `YYYYMMDD`); as a cookie it freezes for `cookie_lifetime`, and the second visitor inherits the first one's identity **and** their recorded consent.
+
+Both sites are now gated on `!isFingerprintUid(...)`. Consequences worth knowing:
+
+- **A visitor who has not answered the CMP carries no user-ID cookie**, including under `cookieMode='always'`. This restores the pre-1.5 semantics (the stable ID is created at the moment of consent) and needs no api4sgtm change — `/promote` is contractually bound to the consent moment anyway ("immediately after the user accepts cookies", `404` without an active session).
+- **A legacy `F.*` cookie is actively deleted**, but never while a lazy promote for it was attempted and failed. A promote failure is transient (5xx/timeout); deleting there would contradict the documented fallback ("the F.* uid is preserved") and would turn an api4sgtm outage into tenant-wide identity loss.
+
+Origin `9d302d7`, the same commit family as F-127/F-130. Covered by `test/sgtm/cookie-uid.test.js`; the shared harness in `test/sgtm/client-harness.js` records cookie writes, which the serve-path harness previously stubbed away — the reason three review rounds never saw this.
+
 ### Library handoff
 
 In `aGTM.f.run_cc()`, the consent-store XHR's `onreadystatechange` parses the response body and adopts `response.uid` into `aGTM.d.session.uid` when:

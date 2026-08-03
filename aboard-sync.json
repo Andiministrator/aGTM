@@ -1634,6 +1634,23 @@
             "agentContext": "Code fertig in dev. Relevant: sgtmClient/template.tpl (botCheckMode SELECT block|mark, botCheckExpose CHECKBOX, logging-Permission environments=all) + sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (byte-identisch halten!). Browserseitig aGTM.d.bot (aGTM.js objinit + config()). Inspector: devtools-extension botsummary/diagnose. Tests: test/sgtm/botcheck.test.js, serve-paths.test.js, sandbox-lint.test.js, test/bot_preset.test.js, test/devtools/botsummary.test.js. Findings F-127..F-135. Hier ist NICHTS zu programmieren, bis die Messung vorliegt - die Karte ist eine Entscheidungs-, keine Bau-Karte.",
             "displayId": 61,
             "columnId": "col-backlog"
+          },
+          {
+            "id": "96a89a7c-bb16-4647-a1da-15b61b92b32b",
+            "title": "sGTM-Client schreibt den F.*-Fingerprint ins User-ID-Cookie (Meldung K8s-Admin)",
+            "description": "Gemeldet vom Kubernetes-Admin, am echten Quelltext reproduziert (Harness nach dem Muster von test/sgtm/serve-paths.test.js, setCookie aufgezeichnet).\n\nBEFUND 1 (P1, GET-Pfad): continueAfterSession schreibt writeCookie(sessionData.uid) ohne zu pruefen, ob die uid ein F.*-Fingerprint ist. Bewiesen in vier Konstellationen - Default-Tag ohne Session-API (cookie_mode=always ist der DEFAULT, fingerprint_allowed ebenfalls, also JEDER Erstbesucher), cookie_mode=consent mit auf Session-Ebene geerbtem Consent (der gemeldete Fall), bestehendes F.*-Cookie ohne Consent (Selbstverstaerkung: cookieAllowed = !!existingCookie, also frischt sich das Cookie 365 Tage lang selbst auf), und nach fehlgeschlagenem Promote.\n\nBEFUND 2 (P1, ZWEITE Schreibstelle - in der Meldung nicht enthalten): writeCookieAndPersist im /aGTMconsent-POST-Handler schreibt im Zweig cookieMode===consent && granted ebenfalls finalUid, und finalUid ist der F.*-Wert, wann immer kein Promote lief (keine Session-API konfiguriert, kein expliziter Consent-Signalanteil, Auto-Denial-Sentinel) oder das Promote fehlschlug. Der vorgeschlagene Einzeiler deckt diese Stelle nicht ab.\n\nBEFUND 3 (P2, toter Code): der Lösch-Zweig im GET-Pfad (!cookieAllowed && cookie_delete && existingCookie && cookieMode===consent) ist unerfuellbar. Im consent-Modus impliziert existingCookie truthy sofort cookieAllowed truthy. Ein Widerruf loescht das Cookie im GET-Pfad also nie - nur der POST-Pfad tut es.\n\nSCHWERE: nicht nur eine Formatverletzung. Der Fingerprint ist aus IP + UA + Client-Hints + ASN/Geo gebildet, also NICHT besucherindividuell. Zwei Menschen hinter demselben NAT mit gleichem Browser teilen ihn. Ohne Cookie ist die Kollision fluechtig (taeglich rollend); mit Cookie wird sie fuer 365 Tage eingefroren - und im gemeldeten Fall erbt Besucher B das Cookie UND die Consent-Entscheidung von Besucher A.\n\nHERKUNFT: 9d302d7 (v1.5-Single-Session-Refactor), dieselbe Kommitt-Familie wie F-127 und F-130. SESSION-REDESIGN.md 7b beschreibt genau diesen Fehler bereits (\"inadvertently dropped the random-generation\") und fuehrte den F-C-Promote als Heilung ein - der heilt aber nur den Consent-Pfad, waehrend der GET-Pfad das Problem weiter ERZEUGT. Betrifft ausschliesslich v1.5; der v1.4.x-Client in diesem Repo macht kein Session-/Cookie-Management (kam erst mit 9d302d7), v1.3 erzeugte das C.*-Cookie im Moment der Einwilligung.\n\nOFFENE WEICHE (Andi): was soll unter cookie_mode=always fuer einen noch nicht einwilligenden Besucher passieren, wenn wir den F.*-Wert nicht mehr schreiben - gar kein Cookie (stellt die v1.3-Semantik her, verliert aber die tagesuebergreifende Kontinuitaet, die der Tenant mit \"always\" gerade wollte) oder ein lokal erzeugtes C.*?\n\nCAVEAT zum optionalen aktiven Loeschen aus der Meldung: so wie vorgeschlagen loescht es das Cookie auch dann, wenn ein Promote gerade transient fehlgeschlagen ist (api4sgtm 5xx/Timeout). Das widerspricht dem dokumentierten Fallback (\"F.* bleibt erhalten\") und wuerde bei einem API-Ausfall tenant-weit Identitaeten wegwerfen. Muss zusaetzlich auf !shouldLazyPromote gegattert werden.\n\nRELEASE-SENSIBEL: aendert den Client -> Re-Import noetig. Nichts davon wird ohne Andis Zeichen ausgerollt.",
+            "priority": "P1",
+            "status": "in-progress",
+            "owner": "Claude Opus",
+            "qa": false,
+            "critical": true,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": "M",
+            "links": [],
+            "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js: continueAfterSession (~856-885, writeCookie-Zweig 875), writeCookieAndPersist (~254-290, consent-Zweig 269-280), isFingerprintUid (144), writeCookie (412). template.tpl Sandboxed-Block MUSS byte-identisch bleiben (Zeile 1812 = die Fundstelle) - build.sh synct nur den base64-Blob, jede Logikaenderung in BEIDE Dateien identisch. Reproduktions-Harness: /tmp/.../scratchpad/repro-fcookie.mjs, Muster aus test/sgtm/serve-paths.test.js (setCookie dort als No-op gestubbt - deshalb hat kein Test das je gesehen). Sandbox-Fallen: kein try/catch, kein Array.isArray, kein parseInt, kein k in obj, keine Forward-Refs auf const-Function-Expressions (F-130), mehrzeilige Boolean-Ketten meiden. Promote-Vertrag: internal/api/api4sgtm/team-spec.md (gitignored) - /promote ist laut Spec an die Einwilligung gebunden (\"immediately after the user accepts cookies\") und liefert 404 ohne aktive Session.",
+            "displayId": 62,
+            "columnId": "col-schreiben"
           }
         ]
       },
@@ -1901,7 +1918,7 @@
         ]
       }
     ],
-    "nextDisplayId": 62,
+    "nextDisplayId": 63,
     "attachments": [],
     "background": null,
     "templates": [],
