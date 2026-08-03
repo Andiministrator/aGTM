@@ -26,6 +26,14 @@ rather than from outside knowledge. Notable properties:
   freely configured cookie name) are deliberately never matched, and the card says so.
 - **Data-minimal.** The probe collects existence / `typeof` only, never a cookie or
   storage **value** — it runs before any consent decision.
+- **A platform consent API is not a CMP.** `Shopify.customerPrivacy` exists on every
+  Shopify shop no matter which banner drives it, so it is ranked and rendered apart
+  ("Consent-Schnittstelle der Plattform") instead of competing as a third hit.
+- **A newer CMP version may ship the older one's API.** Usercentrics v3 publishes a
+  `UC_UI` compatibility layer including `getServicesBaseInfo`, so `UC_UI` alone does not
+  prove v2; the more specific `__ucCmp.cmpController` wins. Both points were found on a
+  real shop (2026-08-03) where the first version of the card reported Usercentrics v2,
+  v3 and Shopify side by side; verified against the live page, not assumed.
 
 `test/devtools/cmpdetect.test.js` (25 tests) covers the matcher, the generated probe
 (including a write-recording proxy for the read-only guarantee) and a **drift guard**:

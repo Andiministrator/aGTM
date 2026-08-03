@@ -2039,6 +2039,38 @@ describe("Consent tab — detected CMP card", () => {
     expect(html).not.toContain("passen nicht zusammen");
   });
 
+  test("the platform consent API is rendered apart, not as a third CMP", () => {
+    // fsb-shop.de: Usercentrics v3 behind a fully present Shopify.customerPrivacy.
+    P().setCmp(detected({
+      __ucCmp: { cmpController: {} },
+      UC_UI: { getServicesBaseInfo: function () {} },
+      Shopify: { customerPrivacy: {} }
+    }));
+    const html = renderTab("consent");
+    expect(html).toContain("Usercentrics v3");
+    expect(html).not.toContain("Usercentrics v2");       // v3's compat layer must not double up
+    expect(html).toContain("Consent-Schnittstelle der Plattform");
+    expect(html).toContain("Keine Aussage über das Banner");
+    expect(html).not.toContain("Mehrere Signaturen gleichzeitig");
+  });
+
+  test("two CMP signatures at once are called out as one tool, not two", () => {
+    P().setCmp(detected({ Cookiebot: {}, CookieFirst: {} }));
+    const html = renderTab("consent");
+    expect(html).toContain("Mehrere Signaturen gleichzeitig");
+  });
+
+  test("a lone platform API does not contradict the configured CMP", () => {
+    // Warning here would be a false alarm: Shopify.customerPrivacy says nothing about
+    // which banner runs, so it cannot prove the configured adapter wrong.
+    P().setCmp(detected({ Shopify: { customerPrivacy: {} } }));
+    const snap = sampleSnap();
+    snap.cmp = "cookiebot";
+    const html = renderTab("consent", snap);
+    expect(html).not.toContain("passen nicht zusammen");
+    expect(html).toContain("Consent-Schnittstelle der Plattform");
+  });
+
   test("no detection yields an honest 'nothing found', not a blank card", () => {
     P().setCmp(detected({}));
     const html = renderTab("consent");

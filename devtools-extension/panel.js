@@ -597,19 +597,43 @@ function renderCmpDetect(s) {
 
   var html = open;
   var m = r.matches || [];
-  if (!m.length) {
-    html += '<div class="muted">Kein bekanntes Consent-Tool erkannt.</div>';
-  } else {
-    html += '<table class="compact"><thead><tr><th class="fit">Tool</th><th class="fit">Konfidenz</th>' +
+  var cmps = r.cmps || m, platforms = r.platforms || [];
+  function rows(list) {
+    var out = '<table class="compact"><thead><tr><th class="fit">Tool</th><th class="fit">Konfidenz</th>' +
       '<th class="fit">aGTM-Adapter</th><th>Beleg</th></tr></thead><tbody>';
-    m.forEach(function (x) {
+    list.forEach(function (x) {
       var proof = (x.proof || []).concat(x.extra || []);
-      html += "<tr><td class=\"fit\"><span class=\"chip acc\">" + esc(x.label) + "</span></td>" +
+      out += "<tr><td class=\"fit\"><span class=\"chip acc\">" + esc(x.label) + "</span></td>" +
         '<td class="fit">' + cmpConfChip(x.confidence) + "</td>" +
         '<td class="fit mono muted">cmp/' + esc(x.adapter) + ".js</td>" +
         '<td class="mono muted" style="word-break:break-all">' + esc(proof.join(" · ")) + "</td></tr>";
     });
-    html += "</tbody></table>";
+    return out + "</tbody></table>";
+  }
+
+  if (!cmps.length) {
+    html += '<div class="muted">Kein bekanntes Consent-Tool erkannt.</div>';
+  } else {
+    html += rows(cmps);
+    if (cmps.length > 1) {
+      // Two CMP hits almost never means two CMPs — it usually means one signature is not
+      // specific enough (a newer version shipping the older one's API). Say so instead of
+      // presenting both as equals; the first row is the more specific match.
+      html += '<div class="muted" style="margin-top:6px">Mehrere Signaturen gleichzeitig — meist läuft nur das <strong>erste</strong> Tool: ' +
+        "eine neuere CMP-Version stellt oft die API der älteren weiter bereit.</div>";
+    }
+  }
+
+  // A platform consent INTERFACE is not an answer to "which CMP runs here" — every
+  // Shopify shop has Shopify.customerPrivacy, whoever drives it. Shown apart so it
+  // stops competing with the real hit (verified on fsb-shop.de: Usercentrics v3 behind
+  // a fully present Shopify API).
+  if (platforms.length) {
+    html += '<div style="margin-top:10px"><div class="k" style="margin-bottom:4px">Consent-Schnittstelle der Plattform</div>' +
+      rows(platforms) +
+      '<div class="muted" style="margin-top:4px">Keine Aussage über das Banner: diese API gehört zur Shop-Plattform und wird ' +
+      (cmps.length ? "in aller Regel vom oben erkannten Consent-Tool bedient" : "von einem Consent-Tool oder dem plattformeigenen Banner bedient") +
+      ". Als <span class=\"mono\">aGTM.c.cmp</span> ist sie nur richtig, wenn wirklich das Plattform-Banner die Entscheidung hält.</div></div>";
   }
 
   // Configured vs. actually present — the mismatch is the whole point of this card:
@@ -618,15 +642,17 @@ function renderCmpDetect(s) {
     var configured = s.cmp ? "cc_" + s.cmp : "";
     var hit = null;
     for (var i = 0; i < m.length; i++) { if (m[i].adapter === configured) { hit = m[i]; break; } }
-    if (configured && m.length && !hit) {
+    // Only a real CMP hit contradicts the configuration. A lone platform API does not:
+    // it says nothing about which banner runs, so warning on it would be a false alarm.
+    if (configured && cmps.length && !hit) {
       html += '<div class="card warnbox" style="margin-top:8px"><strong>Konfiguration und Seite passen nicht zusammen.</strong> ' +
         '<span class="muted">Konfiguriert ist <span class="mono">' + esc(s.cmp) + '</span> (cmp/' + esc(configured) +
-        '.js), erkannt wurde <span class="mono">' + esc(m.map(function (x) { return x.label; }).join(", ")) +
+        '.js), erkannt wurde <span class="mono">' + esc(cmps.map(function (x) { return x.label; }).join(", ")) +
         '</span>. Der geladene consent_check prüft dann ein Tool, das gar nicht da ist — typische Ursache für „GTM lädt nie".</span></div>';
     } else if (configured && hit) {
       html += '<div class="muted" style="margin-top:6px">Deckt sich mit der Konfiguration (<span class="mono">aGTM.c.cmp = ' +
         esc(s.cmp) + "</span>).</div>";
-    } else if (!configured && m.length) {
+    } else if (!configured && cmps.length) {
       // The sGTM-Client case: cmp is empty by design because the consent_check is
       // injected inline — this card is the only place the tool gets named.
       html += '<div class="muted" style="margin-top:6px">Kein <span class="mono">aGTM.c.cmp</span> gesetzt (inline injizierter consent_check, z. B. vom sGTM-Client) — ' +

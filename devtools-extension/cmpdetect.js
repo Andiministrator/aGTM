@@ -118,11 +118,14 @@
       need: [{ g: "sp", t: "function" }, { g: "sp.allGivenConsents", t: "object" }]
     },
     {
-      key: "shopify_consent", label: "Shopify Consent", adapter: "cc_shopify_consent", confidence: "medium",
-      // `Shopify` proves the shop platform, not that the consent API is up:
-      // Shopify.customerPrivacy is loaded on demand (our adapter calls loadFeatures
-      // itself). Reported as supporting evidence rather than required, so the CMP is
-      // still named on a page where the API has not been pulled in yet.
+      key: "shopify_consent", label: "Shopify Consent-API", adapter: "cc_shopify_consent",
+      confidence: "medium", kind: "platform",
+      // NOT a CMP product — the platform's consent INTERFACE. Every Shopify shop has it
+      // (verified 2026-08-03 on fsb-shop.de: Shopify.customerPrivacy fully present with
+      // 24 methods while the actual banner was Usercentrics v3). Reporting it as a third
+      // "detected CMP" next to the real one is exactly the noise this card must not
+      // produce, so it is ranked and rendered separately: it says which API a CMP can
+      // drive, not which CMP drives it.
       need: [{ g: "Shopify", t: "object" }],
       extra: [{ g: "Shopify.customerPrivacy", t: "object" }]
     },
@@ -145,7 +148,13 @@
     },
     {
       key: "usercentrics", label: "Usercentrics v2", adapter: "cc_usercentrics", confidence: "strong",
-      need: [{ g: "UC_UI", t: "object" }, { g: "UC_UI.getServicesBaseInfo", t: "function" }]
+      need: [{ g: "UC_UI", t: "object" }, { g: "UC_UI.getServicesBaseInfo", t: "function" }],
+      // v3 ships a UC_UI COMPATIBILITY layer — getServicesBaseInfo and all — so UC_UI on
+      // its own does not prove v2. Verified 2026-08-03 on fsb-shop.de running
+      // web.cmp.usercentrics.eu/ui/v/4.9.0: both __ucCmp.cmpController and a working
+      // UC_UI were present, and the card reported v2 and v3 side by side.
+      // __ucCmp is the newer, more specific signature, so it wins.
+      deny: [{ g: "__ucCmp.cmpController", t: "object" }]
     },
     {
       key: "usercentrics3", label: "Usercentrics v3", adapter: "cc_usercentrics3", confidence: "strong",
@@ -251,10 +260,14 @@
   }
 
   var CONF_RANK = { strong: 0, medium: 1 };
+  // A platform consent INTERFACE (Shopify) is never the answer to "which CMP runs here",
+  // so it always sorts behind every real CMP hit and the panel renders it apart.
+  var KIND_RANK = { cmp: 0, platform: 1 };
 
-  // evidence → { matches, frameworks, storageBlocked, error }
-  // `matches` is ranked strong-before-medium, then table order (stable), so the panel
-  // never has to re-decide which of two hits is the more trustworthy one.
+  // evidence → { matches, cmps, platforms, frameworks, storageBlocked, error }
+  // `matches` is ranked CMPs-before-platform-APIs, then strong-before-medium, then table
+  // order (stable), so the panel never has to re-decide which hit is the more meaningful
+  // one. `cmps`/`platforms` are the same list split by kind, for convenience.
   function detect(ev) {
     ev = ev || {};
     var matches = [];
@@ -273,20 +286,29 @@
       }
       matches.push({
         key: s.key, label: s.label, adapter: s.adapter, confidence: s.confidence,
-        order: i, proof: proof, extra: extra
+        kind: s.kind || "cmp", order: i, proof: proof, extra: extra
       });
     }
+    function rank(map, v) { return typeof map[v] === "number" ? map[v] : 9; }
     matches.sort(function (a, b) {
-      var ra = CONF_RANK[a.confidence], rb = CONF_RANK[b.confidence];
-      if (ra !== rb) return (typeof ra === "number" ? ra : 9) - (typeof rb === "number" ? rb : 9);
+      var ka = rank(KIND_RANK, a.kind), kb = rank(KIND_RANK, b.kind);
+      if (ka !== kb) return ka - kb;
+      var ra = rank(CONF_RANK, a.confidence), rb = rank(CONF_RANK, b.confidence);
+      if (ra !== rb) return ra - rb;
       return a.order - b.order;
     });
+    function ofKind(k) {
+      var r = [];
+      for (var n = 0; n < matches.length; n++) { if (matches[n].kind === k) r.push(matches[n]); }
+      return r;
+    }
     var frameworks = [];
     for (var k = 0; k < FRAMEWORK_PROBES.length; k++) {
       if (holds(FRAMEWORK_PROBES[k], ev)) frameworks.push(FRAMEWORK_PROBES[k].label);
     }
     return {
-      matches: matches, frameworks: frameworks,
+      matches: matches, cmps: ofKind("cmp"), platforms: ofKind("platform"),
+      frameworks: frameworks,
       storageBlocked: !!ev.storageBlocked, error: ev.error || ""
     };
   }

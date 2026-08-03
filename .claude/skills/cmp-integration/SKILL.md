@@ -113,6 +113,13 @@ architecture, see `CLAUDE.md` (sections "CMP Files", "Build Process",
      ones. Prefer a **method** over a bare global: `cc` or `sp` alone is a name any page
      could use. Use `deny` when two CMPs share a signature (JTL Consent vs. Matomo).
    - `confidence`: `strong` for a live JS API, `medium` for a cookie/storage signature.
+   - **Check for overlap before you trust `strong`.** A newer CMP version often keeps the
+     older one's API alive (Usercentrics v3 ships a working `UC_UI` incl.
+     `getServicesBaseInfo`) — then the *more specific* signature wins and the older one
+     gets a `deny`. If the adapter targets a **platform consent interface** rather than a
+     CMP product (`Shopify.customerPrivacy` exists on every Shopify shop, whoever drives
+     it), set `kind: 'platform'` so it is ranked and rendered apart from the real hit.
+     Verify overlaps on a live page rather than assuming — that is how both cases were found.
    - If the CMP genuinely **cannot** be identified (a template with a configurable
      cookie name, or a check that only probes `__tcfapi`), add it to `UNDETECTABLE`
      with a reason instead. Naming a CMP that isn't there is worse than naming none.

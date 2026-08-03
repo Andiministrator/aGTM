@@ -89,6 +89,12 @@ presence probe — and `test/devtools/cmpdetect.test.js` **drift-guards** it: ev
 reason. Two are listed there on purpose: `cc_sourcepoint` (only checks `__tcfapi`, which
 every IAB TCF CMP provides) and `cc_simple_cookie_regex_check` (a template with a freely
 configured cookie name) — naming a CMP that isn't there is worse than naming none.
+Two sharpenings came from a live shop that first reported three CMPs at once: a signature
+may carry **`kind: "platform"`** (only `cc_shopify_consent` — `Shopify.customerPrivacy`
+exists on every Shopify shop whoever drives it, so it is ranked and rendered apart from
+the real CMP), and a **newer CMP version may publish the older one's API** (Usercentrics
+v3 ships a working `UC_UI` incl. `getServicesBaseInfo`, so v2 carries a `deny` on
+`__ucCmp.cmpController` — same shape as Borlabs 2 vs. 3).
 **Adding a CMP adapter ⇒ add its signature or its exception**, same reflex as the
 `CMP_MAP` entry for the sGTM Client sync. The probe collects existence/`typeof` only,
 never cookie or storage **values**: it runs before any consent decision.

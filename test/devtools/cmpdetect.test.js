@@ -74,6 +74,49 @@ describe("cmpdetect — matcher", () => {
       .toEqual(["Usercentrics v3"]);
   });
 
+  test("Usercentrics v3's UC_UI compatibility layer must not report v2 as well", () => {
+    // Measured on fsb-shop.de (2026-08-03), web.cmp.usercentrics.eu/ui/v/4.9.0: v3
+    // publishes __ucCmp.cmpController AND a working UC_UI incl. getServicesBaseInfo.
+    // Before the deny rule the card listed v2 and v3 side by side, both "sicher".
+    const r = detectOn({
+      globals: {
+        __ucCmp: { cmpController: { consent: {}, dps: {} }, cmpView: {} },
+        UC_UI: { getServicesBaseInfo: function () { return []; } }
+      }
+    });
+    expect(labels(r)).toEqual(["Usercentrics v3"]);
+  });
+
+  test("a platform consent API never competes with the real CMP", () => {
+    // Same page: Shopify.customerPrivacy is fully present, but the banner is Usercentrics.
+    const r = detectOn({
+      globals: {
+        __ucCmp: { cmpController: {} },
+        Shopify: { customerPrivacy: { currentVisitorConsent: function () {} } }
+      }
+    });
+    expect(r.cmps.map((x) => x.label)).toEqual(["Usercentrics v3"]);
+    expect(r.platforms.map((x) => x.label)).toEqual(["Shopify Consent-API"]);
+    // …and it always sorts behind the CMP, whatever the table order is.
+    expect(labels(r)).toEqual(["Usercentrics v3", "Shopify Consent-API"]);
+  });
+
+  test("kind outranks confidence and table order in `matches`", () => {
+    // Shopware 6 is `medium` like the Shopify API AND sits later in the table, so
+    // confidence and order both put Shopify first — only the kind rule flips it.
+    // (Without this case the kind rule was dead code the suite never noticed.)
+    const r = detectOn({ globals: { Shopify: {} }, cookie: "cookie-preference=1" });
+    expect(labels(r)).toEqual(["Shopware 6 Cookie", "Shopify Consent-API"]);
+    expect(r.matches[0].kind).toBe("cmp");
+    expect(r.matches[1].kind).toBe("platform");
+  });
+
+  test("a Shopify shop with no detectable CMP still reports the platform API", () => {
+    const r = detectOn({ globals: { Shopify: {} } });
+    expect(r.cmps).toEqual([]);
+    expect(r.platforms.map((x) => x.label)).toEqual(["Shopify Consent-API"]);
+  });
+
   test("Borlabs 2 and 3 are told apart by getCookie(), as the adapter does", () => {
     const v2 = detectOn({
       globals: { BorlabsCookie: { getCookie: function () {} }, borlabsCookieConfig: { cookies: {} } }
@@ -105,10 +148,17 @@ describe("cmpdetect — matcher", () => {
 
   test("Shopify matches on the platform global; the lazy consent API is extra evidence", () => {
     const bare = detectOn({ globals: { Shopify: {} } });
-    expect(labels(bare)).toEqual(["Shopify Consent"]);
+    expect(labels(bare)).toEqual(["Shopify Consent-API"]);
+    expect(bare.matches[0].kind).toBe("platform");
     expect(bare.matches[0].extra).toEqual([]);
     const withApi = detectOn({ globals: { Shopify: { customerPrivacy: {} } } });
     expect(withApi.matches[0].extra).toContain("Shopify.customerPrivacy (object)");
+  });
+
+  test("every signature declares its kind; only the platform API is not a CMP", () => {
+    const D2 = require(join(import.meta.dir, "..", "..", "devtools-extension", "cmpdetect.js"));
+    const platforms = D2.SIGNATURES.filter((s) => s.kind === "platform").map((s) => s.key);
+    expect(platforms).toEqual(["shopify_consent"]);
   });
 
   test("strong matches rank before medium ones", () => {
