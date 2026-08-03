@@ -1492,9 +1492,9 @@
             "title": "Bot-Check: 403-Gate-Fix (F-127) + Bot-/Session-Felder nach aGTM.d (F-128)",
             "description": "F-127 (P1, Regression): Der sGTM-Client parste die Bot-Check-Antwort nur bei 2xx. api4filter koppelt den Status ans Urteil (403 bei isBot, sonst 200) - laut Service-README vom 2026-07-14 schriftlich zugesichert -, also wurde genau die Bot-Antwort nie gelesen und JEDER erkannte Bot durchgelassen. Gate kam mit 9d302d7 (v1.5-Refactor); v1.4.2/v1.4.3pre blocken korrekt. Gate ersatzlos entfernt.\n\nF-128 (P2): Neues cfg.bot -> aGTM.d.bot (isBot/score/band/primarySignal/signals[], Whitelist, signals[].detail bleibt serverseitig weil tenant-weite Aggregate ueber andere Besucher). Eigener Top-Level-Key statt session-Feld, damit ein Session-Ausfall das Urteil nicht verschluckt und das Session-Preset-Gate nicht geoeffnet wird. Dazu die Session-API-Zaehler created/lastInteraction/pvCount/eventCount/sessionCount in aGTM.d.session (loest Karte #48 mit ab). Inspector + Skills + Doku nachgezogen; 8 fehlende logmap-IDs ergaenzt.\n\nRELEASE-SENSIBEL: aendert den in den Client eingebetteten Blob -> braucht Client-Re-Import; danach blockt der Bot-Check wieder, wo er faktisch nichts tat.",
             "priority": "P1",
-            "status": "in-progress",
+            "status": "todo",
             "owner": "Claude Opus",
-            "columnId": "col-qa",
+            "columnId": "col-erledigt",
             "complexity": "mittel",
             "effort": "M",
             "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (botFieldsFromResponse, afterBotCheck, buildAndSend, sd-Aufbau) + sgtmClient/template.tpl (Sandboxed-Block MUSS byte-identisch bleiben, build.sh synct nur den base64-Blob). aGTM.js: aGTM.d.bot im objinit + Deep-Copy in config(). Tests: test/sgtm/botcheck.test.js, test/bot_preset.test.js, test/devtools/botsummary.test.js. Findings F-127/F-128. Sandbox-Fallen: kein Array.isArray, kein try/catch, JSON.parse gibt undefined statt zu werfen.",
@@ -1540,6 +1540,12 @@
                 "author": "Claude Opus",
                 "text": "UEBERGABE an den naechsten Chat (Stand 2026-07-29, Ende der Session).\n\nCode ist fertig und gepusht (4fd5706). Vier Pruefrunden (QA + Kritiker) sind durch, alle Befunde beseitigt, Findings F-127 bis F-135 dokumentiert. 874 Tests gruen IM FRISCHEN CLONE (das ist seit F-132 das Gate - Arbeitsverzeichnis allein zaehlt nicht mehr). build.sh sauber, Sandboxed-Block byte-identisch, ZIP reproduzierbar.\n\nLIVE-STAND fc-moto: Client re-importiert und im Modus \"mark\" veroeffentlicht (blockt nichts, meldet nur). Genau ein GTM-Container, Consent Check = yes. Bot-Werte gehen nach Plausible.\n\nOFFEN - das gehoert dem naechsten Chat NICHT, sondern Andi:\n1. Andi sieht nach, ob der Plausible-Aufruf mit dem Bot-Wert im GTM-Container haengt oder direkt im Seiten-HTML. Direkt = Messung vollstaendig, Rate rechenbar. Im Container = nur Einwilligende, dann ist die Zahl nur ein Falsch-Positiv-Detektor.\n2. In 1-2 Wochen die Zahlen anschauen, dann entscheiden wir ueber \"block\". Faustregel: ueber ~1 % bot bei normalem Endkunden-Traffic ist erklaerungsbeduerftig.\n3. Beim NAECHSTEN Client-Re-Import kommen mit: das reason-Feld (no_answer/bad_answer/no_client_ip) und die logging-Permission auf \"all\" (F-134). Bis dahin ist die mark-Phase serverseitig blind - Plausible ist derzeit die einzige Quelle.\n4. Beim Service-Owner (kaiser@tracking-garden.com) die Enumerationen fuer band und signals[].type bestaetigen lassen. Vier von sechs BOT_TYPES sind aus einem Prosasatz rueckuebersetzt; solange das offen ist, ist ein \"other\"-Treffer eher wahrscheinlich als exotisch.\n\nKARTE: #56 steht auf QA mit qa=true und wartet auf Andis Abnahme. NICHT von selbst nach Erledigt schieben.\n\nRELEASE: v1.5 bleibt weiterhin offen. Kein Tag, kein Merge nach main, kein /sprint-abschluss ohne Andis ausdrueckliches Zeichen.",
                 "created": "2026-07-29"
+              },
+              {
+                "id": "f64f2731-23c8-41b4-8d9a-a2faf3de1c91",
+                "author": "Claude Opus",
+                "created": "2026-08-03",
+                "text": "ABNAHME (2026-08-03, Andis Zeichen). Gate vor dem Schliessen noch einmal selbst nachgefahren, nicht dem Uebergabe-Kommentar geglaubt:\n\n- Frischer Clone von dev: 980 Tests gruen, 0 fail (seit F-132 ist der frische Clone das Gate, nicht das Arbeitsverzeichnis). Der Stand ist um 106 Tests hoeher als bei der Uebergabe - die ppcm- und CMP-Detektions-Karten sind seitdem dazugekommen und haben nichts kaputtgemacht.\n- build.sh im Clone: sauber, keine Warnung. Alle 24 eingebetteten CMP-consent_check-Codes in sync, aGTM.min.js und aGTM.base64 byte-identisch zum getrackten Stand (die einzige Aenderung ist der @lastupdate-Datumsstempel).\n- aGTM-Inspector.zip: Re-Pack ergibt denselben SHA256 - die getrackte ZIP ist aktuell.\n\nDie Code-Arbeit an F-127/F-128 (plus die Nachtraege F-129 bis F-135) ist damit abgeschlossen; die Karte geht nach Erledigt. Sie loest #48 mit ab.\n\nWAS NICHT MITGESCHLOSSEN WIRD: die vier operativen Punkte aus der Uebergabe (Plausible-Sender verorten, mark-Phase messen, block-Entscheidung, Vokabular-Bestaetigung beim Service-Owner, reason-Feld + logging=all beim naechsten Re-Import) sind nicht erledigt, sondern gehoeren dir. Sie haengen jetzt an einer eigenen Karte, damit sie beim Schliessen dieser hier nicht unsichtbar werden."
               }
             ],
             "qa": true
@@ -1611,6 +1617,23 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "50332043-ff00-492c-a8eb-14ba238e7584",
+            "title": "Bot-Check-Rollout: mark-Phase messen und ueber block entscheiden",
+            "description": "Operativer Rest aus #56 (F-127..F-135). Der Code ist fertig und live bei fc-moto im Modus \"mark\" (blockt nichts, meldet nur). Offen sind vier Punkte, die alle bei Andi liegen:\n\n1. VERORTEN: Sitzt der Plausible-Aufruf mit dem Bot-Wert im GTM-Container oder direkt im Seiten-HTML? aGTM.d.bot steht fuer JEDEN Besucher bereit (gesetzt in aGTM.f.config(), also vor jeder Consent-Entscheidung) - der Engpass ist der Sender. Direkt aus der Seite = vollstaendig, Rate rechenbar. Im Container = nur Einwilligende, dann ist die Zahl ein Falsch-Positiv-Detektor fuer Menschen, KEINE Rate. fc-moto hat genau einen Container mit Consent Check = yes, also keinen noConsent-Pfad.\n\n2. MESSEN (7-14 Tage): aGTM.d.bot.isBot === true und SEPARAT band === \"unknown\" zaehlen - sonst zaehlt ein Filter-Ausfall als sauberer Traffic. Faustregel: ueber ~1 % bot bei normalem Endkunden-Traffic ist erklaerungsbeduerftig, nicht umschaltbar.\n\n3. NAECHSTER CLIENT-RE-IMPORT bringt zwei Dinge mit, die in dev fertig liegen: das reason-Feld (no_answer/bad_answer/no_client_ip) und die logging-Permission auf \"all\" (F-134). Bis dahin ist die mark-Phase SERVERSEITIG BLIND - alle warn-Zeilen sind stille No-ops, Plausible ist die einzige Quelle.\n\n4. SERVICE-OWNER (kaiser@tracking-garden.com): Enumerationen fuer band und signals[].type bestaetigen lassen. Vier von sechs BOT_TYPES sind aus einem Prosasatz rueckuebersetzt; solange das offen ist, ist ein \"other\"-Treffer eher wahrscheinlich als exotisch.\n\nErst wenn 1-3 durch sind, ist die Umschaltung auf block eine informierte Entscheidung statt eines Sprungs.",
+            "priority": "P2",
+            "status": "todo",
+            "owner": "",
+            "qa": false,
+            "critical": false,
+            "blocked": true,
+            "complexity": "klein",
+            "effort": "S",
+            "links": [],
+            "agentContext": "Code fertig in dev. Relevant: sgtmClient/template.tpl (botCheckMode SELECT block|mark, botCheckExpose CHECKBOX, logging-Permission environments=all) + sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (byte-identisch halten!). Browserseitig aGTM.d.bot (aGTM.js objinit + config()). Inspector: devtools-extension botsummary/diagnose. Tests: test/sgtm/botcheck.test.js, serve-paths.test.js, sandbox-lint.test.js, test/bot_preset.test.js, test/devtools/botsummary.test.js. Findings F-127..F-135. Hier ist NICHTS zu programmieren, bis die Messung vorliegt - die Karte ist eine Entscheidungs-, keine Bau-Karte.",
+            "displayId": 61,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -1878,7 +1901,7 @@
         ]
       }
     ],
-    "nextDisplayId": 61,
+    "nextDisplayId": 62,
     "attachments": [],
     "background": null,
     "templates": [],
