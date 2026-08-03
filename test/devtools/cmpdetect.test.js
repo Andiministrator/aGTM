@@ -48,9 +48,18 @@ const labels = (r) => r.matches.map((m) => m.label);
 describe("cmpdetect — matcher", () => {
   test("names a CMP from a single distinctive global", () => {
     expect(labels(detectOn({ globals: { CCM: {} } }))).toEqual(["CCM19"]);
-    expect(labels(detectOn({ globals: { Cookiebot: {} } }))).toEqual(["Cookiebot"]);
-    expect(labels(detectOn({ globals: { CookieFirst: {} } }))).toEqual(["CookieFirst"]);
+    expect(labels(detectOn({ globals: { Cookiebot: { consent: {} } } }))).toEqual(["Cookiebot"]);
+    expect(labels(detectOn({ globals: { CookieFirst: { hasConsented: true } } }))).toEqual(["CookieFirst"]);
     expect(labels(detectOn({ globals: { __cmp: function () {} } }))).toEqual(["Consentmanager (CMP)"]);
+  });
+
+  test("a bare vendor global is not the tool — an empty stub must not read as 'sicher'", () => {
+    // window.Cookiebot = {} happens: a blocker placeholder, an aborted CMP load, a tag
+    // manager stub. The adapters check more than the name, so the signatures do too.
+    expect(labels(detectOn({ globals: { Cookiebot: {} } }))).toEqual([]);
+    expect(labels(detectOn({ globals: { CookieFirst: {} } }))).toEqual([]);
+    expect(labels(detectOn({ globals: { Cookiebot: { consent: {} } } }))).toEqual(["Cookiebot"]);
+    expect(labels(detectOn({ globals: { CookieFirst: { hasConsented: false } } }))).toEqual(["CookieFirst"]);
   });
 
   test("a generic global name alone is not enough — the method decides", () => {
@@ -75,7 +84,7 @@ describe("cmpdetect — matcher", () => {
   });
 
   test("Usercentrics v3's UC_UI compatibility layer must not report v2 as well", () => {
-    // Measured on fsb-shop.de (2026-08-03), web.cmp.usercentrics.eu/ui/v/4.9.0: v3
+    // Measured on a live shop (2026-08-03), web.cmp.usercentrics.eu/ui/v/4.9.0: v3
     // publishes __ucCmp.cmpController AND a working UC_UI incl. getServicesBaseInfo.
     // Before the deny rule the card listed v2 and v3 side by side, both "sicher".
     const r = detectOn({
@@ -109,6 +118,36 @@ describe("cmpdetect — matcher", () => {
     expect(labels(r)).toEqual(["Shopware 6 Cookie", "Shopify Consent-API"]);
     expect(r.matches[0].kind).toBe("cmp");
     expect(r.matches[1].kind).toBe("platform");
+  });
+
+  test("equal-rank hits keep the table order (stable, not arbitrary)", () => {
+    // Both strong CMPs: only the table position decides, and it must not flip around
+    // between polls — the card lists them and explicitly refuses to crown one.
+    const r = detectOn({
+      globals: { Cookiebot: { consent: {} }, CookieFirst: { hasConsented: true } }
+    });
+    expect(labels(r)).toEqual(["Cookiebot", "CookieFirst"]);
+  });
+
+  test("the Orestbida cookie does not make a non-Magento page 'Magento'", () => {
+    // cc_cookie is Orestbida CookieConsent's DEFAULT cookie name; the Magento adapter
+    // parses exactly that library's payload. v2 exposes `cc`, v3 `CookieConsent`.
+    const v2 = detectOn({ globals: { cc: { getUserPreferences: function () {} } }, cookie: "cc_cookie=1" });
+    expect(labels(v2)).toEqual(["Orestbida CookieConsent"]);
+    const v3 = detectOn({ globals: { CookieConsent: {} }, cookie: "cc_cookie=1" });
+    expect(labels(v3)).toEqual([]);   // we have no v3 adapter — say nothing, don't say "Magento"
+    // Without either library visible the Magento adapter is still the best guess…
+    const bare = detectOn({ cookie: "cc_cookie=1" });
+    expect(labels(bare)).toEqual(["Magento CC Cookie"]);
+    // …but it must carry the caveat that the cookie is not Magento-specific.
+    expect(bare.matches[0].caveat).toContain("Orestbida");
+  });
+
+  test("cookie/storage-only signatures are flagged as post-decision", () => {
+    // Their artefact appears only AFTER the visitor answered, so absence proves nothing
+    // — the opposite of a JS-API signature, and the card has to word it differently.
+    expect(detectOn({ cookie: "cookie-preference=1" }).matches[0].postDecision).toBe(true);
+    expect(detectOn({ globals: { CCM: {} } }).matches[0].postDecision).toBe(false);
   });
 
   test("a Shopify shop with no detectable CMP still reports the platform API", () => {
@@ -162,7 +201,7 @@ describe("cmpdetect — matcher", () => {
   });
 
   test("strong matches rank before medium ones", () => {
-    const r = detectOn({ globals: { Cookiebot: {} }, cookie: "cookie-preference=1" });
+    const r = detectOn({ globals: { Cookiebot: { consent: {} } }, cookie: "cookie-preference=1" });
     expect(labels(r)).toEqual(["Cookiebot", "Shopware 6 Cookie"]);
     expect(r.matches[0].confidence).toBe("strong");
     expect(r.matches[1].confidence).toBe("medium");
@@ -183,7 +222,7 @@ describe("cmpdetect — matcher", () => {
 
   test("blocked storage is reported, not silently read as 'no keys'", () => {
     // Otherwise a storage-based CMP looks identical to an absent one.
-    const r = detectOn({ storageThrows: true, globals: { Cookiebot: {} } });
+    const r = detectOn({ storageThrows: true, globals: { Cookiebot: { consent: {} } } });
     expect(r.storageBlocked).toBe(true);
     expect(labels(r)).toEqual(["Cookiebot"]);
   });
@@ -241,12 +280,42 @@ describe("cmpdetect — page probe", () => {
     expect(ev.globals["Optanon.GetDomainData"]).toBe("undefined");
   });
 
-  test("a localStorage prefix hit is found and the scan is capped", () => {
+  test("a localStorage prefix hit is found when its gate global is present", () => {
     const ls = { "perspective.tracking-preferences.abc": "{}" };
     for (let i = 0; i < 500; i++) ls["junk" + i] = "x";
     // The wanted key is first, so a capped scan still finds it; the cap only bounds work.
-    const ev = probe(makeWin({ ls }));
+    const ev = probe(makeWin({ ls, globals: { perspectiveData: { campaignId: "abc" } } }));
     expect(ev.lsp["perspective.tracking-preferences."]).toBe(true);
+  });
+
+  test("the prefix scan does not run at all without its gate global", () => {
+    // It is the only unbounded work in the probe and it gates nothing (the prefix is
+    // `extra` evidence), so on every page that cannot be Perspective it must not touch
+    // localStorage at all — otherwise a big-storage SPA pays for it on every poll.
+    let keyCalls = 0;
+    const win = makeWin({});
+    win.localStorage = {
+      getItem: () => null,
+      get length() { return 5000; },
+      key: () => { keyCalls++; return "junk"; }
+    };
+    const ev = probe(win);
+    expect(keyCalls).toBe(0);
+    expect(ev.lsp["perspective.tracking-preferences."]).toBe(false);
+  });
+
+  test("a gated scan is still capped at 300 keys", () => {
+    // The cap is the protection against a page with a huge localStorage stalling the
+    // 700 ms poll. Without this test the bound was pure comment (the mutation survived).
+    let keyCalls = 0;
+    const win = makeWin({ globals: { perspectiveData: { campaignId: "abc" } } });
+    win.localStorage = {
+      getItem: () => null,
+      get length() { return 100000; },
+      key: () => { keyCalls++; return "junk"; }
+    };
+    probe(win);
+    expect(keyCalls).toBe(300);
   });
 
   test("a throwing storage sets storageBlocked instead of killing the probe", () => {
@@ -288,6 +357,32 @@ describe("cmpdetect — drift guard over cmp/", () => {
     });
   });
 
+  test("every deny condition is actually probed", () => {
+    // An unprobed deny silently never holds — it fails OPEN and the collision it was
+    // written for comes back. Today every deny happens to double as another signature's
+    // need, so removing deny from probeSpec changes nothing; the next CMP breaks that.
+    const spec = D.probeSpec();
+    D.SIGNATURES.forEach((s) => {
+      (s.deny || []).forEach((c) => {
+        if (c.g) expect(spec.globals).toContain(c.g);
+        if (c.c) expect(spec.cookies).toContain(c.c);
+        if (c.ls) expect(spec.ls).toContain(c.ls);
+        if (c.ss) expect(spec.ss).toContain(c.ss);
+      });
+    });
+  });
+
+  test("a partially blocked storage rules the signature out instead of failing open", () => {
+    // localStorage readable, sessionStorage throwing: jtl_consent's `need` (ls.consent)
+    // holds while its `deny` (ss['consent-cache']) cannot be evaluated — a Matomo page
+    // was reported as JTL Consent.
+    const win = makeWin({ ls: { consent: "{}" } });
+    win.sessionStorage = new Proxy({}, { get() { throw new Error("SecurityError"); } });
+    const r = D.detect(probe(win));
+    expect(r.storageBlocked).toBe(true);
+    expect(labels(r)).toEqual([]);
+  });
+
   test("signature keys and adapters are unique", () => {
     const keys = D.SIGNATURES.map((s) => s.key);
     const adaps = D.SIGNATURES.map((s) => s.adapter);
@@ -301,6 +396,18 @@ describe("cmpdetect — drift guard over cmp/", () => {
       expect(Array.isArray(s.need)).toBe(true);
       expect(s.need.length).toBeGreaterThan(0);
     });
+  });
+
+  test("comparable() is false for exactly the adapters that can never match", () => {
+    // The panel uses this to decide whether a configured-vs-detected comparison is even
+    // possible. Getting it wrong accuses a healthy Sourcepoint install of a mismatch.
+    expect(D.comparable("cc_sourcepoint")).toBe(false);
+    expect(D.comparable("cc_simple_cookie_regex_check")).toBe(false);
+    expect(D.comparable("cc_ccm19")).toBe(true);
+    expect(D.comparable("cc_does_not_exist")).toBe(false);
+    expect(D.comparable("")).toBe(false);
+    expect(D.undetectableInfo("cc_sourcepoint").why).toContain("__tcfapi");
+    expect(D.undetectableInfo("cc_ccm19")).toBe(null);
   });
 
   test("the adapter name maps to aGTM.c.cmp (cmp/cc_<name>.js)", () => {

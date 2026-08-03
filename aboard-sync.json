@@ -1592,15 +1592,15 @@
                 "created": "2026-08-03"
               },
               {
-                "id": "58bcf3a6-67cb-4314-93e8-b4a3d1fd72b0",
+                "id": "301d7e3e-3896-43a6-8d5e-c6d7611bbd49",
                 "author": "Claude Opus",
-                "text": "Nachbesserung 873fdb4 nach Andis Live-Befund (fsb-shop.de zeigte 3 Treffer: UC v2 + UC v3 + Shopify). Beide Ursachen AM LAUFENDEN OBJEKT verifiziert statt geraten: (1) Usercentrics v3 (web.cmp.usercentrics.eu/ui/v/4.9.0) stellt eine UC_UI-Kompatibilitaetsschicht INKL. getServicesBaseInfo bereit -> UC_UI allein beweist v2 nicht; v2 hat jetzt deny auf __ucCmp.cmpController (gleiches Muster wie Borlabs 2/3). (2) Shopify.customerPrivacy ist KEIN CMP, sondern die Consent-Schnittstelle der Plattform - live vollstaendig vorhanden (24 Methoden), waehrend das Banner Usercentrics war. cc_shopify_consent ist jetzt kind:\"platform\": rangiert hinter jedem echten CMP, eigener Block, und loest allein KEINE Mismatch-Warnung mehr aus (waere Falschalarm). Bei zwei echten CMP-Signaturen sagt die Karte jetzt, dass das meist EIN Tool ist (neuere Version haelt die alte API am Leben) und markiert die erste Zeile als die spezifischere. End-to-end gegengeprueft: generierter Probe in der echten Seite ausgefuehrt, Evidenz durch den echten Matcher -> genau 1 CMP (Usercentrics v3) + 1 Plattform-API. 5 Mutationstests; die kind-Ranking-Mutation ueberlebte zunaechst (die Konfidenz-Sortierung maskierte sie), bis ein Fall mit spaeter einsortiertem medium-CMP sie diskriminierend machte. 958 Tests gruen, ZIP neu gepackt. OFFEN: Andis erneuter Live-Test (Extension neu laden).",
+                "text": "Nachbesserung 873fdb4 nach Andis Live-Befund (eine Live-Seite zeigte 3 Treffer: UC v2 + UC v3 + Shopify). Beide Ursachen AM LAUFENDEN OBJEKT verifiziert statt geraten: (1) Usercentrics v3 (web.cmp.usercentrics.eu/ui/v/4.9.0) stellt eine UC_UI-Kompatibilitaetsschicht INKL. getServicesBaseInfo bereit -> UC_UI allein beweist v2 nicht; v2 hat jetzt deny auf __ucCmp.cmpController (gleiches Muster wie Borlabs 2/3). (2) Shopify.customerPrivacy ist KEIN CMP, sondern die Consent-Schnittstelle der Plattform - live vollstaendig vorhanden (24 Methoden), waehrend das Banner Usercentrics war. cc_shopify_consent ist jetzt kind:\"platform\": rangiert hinter jedem echten CMP, eigener Block, und loest allein KEINE Mismatch-Warnung mehr aus (waere Falschalarm). Bei zwei echten CMP-Signaturen sagt die Karte jetzt, dass das meist EIN Tool ist (neuere Version haelt die alte API am Leben) und markiert die erste Zeile als die spezifischere. End-to-end gegengeprueft: generierter Probe in der echten Seite ausgefuehrt, Evidenz durch den echten Matcher -> genau 1 CMP (Usercentrics v3) + 1 Plattform-API. 5 Mutationstests; die kind-Ranking-Mutation ueberlebte zunaechst (die Konfidenz-Sortierung maskierte sie), bis ein Fall mit spaeter einsortiertem medium-CMP sie diskriminierend machte. 958 Tests gruen, ZIP neu gepackt. OFFEN: Andis erneuter Live-Test (Extension neu laden).",
                 "created": "2026-08-03"
               },
               {
-                "id": "21ae9eec-2b77-48e8-9c3a-90114f67a11c",
+                "id": "006d1289-6917-48a1-af34-2c9362a60509",
                 "author": "Claude Opus",
-                "text": "Live bestaetigt (Andi, Screenshot 2026-08-03, fsb-shop.de OHNE aGTM): genau 1 CMP-Treffer (Usercentrics v3, sicher, Beleg __ucCmp.cmpController) + Shopify getrennt als Plattform-Schnittstelle. Karte erledigt. v1.5 selbst bleibt offen (Release-Hold).",
+                "text": "Live bestaetigt (Andi, Screenshot 2026-08-03, Live-Seite OHNE aGTM): genau 1 CMP-Treffer (Usercentrics v3, sicher, Beleg __ucCmp.cmpController) + Shopify getrennt als Plattform-Schnittstelle. Karte erledigt. v1.5 selbst bleibt offen (Release-Hold).",
                 "created": "2026-08-03"
               }
             ],

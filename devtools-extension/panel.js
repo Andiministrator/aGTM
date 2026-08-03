@@ -37,7 +37,10 @@ var state = {
   // the F→C user-id promote is captured — but resets when the panel is closed).
   idTrack: {},
   idHistory: [],
-  idHost: null           // pageHost the id-tracking state currently belongs to (for per-host persistence)
+  idHost: null,          // pageHost the id-tracking state currently belongs to (for per-host persistence)
+  cmp: null,             // latest CMP-detection result (cmpdetect.detect output), null = not measured yet
+  cmpProbeCode: null,    // generated page-probe source, built once from the signature table
+  cmpMismatch: null      // {key, count} — settle counter for the configured-vs-detected warning
 };
 
 /* ---------- theme ---------- */
@@ -182,6 +185,10 @@ function poll() {
       // good tab contents on screen but flip the live dot red so the staleness is
       // visible. The next successful poll re-renders.
       setLive(false, "eval-Fehler (letzter Stand)");
+      // CMP detection does NOT depend on the reader — that is the whole premise of the
+      // card. Returning here would have coupled it to the reader's success, so it runs
+      // (and repaints) even when the aGTM snapshot could not be taken.
+      pollCmp(function () { withScrollAnchor(render); });
       return;
     }
     state.snap = result || { loaded: false };
@@ -207,6 +214,21 @@ function pollCmp(done) {
     if (!(err && (err.isError || err.isException))) state.cmp = D.detect(res || {});
     done();
   });
+}
+
+// A configured-vs-detected contradiction must hold for two consecutive polls before the
+// red box appears. The same panel already does this for the pre-consent leak banner
+// (LEAK_SETTLE_MS): during page load a CMP script may not have run yet while a stale
+// cookie from a previous tool is already there, and a red "GTM lädt nie" box that
+// flashes for one tick and disappears is worse than none — it creates tickets.
+function cmpMismatchSettled(key) {
+  if (!key) { state.cmpMismatch = null; return false; }
+  if (!state.cmpMismatch || state.cmpMismatch.key !== key) {
+    state.cmpMismatch = { key: key, count: 1 };
+    return false;   // this early return is what actually enforces the first-poll silence
+  }
+  state.cmpMismatch.count++;
+  return state.cmpMismatch.count >= 2;   // (redundant with the line above; kept explicit)
 }
 
 function setLive(on, text) {
@@ -583,8 +605,8 @@ function longStr(v) {
 // Confidence is shown, never hidden: a cookie-based hit is a weaker claim than a live
 // JS API, and pretending otherwise is how a panel sends someone chasing the wrong CMP.
 function cmpConfChip(c) {
-  if (c === "strong") return '<span class="chip ok" title="eindeutige JS-API des Tools">sicher</span>';
-  if (c === "medium") return '<span class="chip warn" title="Cookie/Storage-Signatur — kein eindeutiger JS-Nachweis">wahrscheinlich</span>';
+  if (c === "strong") return '<span class="chip ok" title="eindeutige JS-API des Tools ist auf der Seite vorhanden">sicher</span>';
+  if (c === "medium") return '<span class="chip warn" title="Cookie/Storage-Signatur — kein eindeutiger JS-Nachweis, und erst NACH der Nutzerentscheidung sichtbar">wahrscheinlich</span>';
   return '<span class="chip">unbestimmt</span>';
 }
 // `s` is the aGTM snapshot when there is one, otherwise null (page without aGTM).
@@ -594,6 +616,14 @@ function renderCmpDetect(s) {
   if (!D) return open + '<div class="muted">Detektion nicht verfügbar (cmpdetect.js nicht geladen).</div></div>';
   var r = state.cmp;
   if (!r) return open + '<div class="muted">Noch keine Messung — der nächste Poll füllt das aus.</div></div>';
+  // A failed probe must NOT read as "no CMP here": the page may have thrown at us (a
+  // hostile accessor, a missing document mid-navigation). "Nichts gefunden" and "nicht
+  // messbar" are different answers and the card has to be able to say the second one.
+  if (r.error) {
+    return open + '<div class="warnbox">Messung fehlgeschlagen — die Seite hat den Lesevorgang abgebrochen.<br>' +
+      '<span class="muted mono">' + esc(r.error) + "</span><br>" +
+      '<span class="muted">Es ist damit <strong>keine</strong> Aussage möglich, ob ein Consent-Tool läuft.</span></div></div>';
+  }
 
   var html = open;
   var m = r.matches || [];
@@ -606,7 +636,8 @@ function renderCmpDetect(s) {
       out += "<tr><td class=\"fit\"><span class=\"chip acc\">" + esc(x.label) + "</span></td>" +
         '<td class="fit">' + cmpConfChip(x.confidence) + "</td>" +
         '<td class="fit mono muted">cmp/' + esc(x.adapter) + ".js</td>" +
-        '<td class="mono muted" style="word-break:break-all">' + esc(proof.join(" · ")) + "</td></tr>";
+        '<td class="mono muted" style="word-break:break-all">' + esc(proof.join(" · ")) +
+        (x.caveat ? '<br><span class="warn">⚠ ' + esc(x.caveat) + "</span>" : "") + "</td></tr>";
     });
     return out + "</tbody></table>";
   }
@@ -616,17 +647,18 @@ function renderCmpDetect(s) {
   } else {
     html += rows(cmps);
     if (cmps.length > 1) {
-      // Two CMP hits almost never means two CMPs — it usually means one signature is not
-      // specific enough (a newer version shipping the older one's API). Say so instead of
-      // presenting both as equals; the first row is the more specific match.
-      html += '<div class="muted" style="margin-top:6px">Mehrere Signaturen gleichzeitig — meist läuft nur das <strong>erste</strong> Tool: ' +
-        "eine neuere CMP-Version stellt oft die API der älteren weiter bereit.</div>";
+      // Do NOT declare the first row the winner: the sort key is kind → confidence →
+      // table position, and table position is alphabetical, not a specificity measure.
+      // Two independent strong hits (a migrated site still loading both) would have the
+      // alphabetically earlier one crowned for no reason.
+      html += '<div class="muted" style="margin-top:6px">Mehrere Signaturen gleichzeitig — welches Tool das aktive Banner stellt, ' +
+        "ist von hier aus <strong>nicht</strong> entscheidbar. Häufigste Ursache: eine neuere CMP-Version stellt die API der älteren weiter bereit.</div>";
     }
   }
 
   // A platform consent INTERFACE is not an answer to "which CMP runs here" — every
   // Shopify shop has Shopify.customerPrivacy, whoever drives it. Shown apart so it
-  // stops competing with the real hit (verified on fsb-shop.de: Usercentrics v3 behind
+  // stops competing with the real hit (verified on a live shop: Usercentrics v3 behind
   // a fully present Shopify API).
   if (platforms.length) {
     html += '<div style="margin-top:10px"><div class="k" style="margin-bottom:4px">Consent-Schnittstelle der Plattform</div>' +
@@ -639,16 +671,37 @@ function renderCmpDetect(s) {
   // Configured vs. actually present — the mismatch is the whole point of this card:
   // aGTM.c.cmp says which adapter was loaded, the detection says what the page runs.
   if (s && s.loaded) {
-    var configured = s.cmp ? "cc_" + s.cmp : "";
+    // The library builds the adapter path through strclean() — mirror it, or a config
+    // value with a stripped character loads fine but never matches here (false alarm).
+    var configured = s.cmp ? "cc_" + String(s.cmp).replace(/[^a-zA-Z0-9_-]/g, "") : "";
     var hit = null;
     for (var i = 0; i < m.length; i++) { if (m[i].adapter === configured) { hit = m[i]; break; } }
-    // Only a real CMP hit contradicts the configuration. A lone platform API does not:
-    // it says nothing about which banner runs, so warning on it would be a false alarm.
-    if (configured && cmps.length && !hit) {
+    // Only a STRONG cmp hit may contradict the configuration. Everything else would be
+    // an unfair accusation: a `medium` hit rests on a generic cookie/storage key, a
+    // platform API says nothing about which banner runs, and an adapter the table can
+    // never match (UNDETECTABLE, or one added without a signature) makes the comparison
+    // structurally impossible — there, "not found" is our blind spot, not a defect.
+    var strongCmps = cmps.filter(function (x) { return x.confidence === "strong"; });
+    var undet = D.undetectableInfo ? D.undetectableInfo(configured) : null;
+    var canCompare = D.comparable ? D.comparable(configured) : !!configured;
+    var contradicted = canCompare && strongCmps.length && !hit;
+    // Settle: the contradiction must survive two consecutive polls (see cmpMismatchSettled).
+    var settled = cmpMismatchSettled(contradicted ? configured + "|" + strongCmps.map(function (x) { return x.key; }).join(",") : "");
+    if (contradicted && settled) {
       html += '<div class="card warnbox" style="margin-top:8px"><strong>Konfiguration und Seite passen nicht zusammen.</strong> ' +
         '<span class="muted">Konfiguriert ist <span class="mono">' + esc(s.cmp) + '</span> (cmp/' + esc(configured) +
-        '.js), erkannt wurde <span class="mono">' + esc(cmps.map(function (x) { return x.label; }).join(", ")) +
+        '.js), erkannt wurde <span class="mono">' + esc(strongCmps.map(function (x) { return x.label; }).join(", ")) +
         '</span>. Der geladene consent_check prüft dann ein Tool, das gar nicht da ist — typische Ursache für „GTM lädt nie".</span></div>';
+    } else if (configured && !canCompare) {
+      html += '<div class="muted" style="margin-top:6px">Abgleich nicht möglich: <span class="mono">' + esc(configured) +
+        ".js</span> " + (undet ? "ist von hier aus nicht erkennbar (" + esc(undet.why) + ")"
+          : "hat keine Erkennungssignatur") + " — die Konfiguration wird dadurch weder bestätigt noch widerlegt.</div>";
+    } else if (configured && hit && hit.kind === "platform" && cmps.length) {
+      // Configured on the platform interface while a real CMP is on the page: the green
+      // "matches" line would wave through exactly the open question (live-measured setup).
+      html += '<div class="muted" style="margin-top:6px">Konfiguriert ist die <strong>Plattform-Schnittstelle</strong> (<span class="mono">aGTM.c.cmp = ' +
+        esc(s.cmp) + "</span>), auf der Seite läuft zusätzlich " + esc(cmps.map(function (x) { return x.label; }).join(", ")) +
+        " — prüfen, wer die Entscheidung tatsächlich hält.</div>";
     } else if (configured && hit) {
       html += '<div class="muted" style="margin-top:6px">Deckt sich mit der Konfiguration (<span class="mono">aGTM.c.cmp = ' +
         esc(s.cmp) + "</span>).</div>";
@@ -668,11 +721,18 @@ function renderCmpDetect(s) {
   if (r.storageBlocked) {
     notes.push("localStorage/sessionStorage nicht lesbar (blockierter Kontext) — Storage-basierte Tools können hier nicht erkannt werden.");
   }
+  // The cookie/storage signatures only exist AFTER the visitor answered the banner —
+  // for them, absence is not evidence of absence, which is the exact opposite of what a
+  // JS-API signature means. Without this the card reports "nichts erkannt" during the
+  // pre-consent window, i.e. precisely when someone is watching.
+  if (cmps.concat(platforms).some(function (x) { return x.postDecision; })) {
+    notes.push("Mit ⚠/„wahrscheinlich\" markierte Treffer beruhen auf Cookie-/Storage-Signaturen: die entstehen erst NACH der Nutzerentscheidung. Vor der Entscheidung ist ein solches Tool hier unsichtbar — „nicht erkannt\" heißt dann nicht „nicht vorhanden\".");
+  }
   var und = D.UNDETECTABLE || [];
   if (und.length) {
     notes.push("Bewusst nicht erkannt: " + und.map(function (u) { return u.label + " (" + u.why + ")"; }).join(" · "));
   }
-  notes.push("Erkennung = Signaturen aus unseren eigenen cmp/cc_*.js-Adaptern (Existenz/typeof; es werden keine Cookie- oder Storage-Werte gelesen). Presence heißt „Tool ist da\", nicht „Entscheidung liegt vor\".");
+  notes.push("Erkennung = Signaturen aus unseren eigenen cmp/cc_*.js-Adaptern: geprüft wird nur, OB ein Global/Cookie/Storage-Key existiert — es wird kein Cookie- oder Storage-Wert übernommen. Nur der oberste Frame wird geprüft; eine CMP allein in einem iFrame ist hier unsichtbar. Eine Seite kann die geprüften Namen auch selbst setzen — die Karte zeigt, was eine Seite exponiert.");
   html += '<div class="muted" style="margin-top:6px">' + notes.map(esc).join("<br>") + "</div>";
   return html + "</div>";
 }
@@ -1538,6 +1598,11 @@ function initNetwork() {
       // We witnessed this navigation, so the capture now covers the page from load —
       // the pre-consent window is observed and a clean leak result is trustworthy (F-1).
       state.navObserved = true;
+      // The detected CMP belongs to the page we just left. Keeping it would show the old
+      // site's tool on the new one — and if the new page cannot be evaluated at all, it
+      // would keep showing it indefinitely with nothing but the live dot to say so.
+      state.cmp = null;
+      state.cmpMismatch = null;
       if (state.activeTab === "network") renderNetwork();
     });
   } catch (e) {

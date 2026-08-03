@@ -6,7 +6,7 @@
 // → jsonview → panel), then drives render() over a representative snapshot for every
 // tab. It catches "renderX throws" / "undefined helper" regressions the unit tests miss.
 
-import { test, expect, describe, beforeAll, afterAll } from "bun:test";
+import { test, expect, describe, beforeAll, beforeEach, afterAll } from "bun:test";
 import { readFileSync } from "fs";
 
 // Saved so afterAll can restore them — this file clobbers shared globals and other
@@ -57,12 +57,19 @@ beforeAll(() => {
   globalThis.fetch = function () {
     return Promise.resolve({ text: function () { return Promise.resolve("(function(){return {loaded:false};})()"); } });
   };
+  globalThis.__navListeners = [];
   globalThis.chrome = {
     runtime: { getURL: function (p) { return p; } },
     devtools: {
       panels: { themeName: "default" },
       inspectedWindow: { eval: function () { /* no-op: test sets state.snap directly */ } },
-      network: { onRequestFinished: { addListener: function () {} }, onNavigated: { addListener: function () {} } }
+      // Navigation listeners are RECORDED, not discarded: panel.js resets per-page state
+      // there (network capture, CMP detection), and a swallowed listener makes all of it
+      // untestable — the same trap makeNode's addEventListener used to fall into.
+      network: {
+        onRequestFinished: { addListener: function () {} },
+        onNavigated: { addListener: function (fn) { globalThis.__navListeners.push(fn); } }
+      }
     }
   };
 
@@ -111,6 +118,7 @@ beforeAll(() => {
     "  setCmp: function(v){ state.cmp = v; }," +
     "  getCmp: function(){ return state.cmp; }," +
     "  clearCmpProbe: function(){ state.cmpProbeCode = null; }," +
+    "  clearCmpMismatch: function(){ state.cmpMismatch = null; }," +
     "  noop: function(){}" +
     "};";
   (0, eval)(src);
@@ -1670,7 +1678,10 @@ describe("Simulation tab — action buttons actually reach the page", () => {
     P.setSimWrite(true); P.buildSimScaffold();
     evals.length = 0;
     clickSim("sim-gcm-push");
-    expect(evals.filter(function (c) { return c.indexOf("'consent'") !== -1; }).length).toBe(1);
+    // Matched on the gtag call the push builds, not on the bare word "consent": the
+    // CMP-detection probe carries "consent" too (JSON-quoted, which is the only reason
+    // the old `'consent'` filter did not already collide — too thin a margin to keep).
+    expect(evals.filter(function (c) { return c.indexOf("})('consent',mode,sig)") !== -1; }).length).toBe(1);
   });
   test("a zero-match reset surfaces as a warning, not as success", () => {
     const P = globalThis.__panel;
@@ -2003,6 +2014,9 @@ describe("Consent tab — detected CMP card", () => {
     for (const k in (globals || {})) win[k] = globals[k];
     return D.detect(new Function("window", "return " + D.buildProbeCode())(win));
   }
+  // Every case here starts from a clean settle counter — the warning needs two
+  // consecutive polls, so a leftover count from a previous test would leak across.
+  beforeEach(() => { P().clearCmpMismatch(); });
 
   test("names the detected tool in the Consent tab", () => {
     P().setCmp(detected({ CCM: {} }));
@@ -2020,18 +2034,165 @@ describe("Consent tab — detected CMP card", () => {
     expect(html).not.toContain("passen nicht zusammen");
   });
 
-  test("configured vs. detected mismatch raises a warning", () => {
+  test("configured vs. detected mismatch raises a warning — after it settles", () => {
+    P().clearCmpMismatch();
     P().setCmp(detected({ UC_UI: { getServicesBaseInfo: function () {} } }));
     const snap = sampleSnap();
     snap.cmp = "cookiebot";
-    const html = renderTab("consent", snap);
+    // First poll: the contradiction is fresh and stays silent — during page load a CMP
+    // script may simply not have run yet.
+    expect(renderTab("consent", snap)).not.toContain("passen nicht zusammen");
+    const html = renderTab("consent", snap);   // second consecutive poll
     expect(html).toContain("passen nicht zusammen");
     expect(html).toContain("Usercentrics v2");
     expect(html).toContain("cookiebot");
   });
 
+  test("a contradiction that does not persist never shows the red box", () => {
+    P().clearCmpMismatch();
+    const snap = sampleSnap();
+    snap.cmp = "cookiebot";
+    P().setCmp(detected({ UC_UI: { getServicesBaseInfo: function () {} } }));
+    expect(renderTab("consent", snap)).not.toContain("passen nicht zusammen");
+    // The CMP finished loading: Cookiebot is there after all, the contradiction is gone.
+    P().setCmp(detected({ Cookiebot: { consent: {} } }));
+    const html = renderTab("consent", snap);
+    expect(html).not.toContain("passen nicht zusammen");
+    expect(html).toContain("Deckt sich mit der Konfiguration");
+  });
+
+  test("a configured adapter that can never be detected is not accused", () => {
+    // cc_sourcepoint / cc_simple_cookie_regex_check are in UNDETECTABLE by design, so
+    // they can never appear as a hit — treating that as a contradiction would flag every
+    // healthy Sourcepoint install.
+    P().clearCmpMismatch();
+    const snap = sampleSnap();
+    snap.cmp = "sourcepoint";
+    P().setCmp(detected({ Cookiebot: { consent: {} } }));
+    renderTab("consent", snap);
+    const html = renderTab("consent", snap);
+    expect(html).not.toContain("passen nicht zusammen");
+    expect(html).toContain("Abgleich nicht möglich");
+  });
+
+  test("only a strong hit may contradict the configuration", () => {
+    // A `medium` hit rests on a generic cookie key (cc_cookie is the default name of
+    // Orestbida CookieConsent) — too weak to call a configuration wrong.
+    P().clearCmpMismatch();
+    const snap = sampleSnap();
+    snap.cmp = "cookiebot";
+    P().setCmp(detected({}, "cookie-preference=1"));
+    renderTab("consent", snap);
+    const html = renderTab("consent", snap);
+    expect(html).toContain("Shopware 6 Cookie");
+    expect(html).not.toContain("passen nicht zusammen");
+  });
+
+  test("configured on the platform API while a real CMP runs is questioned, not confirmed", () => {
+    P().clearCmpMismatch();
+    const snap = sampleSnap();
+    snap.cmp = "shopify_consent";
+    P().setCmp(detected({ __ucCmp: { cmpController: {} }, Shopify: { customerPrivacy: {} } }));
+    const html = renderTab("consent", snap);
+    expect(html).toContain("prüfen, wer die Entscheidung tatsächlich hält");
+    expect(html).not.toContain("Deckt sich mit der Konfiguration");
+  });
+
+  test("a failed probe says so instead of claiming no CMP is present", () => {
+    P().setCmp({ matches: [], cmps: [], platforms: [], frameworks: [], error: "boom &<>" });
+    const html = renderTab("consent");
+    expect(html).toContain("Messung fehlgeschlagen");
+    expect(html).not.toContain("Kein bekanntes Consent-Tool erkannt");
+    expect(html).toContain("boom &amp;&lt;&gt;");        // page-controlled string must be escaped
+  });
+
+  test("the confidence chip distinguishes strong from medium", () => {
+    P().setCmp(detected({ CCM: {} }));
+    expect(renderTab("consent")).toContain(">sicher<");
+    P().setCmp(detected({}, "cookie-preference=1"));
+    expect(renderTab("consent")).toContain(">wahrscheinlich<");
+  });
+
+  test("a post-decision hit says that absence would prove nothing", () => {
+    // Asserted on wording that exists ONLY in the note — matching "NACH der
+    // Nutzerentscheidung" was tautological, because the chip's own title says it too,
+    // so deleting the note left the test green (mutation survived).
+    P().setCmp(detected({}, "cookie-preference=1"));
+    const html = renderTab("consent");
+    expect(html).toContain("heißt dann nicht");
+    // A JS-API-only detection must NOT carry that note — absence there does mean absence.
+    P().setCmp(detected({ CCM: {} }));
+    expect(renderTab("consent")).not.toContain("heißt dann nicht");
+  });
+
+  test("a caveat on a shared signature is shown with the match", () => {
+    P().setCmp(detected({}, "cc_cookie=1"));
+    const html = renderTab("consent");
+    expect(html).toContain("Magento CC Cookie");
+    expect(html).toContain("Orestbida CookieConsent");   // the caveat text
+  });
+
+  test("blocked storage and framework APIs are reported in the card", () => {
+    P().setCmp({
+      matches: [], cmps: [], platforms: [], frameworks: ["IAB TCF (__tcfapi)"],
+      storageBlocked: true, error: ""
+    });
+    const html = renderTab("consent");
+    expect(html).toContain("nicht lesbar");
+    expect(html).toContain("IAB TCF (__tcfapi)");
+  });
+
+  test("the card never renders empty — both waiting states say something", () => {
+    P().setCmp(null);
+    expect(renderTab("consent")).toContain("Noch keine Messung");
+    const D = globalThis.aGTMInspectorCmpDetect;
+    globalThis.aGTMInspectorCmpDetect = null;
+    const html = renderTab("consent");
+    globalThis.aGTMInspectorCmpDetect = D;
+    expect(html).toContain("Detektion nicht verfügbar");
+  });
+
+  test("the CMP probe still runs when the reader eval fails", () => {
+    // "Independent of aGTM" is the premise of this card. poll() returns early on a
+    // reader eval error — if pollCmp sits behind that return, detection freezes exactly
+    // when the page is hardest to read.
+    P().setCmp(null);
+    P().clearCmpProbe();
+    const D = globalThis.aGTMInspectorCmpDetect;
+    const probeCode = D.buildProbeCode();
+    const realEval = globalThis.chrome.devtools.inspectedWindow.eval;
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, cb) {
+      if (code === probeCode) cb({ globals: { CCM: "object" }, cookies: {}, ls: {}, ss: {}, lsp: {} }, null);
+      else cb(null, { isException: true, description: "reader blew up" });
+    };
+    P().poll();
+    globalThis.chrome.devtools.inspectedWindow.eval = realEval;
+    expect(P().getCmp()).toBeTruthy();
+    expect(P().getCmp().cmps.map((x) => x.label)).toEqual(["CCM19"]);
+  });
+
+  test("navigation drops the previous page's detection", () => {
+    // Otherwise the card shows the old site's CMP on the new one — and if the new page
+    // cannot be evaluated at all, it keeps showing it indefinitely.
+    P().setCmp(detected({ CCM: {} }));
+    expect(P().getCmp().cmps.length).toBe(1);
+    globalThis.__navListeners.forEach(function (fn) { fn(); });
+    expect(P().getCmp()).toBe(null);
+  });
+
+  test("an eval error keeps the last detection instead of blanking it", () => {
+    P().setCmp(detected({ CCM: {} }));
+    const realEval = globalThis.chrome.devtools.inspectedWindow.eval;
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, cb) {
+      cb(null, { isException: true, description: "context destroyed" });
+    };
+    P().poll();
+    globalThis.chrome.devtools.inspectedWindow.eval = realEval;
+    expect(P().getCmp().cmps.map((x) => x.label)).toEqual(["CCM19"]);
+  });
+
   test("a matching configuration is confirmed instead of warned about", () => {
-    P().setCmp(detected({ Cookiebot: {} }));
+    P().setCmp(detected({ Cookiebot: { consent: {} } }));
     const snap = sampleSnap();
     snap.cmp = "cookiebot";
     const html = renderTab("consent", snap);
@@ -2040,7 +2201,7 @@ describe("Consent tab — detected CMP card", () => {
   });
 
   test("the platform consent API is rendered apart, not as a third CMP", () => {
-    // fsb-shop.de: Usercentrics v3 behind a fully present Shopify.customerPrivacy.
+    // Live-measured shape: Usercentrics v3 behind a fully present Shopify.customerPrivacy.
     P().setCmp(detected({
       __ucCmp: { cmpController: {} },
       UC_UI: { getServicesBaseInfo: function () {} },
@@ -2055,7 +2216,7 @@ describe("Consent tab — detected CMP card", () => {
   });
 
   test("two CMP signatures at once are called out as one tool, not two", () => {
-    P().setCmp(detected({ Cookiebot: {}, CookieFirst: {} }));
+    P().setCmp(detected({ Cookiebot: { consent: {} }, CookieFirst: { hasConsented: true } }));
     const html = renderTab("consent");
     expect(html).toContain("Mehrere Signaturen gleichzeitig");
   });
@@ -2080,7 +2241,7 @@ describe("Consent tab — detected CMP card", () => {
   });
 
   test("the card still renders when aGTM is absent — the point of the feature", () => {
-    P().setCmp(detected({ Cookiebot: {} }));
+    P().setCmp(detected({ Cookiebot: { consent: {} } }));
     P().setSnap({ loaded: false });
     P().setTab("consent");
     P().render();
@@ -2103,7 +2264,7 @@ describe("Consent tab — detected CMP card", () => {
     globalThis.chrome.devtools.inspectedWindow.eval = function (code, cb) {
       if (code === probeCode) {
         sawProbe = true;
-        cb({ globals: { Cookiebot: "object" }, cookies: {}, ls: {}, ss: {}, lsp: {} }, null);
+        cb({ globals: { Cookiebot: "object", "Cookiebot.consent": "object" }, cookies: {}, ls: {}, ss: {}, lsp: {} }, null);
       } else {
         cb({ loaded: false }, null);       // the reader poll
       }

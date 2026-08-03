@@ -96,8 +96,21 @@ the real CMP), and a **newer CMP version may publish the older one's API** (User
 v3 ships a working `UC_UI` incl. `getServicesBaseInfo`, so v2 carries a `deny` on
 `__ucCmp.cmpController` — same shape as Borlabs 2 vs. 3).
 **Adding a CMP adapter ⇒ add its signature or its exception**, same reflex as the
-`CMP_MAP` entry for the sGTM Client sync. The probe collects existence/`typeof` only,
-never cookie or storage **values**: it runs before any consent decision.
+`CMP_MAP` entry for the sGTM Client sync. The probe collects existence/`typeof` only: a
+cookie string and a storage key *are* read to answer "does this key exist", but no
+**value** is ever carried out of the page — it runs before any consent decision.
+
+**What the card refuses to claim** (review round F-142…F-152, all fixed): only a
+`strong` hit may contradict `aGTM.c.cmp`, and only after the contradiction survives two
+consecutive polls (`cmpMismatchSettled` — same settle idea as the leak banner); an
+adapter in `UNDETECTABLE` is never accused, because a comparison against a signature that
+cannot exist is *impossible*, not failed (`comparable()`); a failed probe renders
+"Messung fehlgeschlagen" instead of "no CMP found"; and a signature whose `need` is purely
+cookie/storage-based is flagged `postDecision`, because that artefact only appears AFTER
+the visitor answered — for those, absence proves nothing, the opposite of a JS-API
+signature. Signatures use the adapters' own discriminators rather than a bare vendor
+global (`window.Cookiebot = {}` must not read as "sicher"). The localStorage prefix scan
+is gated on its own global and capped at 300 keys.
 
 It is ES6+ (own browser context — **not** on the ES5/`build.sh` path), and its version
 is coupled to the library version (see the build table). Distribution is "load
