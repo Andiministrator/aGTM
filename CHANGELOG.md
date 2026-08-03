@@ -2,6 +2,41 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — the sGTM Client wrote the server-side fingerprint into the user-ID cookie
+
+Reported from the outside, reproduced against the real Client source. `/aGTM.js` wrote
+whatever user ID it had resolved into the cookie — including the `F.*` fingerprint, which
+is derived from IP + user agent + client hints + ASN/geo and is therefore **not
+per-visitor**: two people behind the same NAT running the same browser produce the same
+value. Without a cookie that collision stays transient, because the fingerprint carries a
+rolling `YYYYMMDD`. Written into a cookie it froze for the full cookie lifetime (365 days
+by default), and a second visitor could inherit the first one's identity **and** their
+recorded consent decision.
+
+The redesign notes had already named the format side of this and introduced the F→C
+promote as the cure — but the promote only healed the consent path, while the GET path
+kept producing the problem on every request. Two write sites were affected, not one: the
+session path in `/aGTM.js` and the `cookieMode='consent'` branch of the `/aGTMconsent`
+POST handler, which still carried the fingerprint whenever no promote had run (no Session
+API configured, no explicit consent signal) or the promote had failed.
+
+- **Neither site writes an `F.*` value any more.** The stable `C.*` is created at the
+  moment consent is granted, via the existing promote path — the pre-1.5 semantics.
+- **A visitor who has not answered the CMP now carries no user-ID cookie**, including
+  under Cookie Mode "Always". Deliberate: "always" means *set the cookie regardless of
+  consent*, not *freeze a shared fingerprint*.
+- **A legacy `F.*` cookie is actively cleared** instead of being refreshed for another
+  year — but never while a promote for it was attempted and failed. A transient api4sgtm
+  outage must not turn into identity loss; the cookie stays so the next request can retry.
+- Existing `C.*` cookies keep being written and refreshed exactly as before.
+
+Why no test caught it: the serve-path harness stubbed `setCookie` as a no-op, so the one
+thing the Client writes into a browser was the one thing the suite could not observe. The
+harness moved to `test/sgtm/client-harness.js` (shared rather than copied — two copies of
+a sandbox contract drift) and now records cookie writes. The new
+`test/sgtm/cookie-uid.test.js` pins all of the above; each of the four guards was mutated
+back out individually and every one of them is caught.
+
 ### Added — aGTM Inspector: which consent tool is running (works without aGTM)
 
 The Consent tab gained an **"Erkanntes Consent-Tool"** card. Until now the panel could

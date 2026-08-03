@@ -1206,7 +1206,15 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
       } else if (CFG.cookieMode === 'consent') {
         // Legacy consent-mode cookie management. cookieMode='always' cookie
         // is refreshed by /aGTM.js GET, not here.
-        if (granted && finalUid) {
+        //
+        // Same rule as the GET path: an F.* value must never land in the
+        // cookie. `finalUid` is still the fingerprint whenever no promote ran
+        // (no Session API configured, no explicit consent signal, auto-denial
+        // sentinel) or the promote failed — the `promoted` branch above is the
+        // only one guaranteed to carry a C.*. Without this guard the consent
+        // handler re-created on its own exactly what the promote exists to
+        // remove.
+        if (granted && finalUid && !isFingerprintUid(finalUid)) {
           const maxAge = CFG.cookieLifetimeDays > 0 ? Math.floor(CFG.cookieLifetimeDays * 86400) : 0;
           if (maxAge > 0) cookieOpts['max-age'] = maxAge;
           setCookie(CFG.cookieName, finalUid, cookieOpts, true);
@@ -1804,12 +1812,42 @@ const afterBotCheck = function(isBot) {
       if (!cookieAllowed && data.cookie_delete && existingCookie && CFG.cookieMode === 'consent') {
         writeCookie('', 0);
       }
+      // An F.* value must never sit in the user-ID cookie. The fingerprint is
+      // derived from IP + UA + client hints + ASN/geo, so it is NOT
+      // per-visitor: two people behind the same NAT running the same browser
+      // share it. Without a cookie that collision stays transient (the
+      // fingerprint carries a rolling YYYYMMDD); written into a cookie it
+      // freezes for cookie_lifetime, and the second visitor inherits the
+      // first one's identity AND their recorded consent. SESSION-REDESIGN §7b
+      // named the format side of this when the F→C promote was introduced —
+      // but the promote only healed the consent path while this branch kept
+      // producing the problem (origin 9d302d7, same commit as F-127/F-130).
+      //
+      // The stable C.* is created the moment consent is granted (promote
+      // path), which is the v1.3 semantics the redesign meant to preserve. A
+      // visitor who has not answered the CMP therefore carries no cookie —
+      // including under cookieMode='always'. Deliberate: 'always' means "set
+      // the cookie regardless of consent", not "freeze a shared fingerprint".
+      const willWriteFreshC = !!(cookieAllowed && sessionData.uid && !isFingerprintUid(sessionData.uid));
+
+      // Clean up a legacy F.* cookie from an earlier v1.5 deploy. Independent
+      // of cookieAllowed — a data-integrity correction, not a consent
+      // decision. Two guards: skip when this same request writes a fresh C.*
+      // over it anyway, and skip when a lazy promote was ATTEMPTED. A promote
+      // that failed (api4sgtm 5xx/timeout) must leave the cookie in place so
+      // the next request can retry — deleting it would turn an API outage into
+      // tenant-wide identity loss, and it contradicts the documented fallback
+      // ("the F.* uid is preserved").
+      if (existingCookie && isFingerprintUid(existingCookie) && !willWriteFreshC && !shouldLazyPromote) {
+        writeCookie('', 0);
+      }
+
       // Write/refresh cookie if allowed. For returning visitors with stored
       // granted consent this restores parity (otherwise the cookie max-age
       // expires until the user re-interacts with the CMP). When a lazy
       // promote happened above, sessionData.uid is now the new C.* — this
       // is what gets written, replacing the F.* in the browser.
-      if (cookieAllowed && sessionData.uid) {
+      if (willWriteFreshC) {
         writeCookie(sessionData.uid);
       }
 
