@@ -1579,11 +1579,19 @@
             "priority": "P2",
             "status": "in-progress",
             "owner": "Claude Opus",
-            "columnId": "col-schreiben",
+            "columnId": "col-qa",
             "complexity": "mittel",
             "effort": "M",
             "agentContext": "Reine ES6-Extension - KEIN Library-/ES5-Pfad, build.sh nicht betroffen (aber scripts/pack-devtools-extension.sh danach neu packen). Neu: devtools-extension/cmpdetect.js (Signaturtabelle + reiner Matcher + Probe-Code-Builder, Muster wie netclassify.js/consentsignals.js/sim.js-Builder). devtools-extension/reader.js bleibt unveraendert (Vertrag + reader-snapshot.test.js); die Evidenz kommt aus einem ZWEITEN eval im Poll-Callback von panel.js (poll(), POLL_MS=700). panel.js: renderConsent() neue Karte + render()-Not-Loaded-Pfad darf tab-consent nicht mehr blind uebermalen. panel.html: <script src=\"cmpdetect.js\"> VOR panel.js. Tests: test/devtools/cmpdetect.test.js (Matcher + Drift-Guard: jede cmp/cc_*.js hat einen Tabellen-Eintrag ausser den dokumentierten Ausnahmen) + panel-smoke ergaenzen. Datenschutz: nur Existenz/typeof erheben, KEINE Cookie-/Storage-WERTE lesen. Read-only bleibt read-only - der Probe darf nichts in die Seite schreiben.",
-            "displayId": 60
+            "displayId": 60,
+            "comments": [
+              {
+                "id": "258ce511-1bfb-4532-91a3-731c36de2e59",
+                "author": "Claude Opus",
+                "text": "Umgesetzt (f4e6963). Neu: devtools-extension/cmpdetect.js — Signaturtabelle aus unseren eigenen cmp/cc_*.js-Adaptern, reiner Matcher + generierter Page-Probe (read-only, nur Existenz/typeof, KEINE Cookie-/Storage-Werte). Eigener zweiter eval im Poll statt reader.js-Erweiterung: \"welches CMP laeuft hier\" ist keine aGTM-Daten und muss ohne aGTM antworten. Consent-Tab: neue Karte \"Erkanntes Consent-Tool\" + Abgleich konfiguriert-vs-erkannt (Mismatch-Warnung, sGTM-Client-Fall mit leerem aGTM.c.cmp erklaert statt gewarnt); Not-Loaded-Pfad uebermalt tab-consent nicht mehr. 24 Adapter erkannt, 2 bewusst nicht (cc_sourcepoint = nur __tcfapi, cc_simple_cookie_regex_check = Vorlage mit freiem Cookienamen) — mit Begruendung in der Karte sichtbar. Drift-Guard in test/devtools/cmpdetect.test.js: jede cmp/cc_*.js muss gematcht ODER als undetectable gelistet sein. 6 Mutationstests gefahren; der Read-only-Test musste nachgebessert werden, weil die werfende Proxy-Falle vom try/catch des Probes geschluckt wurde (jetzt aufzeichnend statt werfend). 950 Tests gruen, build.sh sauber, ZIP neu gepackt. Doku: CHANGELOG + CLAUDE.md + devtools-extension/README.md + cmp-integration-Skill (neuer Pflichtschritt beim CMP-Anlegen). OFFEN: Andis Live-Test im Browser (Extension neu laden!) — danach qa:true.",
+                "created": "2026-08-03"
+              }
+            ]
           }
         ]
       },
