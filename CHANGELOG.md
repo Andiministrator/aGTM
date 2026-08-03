@@ -2,6 +2,40 @@
 
 ## Version 1.5 — *in development*
 
+### Added — aGTM Inspector: which consent tool is running (works without aGTM)
+
+The Consent tab gained an **"Erkanntes Consent-Tool"** card. Until now the panel could
+only report which CMP adapter was *configured* (`aGTM.c.cmp`) — and for setups served by
+the sGTM Client that field is empty by design, because the `consent_check` is injected
+inline. The panel was therefore blind about the CMP in exactly the setup where naming it
+helps most.
+
+The detection reuses what the library already knows: the first guard of every
+`cmp/cc_<name>.js` adapter is a "is this CMP present and usable" probe, so the signature
+table in the new `devtools-extension/cmpdetect.js` is derived from our own adapters
+rather than from outside knowledge. Notable properties:
+
+- **Independent of aGTM.** It is its own read-only `eval`, not part of `reader.js`'s
+  snapshot contract, so the card also renders on a page where aGTM never loaded.
+- **Configured vs. detected.** With aGTM present, a mismatch is flagged — a
+  `cmp: "cookiebot"` on a page running Usercentrics means the loaded `consent_check`
+  probes a tool that isn't there, which is a classic "GTM never loads".
+- **Confidence instead of claims.** A live JS API reads as *sicher*, a cookie/storage
+  signature only as *wahrscheinlich*. `cc_sourcepoint` (only checks `__tcfapi`, which
+  every IAB TCF CMP provides) and `cc_simple_cookie_regex_check` (a template with a
+  freely configured cookie name) are deliberately never matched, and the card says so.
+- **Data-minimal.** The probe collects existence / `typeof` only, never a cookie or
+  storage **value** — it runs before any consent decision.
+
+`test/devtools/cmpdetect.test.js` (25 tests) covers the matcher, the generated probe
+(including a write-recording proxy for the read-only guarantee) and a **drift guard**:
+every `cmp/cc_*.js` must be either matched or listed as undetectable with a reason, so a
+newly added adapter cannot silently leave the panel blind. Six mutation tests were run
+to confirm the suite actually catches a dead branch, an unwired poll and a page write.
+
+The Inspector is off the ES5/`build.sh` path; re-pack `aGTM-Inspector.zip` via
+`scripts/pack-devtools-extension.sh`.
+
 ### Fixed — CMP: `cmp: "borlabs2"` never loaded GTM, not even with full consent
 
 `cmp/cc_borlabs2.js` set `aGTM.d.consent.hasResponse = true` and then fell off the end

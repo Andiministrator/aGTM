@@ -1571,6 +1571,19 @@
               }
             ],
             "qa": true
+          },
+          {
+            "id": "05a7dcab-9688-4f28-947c-88864f57eae9",
+            "title": "aGTM Inspector: erkanntes Consent-Tool anzeigen (auch ohne aGTM)",
+            "description": "Der Consent-Tab zeigt bisher nur, was KONFIGURIERT ist (aGTM.c.cmp) - beim sGTM-Client ist das per Design leer. Neu: eine Karte \"Erkanntes Consent-Tool\", die aus den Signaturen unserer eigenen cmp/cc_*.js-Adapter ableitet, WELCHES CMP auf der Seite tatsaechlich laeuft. Muss auch rendern, wenn window.aGTM fehlt (Reader-Evidenz vor dem aGTM-Gate, wie readGcm/pageHost). Nutzen: (a) fuellt die sGTM-Client-Blindstelle, (b) Abgleich konfiguriert-vs-erkannt deckt die Ursache fuer \"GTM laedt nicht\" auf, (c) auf fremden Seiten ein eigenstaendiges Analyse-Werkzeug. Ehrlichkeit vor Vollstaendigkeit: Konfidenz-Stufen statt Behauptung; simple_cookie_regex_check (Vorlage, freier Cookiename) und Sourcepoint (nur __tcfapi, nicht vom Anbieter unterscheidbar) werden ausdruecklich NICHT geraten.",
+            "priority": "P2",
+            "status": "in-progress",
+            "owner": "Claude Opus",
+            "columnId": "col-schreiben",
+            "complexity": "mittel",
+            "effort": "M",
+            "agentContext": "Reine ES6-Extension - KEIN Library-/ES5-Pfad, build.sh nicht betroffen (aber scripts/pack-devtools-extension.sh danach neu packen). Neu: devtools-extension/cmpdetect.js (Signaturtabelle + reiner Matcher + Probe-Code-Builder, Muster wie netclassify.js/consentsignals.js/sim.js-Builder). devtools-extension/reader.js bleibt unveraendert (Vertrag + reader-snapshot.test.js); die Evidenz kommt aus einem ZWEITEN eval im Poll-Callback von panel.js (poll(), POLL_MS=700). panel.js: renderConsent() neue Karte + render()-Not-Loaded-Pfad darf tab-consent nicht mehr blind uebermalen. panel.html: <script src=\"cmpdetect.js\"> VOR panel.js. Tests: test/devtools/cmpdetect.test.js (Matcher + Drift-Guard: jede cmp/cc_*.js hat einen Tabellen-Eintrag ausser den dokumentierten Ausnahmen) + panel-smoke ergaenzen. Datenschutz: nur Existenz/typeof erheben, KEINE Cookie-/Storage-WERTE lesen. Read-only bleibt read-only - der Probe darf nichts in die Seite schreiben.",
+            "displayId": 60
           }
         ]
       },
@@ -1838,7 +1851,7 @@
         ]
       }
     ],
-    "nextDisplayId": 60,
+    "nextDisplayId": 61,
     "attachments": [],
     "background": null,
     "templates": [],

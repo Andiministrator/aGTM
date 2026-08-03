@@ -60,7 +60,7 @@ Only these skill files are git-tracked under `.claude/`; the rest of `.claude/`
 who build/validate/debug an integration — the human-facing companion to the
 `live-inspector` skill. Eight tabs: **Diagnose** (health-score, consent timeline,
 compliance report, session & IDs, GTM injection), **Consent** (consent lifecycle,
-Google Consent Mode sequence, non-Google vendor detection), **Events** (queue/replay,
+detected CMP, Google Consent Mode sequence, non-Google vendor detection), **Events** (queue/replay,
 decoded `aGTM.l`), **dataLayer**, **Session** (session/attribution), **Config**
 (effective config + traps + runtime diff), **Netzwerk** (`chrome.devtools.network`,
 gzip/aEvents payload decode, pre-consent leak detection) and **Simulation**.
@@ -79,12 +79,26 @@ enterprise-policy hosts — **not** on `host_permissions`. It does require the f
 exact committed **document URL** (an origin resolves to no frame — F-115), which is why
 the candidates come from `getResources()` filtered to `type === "document"`.
 
+The Consent tab's **"Erkanntes Consent-Tool"** card (`cmpdetect.js`) is the one part
+that deliberately does **not** go through `reader.js`: "which CMP runs on this page" is
+not aGTM's data and must answer on pages without aGTM at all, so it is its own read-only
+`eval` chained inside the same poll. Its signature table is derived from our own
+`cmp/cc_<name>.js` adapters — the first guard of each `consent_check` is exactly a
+presence probe — and `test/devtools/cmpdetect.test.js` **drift-guards** it: every
+`cmp/cc_*.js` must be either matched by a signature or listed in `UNDETECTABLE` with a
+reason. Two are listed there on purpose: `cc_sourcepoint` (only checks `__tcfapi`, which
+every IAB TCF CMP provides) and `cc_simple_cookie_regex_check` (a template with a freely
+configured cookie name) — naming a CMP that isn't there is worse than naming none.
+**Adding a CMP adapter ⇒ add its signature or its exception**, same reflex as the
+`CMP_MAP` entry for the sGTM Client sync. The probe collects existence/`typeof` only,
+never cookie or storage **values**: it runs before any consent decision.
+
 It is ES6+ (own browser context — **not** on the ES5/`build.sh` path), and its version
 is coupled to the library version (see the build table). Distribution is "load
 unpacked" or the tracked `aGTM-Inspector.zip` at the repo root. The pure modules are
-unit-tested under `test/devtools/` (`netclassify`, `consentsignals`, `diagnose`,
-`jsonview`, the `sim` code builders) plus a `panel-smoke` integration test. See
-`devtools-extension/README.md`.
+unit-tested under `test/devtools/` (`netclassify`, `consentsignals`, `cmpdetect`,
+`diagnose`, `jsonview`, the `sim` code builders) plus a `panel-smoke` integration test.
+See `devtools-extension/README.md`.
 
 ---
 
