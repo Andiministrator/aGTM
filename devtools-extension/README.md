@@ -74,10 +74,18 @@ each `consent_check` *is* a "is this CMP present and usable" probe (`Cookiebot`,
   shape as Borlabs 2 vs. 3). Both this and the platform-API split came out of a real
   shop that reported three "detected CMPs" at once; when two signatures still match, the
   card says so and marks the first row as the more specific one.
-- **Read-only and data-minimal.** The probe collects existence / `typeof` only — never a
-  cookie or storage **value**. It runs before any consent decision, and a consent
-  cookie's value is user data. `test/devtools/cmpdetect.test.js` asserts both properties
-  (a write-recording proxy, and a "no secret leaks into the evidence" check).
+- **Read-only and data-minimal.** The probe collects existence / `typeof` only: a cookie
+  string and a storage key ARE read to answer "does this key exist", but no value is ever
+  carried out of the page. It runs before any consent decision, and a consent cookie's
+  value is user data. `test/devtools/cmpdetect.test.js` asserts both properties (a
+  write-recording proxy, and a "no secret leaks into the evidence" check).
+- **What it refuses to claim.** Only a `strong` hit may contradict `aGTM.c.cmp`, and only
+  after two consecutive polls agree; an adapter in `UNDETECTABLE` is never accused (the
+  comparison is impossible, not failed); a failed probe says so instead of reporting "no
+  CMP"; cookie/storage hits are flagged as visible only AFTER the visitor answered.
+- **Stated limits.** Only the TOP frame is probed (`inspectedWindow.eval` without
+  `frameURL`), reading a property runs the page's code if it is an accessor, and the
+  evidence is page-controlled — any page can set the probed names itself.
 - **Drift-guarded.** The same test asserts that every `cmp/cc_*.js` is either matched by
   a signature or listed as undetectable with a reason — a newly added adapter cannot
   silently leave the panel reporting "kein Consent-Tool erkannt" on a site we support.

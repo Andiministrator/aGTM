@@ -35,11 +35,37 @@ rather than from outside knowledge. Notable properties:
   real shop (2026-08-03) where the first version of the card reported Usercentrics v2,
   v3 and Shopify side by side; verified against the live page, not assumed.
 
-`test/devtools/cmpdetect.test.js` (25 tests) covers the matcher, the generated probe
-(including a write-recording proxy for the read-only guarantee) and a **drift guard**:
-every `cmp/cc_*.js` must be either matched or listed as undetectable with a reason, so a
-newly added adapter cannot silently leave the panel blind. Six mutation tests were run
-to confirm the suite actually catches a dead branch, an unwired poll and a page write.
+`test/devtools/cmpdetect.test.js` covers the matcher, the generated probe (including a
+write-recording proxy for the read-only guarantee) and a **drift guard**: every
+`cmp/cc_*.js` must be either matched or listed as undetectable with a reason, so a newly
+added adapter cannot silently leave the panel blind. Mutation tests confirm the suite
+catches a dead branch, an unwired poll, a missing card and a page write.
+
+**What the card refuses to claim** — a detector that overstates is worse than none, so a
+review round tightened every place where it could have misled:
+
+- **Only a `strong` hit may contradict `aGTM.c.cmp`**, and only after the contradiction
+  survives two consecutive polls. A cookie/storage signature is too generic to call a
+  configuration wrong, and during page load a CMP script may simply not have run yet.
+- **An adapter that can never be detected is never accused.** `cc_sourcepoint` and
+  `cc_simple_cookie_regex_check` are in `UNDETECTABLE` by construction, so a comparison
+  against them is impossible, not failed — the card says so instead of warning.
+- **A failed probe says "Messung fehlgeschlagen"**, not "no CMP found". Those are
+  different answers and only one of them is honest when the page threw at us.
+- **Cookie/storage signatures are marked as post-decision.** Those artefacts appear only
+  after the visitor answered the banner, so for them "nicht erkannt" does not mean "nicht
+  vorhanden" — the opposite of what a JS-API signature implies.
+- **A bare vendor global is not the tool.** `window.Cookiebot = {}` (a blocker
+  placeholder, an aborted load) no longer reads as "sicher": the signatures now require
+  the same discriminators the adapters check.
+- `cc_cookie` is Orestbida CookieConsent's default cookie name, not something
+  Magento-specific — that match is denied when the library's own API is visible and
+  carries a caveat otherwise. `__cmp` (IAB TCF v1.1's standard global) dropped to
+  `medium` for the same reason `cc_sourcepoint` is undetectable.
+- The card states its **limits** where a reader sees them: only the top frame is probed,
+  a page can set the probed names itself, and no cookie or storage **value** is taken out
+  of the page (they are read to answer "does this key exist" — the earlier wording said
+  they were not read at all, which was not literally true).
 
 The Inspector is off the ES5/`build.sh` path; re-pack `aGTM-Inspector.zip` via
 `scripts/pack-devtools-extension.sh`.
