@@ -1642,7 +1642,7 @@
             "priority": "P1",
             "status": "in-progress",
             "owner": "Claude Opus",
-            "qa": false,
+            "qa": true,
             "critical": true,
             "blocked": false,
             "complexity": "mittel",
@@ -1650,7 +1650,15 @@
             "links": [],
             "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js: continueAfterSession (~856-885, writeCookie-Zweig 875), writeCookieAndPersist (~254-290, consent-Zweig 269-280), isFingerprintUid (144), writeCookie (412). template.tpl Sandboxed-Block MUSS byte-identisch bleiben (Zeile 1812 = die Fundstelle) - build.sh synct nur den base64-Blob, jede Logikaenderung in BEIDE Dateien identisch. Reproduktions-Harness: /tmp/.../scratchpad/repro-fcookie.mjs, Muster aus test/sgtm/serve-paths.test.js (setCookie dort als No-op gestubbt - deshalb hat kein Test das je gesehen). Sandbox-Fallen: kein try/catch, kein Array.isArray, kein parseInt, kein k in obj, keine Forward-Refs auf const-Function-Expressions (F-130), mehrzeilige Boolean-Ketten meiden. Promote-Vertrag: internal/api/api4sgtm/team-spec.md (gitignored) - /promote ist laut Spec an die Einwilligung gebunden (\"immediately after the user accepts cookies\") und liefert 404 ohne aktive Session.",
             "displayId": 62,
-            "columnId": "col-schreiben"
+            "columnId": "col-qa",
+            "comments": [
+              {
+                "id": "28980941-b6cb-4c6f-9cbe-6ac604272132",
+                "author": "Claude Opus",
+                "created": "2026-08-03",
+                "text": "BEHOBEN (Commit auf dev). Andis Weichenstellung: unter cookie_mode=always bekommt ein nicht einwilligender Besucher gar kein Cookie mehr (statt eines generierten C.*), und das aktive Loeschen von Alt-F.*-Cookies kommt mit - beides wie empfohlen.\n\nUMGESETZT: beide Schreibstellen auf !isFingerprintUid() gegattert (GET-Pfad continueAfterSession UND der consent-Zweig in writeCookieAndPersist - letzterer war in der Meldung nicht enthalten). Cleanup eines Alt-F.*-Cookies ergaenzt, zusaetzlich auf !shouldLazyPromote gegattert: der Vorschlag haette bei transientem api4sgtm-Ausfall das Cookie geloescht und damit einen API-Ausfall in tenant-weiten Identitaetsverlust verwandelt, entgegen dem dokumentierten Fallback.\n\nBEWEIS statt Behauptung: sieben Konstellationen vor und nach dem Fix gegen den echten Quelltext gefahren. Vorher F.*-Cookie in fuenf davon (Default-Tag ohne Session-API, geerbter Consent, Selbstverstaerkung, Promote-Ausfall, POST-Pfad), nachher in keiner. Fall Promote-Ausfall schreibt UND loescht jetzt nichts - das Cookie bleibt fuer den Retry stehen.\n\nWARUM DAS DREI PRUEFRUNDEN UEBERLEBT HAT: der Serve-Pfad-Harness stubbte setCookie als No-op. Das Einzige, was der Client in den Browser schreibt, war das Einzige, was die Suite nicht sehen konnte. Harness nach test/sgtm/client-harness.js extrahiert (geteilt statt kopiert - zwei Kopien eines Sandbox-Vertrags driften, F-52-Klasse) und um Cookie-Aufzeichnung erweitert. Neuer test/sgtm/cookie-uid.test.js, 11 Faelle. Alle vier Schutzmechanismen einzeln zurueckmutiert, jeder wird gefangen.\n\n991 Tests gruen im FRISCHEN CLONE (+11), build.sh sauber, Sandboxed-Block byte-identisch (1077 Zeilen programmatisch verglichen), Template-Parameter-JSON valide. Findings F-153 (behoben) und F-154 (offen, siehe unten) dokumentiert, CHANGELOG + SESSION-REDESIGN 7b nachgezogen.\n\nNEBENBEFUND F-154 (P2, BEWUSST NICHT MITGEFIXT): der Cookie-Loesch-Zweig im GET-Pfad ist unerfuellbar - im consent-Modus impliziert existingCookie truthy sofort cookieAllowed truthy. Ein Widerruf loescht das Cookie im GET-Pfad also nie, nur der POST-Pfad tut es. Ihn lebendig zu machen hiesse, die Consent-Bedingung unabhaengig vom Cookie zu berechnen, und das beginnt Cookies echter Besucher zu loeschen - eigene Entscheidung, eigene Testrunde, und nicht Teil der Meldung.\n\nNICHT GELAUFEN: die Kritiker-Runde, die die Projekt-QA fuer einen P1 vorsieht. In dieser Session sind Sub-Agents abgeschaltet. Vor dem Re-Import nachholen.\n\nRE-IMPORT: noetig, aber Andis Zug. Kommt zusammen mit dem, was aus #56 noch aussteht (reason-Feld, logging=all)."
+              }
+            ]
           }
         ]
       },
