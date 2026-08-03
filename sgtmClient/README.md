@@ -184,21 +184,23 @@ If this is ticked, the optout cookie will be ignored.
 The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session management entirely server-side via a **single Session API call**. The earlier two-step presession + session model has been collapsed. When a browser requests `/aGTM.js`, the sGTM client:
 
 1. Checks for bots (via the filter API) — if a bot is detected, returns 403 and stops.
-2. Resolves a user ID: existing cookie wins; otherwise a server-side fingerprint (`F$1$tenant$<hash>.<date>`). The same uid is used for the session API call AND for the cookie write — so consent persisted under that uid is found on the next load.
+2. Resolves a user ID: existing cookie wins; otherwise a server-side fingerprint (`F$1$tenant$<hash>.<date>`). That uid is the Session API key, so consent persisted under it is found on the next load. It is **never** written into the cookie — the fingerprint is derived from IP, user agent, client hints and ASN/geo and is therefore not per-visitor; only a minted `C.*` may become a cookie value (see *Cookie Mode*).
 3. Calls the Session API (`GET /tp/session/{tenant}/{uid}`). The response includes `sessionId`, `counter`, `ga4sid`, `muidga4` and — once consent has ever been written for this user — a `consent` object.
 4. **Consent passthrough**: if the response carries a valid `consent` object (`hasResponse: true`), it is forwarded into `cfg.session.consent` for aGTM to consume.
 5. **Server-side auto-denial**: if no consent is on file but the user is returning (`counter > 0`), the Client constructs a denial-consent block (`hasResponse: true`, `services: ',aGTMconsent,'`, `gtmConsent: <auto_deny_load_gtm>`) and embeds it in `cfg.session.consent`. This replaces the old client-side `session_apply_denial()`.
 6. **Lazy F→C user-ID promotion**: if the existing cookie still carries an `F.*` fingerprint AND the Session API has a real (non-auto-denial) consent, the Client calls `POST /tp/session/{tenant}/{F-uid}/promote` with a freshly-generated `C.1{lim}{tenant}{lim}{rand12}.{ms}` (where `{lim}` is the configured `fip_limiter`, recommended `.`; the literal `C.` two-character prefix is mandated by api4sgtm) to atomically migrate the session pointer + consent record. `sessionData.uid` becomes the new `C.*` for downstream calls (cookie write, sources POST, JS payload). One-shot per visitor.
-7. Sets the user-ID cookie via `Set-Cookie` if the resulting consent state grants the required services (or if `cookie_mode: always`).
-8. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript. The `consent_store_url` is auto-built from the request host + the fixed path `/aGTMconsent` — the integrator only flips a checkbox to enable/disable the route.
+7. Sets the user-ID cookie via `Set-Cookie` — but only ever with a minted `C.*` value, and only if the resulting consent state grants the required services (or if `cookie_mode: always`). A visitor still on a fingerprint uid receives no cookie; theirs is minted at the moment they consent. An `F.*` cookie left over from an earlier v1.5 deploy is cleared here — unless the Session API failed to answer (an outage is not evidence that no consent exists) or a promote for it is still worth retrying.
+8. Answers with `Cache-Control: private, no-store`. The body inlines this visitor's `cfg.session` (uid, sid, and for a returning visitor their recorded consent) while the URL is identical for every visitor, so a shared cache must never store it.
+9. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript. The `consent_store_url` is auto-built from the request host + the fixed path `/aGTMconsent` — the integrator only flips a checkbox to enable/disable the route.
 
 aGTM receives the pre-populated `session` object (Phase 2 preset gate accepts any object with `sid` or `consent`); Phase 3 additionally seeds `aGTM.d.consent` and `aGTM.d.consent_hash` from `cfg.session.consent`. No client-side session fetch is performed.
 
 When the browser POSTs consent updates to `https://<sgtm-host>/aGTMconsent`, the handler:
 1. **Forward F→C user-ID promotion**: if the carried uid starts with `F.*` and the new consent grants the required services, the Client generates a stable `C.*` uid, calls `/promote` to atomically migrate the session pointer + consent record, sets the new `C.*` cookie, and echoes `{ok: true, uid: <newC>}` so the library updates `aGTM.d.session.uid`. Skips the legacy `/consent` POST (already written by `/promote`).
-2. Otherwise, manages the user-ID cookie (`cookie_mode: consent` only) based on whether the new consent grants the required services, AND persists the consent into the Session API record (`POST /tp/session/{tenant}/{uid}/consent`) so the next library load returns it via `cfg.session.consent`.
+2. **Local mint without a Session API**: with no Session API configured there is no session pointer to migrate, so `/promote` has nothing to do. The Client mints the `C.*` itself and writes it — otherwise this deployment would never receive a user-ID cookie at all, and `cookie_mode` / `cookie_lifetime` would be dead options.
+3. Otherwise, manages the user-ID cookie (`cookie_mode: consent` only) based on whether the new consent grants the required services, AND persists the consent into the Session API record (`POST /tp/session/{tenant}/{uid}/consent`) so the next library load returns it via `cfg.session.consent`. The cookie is only ever written with a `C.*` value.
 
-Returns `{ "ok": true, "uid": <currentOrPromotedUid> }`. Promote failures (404 / 400 / network / 5xx) fall back transparently to the legacy F.* path — the visitor is never left in a broken state.
+Returns `{ "ok": true, "uid": <currentOrPromotedOrMintedUid> }`. Promote failures (404 / 400 / network / 5xx) fall back transparently to the legacy F.* path — the visitor is never left in a broken state. The *reason* for the failure is kept apart, though: a 5xx or a transport error is an outage and is retried on the next request, while a 404 (“no active session”) or 409 is a verdict that will not change, so the stale `F.*` cookie is cleaned up rather than carried forever.
 
 #### Tenant ID
 
@@ -222,17 +224,19 @@ Controls when the user ID cookie is set:
 
 | Value | Behaviour |
 |---|---|
-| `always` | Cookie is always set, regardless of consent |
-| `never` | Cookie is never set; fingerprint-based ID is used |
+| `always` | Cookie is set on every request **once a `C.*` id exists** — i.e. regardless of the consent state, but not before the id has been minted |
+| `never` | No `Set-Cookie` header is ever sent, not even to delete one; the fingerprint-based ID is used |
 | `consent` | Cookie is only set when the Session API consent state grants the required services (or when an existing cookie is already present) |
+
+**In every mode the cookie value is a minted `C.*`, never the fingerprint.** The `C.*` is created at the moment consent is granted: via `/promote` when a Session API is configured (the session pointer moves with it), or minted locally by the Client when none is. A visitor who never answers the CMP therefore carries no user-ID cookie — including under `always`. That mode means *set the cookie irrespective of consent*, not *store a shared fingerprint in the browser*: the fingerprint is derived from IP, user agent, client hints and ASN/geo, so two visitors behind the same NAT running the same browser share it, and freezing it into a cookie would make that collision permanent.
 
 #### Cookie Name / Cookie Lifetime / Cookie Domain
 
-Name, max-age in seconds, and domain for the user ID cookie. The cookie is set via `Set-Cookie` in the server response (not via JavaScript), making it ITP-resistant.
+Name, lifetime **in days** (converted to `max-age` internally; a non-positive value yields a session cookie), and domain for the user ID cookie. The cookie is set via `Set-Cookie` in the server response (not via JavaScript), making it ITP-resistant.
 
 #### Fingerprint Allowed
 
-If checked, a fingerprint-based user ID `F{lim}1{lim}{tenant}{lim}{hash}.{date}` is generated when no cookie is available, used as the Session API key on first visits. Once the visitor consents, the Client promotes them to a stable cookie-based ID `C.1{lim}{tenant}{lim}{rand12}.{ms}` via the api4sgtm `/promote` endpoint and writes the new `C.*` to the cookie — so the persistent identifier is a true random cookie ID, not the daily-rolling fingerprint. `{lim}` is the configured `fip_limiter` (recommended `.`); the literal `C.` two-character prefix on the C-side is mandated by api4sgtm. Returning visitors carrying an `F.*` cookie from older deploys are migrated lazily on their next request.
+If checked, a fingerprint-based user ID `F{lim}1{lim}{tenant}{lim}{hash}.{date}` is generated when no cookie is available, used as the Session API key on first visits — and **only** there, never as a cookie value. Once the visitor consents, the Client gives them a stable cookie-based ID `C.1{lim}{tenant}{lim}{rand12}.{ms}` (via the api4sgtm `/promote` endpoint when a Session API is configured, minted locally otherwise) and writes that `C.*` to the cookie — so the persistent identifier is a true random cookie ID, not the daily-rolling fingerprint. `{lim}` is the configured `fip_limiter` (recommended `.`); the literal `C.` two-character prefix on the C-side is mandated by api4sgtm. Returning visitors carrying an `F.*` cookie from older deploys are migrated lazily on their next request.
 
 #### Consent Service / Purpose / Vendor
 

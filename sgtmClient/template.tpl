@@ -635,7 +635,7 @@ ___TEMPLATE_PARAMETERS___
         ],
         "simpleValueType": true,
         "defaultValue": "always",
-        "help": "When to set a server-side user ID cookie"
+        "help": "When to set the server-side user ID cookie. \u003cb\u003eThe value is always a minted \u003ccode\u003eC.*\u003c/code\u003e id, never the server-side fingerprint\u003c/b\u003e — that one is derived from IP, user agent, client hints and ASN/geo, so visitors behind the same NAT running the same browser share it.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eAlways\u003c/b\u003e — the cookie is written on every request once a \u003ccode\u003eC.*\u003c/code\u003e id exists. It does \u003cb\u003enot\u003c/b\u003e create one beforehand: the id is minted at the moment the visitor consents (via \u003ccode\u003e/promote\u003c/code\u003e with a Session API, locally without one). A visitor who never answers the CMP therefore carries no cookie in this mode either.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eNever\u003c/b\u003e — no \u003ccode\u003eSet-Cookie\u003c/code\u003e header is ever sent, not even to delete one.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eConsent Required\u003c/b\u003e — written only when the consent state grants the required services, or when a cookie is already present."
       },
       {
         "type": "TEXT",
@@ -687,7 +687,7 @@ ___TEMPLATE_PARAMETERS___
         "name": "cookie_delete",
         "checkboxText": "Delete Cookie if Consent is denied",
         "simpleValueType": true,
-        "help": "If checked, the user ID cookie is deleted when cookie_mode is \"consent\" and the required consent is not present.",
+        "help": "Delete the user ID cookie when Cookie Mode is \u003ccode\u003eConsent Required\u003c/code\u003e and the required consent is not present.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eNot governed by this checkbox:\u003c/b\u003e a leftover fingerprint-shaped (\u003ccode\u003eF.*\u003c/code\u003e) cookie written by an aGTM version before this one is always cleared, in every cookie mode except \u003cb\u003eNever\u003c/b\u003e. That is a correction of the Client’s own past defect rather than a consent decision — such a value must not sit in a browser at all. It is kept only when the Session API did not answer (an outage is not evidence that no consent exists) or when a promote for it is still worth retrying.",
         "enablingConditions": [
           {
             "paramName": "cookie_mode",
@@ -1077,9 +1077,25 @@ const generateCookieUid = function() {
 // fingerprint prefix `F{lim}1{lim}` (e.g. `F$1$`). Gates F→C promote so
 // only fingerprint users get promoted; cookie-based UIDs are already in
 // their final form.
+// The bare `F` is checked in addition to the full prefix on purpose: the
+// prefix is built from `fipLimiter`, which the tenant may change at any time
+// (the field offers it: "e.g. $ or ."). After such a change every previously
+// written `F$1$…` value would stop being recognised — and the cookie guard
+// below would happily refresh it for another year, i.e. the exact bug this
+// guard exists to prevent. Broadening is fail-safe in both uses: a stray
+// `F…` value at most triggers a promote attempt that 404s and falls back.
 const fingerprintPrefix = 'F' + CFG.fipLimiter + '1' + CFG.fipLimiter;
 const isFingerprintUid = function(uid) {
-  return !!(uid && typeof uid === 'string' && uid.indexOf(fingerprintPrefix) === 0);
+  return !!(uid && typeof uid === 'string' && (uid.indexOf(fingerprintPrefix) === 0 || uid.charAt(0) === 'F'));
+};
+
+// The cookie guard is a WHITELIST, not the negation of the check above. Only a
+// minted cookie UID may be written, and `C.` is hard-coded by the api4sgtm
+// contract (see generateCookieUid) — so unlike a fingerprint blacklist this
+// cannot be widened by a config change, and an unexpected value fails toward
+// "do not write" instead of toward "write it".
+const isCookieUid = function(uid) {
+  return !!(uid && typeof uid === 'string' && uid.indexOf('C.') === 0);
 };
 
 // F→C promote via api4sgtm /promote endpoint. Atomic Redis TxPipeline
@@ -1089,7 +1105,7 @@ const isFingerprintUid = function(uid) {
 // Smoketest steps 19-20 verify the contract.
 const tryPromote = function(oldUid, newUid, consent, then) {
   if (!CFG.sessionApiUrl || !CFG.tenantID || !oldUid || !newUid) {
-    then('');
+    then('', false);
     return;
   }
   const promoteUrl = CFG.sessionApiUrl + '/' + CFG.tenantID + '/' + oldUid + '/promote';
@@ -1098,14 +1114,20 @@ const tryPromote = function(oldUid, newUid, consent, then) {
   sendHttpRequest(promoteUrl, {method: 'POST', headers: {'Content-Type': 'application/json'}, timeout: 5000}, promoteBody).then(function(res) {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       if (CFG.debug) logToConsole('debug', '✓ Promote success', {old: oldUid, new: newUid, status: res.statusCode});
-      then(newUid);
+      then(newUid, false);
     } else {
+      // Second argument: is this worth retrying on the next request? A 5xx is
+      // an outage, a 404 ("no active session") or 409 ("target already has
+      // one") is a verdict that will not change by asking again. The caller
+      // uses it to decide whether an F.* cookie may be cleaned up: retrying
+      // forever would keep the fingerprint in the browser indefinitely, which
+      // is precisely what the cleanup exists to end.
       logToConsole('warn', '✗ Promote non-2xx — falling back to legacy F.* path', {status: res.statusCode, body: res.body});
-      then('');
+      then('', res.statusCode >= 500);
     }
   }, function(e) {
     logToConsole('error', '✗ Promote error — falling back to legacy F.* path', e);
-    then('');
+    then('', true);
   });
 };
 
@@ -1207,14 +1229,13 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
         // Legacy consent-mode cookie management. cookieMode='always' cookie
         // is refreshed by /aGTM.js GET, not here.
         //
-        // Same rule as the GET path: an F.* value must never land in the
-        // cookie. `finalUid` is still the fingerprint whenever no promote ran
-        // (no Session API configured, no explicit consent signal, auto-denial
-        // sentinel) or the promote failed — the `promoted` branch above is the
-        // only one guaranteed to carry a C.*. Without this guard the consent
-        // handler re-created on its own exactly what the promote exists to
-        // remove.
-        if (granted && finalUid && !isFingerprintUid(finalUid)) {
+        // Same rule as the GET path, expressed as a whitelist: only a minted
+        // C.* may be written. `finalUid` is still the fingerprint whenever no
+        // promote ran (no explicit consent signal, auto-denial sentinel) or
+        // the promote failed — the `promoted` branch above is the only one
+        // guaranteed to carry a C.*. Without this guard the consent handler
+        // re-created on its own exactly what the promote exists to remove.
+        if (granted && isCookieUid(finalUid)) {
           const maxAge = CFG.cookieLifetimeDays > 0 ? Math.floor(CFG.cookieLifetimeDays * 86400) : 0;
           if (maxAge > 0) cookieOpts['max-age'] = maxAge;
           setCookie(CFG.cookieName, finalUid, cookieOpts, true);
@@ -1264,6 +1285,16 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
     }
   };
 
+  // No Session API means there is no session pointer to migrate — and
+  // therefore no reason to withhold the stable ID. `/promote` exists to move
+  // server-side state; where there is none, the Client mints the C.* locally,
+  // exactly as the pre-1.5 user-ID template did. Without this branch a tenant
+  // running the Client WITHOUT api4sgtm would never receive a user-ID cookie
+  // again once the fingerprint guard landed: both C.* producers hang off
+  // `sessionApiUrl`, so `cookie_mode` and `cookie_lifetime` would silently
+  // become dead options rather than the feature they advertise.
+  const mintLocalUid = granted && hasExplicitSignal && !isAutoDenialSentinel && isFingerprintUid(cpUid) && (!CFG.sessionApiUrl || !CFG.tenantID) && CFG.cookieMode !== 'never';
+
   if (shouldPromote) {
     const newUid = generateCookieUid();
     if (CFG.debug) logToConsole('debug', '→ F→C promote applicable', {old: cpUid, new: newUid});
@@ -1271,10 +1302,16 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
       if (promotedUid) {
         writeCookieAndPersist(promotedUid, true);
       } else {
-        // Promote failed — fall back to legacy path under the original F.*
+        // Promote failed — fall back to legacy path under the original F.*.
+        // No local mint here: the session record still lives under the F.*
+        // key, and handing the browser an unrelated C.* would orphan it.
         writeCookieAndPersist(cpUid, false);
       }
     });
+  } else if (mintLocalUid) {
+    const localUid = generateCookieUid();
+    if (CFG.debug) logToConsole('debug', '→ Minting local C.* (no Session API to migrate)', {old: cpUid, new: localUid});
+    writeCookieAndPersist(localUid, false);
   } else {
     writeCookieAndPersist(cpUid, false);
   }
@@ -1357,8 +1394,17 @@ const getFingerprint = function() {
 const writeCookie = function(val, maxAgeSec) {
   if (!CFG.cookieName) return;
   const opts = {domain: CFG.cookieDomain, path: '/', sameSite: 'none', httpOnly: true, secure: true};
-  const maxAge = (typeof maxAgeSec === 'number') ? maxAgeSec : (CFG.cookieLifetimeDays > 0 ? Math.floor(CFG.cookieLifetimeDays * 86400) : 0);
-  opts['max-age'] = maxAge;
+  // An explicit maxAgeSec is always honoured — that is how deletion is
+  // expressed (`writeCookie('', 0)`). Without one, a non-positive
+  // cookie_lifetime must yield a SESSION cookie, not `max-age: 0`: the old
+  // form turned every write into a delete header, so a tenant who set the
+  // lifetime to 0 silently had no cookie at all while the code read as if it
+  // were writing one. The consent handler always did it this way.
+  if (typeof maxAgeSec === 'number') {
+    opts['max-age'] = maxAgeSec;
+  } else if (CFG.cookieLifetimeDays > 0) {
+    opts['max-age'] = Math.floor(CFG.cookieLifetimeDays * 86400);
+  }
   setCookie(CFG.cookieName, val, opts, true);
 };
 
@@ -1740,6 +1786,15 @@ const buildAndSend = function(sessionData) {
     setResponseHeader('Access-Control-Allow-Credentials', 'true');
   }
   setResponseHeader('Content-Type', 'application/javascript');
+  // This body is per-visitor: it inlines cfg.session with uid, sid and — for a
+  // returning visitor — their recorded consent, while the URL
+  // (/aGTM.js?id=GTM-XXX&c=<page>) is identical for everyone. A shared cache
+  // (CDN, corporate proxy) that stores it hands one visitor's session and
+  // consent decision to every subsequent one. Until the fingerprint guard
+  // landed, nearly every response carried a Set-Cookie, which most CDNs treat
+  // as "do not cache" — so removing those writes made this response MORE
+  // cacheable. The guarantee has to be stated rather than inherited.
+  setResponseHeader('Cache-Control', 'private, no-store');
   setResponseBody(jsCode);
   returnResponse();
 };
@@ -1764,6 +1819,22 @@ const afterBotCheck = function(isBot) {
   const fpUid = CFG.fingerprintAllowed ? getFingerprint() + (CFG.debugSuffix ? '_' + CFG.debugSuffix : '') : '';
   const sessionUid = existingCookie || fpUid;
   if (CFG.debug) logToConsole('debug', 'User ID for session', sessionUid);
+
+  // Two pieces of state the cookie cleanup below needs, held as const
+  // containers with property mutation rather than as reassigned `let`. That is
+  // the pattern proven inside this sandbox (see `sessionData.uid` in the
+  // promote callback); rebinding a top-level `let` from inside a `.then()`
+  // closure has no precedent here and was backed out once already.
+  //
+  // They must NOT live on `sessionData`: that object is handed to the browser
+  // verbatim as `cfg.session`, so every field added to it becomes readable by
+  // every script on the page.
+  //
+  // `sessionRead.ok` starts true because "no Session API configured" is not an
+  // outage — there is simply no server memory, and a cleanup is safe. It is
+  // cleared only when a configured Session API fails to answer authoritatively.
+  const sessionRead = {ok: true};
+  const promoteState = {retry: false};
 
 
   // ── 3. Single Session API call ────────────────────────────────────────────
@@ -1828,17 +1899,29 @@ const afterBotCheck = function(isBot) {
       // visitor who has not answered the CMP therefore carries no cookie —
       // including under cookieMode='always'. Deliberate: 'always' means "set
       // the cookie regardless of consent", not "freeze a shared fingerprint".
-      const willWriteFreshC = !!(cookieAllowed && sessionData.uid && !isFingerprintUid(sessionData.uid));
+      const willWriteFreshC = !!(cookieAllowed && isCookieUid(sessionData.uid));
 
       // Clean up a legacy F.* cookie from an earlier v1.5 deploy. Independent
-      // of cookieAllowed — a data-integrity correction, not a consent
-      // decision. Two guards: skip when this same request writes a fresh C.*
-      // over it anyway, and skip when a lazy promote was ATTEMPTED. A promote
-      // that failed (api4sgtm 5xx/timeout) must leave the cookie in place so
-      // the next request can retry — deleting it would turn an API outage into
-      // tenant-wide identity loss, and it contradicts the documented fallback
-      // ("the F.* uid is preserved").
-      if (existingCookie && isFingerprintUid(existingCookie) && !willWriteFreshC && !shouldLazyPromote) {
+      // of `cookie_delete`, because this is a data-integrity correction of the
+      // Client's own past bug, not a consent decision — the field's help text
+      // says so. Four guards, and every one of them was a review finding:
+      //
+      //  - `cookieMode !== 'never'`: in that mode the Client has never sent a
+      //    Set-Cookie header of any kind, so there is nothing of ours to clean
+      //    up and emitting one would break the mode's own promise.
+      //  - `!willWriteFreshC`: this same request is about to overwrite it.
+      //  - `sessionRead.ok`: a Session API that did not answer tells us
+      //    NOTHING about this visitor. Without this the branch deleted every
+      //    F.* cookie during an api4sgtm outage — the opposite of the promise
+      //    made two lines down, and unrecoverable: after the outage the
+      //    visitor re-derives today's fingerprint, so a consent stored under
+      //    yesterday's is orphaned and they are asked again.
+      //  - `!promoteRetry`: a promote that failed TRANSIENTLY (5xx/timeout)
+      //    must keep the cookie so the next request can retry. A definitive
+      //    refusal (404 "no active session", 409) is not retried — otherwise
+      //    the fingerprint would stay in the browser forever, which is the
+      //    state this cleanup exists to end.
+      if (CFG.cookieMode !== 'never' && existingCookie && isFingerprintUid(existingCookie) && !willWriteFreshC && sessionRead.ok && !promoteState.retry) {
         writeCookie('', 0);
       }
 
@@ -1863,9 +1946,11 @@ const afterBotCheck = function(isBot) {
     if (shouldLazyPromote) {
       const newUid = generateCookieUid();
       if (CFG.debug) logToConsole('debug', '→ Lazy F→C promote (returning visitor with F.* cookie + stored consent)', {old: existingCookie, new: newUid});
-      tryPromote(existingCookie, newUid, sessionConsent, function(promotedUid) {
+      tryPromote(existingCookie, newUid, sessionConsent, function(promotedUid, transient) {
         if (promotedUid) {
           sessionData.uid = promotedUid;
+        } else {
+          promoteState.retry = !!transient;
         }
         continueAfterSession();
       });
@@ -1878,6 +1963,10 @@ const afterBotCheck = function(isBot) {
     const sUrl = CFG.sessionApiUrl + '/' + CFG.tenantID + '/' + sessionUid;
     sendHttpGet(sUrl, {timeout: 5000}).then(function(res) {
       const sd = {uid: sessionUid, sid: '', ret: false, sst: true, vct: 0};
+      // An authoritative answer — 200 with an empty body is a valid "no record
+      // here", a 4xx/5xx is not an answer at all. Only the former licenses the
+      // cookie cleanup to act on the absence of a consent.
+      sessionRead.ok = res.statusCode >= 200 && res.statusCode < 300;
       if (res.statusCode === 200 && res.body) {
         const r = JSON.parse(res.body);
         if (r && r.sessionId) {
@@ -1926,6 +2015,7 @@ const afterBotCheck = function(isBot) {
       afterSession(sd);
     }, function(e) {
       logToConsole('error', '✗ Session API error', e);
+      sessionRead.ok = false;
       afterSession({uid: sessionUid, sid: '', ret: false, sst: true, vct: 0});
     });
   } else {
@@ -2268,14 +2358,24 @@ scenarios:
 # shape) and GET routing (bot 403, unknown container id, non-matching route).
 #
 # Deliberately NOT covered here: the /aGTM.js config-building path
-# (buildAndSend). It is reachable ONLY after the async Session-API sendHttpGet
-# .then() — buildAndSend is declared after the top-level body, so a synchronous
-# serve path would reference it before its declaration (sandbox
-# "reference before declaration", by design — see the source comment near the
-# F→C helpers). Driving it needs a real Promise, whose .then() runs as a
-# microtask AFTER the synchronous test assertions (and leaks across scenarios in
-# this harness), so setResponse* can't be asserted. The config-building output
-# is therefore covered end-to-end by the internal/api smoketest instead (F-44).
+# (buildAndSend) and the response headers it sets.
+#
+# NOTE — the reason has changed, and the old one was wrong. This block used to
+# say buildAndSend is unreachable synchronously because it is declared after
+# its callers. That WAS the case, and it was a defect rather than a design: it
+# made every synchronous serve path a temporal-dead-zone error and killed the
+# entire response (finding F-130). buildAndSend now stands before its callers,
+# and a configuration without a Session API reaches it synchronously —
+# `test/sgtm/serve-paths.test.js` runs the real source against stubbed server
+# APIs and asserts exactly that.
+#
+# What keeps it out of THIS block is the harness, not the code: `setup` mocks
+# the whole response lifecycle as no-ops so scenarios stay isolated, and a
+# mocked API bypasses GTM's permission enforcement — so asserting
+# setResponseHeader here would prove the call and never the permission.
+# Response behaviour is covered in `test/sgtm/cookie-uid.test.js`
+# (Cache-Control) and end-to-end by the internal/api smoketest (F-44); whether
+# a header is ALLOWED only ever shows up on import/preview in a real container.
 # ─────────────────────────────────────────────────────────────────────────────
 
 - name: POST consent route plain with payload uid - 200 ok and echoed uid
