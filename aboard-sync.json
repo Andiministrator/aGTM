@@ -1602,6 +1602,12 @@
                 "author": "Claude Opus",
                 "text": "Live bestaetigt (Andi, Screenshot 2026-08-03, Live-Seite OHNE aGTM): genau 1 CMP-Treffer (Usercentrics v3, sicher, Beleg __ucCmp.cmpController) + Shopify getrennt als Plattform-Schnittstelle. Karte erledigt. v1.5 selbst bleibt offen (Release-Hold).",
                 "created": "2026-08-03"
+              },
+              {
+                "id": "c68f3c1c-e7e2-48b9-8fb5-4b19d1ff33bf",
+                "author": "Claude Opus",
+                "text": "QA- + Kritiker-Runde (2 unabhaengige Sub-Agents, 2026-08-03) -> F-142..F-152, alle behoben (f6301ee). Kein P0. Kern: die harte Mismatch-Warnung war fail-open an genau der Stelle, an der die Karte eine harte Diagnose stellt - nicht-erkennbare Adapter (cc_sourcepoint, cc_simple_cookie_regex_check) konnten strukturell nie als Treffer erscheinen, also galt jede andere Signatur als Widerspruch (F-142); generische medium-Signaturen (cc_cookie ist der DEFAULT-Cookiename von Orestbida CookieConsent, nicht Magento-spezifisch) speisten dieselbe Box (F-143); eine fehlgeschlagene Messung wurde als \"kein CMP\" gerendert (F-144). Jetzt: nur strong-Treffer duerfen widerlegen, erst nach 2 aufeinanderfolgenden Polls (Settle wie beim Leak-Banner), nicht vergleichbare Adapter bekommen \"Abgleich nicht moeglich\", Fehlermessung hat einen eigenen dritten Zustand. Weiter: Presence-Semantik ist nicht einheitlich - Cookie-/Storage-Signaturen entstehen erst NACH der Entscheidung, Abwesenheit beweist dort nichts (F-149); \"es werden keine Cookie-/Storage-Werte gelesen\" war woertlich falsch (F-146) und heisst jetzt \"kein Wert uebernommen\"; nackter Vendor-Global reicht nicht mehr (F-145); deny war bei teilweise blockiertem Storage fail-open (F-151); Praefix-Scan gegated + Cap getestet (F-150). Testtechnik: ein vergessener beforeEach-Import hat 8 neue Tests STILL uebersprungen (454->446 ohne Fehlermeldung) - nach dem Ergaenzen von Tests immer die Zahl vergleichen; der Mutations-Griff-Check muss gegen das Backup diffen, nicht gegen HEAD. 980 Tests gruen, ZIP neu gepackt. Drittshop-Hostname aus Code/Tests/Board entfernt (F-152, Andis Freigabe), History bewusst unangetastet. Doku: CHANGELOG, CLAUDE.md, Extension-README, knowledge/topics/devtools-inspector-extension.md.",
+                "created": "2026-08-03"
               }
             ],
             "qa": true
