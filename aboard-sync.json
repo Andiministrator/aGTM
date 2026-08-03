@@ -1579,7 +1579,7 @@
             "priority": "P2",
             "status": "in-progress",
             "owner": "Claude Opus",
-            "columnId": "col-qa",
+            "columnId": "col-erledigt",
             "complexity": "mittel",
             "effort": "M",
             "agentContext": "Reine ES6-Extension - KEIN Library-/ES5-Pfad, build.sh nicht betroffen (aber scripts/pack-devtools-extension.sh danach neu packen). Neu: devtools-extension/cmpdetect.js (Signaturtabelle + reiner Matcher + Probe-Code-Builder, Muster wie netclassify.js/consentsignals.js/sim.js-Builder). devtools-extension/reader.js bleibt unveraendert (Vertrag + reader-snapshot.test.js); die Evidenz kommt aus einem ZWEITEN eval im Poll-Callback von panel.js (poll(), POLL_MS=700). panel.js: renderConsent() neue Karte + render()-Not-Loaded-Pfad darf tab-consent nicht mehr blind uebermalen. panel.html: <script src=\"cmpdetect.js\"> VOR panel.js. Tests: test/devtools/cmpdetect.test.js (Matcher + Drift-Guard: jede cmp/cc_*.js hat einen Tabellen-Eintrag ausser den dokumentierten Ausnahmen) + panel-smoke ergaenzen. Datenschutz: nur Existenz/typeof erheben, KEINE Cookie-/Storage-WERTE lesen. Read-only bleibt read-only - der Probe darf nichts in die Seite schreiben.",
@@ -1596,8 +1596,15 @@
                 "author": "Claude Opus",
                 "text": "Nachbesserung 873fdb4 nach Andis Live-Befund (fsb-shop.de zeigte 3 Treffer: UC v2 + UC v3 + Shopify). Beide Ursachen AM LAUFENDEN OBJEKT verifiziert statt geraten: (1) Usercentrics v3 (web.cmp.usercentrics.eu/ui/v/4.9.0) stellt eine UC_UI-Kompatibilitaetsschicht INKL. getServicesBaseInfo bereit -> UC_UI allein beweist v2 nicht; v2 hat jetzt deny auf __ucCmp.cmpController (gleiches Muster wie Borlabs 2/3). (2) Shopify.customerPrivacy ist KEIN CMP, sondern die Consent-Schnittstelle der Plattform - live vollstaendig vorhanden (24 Methoden), waehrend das Banner Usercentrics war. cc_shopify_consent ist jetzt kind:\"platform\": rangiert hinter jedem echten CMP, eigener Block, und loest allein KEINE Mismatch-Warnung mehr aus (waere Falschalarm). Bei zwei echten CMP-Signaturen sagt die Karte jetzt, dass das meist EIN Tool ist (neuere Version haelt die alte API am Leben) und markiert die erste Zeile als die spezifischere. End-to-end gegengeprueft: generierter Probe in der echten Seite ausgefuehrt, Evidenz durch den echten Matcher -> genau 1 CMP (Usercentrics v3) + 1 Plattform-API. 5 Mutationstests; die kind-Ranking-Mutation ueberlebte zunaechst (die Konfidenz-Sortierung maskierte sie), bis ein Fall mit spaeter einsortiertem medium-CMP sie diskriminierend machte. 958 Tests gruen, ZIP neu gepackt. OFFEN: Andis erneuter Live-Test (Extension neu laden).",
                 "created": "2026-08-03"
+              },
+              {
+                "id": "21ae9eec-2b77-48e8-9c3a-90114f67a11c",
+                "author": "Claude Opus",
+                "text": "Live bestaetigt (Andi, Screenshot 2026-08-03, fsb-shop.de OHNE aGTM): genau 1 CMP-Treffer (Usercentrics v3, sicher, Beleg __ucCmp.cmpController) + Shopify getrennt als Plattform-Schnittstelle. Karte erledigt. v1.5 selbst bleibt offen (Release-Hold).",
+                "created": "2026-08-03"
               }
-            ]
+            ],
+            "qa": true
           }
         ]
       },
