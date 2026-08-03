@@ -188,7 +188,24 @@ function poll() {
     trackIds(state.snap); // record sid/uid/user_id changes every poll (also when off the Diagnose tab)
     setLive(!!state.snap.loaded, state.snap.loaded ? "aGTM aktiv" : "aGTM nicht gefunden");
     el("ver").textContent = state.snap.loaded && state.snap.version ? ("v" + state.snap.version) : "";
-    withScrollAnchor(render);
+    // CMP detection is its OWN eval, deliberately not part of reader.js: "which consent
+    // tool runs here" is not aGTM's data and must answer on pages without aGTM at all,
+    // so it does not belong in the snapshot contract. Chained inside this callback so a
+    // single render() sees both results and the two can never paint out of step.
+    pollCmp(function () { withScrollAnchor(render); });
+  });
+}
+
+// Probe the page for CMP signatures (read-only, table-driven — see cmpdetect.js).
+function pollCmp(done) {
+  var D = window.aGTMInspectorCmpDetect;
+  if (!D || !chrome.devtools.inspectedWindow.eval) { done(); return; }
+  if (!state.cmpProbeCode) state.cmpProbeCode = D.buildProbeCode();
+  chrome.devtools.inspectedWindow.eval(state.cmpProbeCode, function (res, err) {
+    // On a transient eval failure keep the last detection rather than flashing
+    // "kein Consent-Tool erkannt" — same staleness posture as the reader poll.
+    if (!(err && (err.isError || err.isException))) state.cmp = D.detect(res || {});
+    done();
   });
 }
 
@@ -225,7 +242,11 @@ function render() {
       : '<div class="empty">Auf dieser Seite ist <code>window.aGTM</code> (noch) nicht vorhanden.<br>' +
         "Seite laden, auf der aGTM eingebunden ist — die Ansicht aktualisiert sich automatisch.</div>";
     // network tab still useful without aGTM loaded
-    ["diagnose", "consent", "events", "datalayer", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
+    ["diagnose", "events", "datalayer", "session", "config"].forEach(function (t) { paint("tab-" + t, msg); });
+    // Consent keeps its CMP-detection card instead of being painted over: which consent
+    // tool the page runs is independent of aGTM, and on a page WITHOUT aGTM it is the
+    // only substantive answer the panel can give (integration prep, foreign sites).
+    paint("tab-consent", msg + renderCmpDetect(null));
     renderNetwork();
     // The Simulation tab renders its OWN not-loaded UI (it can inject an aGTM
     // integration into a page that has none yet), so it is not painted over here.
@@ -290,6 +311,7 @@ function renderConsent() {
       "Events werden bis dahin in der Queue gehalten (siehe Tab <em>Events</em>).</span></div>";
   }
 
+  html += renderCmpDetect(s);
   html += renderConsentMode(s);
   html += renderVendors(s.vendors, s.vendorState);
   paint("tab-consent", html);
@@ -555,6 +577,78 @@ function cmpCell(s) {
 function longStr(v) {
   if (!v) return '<span class="muted">—</span>';
   return '<span class="mono" style="word-break:break-all">' + esc(v) + "</span>";
+}
+
+/* ---------- detected CMP (works without aGTM) ---------- */
+// Confidence is shown, never hidden: a cookie-based hit is a weaker claim than a live
+// JS API, and pretending otherwise is how a panel sends someone chasing the wrong CMP.
+function cmpConfChip(c) {
+  if (c === "strong") return '<span class="chip ok" title="eindeutige JS-API des Tools">sicher</span>';
+  if (c === "medium") return '<span class="chip warn" title="Cookie/Storage-Signatur — kein eindeutiger JS-Nachweis">wahrscheinlich</span>';
+  return '<span class="chip">unbestimmt</span>';
+}
+// `s` is the aGTM snapshot when there is one, otherwise null (page without aGTM).
+function renderCmpDetect(s) {
+  var D = window.aGTMInspectorCmpDetect;
+  var open = '<div class="card"><h2>Erkanntes Consent-Tool</h2>';
+  if (!D) return open + '<div class="muted">Detektion nicht verfügbar (cmpdetect.js nicht geladen).</div></div>';
+  var r = state.cmp;
+  if (!r) return open + '<div class="muted">Noch keine Messung — der nächste Poll füllt das aus.</div></div>';
+
+  var html = open;
+  var m = r.matches || [];
+  if (!m.length) {
+    html += '<div class="muted">Kein bekanntes Consent-Tool erkannt.</div>';
+  } else {
+    html += '<table class="compact"><thead><tr><th class="fit">Tool</th><th class="fit">Konfidenz</th>' +
+      '<th class="fit">aGTM-Adapter</th><th>Beleg</th></tr></thead><tbody>';
+    m.forEach(function (x) {
+      var proof = (x.proof || []).concat(x.extra || []);
+      html += "<tr><td class=\"fit\"><span class=\"chip acc\">" + esc(x.label) + "</span></td>" +
+        '<td class="fit">' + cmpConfChip(x.confidence) + "</td>" +
+        '<td class="fit mono muted">cmp/' + esc(x.adapter) + ".js</td>" +
+        '<td class="mono muted" style="word-break:break-all">' + esc(proof.join(" · ")) + "</td></tr>";
+    });
+    html += "</tbody></table>";
+  }
+
+  // Configured vs. actually present — the mismatch is the whole point of this card:
+  // aGTM.c.cmp says which adapter was loaded, the detection says what the page runs.
+  if (s && s.loaded) {
+    var configured = s.cmp ? "cc_" + s.cmp : "";
+    var hit = null;
+    for (var i = 0; i < m.length; i++) { if (m[i].adapter === configured) { hit = m[i]; break; } }
+    if (configured && m.length && !hit) {
+      html += '<div class="card warnbox" style="margin-top:8px"><strong>Konfiguration und Seite passen nicht zusammen.</strong> ' +
+        '<span class="muted">Konfiguriert ist <span class="mono">' + esc(s.cmp) + '</span> (cmp/' + esc(configured) +
+        '.js), erkannt wurde <span class="mono">' + esc(m.map(function (x) { return x.label; }).join(", ")) +
+        '</span>. Der geladene consent_check prüft dann ein Tool, das gar nicht da ist — typische Ursache für „GTM lädt nie".</span></div>';
+    } else if (configured && hit) {
+      html += '<div class="muted" style="margin-top:6px">Deckt sich mit der Konfiguration (<span class="mono">aGTM.c.cmp = ' +
+        esc(s.cmp) + "</span>).</div>";
+    } else if (!configured && m.length) {
+      // The sGTM-Client case: cmp is empty by design because the consent_check is
+      // injected inline — this card is the only place the tool gets named.
+      html += '<div class="muted" style="margin-top:6px">Kein <span class="mono">aGTM.c.cmp</span> gesetzt (inline injizierter consent_check, z. B. vom sGTM-Client) — ' +
+        "die Zuordnung stammt allein aus der Seitenerkennung.</div>";
+    }
+  }
+
+  var notes = [];
+  if (r.frameworks && r.frameworks.length) {
+    notes.push("Framework-API vorhanden: " + r.frameworks.join(", ") +
+      " — identifiziert den Anbieter nicht (jede TCF-CMP stellt sie bereit).");
+  }
+  if (r.storageBlocked) {
+    notes.push("localStorage/sessionStorage nicht lesbar (blockierter Kontext) — Storage-basierte Tools können hier nicht erkannt werden.");
+  }
+  var und = D.UNDETECTABLE || [];
+  if (und.length) {
+    notes.push("Bewusst nicht erkannt: " + und.map(function (u) { return u.label + " (" + u.why + ")"; }).join(" · "));
+  }
+  notes.push("Erkennung = Signaturen aus unseren eigenen cmp/cc_*.js-Adaptern (Existenz/typeof; es werden keine Cookie- oder Storage-Werte gelesen). Presence heißt „Tool ist da\", nicht „Entscheidung liegt vor\".");
+  html += '<div class="muted" style="margin-top:6px">' + notes.map(esc).join("<br>") + "</div>";
+  return html + "</div>";
 }
 
 /* ---------- Events ---------- */

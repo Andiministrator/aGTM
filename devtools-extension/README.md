@@ -19,7 +19,7 @@ It is the human-facing companion to the `live-inspector` Claude Code skill.
 | Tab | Source in `window.aGTM` | Purpose |
 |---|---|---|
 | **Diagnose** | aggregates the other tabs (config traps + pre-consent leaks + consent presence + GTM injection) plus `reader` timestamps (`navStart`, `aGTM.l`, `aGTM.d.dl`, network capture) | At-a-glance overview instead of clicking through every tab. **(1) Health-Score** — a pass/warn/fail traffic-light aggregating the known failure modes (consent mechanism, consent recognised, GTM injected, pre-consent leaks, config traps) into one readout with a per-check list. **(2) Consent-Timeline** — a ms-stamped waterfall (page load → `config()` → CMP decision → GTM inject → first tag fire) that answers *"why did X fire before consent"* visually, plus a **"waiting on"** block showing the milestones aGTM is still blocked on and the events that unblock them (the CMP decision + its `consent_events` triggers, GTM injection when consent is granted but no container is in the DOM yet, queued events awaiting replay, a polling DL-Repeat gate with its awaited gate spec). **(3) Compliance-Report** — a one-click shareable snapshot (**Markdown/JSON** to clipboard, or `.md` download) built from leaks + consent flow + config traps + `consent_check` status, for the consulting/hand-off scenario. **(4) Session & IDs** — current `sid`/`uid`/CRM `user_id` with a first-observed timestamp **and a live change history** (from → to, timestamped, **persisted per host**) so the v1.5 F→C user-id promote (`F.…` → `C.…` after consent) is visible as it happens; plus the Session-API payload from the `/aGTM.js` request as a **KPI stat-tile row** (returning-visitor from `sessionCount`, events-per-pageview engagement, live session age from the authentic server `created` time) — clearly flagged as a **page-load snapshot** (the counters don't advance during the page; only the age is live). **(5) GTM-Injektion** (at the bottom) — container injection status & order, live `dataLayer` length, per-container load mode (Google / custom-sGTM / inline base64 + env), and the **actual injected `<script>` tags** (DOM-level proof + load domain). *(This was a separate GTM tab before; folded into Diagnose — a dedicated tab wasn't worth it.)* |
-| **Consent** | `aGTM.d.consent`, `aGTM.d.session_status`, `consent_hash`/`last_consent_hash`, `aGTM.c.cmp`, `google_tag_data.ics`, dataLayer `consent` commands, vendor globals | Does GTM load, and why / why not? Plus a **Google Consent Mode sequence** (declare/implicit → default → update in order, with the final per-category state + timestamp, `update > default > implicit > declare`) and a **non-Google vendor box** detecting TCF/GPP/USP/GPC + Meta/UET/TikTok/LinkedIn/Pinterest/Amazon/Criteo, the consent signal each expects, and the state that's synchronously readable (GPC, `euconsent-v2`/`usprivacy`/`amzn_consent` cookies). Consent-command rows expand into the full sent payload |
+| **Consent** | `aGTM.d.consent`, `aGTM.d.session_status`, `consent_hash`/`last_consent_hash`, `aGTM.c.cmp`, `google_tag_data.ics`, dataLayer `consent` commands, vendor globals, **CMP signatures on the page** | Does GTM load, and why / why not? Plus an **"Erkanntes Consent-Tool"** card naming the CMP the page actually runs — see below; it is the one card that also renders **without aGTM**. Plus a **Google Consent Mode sequence** (declare/implicit → default → update in order, with the final per-category state + timestamp, `update > default > implicit > declare`) and a **non-Google vendor box** detecting TCF/GPP/USP/GPC + Meta/UET/TikTok/LinkedIn/Pinterest/Amazon/Criteo, the consent signal each expects, and the state that's synchronously readable (GPC, `euconsent-v2`/`usprivacy`/`amzn_consent` cookies). Consent-command rows expand into the full sent payload |
 | **Events** | `aGTM.d.f` (queue), `aGTM.d.dl` (dispatched), `aGTM.l` (decoded log) | Event stream, queued-until-consent, `_noConsent`/`_noDLPush`/`_post` flags. Rows are **click-to-expand** into a syntax-highlighted full object. The decoded log is **bundled by id+event with a count** (so the ~2s consent poll's repeated `m2`/`m3` collapse into one counted row) and shows *which event* (`obj.event`) each entry belongs to. Once consent is present the queue is relabelled as **history** (its events were already replayed as `hastyEvents`). |
 | **dataLayer** | `window[gdl]` | The **real GTM dataLayer** contents (click-to-expand), each push **colour-categorised** (aGTM / GTM / E-Commerce / Pageview / Consent / gtag / Message) and badged by its aGTM relationship: **via aGTM** (`aGTMts` → came through `aGTM.f.fire()`), **repeated** (DL-Repeat tag), `_noConsent`/`_post` |
 | **Session** | `aGTM.d.session`, `aGTM.d.bot`, `aGTM.d.attribution.<method>.*`, `window.se_data` | Session source & attribution, syntax-highlighted. Falls back to a site's `window.se_data` object when `aGTM.d.session` is empty. Also shows the **bot-check verdict** (`aGTM.d.bot`): score/band/primarySignal plus a per-signal table. Under the Client's default `block` mode the verdict only ever reaches a **non-blocked** visitor — a detected bot gets HTTP 403 and no library — so `isBot: true` is flagged as a contradiction. Under `mark` nothing is blocked and `isBot: true` is the configured state; the panel tells the two apart via the `mode` field and shows the mode as its own chip. `band: "unknown"` (filter outage) is reported as a warning rather than as a clean visitor, and the mode also surfaces as a health check, so a filter left in `mark` after a rollout measurement does not stay invisible. The signals' `detail` block (ASN, ASN org, unique-IP/request counts) is deliberately not forwarded to the browser by the sGTM Client. |
@@ -39,6 +39,37 @@ the Chrome Web Store.
 The panel polls the reader every ~700 ms and re-renders. `reader.js` is defensive:
 if `window.aGTM` is absent or half-initialised it returns `{loaded:false}` and the
 panel shows a hint instead of throwing.
+
+## CMP detection — which consent tool is actually running?
+
+`aGTM.c.cmp` only says which adapter was **configured**, and when the library is served
+by the sGTM Client that field is empty *by design* (the `consent_check` is injected
+inline) — so the Consent tab could not name the CMP in exactly the setup where naming it
+matters most. The **"Erkanntes Consent-Tool"** card answers it from the page instead.
+
+Every signature is derived from our own `cmp/cc_<name>.js` adapters: the first guard of
+each `consent_check` *is* a "is this CMP present and usable" probe (`Cookiebot`,
+`UC_UI.getServicesBaseInfo`, `PPConsentManager.hasConsentCategory`, the
+`acris_cookie_acc` cookie, …). Nothing is guessed from outside knowledge.
+
+- **It runs without aGTM.** The probe is its own `eval`, not part of `reader.js`'s
+  snapshot contract, so the card renders on any page — useful for integration prep or
+  for looking at a site that has no aGTM yet.
+- **Configured vs. detected.** With aGTM present the card compares the two: a
+  `cmp: "cookiebot"` on a page running Usercentrics is flagged, because the loaded
+  `consent_check` then probes a tool that isn't there — a classic "GTM never loads".
+- **Confidence, not claims.** A live JS API is *sicher*, a cookie/storage signature only
+  *wahrscheinlich*. Two adapters are deliberately **never** matched and say so in the
+  card: `cc_sourcepoint` (only checks `__tcfapi`, which every IAB TCF CMP provides — the
+  vendor is not derivable) and `cc_simple_cookie_regex_check` (a template with a freely
+  configured cookie name). Naming a CMP that isn't there is worse than saying nothing.
+- **Read-only and data-minimal.** The probe collects existence / `typeof` only — never a
+  cookie or storage **value**. It runs before any consent decision, and a consent
+  cookie's value is user data. `test/devtools/cmpdetect.test.js` asserts both properties
+  (a write-recording proxy, and a "no secret leaks into the evidence" check).
+- **Drift-guarded.** The same test asserts that every `cmp/cc_*.js` is either matched by
+  a signature or listed as undetectable with a reason — a newly added adapter cannot
+  silently leave the panel reporting "kein Consent-Tool erkannt" on a site we support.
 
 ## Simulation & the write channel
 
@@ -210,6 +241,7 @@ reader.js       page-context snapshot expression (eval'd, read-only, ES5-safe)
 sim.js          Simulation tab — opt-in WRITE channel (mutating eval builders + UI; ES5-safe injected code; builders unit-tested)
 netclassify.js  network classification + tracker/leak detection (browser global + node-require, unit-tested)
 consentsignals.js  gcs/gcd Consent-Mode signal decoders (browser global + node-require, unit-tested)
+cmpdetect.js    CMP signature table + page-probe builder + matcher — "which consent tool runs here?" (browser global + node-require, unit-tested, drift-guarded against cmp/)
 diagnose.js     Diagnose-tab aggregation: health-score, consent-timeline, compliance-report (browser global + node-require, unit-tested)
 jsonview.js     pure JSON syntax highlighter (browser global + node-require, unit-tested)
 logmap.js       aGTM.l decode table (copy of aGTM_debug.js's logmap)

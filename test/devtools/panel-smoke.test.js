@@ -70,7 +70,7 @@ beforeAll(() => {
   // `state`/`render` from the SAME eval scope (var/function don't leak to globalThis
   // under bun's ESM indirect eval, so we expose handles explicitly).
   var base = "./devtools-extension/";
-  var src = ["logmap.js", "netclassify.js", "consentsignals.js", "diagnose.js", "jsonview.js", "panel.js", "sim.js"]
+  var src = ["logmap.js", "netclassify.js", "consentsignals.js", "cmpdetect.js", "diagnose.js", "jsonview.js", "panel.js", "sim.js"]
     .map(function (f) { return readFileSync(base + f, "utf8"); })
     .join("\n;\n");
   src += "\n;globalThis.__panel = {" +
@@ -107,6 +107,10 @@ beforeAll(() => {
     "  exceptionInfo: exceptionInfo," +
     "  setSimWrite: function(v){ SIM_WRITE = v; }," +
     "  getSimWrite: function(){ return SIM_WRITE; }," +
+    "  poll: poll," +
+    "  setCmp: function(v){ state.cmp = v; }," +
+    "  getCmp: function(){ return state.cmp; }," +
+    "  clearCmpProbe: function(){ state.cmpProbeCode = null; }," +
     "  noop: function(){}" +
     "};";
   (0, eval)(src);
@@ -1645,6 +1649,9 @@ describe("Simulation tab — action buttons actually reach the page", () => {
   });
   // simRun() also triggers a snapshot poll after every action, so more than one eval
   // reaches the stub — assert on WHAT was sent, not on how many.
+  // The reset code is identified by its own `toRe()` helper, NOT by a cookie name: the
+  // filter used to look for "__cmp", which the CMP-detection probe also contains (it is
+  // Consentmanager's global), so the poll's probe silently counted as a second reset.
   test("with write-mode ON the cookie reset sends its code to the page", () => {
     const P = globalThis.__panel;
     P.setSimWrite(true); P.buildSimScaffold();
@@ -1653,7 +1660,7 @@ describe("Simulation tab — action buttons actually reach the page", () => {
     globalThis.__nodes["sim-cookie-pats"].value = P.simState().cookiePats;
     evals.length = 0;
     clickSim("sim-cookie-reset");
-    const hit = evals.filter(function (c) { return c.indexOf("__cmp") !== -1; });
+    const hit = evals.filter(function (c) { return c.indexOf("function toRe(") !== -1; });
     expect(hit.length).toBe(1);                    // the reset carrying the default patterns
     expect(hit[0]).toContain("document");
     expect(hit[0]).toContain("_tpf");              // aGTM's own user-id cookie is covered
@@ -1705,7 +1712,7 @@ describe("Cookie reset button reaches the page", () => {
     globalThis.__nodes["sim-cookie-pats"].value = P.simState().cookiePats;
     evals.length = 0;
     clickReset();
-    const hit = evals.filter(function (c) { return c.indexOf("__cmp") !== -1; });
+    const hit = evals.filter(function (c) { return c.indexOf("function toRe(") !== -1; });
     expect(hit.length).toBe(1);
     expect(hit[0]).toContain("_tpf");
   });
@@ -1781,7 +1788,7 @@ describe("Cookie reset — third-party CMP frame pass", () => {
     prime();
     clickReset();
     const framed = calls.filter(function (c) { return c.frameURL; })[0];
-    const top = calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; })[0];
+    const top = calls.filter(function (c) { return !c.frameURL && c.code.indexOf("function toRe(") >= 0; })[0];
     expect(framed.code).not.toContain("reload()");
     expect(top.code).toContain("reload()");            // cookieReload defaults to true
   });
@@ -1825,7 +1832,7 @@ describe("Cookie reset — third-party CMP frame pass", () => {
     P.simState().cookieFrames = true;
     expect(asked).toBe(false);
     expect(calls.filter(function (c) { return c.frameURL; }).length).toBe(0);
-    expect(calls.filter(function (c) { return c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
+    expect(calls.filter(function (c) { return c.code.indexOf("function toRe(") >= 0; }).length).toBe(1);
   });
 
   // WATCHDOG. Both of these hang the optional path on purpose. Removing the 1.2 s
@@ -1840,7 +1847,7 @@ describe("Cookie reset — third-party CMP frame pass", () => {
     setResources(RES, false);
     prime();
     withFastWatchdog(clickReset);
-    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
+    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("function toRe(") >= 0; }).length).toBe(1);
   });
   test("a frame eval never answering still resets the top frame", () => {
     setResources(RES);
@@ -1855,13 +1862,13 @@ describe("Cookie reset — third-party CMP frame pass", () => {
     };
     withFastWatchdog(clickReset);
     globalThis.chrome.devtools.inspectedWindow.eval = realEval;
-    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
+    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("function toRe(") >= 0; }).length).toBe(1);
   });
   test("the top-frame reset happens exactly once, watchdog and completion cannot both fire it", () => {
     setResources(RES);
     prime();
     withFastWatchdog(clickReset);   // completion runs synchronously AND the watchdog fires
-    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("__cmp") >= 0; }).length).toBe(1);
+    expect(calls.filter(function (c) { return !c.frameURL && c.code.indexOf("function toRe(") >= 0; }).length).toBe(1);
   });
 });
 
@@ -1979,5 +1986,101 @@ describe("Cookie reset — frame pass must never write unannounced", () => {
     globalThis.chrome.devtools.inspectedWindow.eval = realEval;
     P.simState()._resetBusy = false;
     expect(calls.filter(function (c) { return c.frameURL; }).length).toBe(1);
+  });
+});
+
+describe("Consent tab — detected CMP card", () => {
+  const P = () => globalThis.__panel;
+  // Detection result as the real matcher would produce it, so the test breaks if the
+  // panel starts expecting a shape cmpdetect.js does not emit.
+  function detected(globals, cookie) {
+    const D = globalThis.aGTMInspectorCmpDetect;
+    const win = {
+      document: { cookie: cookie || "" },
+      localStorage: { getItem: () => null, length: 0, key: () => null },
+      sessionStorage: { getItem: () => null, length: 0, key: () => null }
+    };
+    for (const k in (globals || {})) win[k] = globals[k];
+    return D.detect(new Function("window", "return " + D.buildProbeCode())(win));
+  }
+
+  test("names the detected tool in the Consent tab", () => {
+    P().setCmp(detected({ CCM: {} }));
+    const html = renderTab("consent");
+    expect(html).toContain("Erkanntes Consent-Tool");
+    expect(html).toContain("CCM19");
+    expect(html).toContain("cmp/cc_ccm19.js");
+  });
+
+  test("empty aGTM.c.cmp (sGTM Client) is explained, not flagged as a mismatch", () => {
+    // sampleSnap() has cmp:"" + hasConsentCheck:true — exactly the Client case.
+    P().setCmp(detected({ CCM: {} }));
+    const html = renderTab("consent");
+    expect(html).toContain("inline injizierter consent_check");
+    expect(html).not.toContain("passen nicht zusammen");
+  });
+
+  test("configured vs. detected mismatch raises a warning", () => {
+    P().setCmp(detected({ UC_UI: { getServicesBaseInfo: function () {} } }));
+    const snap = sampleSnap();
+    snap.cmp = "cookiebot";
+    const html = renderTab("consent", snap);
+    expect(html).toContain("passen nicht zusammen");
+    expect(html).toContain("Usercentrics v2");
+    expect(html).toContain("cookiebot");
+  });
+
+  test("a matching configuration is confirmed instead of warned about", () => {
+    P().setCmp(detected({ Cookiebot: {} }));
+    const snap = sampleSnap();
+    snap.cmp = "cookiebot";
+    const html = renderTab("consent", snap);
+    expect(html).toContain("Deckt sich mit der Konfiguration");
+    expect(html).not.toContain("passen nicht zusammen");
+  });
+
+  test("no detection yields an honest 'nothing found', not a blank card", () => {
+    P().setCmp(detected({}));
+    const html = renderTab("consent");
+    expect(html).toContain("Kein bekanntes Consent-Tool erkannt");
+    // The deliberate blind spots must stay visible so nobody reads "nothing" as "none".
+    expect(html).toContain("Sourcepoint");
+  });
+
+  test("the card still renders when aGTM is absent — the point of the feature", () => {
+    P().setCmp(detected({ Cookiebot: {} }));
+    P().setSnap({ loaded: false });
+    P().setTab("consent");
+    P().render();
+    const html = globalThis.document.getElementById("tab-consent")._html;
+    expect(html).toContain("Erkanntes Consent-Tool");
+    expect(html).toContain("Cookiebot");
+    // …and the "no aGTM here" note is still shown above it.
+    expect(html).toContain("window.aGTM");
+  });
+
+  test("poll() actually runs the probe and feeds state.cmp", () => {
+    // Without this the table could be perfect and never reach the panel (the
+    // "testing a pure helper is not proof it is fed" failure class).
+    P().setCmp(null);
+    P().clearCmpProbe();
+    const D = globalThis.aGTMInspectorCmpDetect;
+    const probeCode = D.buildProbeCode();
+    const realEval = globalThis.chrome.devtools.inspectedWindow.eval;
+    let sawProbe = false;
+    globalThis.chrome.devtools.inspectedWindow.eval = function (code, cb) {
+      if (code === probeCode) {
+        sawProbe = true;
+        cb({ globals: { Cookiebot: "object" }, cookies: {}, ls: {}, ss: {}, lsp: {} }, null);
+      } else {
+        cb({ loaded: false }, null);       // the reader poll
+      }
+    };
+    // poll() bails out before eval if the reader source was never fetched.
+    globalThis.__panel.noop();
+    P().poll();
+    globalThis.chrome.devtools.inspectedWindow.eval = realEval;
+    expect(sawProbe).toBe(true);
+    expect(P().getCmp().matches.map((m) => m.label)).toEqual(["Cookiebot"]);
   });
 });

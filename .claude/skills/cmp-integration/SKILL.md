@@ -105,10 +105,24 @@ architecture, see `CLAUDE.md` (sections "CMP Files", "Build Process",
 3. **Register in the docs:** add the CMP **with its exact `cmp` slug** to
    `cmp/README-cmp.md` — the authoritative CMP → value list that integrators read —
    and add its display name to the "Available CMPs" list in `CLAUDE.md`.
-4. **Add a test** at `test/cmp/cc_<name>.test.js` (see "Testing").
-5. Run `./build.sh` (no warnings; it minifies and fills the SELECT value), then
-   `bun test` green.
-6. Commit.
+4. **Teach the Inspector to recognise it.** `devtools-extension/cmpdetect.js` names the
+   CMP a page is actually running, and its signatures come from exactly the presence
+   guard you wrote in step 1. Add an entry to `SIGNATURES`:
+   - `need` = the conditions that identify the CMP — `{g:'X.method', t:'function'}` for a
+     JS API, `{c:'cookiename'}` / `{ls:'key'}` / `{ss:'key'}` for cookie/storage-based
+     ones. Prefer a **method** over a bare global: `cc` or `sp` alone is a name any page
+     could use. Use `deny` when two CMPs share a signature (JTL Consent vs. Matomo).
+   - `confidence`: `strong` for a live JS API, `medium` for a cookie/storage signature.
+   - If the CMP genuinely **cannot** be identified (a template with a configurable
+     cookie name, or a check that only probes `__tcfapi`), add it to `UNDETECTABLE`
+     with a reason instead. Naming a CMP that isn't there is worse than naming none.
+   `test/devtools/cmpdetect.test.js` fails if an adapter is in neither list, so this
+   step is not optional. Add a matcher test alongside it.
+5. **Add a test** at `test/cmp/cc_<name>.test.js` (see "Testing").
+6. Run `./build.sh` (no warnings; it minifies and fills the SELECT value), then
+   `bun test` green. If you touched the Inspector, re-pack it:
+   `scripts/pack-devtools-extension.sh`.
+7. Commit.
 
 ---
 
@@ -156,6 +170,8 @@ drift-guard test depends on you running `bun test` — always do so before commi
 - [ ] Header `@version` / `@lastupdate` updated
 - [ ] Regression test present and red without the fix
 - [ ] `./build.sh` runs **without warnings**; saw the `Re-synced …` log (if embedded)
-- [ ] `bun test` green (drift guard included)
+- [ ] `bun test` green (both drift guards: the sGTM template sync **and** `cmpdetect`)
+- [ ] New CMP: signature in `devtools-extension/cmpdetect.js` (or an `UNDETECTABLE`
+      entry with a reason) + `scripts/pack-devtools-extension.sh` re-run
 - [ ] `CHANGELOG.md` updated (+ `CLAUDE.md` & `README.md` for a new CMP)
 - [ ] Told the operator: **re-import the sGTM Client** for the embedded copy to go live
