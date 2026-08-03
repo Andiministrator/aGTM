@@ -63,6 +63,17 @@ each `consent_check` *is* a "is this CMP present and usable" probe (`Cookiebot`,
   card: `cc_sourcepoint` (only checks `__tcfapi`, which every IAB TCF CMP provides — the
   vendor is not derivable) and `cc_simple_cookie_regex_check` (a template with a freely
   configured cookie name). Naming a CMP that isn't there is worse than saying nothing.
+- **A platform consent API is not a CMP.** `Shopify.customerPrivacy` is present on every
+  Shopify shop regardless of which banner drives it, so `cc_shopify_consent` is marked
+  `kind: "platform"` and rendered in its own block ("Consent-Schnittstelle der
+  Plattform") rather than competing with the real hit. As `aGTM.c.cmp` it is only right
+  when the platform's own banner actually holds the decision.
+- **A newer CMP version may ship the older one's API.** Usercentrics v3 publishes a
+  `UC_UI` compatibility layer *including* `getServicesBaseInfo`, so `UC_UI` alone does
+  not prove v2 — the more specific `__ucCmp.cmpController` wins via a `deny` rule (same
+  shape as Borlabs 2 vs. 3). Both this and the platform-API split came out of a real
+  shop that reported three "detected CMPs" at once; when two signatures still match, the
+  card says so and marks the first row as the more specific one.
 - **Read-only and data-minimal.** The probe collects existence / `typeof` only — never a
   cookie or storage **value**. It runs before any consent decision, and a consent
   cookie's value is user data. `test/devtools/cmpdetect.test.js` asserts both properties
