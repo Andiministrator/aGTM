@@ -768,8 +768,12 @@ You'll find a list of it in the [GTM Template Documentation](gtm/README-gtm-temp
 
 ## DataLayer Events that aGTM uses
 
-And there is also an Overview about the GTM dataLayer Events of aGTM and for the GTM Custom Templates.
-You'll find the Event/Attributes Overview within the "assets" directory as [Excel file](assets/aGTM-Events.xlsx) or in this [Google Drive Sheet](https://docs.google.com/spreadsheets/d/1-kVwFAeEqyzorU7ri17Xg8Drvd2a03n-5EWB34KhfPU).
+**[EVENTS.md](EVENTS.md)** is the current reference: every dataLayer event aGTM and its
+GTM Custom Templates push, with their attributes, the consent gate and the event flags
+(`_noConsent`, `_noDLPush`, `_post`).
+
+The older matrix view (v1.1) is still around as an [Excel file](assets/aGTM-Events.xlsx)
+in the "assets" directory or as a [Google Drive Sheet](https://docs.google.com/spreadsheets/d/1-kVwFAeEqyzorU7ri17Xg8Drvd2a03n-5EWB34KhfPU) — kept for reference only.
 
 ---
 
