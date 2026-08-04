@@ -7,11 +7,14 @@
 
 What aGTM v1.4.x pushes into the GTM dataLayer, and with which attributes.
 
-> **Which v1.4 exactly:** this describes **v1.4.1**, the last tagged v1.4 release (tag
-> `v1.4.1`, and the state of `main`). `CHANGELOG.md` also lists a "Version 1.4.2" — that
-> work stayed on `dev`, was never tagged and never released, and its changes are part of
-> v1.5. If you pulled `dev` between the two, you have something in between and should use
-> [EVENTS.md](EVENTS.md) as the closer reference.
+> **Which v1.4 exactly:** this describes **v1.4.1**, the last *tagged* v1.4 release (tag
+> `v1.4.1`, and the state of `main`). Two later states were shipped unofficially, without
+> a tag: **1.4.2** (`CHANGELOG.md` has an entry for it; `aGTM.js` carries `@version 1.4.2`
+> from 2025-09-09 until the v1.5 bump) and **1.4.3pre**, which git does not record as a
+> version at all. Everything below applies to all three — the differences between them are
+> new CMP adapters, the two GTM variable templates and build tooling, not events. The
+> changes listed in [§6](#6-what-changed-in-v15) likewise came *after* the whole v1.4 line,
+> so they apply to it whichever of the three you run.
 
 **As a spreadsheet:** [assets/aGTM-Events-v1.4.xlsx](assets/aGTM-Events-v1.4.xlsx) (also deprecated).
 
@@ -199,9 +202,9 @@ Read these directly from the `aGTM` object with a GTM "JavaScript Variable":
 > they come with the v1.5 sGTM Client.
 
 v1.4.1 ships exactly one GTM **variable** template: **aGTM var - Content Counter**
-(number of words or of images > 250 px on the page). The Consent-Check and Consent-Info
-variables were added after it (listed in `CHANGELOG.md` under the never-released 1.4.2)
-and ship with v1.5.
+(number of words or of images > 250 px on the page). **aGTM var - Consent Check** and
+**aGTM var - Consent Info** came with the unofficial 1.4.2 — so whether you have them
+depends on which of the three v1.4 states you run.
 
 ---
 
@@ -240,8 +243,8 @@ and ship with v1.5.
 | `aGTM_repeat_fallback` | DL-Repeat gave up waiting for its gate event(s); carries `aGTMrepeatCount`, `aGTMrepeatSource`, `aGTMrepeatMissing`, `aGTMrepeatWaited` |
 | DL-Repeat as `aGTM.f.dlrepeat()` | the replay engine moved into the library (gate wait, poll, late enrichment); the tag is a thin wrapper and needs only a single trigger |
 | `aGTM_consent_update` is hash-gated | fires only on a **changed** consent state, so the periodic CMP poll stays quiet |
-| `aGTM.d.session` / `.attribution` / `.bot` | session, attribution and bot-check data from the sGTM Client |
-| Two new GTM variables | aGTM var - Consent Check, aGTM var - Consent Info |
+| `aGTM.d.session` / `.attribution` / `.bot` | session, attribution and bot-check data from the sGTM Client — none of them exist anywhere in the v1.4 line, including the unofficial states |
+| Two new GTM variables | aGTM var - Consent Check, aGTM var - Consent Info — unless you already run the unofficial 1.4.2, which brought them |
 
 Apart from the items above, upgrading is additive for event tracking. The list is compiled
 from the diff `v1.4.1..v1.5` over `aGTM.js` and `gtm/`, focusing on event names, attribute
