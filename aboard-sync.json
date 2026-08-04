@@ -329,6 +329,12 @@
                 "author": "Claude Opus",
                 "text": "Release-Gate-Update (Andi, 2026-07-15): neuer sGTM-Client bei fc-moto NEU importiert + live gestellt — jetzt byte-aktuell mit dev-HEAD (eingebetteter Library-Blob == aGTM.base64 inkl. F-45/F-47/F-48; Server-Logik inkl. F-33). Laeuft, Beobachtungsfenster laeuft. Die drei letzten Library-Aenderungen (F-47 urlParam / F-48 sc / Helfer-Tests) haben null beobachtbaren Laufzeiteffekt (Literal-Only-Aufrufer) — der Re-Import haelt live==dev sauber, ohne funktionale Delta zu erwarten. OFFEN vor git tag v1.5 unveraendert: (1) Beobachtungsfenster (Andis Call), (2) /sprint-abschluss inkl. Kritiker, (3) Pre-Tag-Hygiene F-26 (CHANGELOG in-development streichen + finale Testzahl 319/25 festzurren), (4) dev->main-Merge + Tag NUR auf Andis Zeichen. Karte bleibt In Arbeit/blocked.",
                 "created": "2026-07-15"
+              },
+              {
+                "id": "8a2f99ab-20e8-44ab-a578-aa3059aacf0d",
+                "author": "Claude Opus",
+                "text": "UEBERGABE 2026-08-04 (Chat-Wechsel). Board ist auf ADR-0067 migriert - Ops an aboard-sync.inbox/ anhaengen via makeOp(), NIE aboard-sync.json direktschreiben; der Op-Typ fuer neue Karten heisst card.upsert (card.add existiert nicht -> Poison). Diese Session: Event-Doku EVENTS.md/EVENTS-v1.4.md + beide XLSX (#66), dann aus Andis 1.4.3pre-Client-Template zwei v1.5-Regressionen gefunden und behoben: x-agtm-version-Header (#67, F-158) und gtm_id_match als totes Feld inkl. leerer Container-Liste ohne ?id= (#68, F-159). Neu im v1.6-Backlog: #69 /aGTMconsent-Preflight (F-160, nur Code-Lesung, nicht live verifiziert). Stand: 1017 Tests gruen, build.sh sauber, alles auf dev gepusht (b65ad96), KEIN Tag - v1.5 bleibt offen, Release nur auf Andis Zeichen. Zwei Andi-Aufgaben haengen: (1) Client-Re-Import noetig, damit Header + Container-Fix live gehen - dabei pruefen, ob eine Live-Konfiguration mehr als eine Container-Zeile hat (bekommt nach dem Fix ALLE statt einem, sonst gtm_id_match anhaken). (2) Das im README verlinkte Google-Sheet der Event-Uebersicht steht noch auf v1.1 - mit/vor dem v1.5-Deployment klaeren, nur Andi hat Zugriff.",
+                "created": "2026-08-04"
               }
             ],
             "displayId": 1,
