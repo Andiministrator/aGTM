@@ -768,12 +768,17 @@ You'll find a list of it in the [GTM Template Documentation](gtm/README-gtm-temp
 
 ## DataLayer Events that aGTM uses
 
-**[EVENTS.md](EVENTS.md)** is the current reference: every dataLayer event aGTM and its
-GTM Custom Templates push, with their attributes, the consent gate and the event flags
-(`_noConsent`, `_noDLPush`, `_post`).
+**[EVENTS.md](EVENTS.md)** is the reference for the current version: every dataLayer event
+aGTM and its GTM Custom Templates push, with their attributes, the consent gate and the
+event flags (`_noConsent`, `_noDLPush`, `_post`).
 
-The older matrix view (v1.1) is still around as an [Excel file](assets/aGTM-Events.xlsx)
-in the "assets" directory or as a [Google Drive Sheet](https://docs.google.com/spreadsheets/d/1-kVwFAeEqyzorU7ri17Xg8Drvd2a03n-5EWB34KhfPU) — kept for reference only.
+| | Documentation | Spreadsheet (event × attribute matrix) |
+|---|---|---|
+| **v1.5** (current) | [EVENTS.md](EVENTS.md) | [assets/aGTM-Events-v1.5.xlsx](assets/aGTM-Events-v1.5.xlsx) |
+| **v1.4.x** (deprecated) | [EVENTS-v1.4.md](EVENTS-v1.4.md) | [assets/aGTM-Events-v1.4.xlsx](assets/aGTM-Events-v1.4.xlsx) |
+
+There is also a [Google Drive Sheet](https://docs.google.com/spreadsheets/d/1-kVwFAeEqyzorU7ri17Xg8Drvd2a03n-5EWB34KhfPU),
+but it still holds the v1.1 state — use the files above instead.
 
 ---
 
