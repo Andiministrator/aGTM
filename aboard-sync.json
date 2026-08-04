@@ -1747,6 +1747,31 @@
             ],
             "columnId": "col-erledigt",
             "displayId": 66
+          },
+          {
+            "id": "agtm-sgtm-version-header",
+            "title": "sGTM-Client: x-agtm-version-Header war seit dem v1.5-Refactor weg (Regression ggü. 1.4.3pre)",
+            "description": "Aus Andis 1.4.3pre-Client-Template (tmp/, gitignored) rekonstruiert. Analyse des eingebetteten base64-Blobs: 1.4.3pre ist eine CLIENT-Version, keine Library-Version - die Library darin meldet 1.4.2 und ist 49fb198 minus dem urlListener-console.log, gebaut mit der alten Minifier-Kette (passt zu keinem Commit byte-genau). Diff 1.4.3pre vs. v1.5: v1.5 hat alles (CORS, Cache-Control, client_ip mit getRemoteAddress-Fallback, cmp_custom_code, Bot-Timeout 5000) AUSSER x-agtm-version. Das Single-Session-Refactor liess die const aGTMversion unbenutzt stehen, und update-sgtm-template.js synchte sie nicht - ein Bump haette den displayName bewegt, waehrend die Konstante die Vorversion nannte. Header auf allen drei /aGTM.js-Response-Pfaden (200 + beide 403) wieder gesetzt, Build-Sync in beide Dateien ergaenzt (faellt laut aus, wenn die Zeile fehlt), test/sgtm/version-header.test.js als Guard. 1008 Tests gruen, build.sh sauber, Sync-Invariante Template<->Source verifiziert. Commit d4a5e85.",
+            "status": "done",
+            "priority": "normal",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "klein",
+            "effort": "S",
+            "agentContext": "RELEASE-SENSIBEL: aendert den sGTM-Client -> braucht Client-Re-Import, sonst fehlt der Header weiterhin. Ab v1.5 ist der Header der Weg, die Client-Version eines Kunden von aussen zu klaeren.",
+            "links": [],
+            "comments": [
+              {
+                "id": "679de41a-0061-456c-a22c-c3febf52d3bb",
+                "author": "Claude Opus",
+                "text": "Offen fuer Andi: (1) Client-Re-Import noetig, damit der Header live geht. (2) Nachtraegliche Tags fuer 1.4.2 (081b3df oder 49fb198) - braucht deine Freigabe; fuer 1.4.3pre gibt es keinen passenden Commit, da waere hoechstens ein Tag auf 49fb198 mit Hinweis moeglich. (3) Das 1.4.3pre-Template liegt weiter in tmp/ (gitignored) - sag Bescheid, falls es woandershin soll.",
+                "created": "2026-08-04"
+              }
+            ],
+            "columnId": "col-erledigt",
+            "displayId": 67
           }
         ]
       },
@@ -2014,7 +2039,7 @@
         ]
       }
     ],
-    "nextDisplayId": 67,
+    "nextDisplayId": 68,
     "attachments": [],
     "background": null,
     "templates": [],
