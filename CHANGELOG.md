@@ -2,6 +2,27 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — the sGTM Client no longer answers without saying which version it is
+
+The v1.4.3pre Client sent an `x-agtm-version` response header on `/aGTM.js`. The v1.5
+single-session refactor dropped the call but kept the `const aGTMversion` declaration, so
+the constant sat in both files unread — and `update-sgtm-template.js` never synced it,
+which means a version bump would have moved the template's `displayName` while the
+constant kept naming the previous release.
+
+This surfaced while reconstructing which build a tenant was actually running: the
+container serves the same URL for every version, the response carried no version
+anywhere, and a Client typically runs untouched for months. The header is the only thing
+that can answer the question from the outside.
+
+- `x-agtm-version` is set on **every** `/aGTM.js` response, including both 403 paths — a
+  blocked visitor is precisely the case where you want to know what blocked them.
+- `./build.sh` now rewrites `const aGTMversion` in the template **and** the client source,
+  and fails loudly if the line is missing from either. A stale value would make the header
+  lie, which is worse than having no header.
+- `test/sgtm/version-header.test.js` guards both halves: the header on all three response
+  paths, and the constant matching `VERSION` in both files.
+
 ### Fixed — the sGTM Client wrote the server-side fingerprint into the user-ID cookie
 
 Reported from the outside, reproduced against the real Client source. `/aGTM.js` wrote

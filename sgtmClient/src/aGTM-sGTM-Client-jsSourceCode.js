@@ -849,6 +849,12 @@ const buildAndSend = function(sessionData) {
     setResponseHeader('Access-Control-Allow-Credentials', 'true');
   }
   setResponseHeader('Content-Type', 'application/javascript');
+  // Which Client version answered. The v1.4.3pre client sent this and v1.5 lost
+  // it, which is exactly backwards: a tenant runs the Client for months without
+  // touching it, so "which version is live on this container" is a question only
+  // the response itself can answer. Set on every /aGTM.js path incl. the 403s —
+  // a blocked visitor is the case where you most want to know what blocked them.
+  setResponseHeader('x-agtm-version', aGTMversion);
   // This body is per-visitor: it inlines cfg.session with uid, sid and — for a
   // returning visitor — their recorded consent, while the URL
   // (/aGTM.js?id=GTM-XXX&c=<page>) is identical for everyone. A shared cache
@@ -867,6 +873,7 @@ const afterBotCheck = function(isBot) {
   if (isBot) {
     logToConsole('warn', '\u2717 Bot detected', userAgent);
     setResponseStatus(403);
+    setResponseHeader('x-agtm-version', aGTMversion);
     returnResponse();
     return;
   }
@@ -1097,6 +1104,7 @@ if (botCheckEnabled && botCheckUrl) {
   if (!clientIP && botNoIpBlocks) {
     logToConsole('error', '\u2717 Bot check enabled but no client IP');
     setResponseStatus(403);
+    setResponseHeader('x-agtm-version', aGTMversion);
     setResponseBody(fromBase64('Y29uc29sZS5lcnJvcignYUdUTSBFcnJvcjogSW52YWxpZCBvciBibG9ja2VkIElQIGFkZHJlc3MnKTs='));
     returnResponse();
   } else if (!clientIP) {
