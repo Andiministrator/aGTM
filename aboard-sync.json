@@ -1722,6 +1722,31 @@
             "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js: continueAfterSession, der Zweig 'Delete cookie if consent required but not granted' direkt vor dem neuen F.*-Cleanup. cookieAllowed wird ein paar Zeilen darueber gebildet. Byte-Identitaet zu template.tpl beachten - build.sh synct nur den base64-Blob, jede Logikaenderung muss identisch in beide Dateien. Test-Einstieg: test/sgtm/cookie-uid.test.js + der geteilte Harness test/sgtm/client-harness.js (zeichnet setCookie auf). Sandbox-Fallen: kein try/catch, kein Array.isArray, kein parseInt, kein 'k' in obj, keine Forward-Refs auf const-Function-Expressions. Findings F-154; Kontext F-153/F-155, verwandt F-156.",
             "displayId": 65,
             "columnId": "col-backlog"
+          },
+          {
+            "id": "agtm-event-doku-v15-v14",
+            "title": "Event-Dokumentation: EVENTS.md (v1.5) + EVENTS-v1.4.md (deprecated) + beide Excel-Tabellen",
+            "description": "Es gab nur assets/aGTM-Events.xlsx (Stand v1.1, 24.07.2024) - veraltet (vDOMready/vPAGEready, cm2/cmp_blocked) und ohne alles seit v1.2. Ersetzt durch je eine Referenz pro Version in zwei Formaten: EVENTS.md + assets/aGTM-Events-v1.5.xlsx (aktuell), EVENTS-v1.4.md + assets/aGTM-Events-v1.4.xlsx (deprecated, Banner in jedem Blatt). Beide XLSX aus einer Datenquelle generiert (tmp/build-events-xlsx.py, gitignored). Deutsche Arbeitskopie der v1.4-Fassung in tmp/. Zwei Kritikerrunden gegen den Code: 10 P0 korrigiert, u.a. die nie existierenden Event-Namen contact_click_*/contact_copy_* (real: contact_email/contact_phone aus BEIDEN Tags - Namenskollision), form_start statt form_click fuer v1.4, drei Breaking Changes beim Upgrade (form_start->form_click, scroll_depth String->Number, cross_matching-Default), human_detected/adblock_detected als Zahl. v1.4-Doku auf v1.4.1 fixiert - das im CHANGELOG gefuehrte 1.4.2 liegt auf dev und wurde nie getaggt. Commits 4eec0d4 + a20ab9c.",
+            "status": "done",
+            "priority": "normal",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": "M",
+            "agentContext": "Aenderungen an Events/Attributen muessen in BEIDE .md UND in tmp/build-events-xlsx.py (dann neu bauen). Der Generator ist gitignored - bei einem frischen Clone existiert er nicht.",
+            "links": [],
+            "comments": [
+              {
+                "id": "3b3a3e3c-a81e-4293-b62e-72d27d322d52",
+                "author": "Claude Opus",
+                "text": "Offener Punkt fuer Andi: das Google-Sheet (im README verlinkt) steht weiter auf v1.1 - kann ich nicht anfassen. Entweder aus dem README nehmen oder von Hand nachziehen. Ausserdem: alte assets/aGTM-Events.xlsx per git rm entfernt (History behaelt sie).",
+                "created": "2026-08-04"
+              }
+            ],
+            "columnId": "col-erledigt",
+            "displayId": 66
           }
         ]
       },
@@ -1989,7 +2014,7 @@
         ]
       }
     ],
-    "nextDisplayId": 66,
+    "nextDisplayId": 67,
     "attachments": [],
     "background": null,
     "templates": [],
