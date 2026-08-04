@@ -2,13 +2,42 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — the sGTM Client's "fire only the matching container" checkbox did nothing
+
+`gtm_id_match` ("Fire only GTM container matching the ID in URL") survived the v1.5
+single-session refactor as a field in the template UI, but the rewritten config builder
+filtered the container table on `?id=` **unconditionally** and never read the flag. Two
+things followed from that:
+
+- The checkbox was inert, and its own help text ("If not checked, all of the following GTM
+  Containers will be fired") described the opposite of what happened — a tenant with
+  several containers only ever got the one named in the URL.
+- A request **without** `?id=` matched nothing and produced an empty container list. The
+  library was served and initialised, and then had nothing to inject. That is the silent
+  version of "GTM does not load".
+
+Restored to the v1.4 semantics: unchecked serves every configured container, checked
+filters on `?id=`. Filtering with no `?id=` present is still nothing-matches — that is a
+configuration mistake, so the Client now writes a warning instead of serving a library
+that can never inject. `test/sgtm/container-select.test.js` covers all four combinations
+plus the unchanged allowed-ID gate.
+
+> **Upgrade note for existing v1.5 deployments:** if you configured several containers
+> while the bug was live, you were getting exactly one of them. After the re-import you
+> get all of them. Tick "Fire only GTM container matching the ID in URL" if that is not
+> what you want.
+
 ### Fixed — the sGTM Client no longer answers without saying which version it is
 
 The v1.4.3pre Client sent an `x-agtm-version` response header on `/aGTM.js`. The v1.5
 single-session refactor dropped the call but kept the `const aGTMversion` declaration, so
 the constant sat in both files unread — and `update-sgtm-template.js` never synced it,
 which means a version bump would have moved the template's `displayName` while the
-constant kept naming the previous release.
+constant kept naming the previous release. That drift is not hypothetical: at the time
+1.4.3pre shipped, the constant in this repository still read `1.4.2`. (In the repository's
+own history the call was never correct either — it passed `setResponseHeader(aGTMversion)`
+with a single argument, i.e. a header *name* and no value. Only the externally built
+1.4.3pre had the working two-argument form.)
 
 This surfaced while reconstructing which build a tenant was actually running: the
 container serves the same URL for every version, the response carried no version
@@ -16,7 +45,13 @@ anywhere, and a Client typically runs untouched for months. The header is the on
 that can answer the question from the outside.
 
 - `x-agtm-version` is set on **every** `/aGTM.js` response, including both 403 paths — a
-  blocked visitor is precisely the case where you want to know what blocked them.
+  blocked visitor is precisely the case where you want to know what blocked them — and on
+  both `/aGTMconsent` responses, because a capture of a consent problem often contains only
+  that exchange, and the 501 body ("consent_store_enc not supported server-side") is itself
+  a statement about what this version can do.
+- The served library declares `charset=utf-8` again. Without it a classic `<script src>`
+  inherits the *document's* encoding, and the body embeds JSON — page URL, inline CMP code —
+  that may be non-ASCII. v1.4.3pre sent it; the refactor dropped it.
 - `./build.sh` now rewrites `const aGTMversion` in the template **and** the client source,
   and fails loudly if the line is missing from either. A stale value would make the header
   lie, which is worse than having no header.

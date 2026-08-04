@@ -220,6 +220,10 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
     logToConsole('warn', '✗ Encrypted consent_store payload not supported server-side — disable consent_store_enc until decrypt is implemented');
     setResponseStatus(501);
     setResponseHeader('Content-Type', 'application/json');
+    // This body is literally a statement about what this version supports, so it
+    // has to say which version is talking. Same reason on the 200 below: a capture
+    // of a consent problem often contains only the /aGTMconsent exchange.
+    setResponseHeader('x-agtm-version', aGTMversion);
     setResponseBody('{"ok":false,"err":"consent_store_enc not supported server-side"}');
     returnResponse();
     return;
@@ -314,6 +318,7 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
     const finishConsentPost = function() {
       setResponseStatus(200);
       setResponseHeader('Content-Type', 'application/json');
+      setResponseHeader('x-agtm-version', aGTMversion);
       // Always echo finalUid so the browser can update aGTM.d.session.uid
       // after a successful F→C promote. When no promote happened the value
       // matches what the browser already holds — browser-side noop.
@@ -748,10 +753,18 @@ const buildAndSend = function(sessionData) {
   // Config
   const c = {};
   if (data.gtm) {
+    // `gtm_id_match` decides whether the ?id= parameter FILTERS the configured
+    // containers or is merely validated. The v1.5 refactor dropped the flag and
+    // filtered unconditionally, which broke the field's own promise ("If not
+    // checked, all of the following GTM Containers will be fired") and, worse,
+    // produced an EMPTY container list for a request without ?id= at all — the
+    // library then loads and never injects GTM. Restored to the v1.4 semantics.
+    const gtmIdMatch = typeof data.gtm_id_match === 'boolean' ? data.gtm_id_match : false;
     const qp_id = typeof id === 'string' ? id : '';
+    if (gtmIdMatch && !qp_id) logToConsole('warn', '✗ ID matching is on but the request carries no ?id= - no container will load');
     const gtm = {};
     for (const v of data.gtm) {
-      if (v.gtm_id && v.gtm_id === qp_id) {
+      if (v.gtm_id && (!gtmIdMatch || v.gtm_id === qp_id)) {
         gtm[v.gtm_id] = {};
         if (!v.gtm_consent) gtm[v.gtm_id].noConsent = true;
         if (v.gtm_env) gtm[v.gtm_id].env = v.gtm_env;
@@ -848,7 +861,11 @@ const buildAndSend = function(sessionData) {
     setResponseHeader('Access-Control-Allow-Origin', origin);
     setResponseHeader('Access-Control-Allow-Credentials', 'true');
   }
-  setResponseHeader('Content-Type', 'application/javascript');
+  // charset explicitly: a classic <script src> inherits the DOCUMENT's encoding
+  // when the response omits it, and this body carries JSON.stringify(c) — page URL,
+  // inline CMP code — so a non-UTF-8 page would mojibake the config. v1.4.3pre sent
+  // it; the v1.5 refactor dropped it.
+  setResponseHeader('Content-Type', 'text/javascript; charset=utf-8');
   // Which Client version answered. The v1.4.3pre client sent this and v1.5 lost
   // it, which is exactly backwards: a tenant runs the Client for months without
   // touching it, so "which version is live on this container" is a question only

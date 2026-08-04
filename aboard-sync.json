@@ -1772,6 +1772,31 @@
             ],
             "columnId": "col-erledigt",
             "displayId": 67
+          },
+          {
+            "id": "agtm-gtm-id-match-tot",
+            "title": "sGTM-Client: gtm_id_match war ein Feld ohne Wirkung - ohne ?id= kam gar kein Container (F-159)",
+            "description": "Gefunden ueber den data.<feld>-Mengenvergleich 1.4.3pre <-> v1.5. Die Checkbox \"Fire only GTM container matching the ID in URL\" steht im Template-UI, aber der v1.5-Config-Builder (9d302d7) filterte die Container-Tabelle bedingungslos auf v.gtm_id === qp_id und las das Flag nie. Folge (a): Checkbox tot, ihr eigener Hilfetext (\"If not checked, all of the following GTM Containers will be fired\") beschrieb das Gegenteil - ein Tenant mit mehreren Containern bekam immer nur den aus der URL. Folge (b): ein Request OHNE ?id= matchte nichts -> leere Container-Liste -> Library laedt und initialisiert, hat aber nichts zu injizieren (die stille Variante von \"GTM laedt nicht\"). Kein Test schlug an, weil jede Fixture genau EINEN Container hatte, dessen ID zufaellig der Default-Query des Harness entsprach. Fix: v1.4-Semantik wiederhergestellt, warn wenn Matching an ist und kein ?id= ankommt. test/sgtm/container-select.test.js (neu, 6 Tests, Mutationsprobe: 3 rot ohne den Fix). README erklaert jetzt \"?id= wird validiert\" vs. \"?id= filtert\". Dazu aus derselben Runde: x-agtm-version auch auf beiden /aGTMconsent-Pfaden, Content-Type charset=utf-8 zurueck (beides 1.4.3pre-Funde), build.sh-displayName-Sync haert. 1017 Tests gruen.",
+            "status": "done",
+            "priority": "hoch",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": "M",
+            "agentContext": "RELEASE-SENSIBEL + VERHALTENSAENDERUNG: nach dem Re-Import bekommt ein Tenant mit mehreren Container-Zeilen ALLE statt einem. Vor dem Re-Import pruefen, ob eine Live-Konfiguration >1 Zeile hat - dort ggf. gtm_id_match aktiv setzen.",
+            "links": [],
+            "comments": [
+              {
+                "id": "d73e4254-c751-404e-9a00-76064f66de6e",
+                "author": "Claude Opus",
+                "text": "Fuer Andi vor dem Re-Import: hat eine Live-Konfiguration (fc-moto?) mehr als eine Container-Zeile? Unter dem kaputten v1.5 bekam sie nur den ?id=-Container, danach alle. Falls das nicht gewollt ist: Checkbox \"Fire only GTM container matching the ID in URL\" anhaken - dann bleibt es beim bisherigen Verhalten. Ich kann die Tenant-Konfiguration nicht einsehen.",
+                "created": "2026-08-04"
+              }
+            ],
+            "columnId": "col-erledigt",
+            "displayId": 68
           }
         ]
       },
@@ -1956,6 +1981,24 @@
             "effort": "M",
             "agentContext": "aGTM.js: aGTM.f.start_consent_poll (~L756, steigt in der ersten Zeile aus, wenn aGTM.c.consent_store_url leer ist) - aGTM.f.consent_listener (~L730) startet den Poll erst nach erfolgreichem call_cc - aGTM.f.run_cc (~L537) ist snapshot/restore-geschuetzt, der Poll ist also gefahrlos wiederholbar. Doku-Sync bei Verhaltensaenderung PFLICHT (Core-Funktion): Call-Graph in CLAUDE.md (GTM injection & consent) + README-for-Developers.md, dazu die Config-Tabellen zu consent_poll_ms/consent_store_url in CLAUDE.md und README.md. Kunden-Workaround-Snippet: cmp/README-cmp.md, Abschnitt PP Consent Manager. Herkunft: Kritiker-Befund K6 der ppcm-Doppelpruefung, Kontext in Karte #58 und docs/findings.md F-136..F-141.",
             "displayId": 59
+          },
+          {
+            "id": "agtm-consent-preflight",
+            "title": "/aGTMconsent hat keinen OPTIONS-/Preflight-Pfad (F-160)",
+            "description": "Kritiker-Nebenbefund 2026-08-04, reine Code-Lesung, NICHT live verifiziert. aGTM.f.xsend setzt Content-Type: application/json -> der POST ist cross-origin kein simple request, der Browser schickt einen Preflight. Ein OPTIONS /aGTMconsent matcht weder den POST-Handler (rmethod === POST) noch das /aGTM.js-Gate -> return ohne claimRequest(). Zusaetzlich fehlt withCredentials, d.h. das User-ID-Cookie ginge cross-origin nicht mit und ein Set-Cookie wuerde verworfen. Same-Origin/Reverse-Proxy ist unbetroffen (fc-moto laeuft ueber Reverse-Proxy) - die README-Standardintegration (ssgtm.yourdomain.com auf www.kunde.de) waere es nicht. Erster Schritt: pruefen, ob ueberhaupt ein Tenant cross-origin faehrt. Der Fix ist ein neuer Response-Pfad plus eine Entscheidung ueber die Origin-Whitelist (heute Echo des Request-Origins) und beruehrt den Consent-Schreibpfad - eigene Testrunde.",
+            "status": "open",
+            "priority": "normal",
+            "owner": "",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": "M",
+            "agentContext": "Vor jedem Fix erst klaeren, ob ein Tenant cross-origin POSTet - sonst ist es Aufwand ohne Wirkung. Relevante Stellen: sgtmClient/src/...js Route-Gate + POST-Handler.",
+            "links": [],
+            "comments": [],
+            "columnId": "col-backlog",
+            "displayId": 69
           }
         ]
       },
@@ -2039,7 +2082,7 @@
         ]
       }
     ],
-    "nextDisplayId": 68,
+    "nextDisplayId": 70,
     "attachments": [],
     "background": null,
     "templates": [],

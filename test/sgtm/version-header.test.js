@@ -51,6 +51,44 @@ describe('x-agtm-version response header', () => {
   });
 });
 
+describe('the consent endpoint identifies itself too', () => {
+  // A network capture of a consent problem often contains ONLY this exchange,
+  // and the 501 body is literally a statement about what this version supports.
+  const consentPost = (data, opts) => runClient({
+    data: { gtm: [{ gtm_id: 'GTM-TEST', gtm_consent: true }], cookie_name: 'aGTMuid', cookie_mode: 'consent', tenant_id: 't', ...data },
+    path: '/aGTMconsent',
+    method: 'POST',
+    reqBody: JSON.stringify({ uid: 'C.1.abc', sid: 's1', consent: { services: ',analytics,' } }),
+    ...opts
+  });
+
+  test('the 200 carries the version', () => {
+    const r = consentPost({});
+    expect(r.returned).toBe(true);
+    expect(r.headers['x-agtm-version']).toBe(libVersion());
+  });
+
+  test('the "not supported" 501 says which version does not support it', () => {
+    const r = runClient({
+      data: { gtm: [{ gtm_id: 'GTM-TEST', gtm_consent: true }], cookie_name: 'aGTMuid', tenant_id: 't' },
+      path: '/aGTMconsent',
+      method: 'POST',
+      reqBody: JSON.stringify({ q: 'encrypted-payload' })
+    });
+    expect(r.status).toBe(501);
+    expect(r.headers['x-agtm-version']).toBe(libVersion());
+  });
+});
+
+describe('the served library declares its encoding', () => {
+  test('Content-Type carries charset=utf-8', () => {
+    // Without it a classic <script src> inherits the DOCUMENT's encoding, and the
+    // body embeds JSON (page URL, inline CMP code) that may be non-ASCII.
+    const r = runClient({ data: { ...BASE } });
+    expect(r.headers['Content-Type']).toBe('text/javascript; charset=utf-8');
+  });
+});
+
 describe('the version constant does not drift', () => {
   // Both files carry the constant, and ./build.sh rewrites it in both. A stale
   // value here means the header lies — the one failure mode that makes the
@@ -72,7 +110,11 @@ describe('the version constant does not drift', () => {
   test('the constant is actually read, not just declared', () => {
     const src = readFileSync(join(ROOT, 'sgtmClient/template.tpl'), 'utf8');
     const uses = src.match(/setResponseHeader\('x-agtm-version', aGTMversion\)/g) || [];
-    // One per /aGTM.js response path: 200, bot 403, missing-IP 403.
-    expect(uses.length).toBe(3);
+    // At least the three /aGTM.js paths (200, bot 403, missing-IP 403); the two
+    // /aGTMconsent paths carry it too. Deliberately a lower bound — pinning the
+    // exact count would turn "someone added the header to another response" into
+    // a red test that says nothing about the thing this guards: that the constant
+    // is read at all.
+    expect(uses.length).toBeGreaterThanOrEqual(3);
   });
 });
