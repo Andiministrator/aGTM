@@ -20,6 +20,7 @@ aGTM/
 ├── aGTM.base64          # Base64-encoded version of aGTM.min.js (used in sGTM)
 ├── aGTM_debug.js        # Debug helper — loads in browser console to decode aGTM.l log entries
 ├── README-for-Integrators.md  # Data contract for sGTM/webGTM devs (aGTM object, dataLayer, session/consent/attribution)
+├── EVENTS.md            # Event reference: every dataLayer event aGTM + its templates push, with attributes (supersedes assets/aGTM-Events.xlsx, v1.1)
 ├── cmp/                 # Consent check functions, one file per CMP provider
 │   ├── cc_<name>.js     # Source version
 │   └── cc_<name>.min.js # Minified version
