@@ -129,9 +129,11 @@ const b64Replacer = function () { return b64Line; };
 
 let updated = template.replace(b64Pattern, b64Replacer);
 const verPattern = /"displayName":\s*"aGTM v[\d.a-zA-Z-]+"/;
-if (verPattern.test(updated)) {
-  updated = updated.replace(verPattern, '"displayName": "aGTM v' + version + '"');
+if (!verPattern.test(updated)) {
+  process.stderr.write('ERROR: Could not find the "displayName": "aGTM v..." line in ' + TEMPLATE_PATH + '\n');
+  process.exit(1);
 }
+updated = updated.replace(verPattern, '"displayName": "aGTM v' + version + '"');
 
 // The same version once more, as a code constant this time: the Client serves it
 // as the `x-agtm-version` response header, which is the only way to ask a live
@@ -170,7 +172,7 @@ process.stdout.write('  Updated: sgtmClient/template.tpl (aGTM v' + version + ',
 
 if (clientUpdated !== clientSrc) {
   writeFileSync(CLIENT_SRC_PATH, clientUpdated, 'utf8');
-  process.stdout.write('  Updated: ' + CLIENT_SRC_PATH + ' (base64 blob re-synced)\n');
+  process.stdout.write('  Updated: ' + CLIENT_SRC_PATH + ' (base64 blob / version re-synced)\n');
 } else {
-  process.stdout.write('  In sync: ' + CLIENT_SRC_PATH + ' (base64 blob already current)\n');
+  process.stdout.write('  In sync: ' + CLIENT_SRC_PATH + ' (base64 blob and version already current)\n');
 }

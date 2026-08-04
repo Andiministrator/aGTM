@@ -107,6 +107,16 @@ Or you could use it to load a normal container for the Live/Production Website a
 
 ### GTM Container Setup
 
+**"Fire only GTM container matching the ID in URL"** decides what the `?id=` parameter does
+to the table below — and it is a different question from the "Allowed IDs" filter above:
+
+- **unchecked (default):** `?id=` is only *validated* against the allowed IDs. **Every**
+  container configured in the table is served. This is the setting you want when one
+  request should load several containers.
+- **checked:** `?id=` additionally *filters* the table — only the container whose ID matches
+  is served. A request that carries no `?id=` at all then matches nothing and loads no
+  container; the Client writes a warning to the server console when that happens.
+
 You need to configurate one or more clientside GTM Containers. There are 4 options for each container:
 
 - **GTM Container ID**
@@ -381,6 +391,16 @@ Replace `YOURCMP` with the global the CMP defines (e.g. `CCM` for CCM19, `Cookie
 
 ## Testing
 
+**Which Client version is live?** Every `/aGTM.js` response carries it as a header, so you
+can ask a running container from the outside without opening GTM:
+
+```bash
+curl -sI 'https://ssgtm.yourdomain.com/aGTM.js?id=GTM-XYZ123' | grep -i x-agtm-version
+```
+
+The two `/aGTMconsent` responses carry the same header. The version comes from the aGTM
+library the Client was built with, so it also tells you which library your visitors get.
+
 1. Activate Preview Mode in sGTM.
 2. Trigger the request via your browser though visiting a Webpage what has the sGTM integrated.
 3. Verify:
@@ -417,6 +437,9 @@ Please contact me if you found problems or have improvements:
 
 - Version 1.3, *in development*
   - aGTM Client Template updated to v1.5 (matches the v1.5 redesign of aGTM)
+  - **`x-agtm-version` response header** on every `/aGTM.js` and `/aGTMconsent` response — the way to ask a live container which version it runs (see *Testing*)
+  - **Fixed: "Fire only GTM container matching the ID in URL" had no effect.** The v1.5 rewrite filtered the container table on `?id=` unconditionally, so the checkbox did nothing and a request without `?id=` received *no* container at all. The checkbox works again, and unchecked means all configured containers are served — as documented under *GTM Container Setup*
+  - `Content-Type` of the served library carries `charset=utf-8` again
   - **Single Session API model** (Phase 1 of the v1.5 redesign): the previous two-step presession + session flow is collapsed. The Session API itself stores the consent record (`GET` returns it, `POST /consent` writes it)
   - **Server-side auto-denial** moved here: when the Session API has no consent on file for a returning visitor, the Client constructs the denial-consent block and embeds it into `cfg.session.consent`. Replaces the deleted client-side `aGTM.f.session_apply_denial()`
   - **Consent passthrough**: when the Session API returns a stored consent block, it is forwarded as `cfg.session.consent` so aGTM can inject GTM immediately on returning visits, no CMP wait needed
