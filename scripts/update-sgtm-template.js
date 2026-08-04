@@ -133,6 +133,20 @@ if (verPattern.test(updated)) {
   updated = updated.replace(verPattern, '"displayName": "aGTM v' + version + '"');
 }
 
+// The same version once more, as a code constant this time: the Client serves it
+// as the `x-agtm-version` response header, which is the only way to ask a live
+// container which version it runs. It sat in the file unsynced (and unused) until
+// 2026-08-04, so a bump would have moved the displayName while the header kept
+// reporting the previous release — worse than no header at all. Lives in BOTH
+// files, so it is replaced in both.
+const codeVerPattern = /const aGTMversion = "[\d.a-zA-Z-]+";/;
+const codeVerLine = 'const aGTMversion = "' + version + '";';
+if (!codeVerPattern.test(updated) || !codeVerPattern.test(clientSrc)) {
+  process.stderr.write('ERROR: Could not find `const aGTMversion = "..."` in template and/or client source\n');
+  process.exit(1);
+}
+updated = updated.replace(codeVerPattern, function () { return codeVerLine; });
+
 // ── Re-sync embedded CMP consent_check codes from cmp/*.min.js (F-52) ────────
 const cmp = syncCmpCodes(updated);
 updated = cmp.output;
@@ -145,7 +159,9 @@ if (cmp.changed.length) {
 
 // ── Build client-source output (same base64 blob → byte-identical block) ────
 
-const clientUpdated = clientSrc.replace(b64Pattern, b64Replacer);
+const clientUpdated = clientSrc
+  .replace(b64Pattern, b64Replacer)
+  .replace(codeVerPattern, function () { return codeVerLine; });
 
 // ── Write both ──────────────────────────────────────────────────────────────
 

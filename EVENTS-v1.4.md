@@ -8,13 +8,14 @@
 What aGTM v1.4.x pushes into the GTM dataLayer, and with which attributes.
 
 > **Which v1.4 exactly:** this describes **v1.4.1**, the last *tagged* v1.4 release (tag
-> `v1.4.1`, and the state of `main`). Two later states were shipped unofficially, without
-> a tag: **1.4.2** (`CHANGELOG.md` has an entry for it; `aGTM.js` carries `@version 1.4.2`
-> from 2025-09-09 until the v1.5 bump) and **1.4.3pre**, which git does not record as a
-> version at all. Everything below applies to all three — the differences between them are
-> new CMP adapters, the two GTM variable templates and build tooling, not events. The
-> changes listed in [§6](#6-what-changed-in-v15) likewise came *after* the whole v1.4 line,
-> so they apply to it whichever of the three you run.
+> `v1.4.1`, and the state of `main`). Two later states shipped unofficially, without a tag:
+> **1.4.2** (`CHANGELOG.md` has an entry; `aGTM.js` carries `@version 1.4.2` from
+> 2025-09-09 until the v1.5 bump) and **1.4.3pre**, which is a *sGTM Client* version, not a
+> library one — the library embedded in that client still reports `1.4.2`. Everything below
+> applies to all three: they differ in CMP adapters, the two GTM variable templates, build
+> tooling and server-side client behaviour, **not** in events. The changes listed in
+> [§6](#6-what-changed-in-v15) likewise came *after* the whole v1.4 line, so they apply to
+> it whichever of the three you run.
 
 **As a spreadsheet:** [assets/aGTM-Events-v1.4.xlsx](assets/aGTM-Events-v1.4.xlsx) (also deprecated).
 
