@@ -2609,7 +2609,7 @@ setup: |-
   // sendHttpRequest, hence no cross-scenario Promise-microtask leakage).
   const baseData = function() {
     return {
-      gtm: [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_env: '', gtm_url: ''}],
+      gtm: [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_use: 'no', gtm_param: '', gtm_url: ''}],
       cmp: '',
       tenant_id: 'cl_test',
       consent_store_enabled: true,
