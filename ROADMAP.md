@@ -19,7 +19,7 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 - New GTM Variable Templates: Consent Check, Consent Info
 - Build script (`build.sh`) for automated minification and Base64 generation
 - **aGTM Inspector** — a Chrome DevTools panel (`devtools-extension/`) showing the consent lifecycle, event queue/replay, GTM injection, session/attribution, the effective config and aGTM-relevant network traffic live, with a Diagnose tab (health-score, consent timeline, compliance report) and an opt-in Simulation tab for driving the flow without clicking a real banner.
-- Test suite grown to 874 tests across 43 files (`bun test`), plus `___TESTS___` scenarios in every GTM template and the sGTM Client
+- Test suite grown to over 1000 tests (`bun test` — the exact number moves with every commit; what matters is `0 fail`), plus `___TESTS___` scenarios in every GTM template and the sGTM Client
 
 ## v1.6 — planned
 

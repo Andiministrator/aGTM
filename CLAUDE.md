@@ -176,7 +176,7 @@ Tests live in `test/`. Browser globals are set up via `test/setup.js` (loaded au
 | `build.sh` | Orchestrates the full build: inject version → safety check → minify → base64 → update sGTM template |
 | `scripts/inject-version.js` | Reads `VERSION`, writes `@version` + `aGTM.d.version` in `aGTM.js`, updates `@lastupdate`, updates `package.json`, and writes `devtools-extension/manifest.json` (Chrome-manifest version — pre-release suffix stripped, e.g. `1.6-pre`→`1.6`; the aGTM Inspector version is coupled to the library version) |
 | `scripts/check-init.js` | Strips comments from `aGTM.js` and checks for an accidental uncommented `aGTM.f.init()` call |
-| `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` **and** re-syncs the same base64 blob into `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js` so the client source stays byte-identical to the template's sandboxed block (the blob is the only line that drifts across a library rebuild — see below). **Also** re-syncs the embedded CMP `consent_check` codes in the template's "Used CMP" SELECT from `cmp/*.min.js` (F-52 — see "Embedded CMP consent_check sync" below) |
+| `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` **and** re-syncs the same base64 blob into `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js` so the client source stays byte-identical to the template's sandboxed block (the blob and the `aGTMversion` constant are the only lines that drift across a library rebuild — see below). **Also** re-syncs the embedded CMP `consent_check` codes in the template's "Used CMP" SELECT from `cmp/*.min.js` (F-52 — see "Embedded CMP consent_check sync" below) |
 | `scripts/cmp-sync-lib.js` | Shared, side-effect-free helpers for the embedded-CMP-code sync: `CMP_MAP` (displayValue → `cc_<name>` file), consent_check extraction, GTM string encoding, template parsing. Imported by both `update-sgtm-template.js` (writer) and `test/cmp/template-sync.test.js` (drift guard) so the mapping lives in one place |
 | `scripts/pack-devtools-extension.sh` | Packs `devtools-extension/` reproducibly into the tracked `aGTM-Inspector.zip`. Deliberately **not** part of `build.sh` (the extension is off the ES5 path) — but `build.sh` *does* rewrite `devtools-extension/manifest.json`, so **re-run this after every version bump**, or the tracked ZIP ships a stale manifest. Reproducible in the byte sense: entries are pinned to a fixed timestamp (`SOURCE_DATE_EPOCH`, override via env) and zipped in sorted order, so identical sources give an identical archive — re-pack and compare the hash to answer "is the tracked ZIP current?" instead of guessing. |
 | `bunfig.toml` | Configures `bun test`: preloads `test/setup.js` before every test file |
@@ -191,11 +191,12 @@ The server logic ships in two places that must stay **byte-identical**: the
 `___SANDBOXED_JS_FOR_SERVER___` block inside `sgtmClient/template.tpl` (what GTM
 actually runs) and the human-readable `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js`.
 `build.sh` does **not** regenerate the logic block from the source — so any
-edit to the server logic must be applied to **both** files identically. The one
-exception is the embedded aGTM-library base64 blob (`const agtm = fromBase64('…')`):
-`scripts/update-sgtm-template.js` injects the freshly built `aGTM.base64` into
-that line in **both** files, so the blob never drifts across a library rebuild
-(previously it did — finding F-43). After any change, verify with a `diff` of
+edit to the server logic must be applied to **both** files identically. There are exactly two
+exceptions, both written by `scripts/update-sgtm-template.js` into **both** files
+on every build: the embedded aGTM-library base64 blob (`const agtm =
+fromBase64('…')`) and the version constant (`const aGTMversion = "…"`). Neither
+drifts across a library rebuild (the blob previously did — finding F-43), and a
+diff that shows only those two lines is the build doing its job, not drift. After any change, verify with a `diff` of
 the extracted block against the source; only the `___TESTS___` block of the
 template has no source counterpart and may diverge freely.
 
@@ -596,6 +597,55 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
   `{type, category, score, confirmed}` (capped at 10). **`signals[].detail` is deliberately
   dropped** — for `asn_reputation` it carries tenant-wide aggregates about *other* visitors
   (`asn`, `asnOrg`, `uniqueIps`, `requests`, `consecutiveWindows`).
+
+### Container URL parameters (sGTM Client only)
+
+The container table's **`gtm_use`** column ("URL Parameters") decides what is
+appended to a container's `gtm.js` URL — the mechanism for loading a GTM
+*environment*. It is the third field of this Client that was read under a name
+the template never defined (`v.gtm_env`), after `gtm_id_match` (F-159) and the
+version header (F-158); see F-161.
+
+Four resolutions, per container row, and the column accepts a **variable**
+(`macrosInSelect`), so the value is whatever it resolved to at request time:
+
+| value | appended |
+|---|---|
+| `no` / empty / `false` | nothing — "not configured" |
+| `env` (or a stored boolean `true`, the former "yes") | `gtm_auth`, `gtm_preview`, `gtm_cookies_win` from the request |
+| `all` | every query parameter except the ones aGTM owns |
+| anything else | **the value itself**, if it looks like `k=v` |
+
+The two filters are deliberately different in kind, the same way the bot check
+whitelists and the Sources capture blacklists. Request-derived values are
+**encoded** and budgeted; the resolved column value is taken **verbatim**
+(tenant-authored configuration, same trust level as the container URL) but must
+pass a shape check. Both paths refuse the parameters aGTM owns — `id` selects
+the container, `c` carries the page payload, and `l` names the dataLayer, so a
+caller's copy of `l` could redirect GTM onto an object nobody writes to: a silent,
+error-free total outage of the measurement. Refusing it here means safety does not
+rest on how a given `/gtm.js` resolves duplicate parameters (googletagmanager.com
+honours the first occurrence — measured, never promised, and a self-hosted one may
+differ).
+
+Budgets bound the **work**, not only the output: 10 repetitions per parameter,
+1000 characters per container, checked *before* appending so a parameter is
+either fully present or absent — a URL cut mid-parameter looks valid and is
+wrong. In `all`, the env parameters are emitted **first**: order decides what
+survives the budget, and a landing page carrying `gclid`/`_gl`/`utm_*` ahead of
+`gtm_auth` would otherwise push out exactly the parameter the column exists for,
+leaving an environment request without its auth — GTM answers that with a stub,
+so GTM fails to load for those visitors only.
+
+Log levels carry the distinction: caller-driven events (repetition cap, length
+cap, `env` selected but absent from the request) are `debug`, because anyone can
+trigger them on every request by forwarding the page query; a value the *tenant*
+configured wrongly is `warn`, and would otherwise drown in them.
+
+Library side: `aGTM.f.gtm_load` appends `o.env` verbatim after `&l=<dataLayer>`,
+so the string must start with `&`. It now prepends one if missing — without it a
+standalone integrator pasting `gtm_auth=abc` produced `&l=dataLayergtm_auth=abc`:
+GTM loads, writes to a dataLayer nobody reads, and nothing errors.
 
 ### Sources API integration (sGTM Client only)
 

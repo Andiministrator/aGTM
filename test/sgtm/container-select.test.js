@@ -141,7 +141,12 @@ describe('URL Parameters column: the fixed options', () => {
   });
 
   test('"no" appends nothing even when the URL carries env parameters', () => {
-    expect(envRow({ gtm_use: 'no' }).opts.env).toBeUndefined();
+    const r = envRow({ gtm_use: 'no' });
+    expect(r.opts.env).toBeUndefined();
+    // And it is not an error: dropping `mode !== 'no'` from the guard would make
+    // every default row shout "neither no/env/all" on every request, and only
+    // the byte-sync test noticed.
+    expect(r.logs).not.toContain('neither no/env/all');
   });
 
   test('an unset column appends nothing', () => {
@@ -167,7 +172,11 @@ describe('URL Parameters column: repeated parameters', () => {
     for (let i = 0; i < 40; i++) many.push('v' + i);
     const r = envRow({ gtm_use: 'all' }, { id: 'GTM-AAA', r: many });
     expect((r.opts.env.match(/&r=/g) || []).length).toBe(10);
-    expect(r.logs).toContain('repeated more than');
+    // The LEVEL is part of the statement. Anyone can trigger this line on every
+    // request by forwarding the page query, so at `warn` it would both cost
+    // logging volume and drown the one line that means "your setup is broken".
+    expect(r.logs).toContain('debug \u2717 URL parameter repeated more than');
+    expect(r.logs).not.toContain('warn \u2717 URL parameter repeated');
   });
 
   test('the total length is budgeted, and never cut inside a parameter', () => {
@@ -176,7 +185,95 @@ describe('URL Parameters column: repeated parameters', () => {
     const r = envRow({ gtm_use: 'all' }, flood);
     expect(r.opts.env.length).toBeLessThanOrEqual(1000);
     expect(r.opts.env).toMatch(/^(&[^&=]+=[^&]*)+$/);
-    expect(r.logs).toContain('exceed');
+    expect(r.logs).toContain('debug \u2717 URL parameters exceed');
+    expect(r.logs).not.toContain('warn \u2717 URL parameters exceed');
+  });
+});
+
+describe('URL Parameters column: the budget and what it protects', () => {
+  // The cap used to apply to "all from URL" only — i.e. to the mode the help
+  // text tells you not to use, while leaving the recommended one uncapped.
+  test('"env" over budget applies NONE of the three, not the survivors', () => {
+    // The three are an atomic set: gtm_auth without gtm_preview is not a partial
+    // success, it is a request GTM answers with a stub — "too long" would turn
+    // into "GTM does not load" with no hint why.
+    const long = 'x'.repeat(900);
+    const r = envRow({ gtm_use: 'env' }, { id: 'GTM-AAA', gtm_auth: long, gtm_preview: long });
+    expect(r.opts.env).toBeUndefined();
+    expect(r.logs).toContain('debug \u2717 env parameters exceed');
+    // Caller-driven like the "all" cap, so it must not warn.
+    expect(r.logs).not.toContain('warn \u2717 env parameters exceed');
+  });
+
+  test('a verbatim value over the budget is refused rather than truncated', () => {
+    const r = envRow({ gtm_use: 'a=' + 'x'.repeat(1200) });
+    expect(r.opts.env).toBeUndefined();
+    expect(r.logs).toContain('exceeds 1000');
+  });
+
+  test('"all" emits the env parameters FIRST, whatever the URL order is', () => {
+    // Order decides what survives the budget. A landing page carrying gclid/_gl
+    // ahead of gtm_auth could otherwise push out exactly the parameter the
+    // column exists for — GTM then answers an environment request without auth
+    // with a stub, so GTM fails to load for those visitors only.
+    const q = { id: 'GTM-AAA', gclid: 'abc', _gl: 'blob', gtm_auth: 'A', gtm_preview: 'env-1' };
+    expect(envRow({ gtm_use: 'all' }, q).opts.env)
+      .toBe('&gtm_auth=A&gtm_preview=env-1&gclid=abc&_gl=blob');
+  });
+
+  test('"all" names the dropped parameters, not just how many', () => {
+    const flood = { id: 'GTM-AAA' };
+    for (let i = 0; i < 40; i++) flood['p' + i] = 'x'.repeat(40);
+    const r = envRow({ gtm_use: 'all' }, flood);
+    expect(r.opts.env.length).toBeLessThanOrEqual(1000);
+    expect(r.logs).toMatch(/debug \u2717 URL parameters exceed .*dropped: p\d+/);
+  });
+});
+
+describe('URL Parameters column: parameters aGTM owns are never forwarded', () => {
+  // `l` names the dataLayer. GTM would load and then write to an object nobody
+  // reads — a silent, error-free total outage of the measurement. It is refused
+  // on BOTH paths, so safety does not rest on googletagmanager.com honouring the
+  // first occurrence (measured, never promised, and a self-hosted /gtm.js may
+  // resolve duplicates differently).
+  test('"all" drops id, c and l', () => {
+    const q = { id: 'GTM-AAA', c: 'eyJ1IjoiIn0=', l: 'evilLayer', keep: '1' };
+    expect(envRow({ gtm_use: 'all' }, q).opts.env).toBe('&keep=1');
+  });
+
+  test('a verbatim value claiming l is refused whole, not filtered', () => {
+    const r = envRow({ gtm_use: 'gtm_auth=A&l=evilLayer' });
+    expect(r.opts.env).toBeUndefined();
+    expect(r.logs).toContain('must not set id, c or l');
+  });
+
+  test('a verbatim value claiming id is refused', () => {
+    expect(envRow({ gtm_use: 'id=GTM-FOREIGN' }).opts.env).toBeUndefined();
+  });
+
+  test('a percent-escaped key cannot sneak past the name check', () => {
+    // `%69d=` and `%6C=` reach the receiving server as `id=` and `l=`, so a raw
+    // name comparison alone was bypassable. Found by the QA round, not by me.
+    for (const sneaky of ['a=1&%69d=GTM-FOREIGN', 'a=1&%6C=evilLayer', '%49D=x']) {
+      const r = envRow({ gtm_use: sneaky });
+      expect(r.opts.env).toBeUndefined();
+      expect(r.logs).toContain('must not set id, c or l');
+    }
+  });
+
+  test('a parameter merely CONTAINING those letters is fine', () => {
+    // The check is on the key, not a substring: `lang` and `idx` must survive.
+    expect(envRow({ gtm_use: 'lang=de&idx=3' }).opts.env).toBe('&lang=de&idx=3');
+  });
+});
+
+describe('URL Parameters column: the silent first-setup mistake is reported', () => {
+  test('"env" with none of the parameters present leaves a debug trace', () => {
+    // Every other failure in this code logs; this one — the likeliest of all —
+    // used to be the silent one.
+    const r = envRow({ gtm_use: 'env' }, { id: 'GTM-AAA' });
+    expect(r.opts.env).toBeUndefined();
+    expect(r.logs).toContain('debug \u2717 URL Parameters is "env" but the request carries none of');
   });
 });
 
@@ -194,6 +291,10 @@ describe('URL Parameters column: a variable value IS the parameter string', () =
     expect(envRow({ gtm_use: 'a=1' }).opts.env).toBe('&a=1');
     expect(envRow({ gtm_use: '?a=1' }).opts.env).toBe('&a=1');
     expect(envRow({ gtm_use: '&a=1' }).opts.env).toBe('&a=1');
+    // Several of them too — the normaliser loops, and turning that loop into a
+    // single `if` was a mutation only the byte-sync test caught.
+    expect(envRow({ gtm_use: '??a=1' }).opts.env).toBe('&a=1');
+    expect(envRow({ gtm_use: '&?&a=1' }).opts.env).toBe('&a=1');
   });
 
   test('the request is ignored in that case', () => {
