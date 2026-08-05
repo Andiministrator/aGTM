@@ -90,20 +90,9 @@ ___TEMPLATE_PARAMETERS___
               {
                 "value": "all",
                 "displayValue": "all from URL"
-              },
-              {
-                "value": "custom",
-                "displayValue": "custom"
               }
             ],
             "macrosInSelect": true
-          },
-          {
-            "defaultValue": "",
-            "displayName": "Custom Parameters",
-            "name": "gtm_param",
-            "type": "TEXT",
-            "valueHint": "Only used when the column on the left is set to \u0027custom\u0027 (or to a variable value that is none of the listed options), e.g. \u0026gtm_auth\u003dABC123xyz\u0026gtm_preview\u003denv-1"
           },
           {
             "defaultValue": "https://www.googletagmanager.com/gtm.js",
@@ -121,7 +110,7 @@ ___TEMPLATE_PARAMETERS___
         ],
         "newRowButtonText": "Add a GTM Container",
         "notSetText": "Please setup at least one GTM Container.\u003cbr/\u003e Otherwise no GTM Container will load (through aGTM) ...",
-        "help": "\u003cb\u003eConfigure the GTM Container(s)\u003c/b\u003e that should fire. \u003cbr /\u003e\u003cbr /\u003e\nSettings: \u003cbr /\u003e\u003cbr /\u003e\n\u003cul\u003e\n  \u003cli\u003e\u003cb\u003eGTM Container ID:\u003c/b\u003e The ID of the (web)GTM Container, \u003cbr /\u003ee.g. GTM-XYZ123\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eConsent Check:\u003c/b\u003e If \"Yes\", the GTM container will only be fired once user consent is obtained. \u003cbr /\u003eOtherwise the Container will be fired independing on the User Consent.\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eURL Parameters:\u003c/b\u003e Which parameters of the aGTM.js request (built by your integration code) are appended to the container URL. \u003cbr /\u003eExample request: \u003cbr /\u003e\"...aGTM.js?id\u003dGTM-XXXXX\u003cb\u003e\u0026amp;gtm_auth\u003dABC123xyz\u0026amp;gtm_preview\u003denv-1\u0026amp;gtm_cookies_win\u003dx\u003c/b\u003e\"\u003cbr /\u003e\u003cbr /\u003e\u003cul\u003e\u003cli\u003e\u003cb\u003eno:\u003c/b\u003e nothing is appended (default).\u003c/li\u003e\u003cli\u003e\u003cb\u003eenv from URL:\u003c/b\u003e the three GTM environment parameters \u003ccode\u003egtm_auth\u003c/code\u003e, \u003ccode\u003egtm_preview\u003c/code\u003e and \u003ccode\u003egtm_cookies_win\u003c/code\u003e, if the request carries them.\u003c/li\u003e\u003cli\u003e\u003cb\u003eall from URL:\u003c/b\u003e every query parameter of the request except aGTM\u0027s own \u003ccode\u003eid\u003c/code\u003e and \u003ccode\u003ec\u003c/code\u003e. This forwards whatever the caller puts in the URL into the address the page loads GTM from - prefer \"env from URL\" unless you need it.\u003c/li\u003e\u003cli\u003e\u003cb\u003ecustom:\u003c/b\u003e the value from the \"Custom Parameters\" column, independent of the request.\u003c/li\u003e\u003c/ul\u003eThe column also accepts a \u003cb\u003evariable\u003c/b\u003e. A variable value that is none of the options above is treated as \"custom\" and written to the container log, so a broken variable is visible instead of silently changing which environment loads. An empty value means \"not configured\" and appends nothing.\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\u003cli\u003e\u003cb\u003eCustom Parameters:\u003c/b\u003e Used when \"URL Parameters\" is \"custom\", \u003cbr /\u003ee.g. \u003ccode\u003e\u0026amp;gtm_auth\u003dABC123xyz\u0026amp;gtm_preview\u003denv-1\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eGTM Container URL:\u003c/b\u003e The source URL from which the GTM container should be loaded. \u003cbr /\u003eTypically: \u003cbr /\u003ehttps://YOUR.SERVERSIDE-TAG-MANAGER-HOSTNAME/gtm.js \u003cbr /\u003eor (without serverside tagging) \u003cbr /\u003ehttps://www.googletagmanager.com/gtm.js\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eComment:\u003c/b\u003e Just a comment, \u003cbr /\u003ee.g. to better distinguish between different containers/customers\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n\u003c/ul\u003e"
+        "help": "\u003cb\u003eConfigure the GTM Container(s)\u003c/b\u003e that should fire. \u003cbr /\u003e\u003cbr /\u003e\nSettings: \u003cbr /\u003e\u003cbr /\u003e\n\u003cul\u003e\n  \u003cli\u003e\u003cb\u003eGTM Container ID:\u003c/b\u003e The ID of the (web)GTM Container, \u003cbr /\u003ee.g. GTM-XYZ123\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eConsent Check:\u003c/b\u003e If \"Yes\", the GTM container will only be fired once user consent is obtained. \u003cbr /\u003eOtherwise the Container will be fired independing on the User Consent.\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eURL Parameters:\u003c/b\u003e Which parameters of the aGTM.js request (built by your integration code) are appended to the container URL. \u003cbr /\u003eExample request: \u003cbr /\u003e\"...aGTM.js?id\u003dGTM-XXXXX\u003cb\u003e\u0026amp;gtm_auth\u003dABC123xyz\u0026amp;gtm_preview\u003denv-1\u0026amp;gtm_cookies_win\u003dx\u003c/b\u003e\"\u003cbr /\u003e\u003cbr /\u003e\u003cul\u003e\u003cli\u003e\u003cb\u003eno:\u003c/b\u003e nothing is appended (default).\u003c/li\u003e\u003cli\u003e\u003cb\u003eenv from URL:\u003c/b\u003e the three GTM environment parameters \u003ccode\u003egtm_auth\u003c/code\u003e, \u003ccode\u003egtm_preview\u003c/code\u003e and \u003ccode\u003egtm_cookies_win\u003c/code\u003e, if the request carries them.\u003c/li\u003e\u003cli\u003e\u003cb\u003eall from URL:\u003c/b\u003e every query parameter of the request except aGTM\u0027s own \u003ccode\u003eid\u003c/code\u003e and \u003ccode\u003ec\u003c/code\u003e. This forwards whatever the caller puts in the URL into the address the page loads GTM from - prefer \"env from URL\" unless you need it.\u003c/li\u003e\u003c/ul\u003eThe column also accepts a \u003cb\u003evariable\u003c/b\u003e. If it resolves to none of the three options above, \u003cb\u003eits value IS the parameter string\u003c/b\u003e - e.g. a Constant variable holding \u003ccode\u003e\u0026amp;gtm_auth\u003dABC123xyz\u0026amp;gtm_preview\u003denv-1\u003c/code\u003e. A leading \u003ccode\u003e?\u003c/code\u003e or \u003ccode\u003e\u0026amp;\u003c/code\u003e is optional. A value that does not look like a parameter string (no \u003ccode\u003ek\u003dv\u003c/code\u003e) is ignored and written to the container log, so a renamed or failing variable is visible instead of silently changing which environment loads. An empty value means \"not configured\" and appends nothing.\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eGTM Container URL:\u003c/b\u003e The source URL from which the GTM container should be loaded. \u003cbr /\u003eTypically: \u003cbr /\u003ehttps://YOUR.SERVERSIDE-TAG-MANAGER-HOSTNAME/gtm.js \u003cbr /\u003eor (without serverside tagging) \u003cbr /\u003ehttps://www.googletagmanager.com/gtm.js\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eComment:\u003c/b\u003e Just a comment, \u003cbr /\u003ee.g. to better distinguish between different containers/customers\u003cbr /\u003e\u003cbr /\u003e\u003c/li\u003e\n\u003c/ul\u003e"
       },
       {
         "type": "LABEL",
@@ -1404,9 +1393,12 @@ for (const qk of qpKeys) {
   }
 }
 if (allDropped > 0) logToConsole('warn', '✗ URL parameters exceed ' + MAX_PARAM_LEN + ' chars, dropped', allDropped);
-// "custom": taken from the table verbatim — tenant-authored configuration, same
-// trust level as the container URL itself. Only a leading "?"/"&" is normalised.
+// Anything else: the column's own resolved value, taken verbatim — tenant-
+// authored configuration, same trust level as the container URL itself. Only a
+// leading "?"/"&" is normalised away.
 const normParams = function(str) {
+  // Only a string can be a parameter string. A variable may hand us a number,
+  // a boolean or an object, and none of those belong in a URL.
   if (typeof str !== 'string') return '';
   let t = str;
   while (t.length > 0 && (t.charAt(0) === '?' || t.charAt(0) === '&')) { t = t.slice(1); }
@@ -1783,27 +1775,32 @@ const buildAndSend = function(sessionData) {
         gtm[v.gtm_id] = {};
         if (!v.gtm_consent) gtm[v.gtm_id].noConsent = true;
         // The column accepts a VARIABLE (macrosInSelect), so this value is not
-        // limited to the four listed options — it is whatever the variable
-        // resolved to at request time. Anything unrecognised falls back to the
-        // "Custom Parameters" column (which may itself be a variable), so a
-        // computed configuration has one place to put its parameters.
+        // limited to the three listed options — it is whatever the variable
+        // resolved to at request time. Anything else IS the parameter string:
+        // one field carries both the choice and, when it is neither of the
+        // three, the value. That is why there is no second column.
         //
-        // An UNSET column is deliberately NOT that fallback: ''/undefined/false
-        // is what an untouched row looks like, and appending parameters to rows
-        // nobody configured would be the opposite of a default. A stored boolean
-        // true is the former "yes" and keeps meaning the env parameters.
+        // An UNSET column is deliberately not a parameter string: ''/undefined/
+        // false is what an untouched row looks like, and appending something to
+        // rows nobody configured would be the opposite of a default. A stored
+        // boolean true is the former "yes" and keeps meaning the env parameters.
         let envStr = '';
         const mode = v.gtm_use;
         if (mode === 'env' || mode === true) envStr = envParams;
         else if (mode === 'all') envStr = allParams;
-        else if (mode === 'custom') envStr = normParams(v.gtm_param);
         else if (mode !== 'no' && mode !== false && mode !== '' && typeof mode !== 'undefined' && mode !== null) {
-          // A variable that resolved to something unexpected lands here. It is
-          // honoured, but also SAID OUT LOUD: a broken or renamed variable would
-          // otherwise change which GTM environment a container loads without
-          // leaving a trace anywhere.
-          logToConsole('warn', '✗ Unknown value for the URL Parameters column, using Custom Parameters', mode);
-          envStr = normParams(v.gtm_param);
+          // A resolved value only counts as a parameter string if it LOOKS like
+          // one — it goes verbatim into the address the page loads GTM from, so
+          // a variable that returns a container id, a stale "yes" or an error
+          // message must not end up there. No "=", no parameters, and the
+          // rejection is logged: a renamed variable would otherwise change which
+          // environment a container loads without leaving a trace anywhere.
+          // "> 1", not "> 0": cand starts with the "&" normParams prepends, so
+          // an "=" at index 1 means a parameter with an EMPTY name ("&=value").
+          // Caught by the test, not by reading it.
+          const cand = normParams(mode);
+          if (cand && cand.indexOf('=') > 1) envStr = cand;
+          else logToConsole('warn', '✗ URL Parameters is neither no/env/all nor a k=v parameter string, ignored', mode);
         }
         if (envStr) gtm[v.gtm_id].env = envStr;
         if (v.gtm_url) gtm[v.gtm_id].gtmURL = v.gtm_url;
@@ -2609,7 +2606,7 @@ setup: |-
   // sendHttpRequest, hence no cross-scenario Promise-microtask leakage).
   const baseData = function() {
     return {
-      gtm: [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_use: 'no', gtm_param: '', gtm_url: ''}],
+      gtm: [{gtm_id: 'GTM-XYZ123', gtm_consent: true, gtm_use: 'no', gtm_url: ''}],
       cmp: '',
       tenant_id: 'cl_test',
       consent_store_enabled: true,

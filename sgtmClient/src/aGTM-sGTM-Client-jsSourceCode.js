@@ -451,9 +451,12 @@ for (const qk of qpKeys) {
   }
 }
 if (allDropped > 0) logToConsole('warn', '✗ URL parameters exceed ' + MAX_PARAM_LEN + ' chars, dropped', allDropped);
-// "custom": taken from the table verbatim — tenant-authored configuration, same
-// trust level as the container URL itself. Only a leading "?"/"&" is normalised.
+// Anything else: the column's own resolved value, taken verbatim — tenant-
+// authored configuration, same trust level as the container URL itself. Only a
+// leading "?"/"&" is normalised away.
 const normParams = function(str) {
+  // Only a string can be a parameter string. A variable may hand us a number,
+  // a boolean or an object, and none of those belong in a URL.
   if (typeof str !== 'string') return '';
   let t = str;
   while (t.length > 0 && (t.charAt(0) === '?' || t.charAt(0) === '&')) { t = t.slice(1); }
@@ -830,27 +833,32 @@ const buildAndSend = function(sessionData) {
         gtm[v.gtm_id] = {};
         if (!v.gtm_consent) gtm[v.gtm_id].noConsent = true;
         // The column accepts a VARIABLE (macrosInSelect), so this value is not
-        // limited to the four listed options — it is whatever the variable
-        // resolved to at request time. Anything unrecognised falls back to the
-        // "Custom Parameters" column (which may itself be a variable), so a
-        // computed configuration has one place to put its parameters.
+        // limited to the three listed options — it is whatever the variable
+        // resolved to at request time. Anything else IS the parameter string:
+        // one field carries both the choice and, when it is neither of the
+        // three, the value. That is why there is no second column.
         //
-        // An UNSET column is deliberately NOT that fallback: ''/undefined/false
-        // is what an untouched row looks like, and appending parameters to rows
-        // nobody configured would be the opposite of a default. A stored boolean
-        // true is the former "yes" and keeps meaning the env parameters.
+        // An UNSET column is deliberately not a parameter string: ''/undefined/
+        // false is what an untouched row looks like, and appending something to
+        // rows nobody configured would be the opposite of a default. A stored
+        // boolean true is the former "yes" and keeps meaning the env parameters.
         let envStr = '';
         const mode = v.gtm_use;
         if (mode === 'env' || mode === true) envStr = envParams;
         else if (mode === 'all') envStr = allParams;
-        else if (mode === 'custom') envStr = normParams(v.gtm_param);
         else if (mode !== 'no' && mode !== false && mode !== '' && typeof mode !== 'undefined' && mode !== null) {
-          // A variable that resolved to something unexpected lands here. It is
-          // honoured, but also SAID OUT LOUD: a broken or renamed variable would
-          // otherwise change which GTM environment a container loads without
-          // leaving a trace anywhere.
-          logToConsole('warn', '✗ Unknown value for the URL Parameters column, using Custom Parameters', mode);
-          envStr = normParams(v.gtm_param);
+          // A resolved value only counts as a parameter string if it LOOKS like
+          // one — it goes verbatim into the address the page loads GTM from, so
+          // a variable that returns a container id, a stale "yes" or an error
+          // message must not end up there. No "=", no parameters, and the
+          // rejection is logged: a renamed variable would otherwise change which
+          // environment a container loads without leaving a trace anywhere.
+          // "> 1", not "> 0": cand starts with the "&" normParams prepends, so
+          // an "=" at index 1 means a parameter with an EMPTY name ("&=value").
+          // Caught by the test, not by reading it.
+          const cand = normParams(mode);
+          if (cand && cand.indexOf('=') > 1) envStr = cand;
+          else logToConsole('warn', '✗ URL Parameters is neither no/env/all nor a k=v parameter string, ignored', mode);
         }
         if (envStr) gtm[v.gtm_id].env = envStr;
         if (v.gtm_url) gtm[v.gtm_id].gtmURL = v.gtm_url;
