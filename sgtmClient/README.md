@@ -117,15 +117,42 @@ to the table below — and it is a different question from the "Allowed IDs" fil
   is served. A request that carries no `?id=` at all then matches nothing and loads no
   container; the Client writes a warning to the server console when that happens.
 
-You need to configurate one or more clientside GTM Containers. There are 4 options for each container:
+You need to configurate one or more clientside GTM Containers. There are 5 options for each container:
 
 - **GTM Container ID**
   The ID of the clientside GTM Container, e.g.: `GTM-XYZ123`.
   You can use GTM variables here. So you could configure a variable for the URL Query Parameter `id` to send the GTM Container ID with the URL of the integration code, e.g.: `https://ssgtm.yourdomain.com/aGTM.js?id=GTM-XYZ123`
 - **Consent Check**
   If you set this to `Yes`, the clientside GTM will only fire, if the user has given a consent to fire the GTM.
-- **Environment String**
-  You can use this to fire a special Environment of a clientside GTM Container.
+- **URL Parameters**
+  Which parameters of the `/aGTM.js` request are appended to this container's URL — the
+  way you load a specific GTM *environment*. Four options, and the column also accepts a
+  **variable**:
+
+  | Option | Appended to the container URL |
+  |---|---|
+  | `no` (default) | nothing |
+  | `env from URL` | `gtm_auth`, `gtm_preview` and `gtm_cookies_win` from the request, if present |
+  | `all from URL` | every query parameter of the request except aGTM's own `id` and `c` |
+  | `custom` | the **Custom Parameters** value, independent of the request |
+
+  So with `env from URL` on the container, an integration code pointing at
+  `…/aGTM.js?id=GTM-XYZ123&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x` loads
+  that container's `env-1` environment.
+
+  Values taken from the request are URL-encoded, and a parameter the caller repeated
+  (`?a=1&a=2`) is reproduced in full rather than guessed at. `all from URL` forwards
+  whatever a caller puts in the URL into the address the page loads GTM from — prefer
+  `env from URL` unless you actually need it.
+
+  When the column holds a variable, the value is resolved per request. A resolved value
+  that is none of the four options is treated as `custom` **and written to the server
+  console**, so a renamed or failing variable is visible instead of silently changing
+  which environment loads. An empty value means "not configured" and appends nothing.
+- **Custom Parameters**
+  Used when **URL Parameters** is `custom`, e.g. `&gtm_auth=ABC123xyz&gtm_preview=env-1`.
+  Passed through verbatim (only a leading `?`/`&` is normalised), so it is yours to get
+  right — same trust level as the Container URL below.
 - **Container URL**
   You can use this option to overwrite the Standard GTM URL (`https://www.googletagmanager.com/gtm.js`) with your own Container URL.
 

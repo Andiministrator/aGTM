@@ -102,6 +102,9 @@ export function runClient(opts = {}) {
     // Sandbox contract: undefined instead of throwing.
     JSON: { parse: (s) => { try { return JSON.parse(s); } catch (e) { return undefined; } }, stringify: JSON.stringify },
     Math: Math,
+    // The sandbox's Object API is a require(), not the language built-in — the
+    // Client uses it to enumerate the request's query parameters.
+    Object: { keys: Object.keys, values: Object.values, entries: Object.entries, freeze: Object.freeze },
     encodeUriComponent: encodeURIComponent,
     decodeUriComponent: decodeURIComponent
   };

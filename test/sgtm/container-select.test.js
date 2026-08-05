@@ -84,13 +84,13 @@ describe('gtm_id_match on', () => {
 });
 
 describe('per-container options survive the selection', () => {
-  test('noConsent, env and gtmURL are carried through for each container', () => {
+  test('noConsent and gtmURL are carried through for each container', () => {
     const r = runClient({
       data: {
         ...BASE,
         gtm: [
           { gtm_id: 'GTM-AAA', gtm_consent: false },
-          { gtm_id: 'GTM-BBB', gtm_consent: true, gtm_env: '&gtm_auth=x', gtm_url: 'https://sgtm.example/gtm.js' }
+          { gtm_id: 'GTM-BBB', gtm_consent: true, gtm_url: 'https://sgtm.example/gtm.js' }
         ]
       },
       query: {}
@@ -98,8 +98,146 @@ describe('per-container options survive the selection', () => {
     const g = containers(r.body);
     expect(g['GTM-AAA'].noConsent).toBe(true);
     expect(g['GTM-BBB'].noConsent).toBeUndefined();
-    expect(g['GTM-BBB'].env).toBe('&gtm_auth=x');
     expect(g['GTM-BBB'].gtmURL).toBe('https://sgtm.example/gtm.js');
+  });
+});
+
+// The "URL Parameters" column (`gtm_use`) — what ends up appended to the
+// container URL. This block replaces an assertion that read `gtm_env` off the
+// container row and expected it back on `env`: a column by that name exists
+// NOWHERE in the template, so the test described a field that could not be
+// configured and passed no matter what the Client did with the real one. Same
+// blindness as the single-container fixture two describes above.
+const ENVQ = { id: 'GTM-AAA', gtm_auth: 'ABC123xyz', gtm_preview: 'env-1', gtm_cookies_win: 'x' };
+
+/** The single container's options for one row/query combination. */
+function envRow(row, query = ENVQ, base = {}) {
+  const r = runClient({
+    data: { cookie_mode: 'always', gtm: [{ gtm_id: 'GTM-AAA', gtm_consent: true, ...row }], ...base },
+    query
+  });
+  expect(r.throws).toBeNull();
+  return { opts: containers(r.body)['GTM-AAA'], logs: r.logs.join(' ') };
+}
+
+describe('URL Parameters column: the fixed options', () => {
+  test('"env" appends exactly the three GTM environment parameters', () => {
+    expect(envRow({ gtm_use: 'env' }).opts.env).toBe('&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x');
+  });
+
+  test('"env" without any of them in the URL sets no env key at all', () => {
+    // Not an empty string: the library appends `o.env` verbatim, so an absent
+    // key and an empty value differ only by luck.
+    expect(envRow({ gtm_use: 'env' }, { id: 'GTM-AAA' }).opts.env).toBeUndefined();
+  });
+
+  test('"all" forwards every parameter except aGTM\'s own id and c', () => {
+    const q = { id: 'GTM-AAA', c: 'eyJ1IjoiIn0=', gtm_auth: 'ABC', foo: 'bar' };
+    expect(envRow({ gtm_use: 'all' }, q).opts.env).toBe('&gtm_auth=ABC&foo=bar');
+  });
+
+  test('"all" encodes values, so a parameter cannot inject more parameters', () => {
+    expect(envRow({ gtm_use: 'all' }, { id: 'GTM-AAA', x: 'a&b=c d' }).opts.env).toBe('&x=a%26b%3Dc%20d');
+  });
+
+  test('"custom" takes the column value and ignores the request', () => {
+    expect(envRow({ gtm_use: 'custom', gtm_param: 'gtm_auth=FIXED' }).opts.env).toBe('&gtm_auth=FIXED');
+  });
+
+  test('"custom" normalises a leading ? or & to exactly one &', () => {
+    expect(envRow({ gtm_use: 'custom', gtm_param: '?a=1' }).opts.env).toBe('&a=1');
+    expect(envRow({ gtm_use: 'custom', gtm_param: '&a=1' }).opts.env).toBe('&a=1');
+  });
+
+  test('"no" appends nothing even when the URL carries env parameters', () => {
+    expect(envRow({ gtm_use: 'no' }).opts.env).toBeUndefined();
+  });
+
+  test('an unset column appends nothing', () => {
+    expect(envRow({}).opts.env).toBeUndefined();
+  });
+});
+
+describe('URL Parameters column: repeated parameters', () => {
+  test('a repeated parameter is reproduced in full, in order', () => {
+    // It arrives as an array. Dropping it would silently lose an env setting;
+    // taking "the first" would invent a rule the caller never agreed to.
+    const q = { id: 'GTM-AAA', dup: ['1', '2'], ok: '1' };
+    expect(envRow({ gtm_use: 'all' }, q).opts.env).toBe('&dup=1&dup=2&ok=1');
+  });
+
+  test('non-string members are skipped without losing the rest', () => {
+    const q = { id: 'GTM-AAA', d: ['a', null, 42, 'b'] };
+    expect(envRow({ gtm_use: 'all' }, q).opts.env).toBe('&d=a&d=b');
+  });
+
+  test('repetition is capped, and the cap bounds the loop rather than the output', () => {
+    const many = [];
+    for (let i = 0; i < 40; i++) many.push('v' + i);
+    const r = envRow({ gtm_use: 'all' }, { id: 'GTM-AAA', r: many });
+    expect((r.opts.env.match(/&r=/g) || []).length).toBe(10);
+    expect(r.logs).toContain('repeated more than');
+  });
+
+  test('the total length is budgeted, and never cut inside a parameter', () => {
+    const flood = { id: 'GTM-AAA' };
+    for (let i = 0; i < 60; i++) flood['p' + i] = 'x'.repeat(40);
+    const r = envRow({ gtm_use: 'all' }, flood);
+    expect(r.opts.env.length).toBeLessThanOrEqual(1000);
+    expect(r.opts.env).toMatch(/^(&[^&=]+=[^&]*)+$/);
+    expect(r.logs).toContain('exceed');
+  });
+});
+
+describe('URL Parameters column: the value may come from a variable', () => {
+  test('a resolved value that is none of the options falls back to Custom', () => {
+    const r = envRow({ gtm_use: 'whatever-a-variable-returned', gtm_param: 'gtm_auth=FROMVAR' });
+    expect(r.opts.env).toBe('&gtm_auth=FROMVAR');
+  });
+
+  test('...and that fallback is logged, so a broken variable is visible', () => {
+    // A renamed or failing variable would otherwise change which GTM
+    // environment a container loads without leaving a trace anywhere.
+    expect(envRow({ gtm_use: 'whatever', gtm_param: 'a=1' }).logs).toContain('Unknown value');
+  });
+
+  test('an EMPTY resolved value means "not configured", not "custom"', () => {
+    // The distinction that matters: '' / undefined / null / false is what an
+    // untouched row looks like. Treating it as custom would append parameters
+    // to rows nobody configured.
+    const param = 'gtm_auth=MUST_NOT_APPEAR';
+    for (const empty of ['', undefined, null, false]) {
+      const r = envRow({ gtm_use: empty, gtm_param: param });
+      expect(r.opts.env).toBeUndefined();
+      expect(r.logs).not.toContain('Unknown value');
+    }
+  });
+
+  test('a stored boolean true is the former "yes" and still means env', () => {
+    expect(envRow({ gtm_use: true }).opts.env).toBe('&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x');
+  });
+
+  test('a non-string Custom value cannot break the response', () => {
+    const r = envRow({ gtm_use: 'custom', gtm_param: { nope: true } });
+    expect(r.opts.env).toBeUndefined();
+  });
+
+  test('each row decides for itself', () => {
+    const r = runClient({
+      data: {
+        cookie_mode: 'always',
+        gtm: [
+          { gtm_id: 'GTM-AAA', gtm_consent: true, gtm_use: 'env' },
+          { gtm_id: 'GTM-BBB', gtm_consent: true, gtm_use: 'custom', gtm_param: 'a=1' },
+          { gtm_id: 'GTM-CCC', gtm_consent: true, gtm_use: 'no' }
+        ]
+      },
+      query: ENVQ
+    });
+    const g = containers(r.body);
+    expect(g['GTM-AAA'].env).toBe('&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x');
+    expect(g['GTM-BBB'].env).toBe('&a=1');
+    expect(g['GTM-CCC'].env).toBeUndefined();
   });
 });
 
