@@ -140,15 +140,6 @@ describe('URL Parameters column: the fixed options', () => {
     expect(envRow({ gtm_use: 'all' }, { id: 'GTM-AAA', x: 'a&b=c d' }).opts.env).toBe('&x=a%26b%3Dc%20d');
   });
 
-  test('"custom" takes the column value and ignores the request', () => {
-    expect(envRow({ gtm_use: 'custom', gtm_param: 'gtm_auth=FIXED' }).opts.env).toBe('&gtm_auth=FIXED');
-  });
-
-  test('"custom" normalises a leading ? or & to exactly one &', () => {
-    expect(envRow({ gtm_use: 'custom', gtm_param: '?a=1' }).opts.env).toBe('&a=1');
-    expect(envRow({ gtm_use: 'custom', gtm_param: '&a=1' }).opts.env).toBe('&a=1');
-  });
-
   test('"no" appends nothing even when the URL carries env parameters', () => {
     expect(envRow({ gtm_use: 'no' }).opts.env).toBeUndefined();
   });
@@ -189,37 +180,55 @@ describe('URL Parameters column: repeated parameters', () => {
   });
 });
 
-describe('URL Parameters column: the value may come from a variable', () => {
-  test('a resolved value that is none of the options falls back to Custom', () => {
-    const r = envRow({ gtm_use: 'whatever-a-variable-returned', gtm_param: 'gtm_auth=FROMVAR' });
-    expect(r.opts.env).toBe('&gtm_auth=FROMVAR');
+describe('URL Parameters column: a variable value IS the parameter string', () => {
+  // There is deliberately no second column for a custom value. The field
+  // accepts a variable, and a resolved value that is none of the three options
+  // is taken as the parameter string itself — one field carries both the choice
+  // and, in that case, the value.
+  test('a resolved value that looks like parameters is used verbatim', () => {
+    expect(envRow({ gtm_use: '&gtm_auth=FROMVAR&gtm_preview=env-9' }).opts.env)
+      .toBe('&gtm_auth=FROMVAR&gtm_preview=env-9');
   });
 
-  test('...and that fallback is logged, so a broken variable is visible', () => {
-    // A renamed or failing variable would otherwise change which GTM
-    // environment a container loads without leaving a trace anywhere.
-    expect(envRow({ gtm_use: 'whatever', gtm_param: 'a=1' }).logs).toContain('Unknown value');
+  test('a leading ? or & is optional and normalised to exactly one &', () => {
+    expect(envRow({ gtm_use: 'a=1' }).opts.env).toBe('&a=1');
+    expect(envRow({ gtm_use: '?a=1' }).opts.env).toBe('&a=1');
+    expect(envRow({ gtm_use: '&a=1' }).opts.env).toBe('&a=1');
   });
 
-  test('an EMPTY resolved value means "not configured", not "custom"', () => {
-    // The distinction that matters: '' / undefined / null / false is what an
-    // untouched row looks like. Treating it as custom would append parameters
-    // to rows nobody configured.
-    const param = 'gtm_auth=MUST_NOT_APPEAR';
-    for (const empty of ['', undefined, null, false]) {
-      const r = envRow({ gtm_use: empty, gtm_param: param });
+  test('the request is ignored in that case', () => {
+    expect(envRow({ gtm_use: 'a=1' }).opts.env).not.toContain('ABC123xyz');
+  });
+
+  test('a value that does not look like parameters is refused, not appended', () => {
+    // It would go verbatim into the address the page loads GTM from. A variable
+    // returning a container id, a stale "yes" or an error message must not end
+    // up there.
+    for (const junk of ['yes', 'GTM-XYZ123', 'undefined', '=novalue']) {
+      const r = envRow({ gtm_use: junk });
       expect(r.opts.env).toBeUndefined();
-      expect(r.logs).not.toContain('Unknown value');
+      expect(r.logs).toContain('neither no/env/all');
+    }
+  });
+
+  test('a non-string resolved value cannot break the response', () => {
+    for (const weird of [7, { nope: true }, ['a=1']]) {
+      expect(envRow({ gtm_use: weird }).opts.env).toBeUndefined();
+    }
+  });
+
+  test('an EMPTY resolved value means "not configured", and is not an error', () => {
+    // '' / undefined / null / false is what an untouched row looks like, so it
+    // must neither append anything nor cry wolf in the log.
+    for (const empty of ['', undefined, null, false]) {
+      const r = envRow({ gtm_use: empty });
+      expect(r.opts.env).toBeUndefined();
+      expect(r.logs).not.toContain('neither no/env/all');
     }
   });
 
   test('a stored boolean true is the former "yes" and still means env', () => {
     expect(envRow({ gtm_use: true }).opts.env).toBe('&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x');
-  });
-
-  test('a non-string Custom value cannot break the response', () => {
-    const r = envRow({ gtm_use: 'custom', gtm_param: { nope: true } });
-    expect(r.opts.env).toBeUndefined();
   });
 
   test('each row decides for itself', () => {
@@ -228,7 +237,7 @@ describe('URL Parameters column: the value may come from a variable', () => {
         cookie_mode: 'always',
         gtm: [
           { gtm_id: 'GTM-AAA', gtm_consent: true, gtm_use: 'env' },
-          { gtm_id: 'GTM-BBB', gtm_consent: true, gtm_use: 'custom', gtm_param: 'a=1' },
+          { gtm_id: 'GTM-BBB', gtm_consent: true, gtm_use: 'a=1' },
           { gtm_id: 'GTM-CCC', gtm_consent: true, gtm_use: 'no' }
         ]
       },

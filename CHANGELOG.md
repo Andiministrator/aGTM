@@ -15,20 +15,31 @@ The same blind spot ran through the tests. `container-select.test.js` asserted t
 was "carried through" using a fixture that invented a `gtm_env` column — a field nobody
 can configure. It passed no matter what the Client did with the real one.
 
-### Added — "URL Parameters": four ways to build a container's environment string
+### Added — "URL Parameters": three fixed options, or a variable that carries the value
 
 The repaired switch became a per-container choice (column renamed accordingly), and the
-column now accepts a **variable**:
+column accepts a **variable**:
 
 | Option | Appended to the container URL |
 |---|---|
 | `no` (default) | nothing |
 | `env from URL` | `gtm_auth`, `gtm_preview`, `gtm_cookies_win` from the request |
 | `all from URL` | every query parameter except aGTM's own `id` and `c` |
-| `custom` | the new **Custom Parameters** column, independent of the request |
+| *a variable* | if it resolves to none of the three, **its value IS the parameter string** |
+
+There is deliberately no second column for a custom value: one field carries both the
+choice and, in that case, the value. A fixed string is a **Constant** variable holding
+e.g. `&gtm_auth=ABC123xyz&gtm_preview=env-1`; a leading `?`/`&` is optional.
 
 Details that are decisions rather than mechanics:
 
+- A resolved value only counts if it **looks** like a parameter string (`k=v` with a
+  non-empty name — the empty-name case `&=value` was caught by the test, not by reading
+  the guard). Anything else is ignored **and logged**: a renamed or failing variable would
+  otherwise change which GTM environment a container loads without leaving a trace.
+- An **empty** resolved value means "not configured" and is not an error. `''`/`undefined`/
+  `null`/`false` is what an untouched row looks like, and appending something to rows
+  nobody configured would be the opposite of a default.
 - A parameter the caller repeated (`?a=1&a=2`) arrives as an array and is **reproduced in
   full, in order**. Dropping it would silently lose an env setting; taking "the first one"
   would invent a rule the caller never agreed to. Values are URL-encoded, so a parameter
@@ -37,12 +48,6 @@ Details that are decisions rather than mechanics:
   **loop**, not just the output, and the budget is checked *before* appending, so a
   parameter is either fully present or absent — a URL cut in the middle of a parameter
   looks valid and is wrong.
-- A variable that resolves to none of the four options is honoured as `custom` **and
-  logged**. A renamed or failing variable would otherwise change which GTM environment a
-  container loads without leaving a trace anywhere.
-- An **empty** resolved value is not that fallback: `''`/`undefined`/`null`/`false` is what
-  an untouched row looks like, and appending parameters to rows nobody configured would be
-  the opposite of a default.
 - A row still carrying the old boolean `true` (the former "yes") keeps meaning the env
   parameters — an existing configuration does not change meaning, it starts working.
 
