@@ -2,6 +2,59 @@
 
 ## Version 1.5 — *in development*
 
+### Fixed — the sGTM Client's "Use env Parameter" switch never did anything
+
+The container table defines the column as `gtm_use`; the config builder read `v.gtm_env`,
+a column that exists nowhere in the template. `env` was therefore never set and the GTM
+container URL never carried the environment parameters, whatever the switch was set to.
+Present since the column was introduced (2025-09-24) — so, unlike the `gtm_id_match`
+defect below, this one is not a v1.5 regression: the switch has never worked, in any
+version that had it.
+
+The same blind spot ran through the tests. `container-select.test.js` asserted that `env`
+was "carried through" using a fixture that invented a `gtm_env` column — a field nobody
+can configure. It passed no matter what the Client did with the real one.
+
+### Added — "URL Parameters": four ways to build a container's environment string
+
+The repaired switch became a per-container choice (column renamed accordingly), and the
+column now accepts a **variable**:
+
+| Option | Appended to the container URL |
+|---|---|
+| `no` (default) | nothing |
+| `env from URL` | `gtm_auth`, `gtm_preview`, `gtm_cookies_win` from the request |
+| `all from URL` | every query parameter except aGTM's own `id` and `c` |
+| `custom` | the new **Custom Parameters** column, independent of the request |
+
+Details that are decisions rather than mechanics:
+
+- A parameter the caller repeated (`?a=1&a=2`) arrives as an array and is **reproduced in
+  full, in order**. Dropping it would silently lose an env setting; taking "the first one"
+  would invent a rule the caller never agreed to. Values are URL-encoded, so a parameter
+  cannot smuggle in further parameters.
+- Repetitions are capped at 10 and the whole string at 1000 characters. The cap bounds the
+  **loop**, not just the output, and the budget is checked *before* appending, so a
+  parameter is either fully present or absent — a URL cut in the middle of a parameter
+  looks valid and is wrong.
+- A variable that resolves to none of the four options is honoured as `custom` **and
+  logged**. A renamed or failing variable would otherwise change which GTM environment a
+  container loads without leaving a trace anywhere.
+- An **empty** resolved value is not that fallback: `''`/`undefined`/`null`/`false` is what
+  an untouched row looks like, and appending parameters to rows nobody configured would be
+  the opposite of a default.
+- A row still carrying the old boolean `true` (the former "yes") keeps meaning the env
+  parameters — an existing configuration does not change meaning, it starts working.
+
+`all from URL` forwards whatever a caller puts in the URL into the address the page loads
+GTM from. It is off by default and the field help says so.
+
+> **Upgrade note:** the switch was inert, so nothing that runs today changes by itself —
+> but a tenant who set it to "yes" expecting environment parameters has been silently
+> getting the live container. After the re-import that row means `env from URL` and will
+> start loading the environment it was configured for. Check who has it set before rolling
+> out.
+
 ### Fixed — the sGTM Client's "fire only the matching container" checkbox did nothing
 
 `gtm_id_match` ("Fire only GTM container matching the ID in URL") survived the v1.5

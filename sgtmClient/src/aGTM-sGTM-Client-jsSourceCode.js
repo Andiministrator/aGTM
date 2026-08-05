@@ -29,6 +29,8 @@ const fromBase64 = require('fromBase64');
 const toBase64 = require('toBase64');
 const sha256Sync = require('sha256Sync');
 const JSON = require('JSON');
+const Object = require('Object');
+const encodeUriComponent = require('encodeUriComponent');
 const logToConsole = require('logToConsole');
 const makeInteger = require('makeInteger');
 const makeNumber = require('makeNumber');
@@ -398,6 +400,66 @@ if (queryParameters.c) {
   if (dec && typeof dec.u === 'string') pageUrl = dec.u;
   if (dec && typeof dec.r === 'string') pageRef = dec.r;
 }
+
+// ── URL parameters for the GTM container URL ─────────────────────────────────
+// The library appends this string VERBATIM to the gtm.js URL
+// (…gtm.js?id=GTM-X&l=dataLayer<env>), so it has to start with "&". Built once
+// per request; the container table decides PER ROW which variant is used.
+//
+// This exists because the "Use env Parameter" column was a field with no effect:
+// the column is named `gtm_use`, the code read `val.gtm_env`, and that column
+// does not exist — so `env` was never set, in any configuration, since the
+// column was introduced (e8a8207, 2025-09-24). Same class as F-159.
+const MAX_REPEATS = 10;     // bounds the WORK, not just the output
+const MAX_PARAM_LEN = 1000; // total budget for one container's parameter string
+const buildParam = function(k, v) {
+  if (typeof k !== 'string' || !k) return '';
+  if (typeof v === 'string') {
+    if (!v) return '';
+    return '&' + encodeUriComponent(k) + '=' + encodeUriComponent(v);
+  }
+  // A repeated parameter (?a=1&a=2) arrives as an ARRAY of values, not a string.
+  // Every value is reproduced in order — the only answer that is not a guess: it
+  // hands GTM exactly the query string the caller sent. Dropping the parameter
+  // would silently lose an env setting, and taking "the first one" would invent
+  // a rule nobody agreed to. The string check has to come FIRST: a string has a
+  // numeric .length too, and the sandbox has no Array.isArray to tell them apart.
+  if (typeof v !== 'object' || !v || typeof v.length !== 'number') return '';
+  const nrep = v.length > MAX_REPEATS ? MAX_REPEATS : v.length;
+  if (v.length > MAX_REPEATS) logToConsole('warn', '✗ URL parameter repeated more than ' + MAX_REPEATS + ' times, rest dropped', k);
+  let outv = '';
+  for (let ri = 0; ri < nrep; ri++) {
+    if (typeof v[ri] === 'string' && v[ri]) outv = outv + '&' + encodeUriComponent(k) + '=' + encodeUriComponent(v[ri]);
+  }
+  return outv;
+};
+// "env": the three parameters GTM itself defines for environments.
+const envParams = buildParam('gtm_auth', queryParameters.gtm_auth) + buildParam('gtm_preview', queryParameters.gtm_preview) + buildParam('gtm_cookies_win', queryParameters.gtm_cookies_win);
+// "all": every query parameter EXCEPT aGTM's own control parameters — `id`
+// selects the container, `c` carries the base64 page payload.
+let allParams = '';
+let allDropped = 0;
+const qpKeys = Object.keys(queryParameters);
+for (const qk of qpKeys) {
+  if (qk !== 'id' && qk !== 'c') {
+    const piece = buildParam(qk, queryParameters[qk]);
+    // Budget checked BEFORE appending, so a parameter is either fully present
+    // or absent. Truncating mid-parameter would yield a valid-looking but wrong
+    // URL — worse than a missing one.
+    if (piece && allParams.length + piece.length > MAX_PARAM_LEN) allDropped++;
+    else allParams = allParams + piece;
+  }
+}
+if (allDropped > 0) logToConsole('warn', '✗ URL parameters exceed ' + MAX_PARAM_LEN + ' chars, dropped', allDropped);
+// "custom": taken from the table verbatim — tenant-authored configuration, same
+// trust level as the container URL itself. Only a leading "?"/"&" is normalised.
+const normParams = function(str) {
+  if (typeof str !== 'string') return '';
+  let t = str;
+  while (t.length > 0 && (t.charAt(0) === '?' || t.charAt(0) === '&')) { t = t.slice(1); }
+  if (!t) return '';
+  return '&' + t;
+};
 if (CFG.debug) logToConsole('debug', 'Request', {path: rpath, id: id, url: pageUrl, ref: pageRef});
 
 if (!data.gtm) logToConsole('warn', '\u2717 No GTM Container configured');
@@ -767,7 +829,30 @@ const buildAndSend = function(sessionData) {
       if (v.gtm_id && (!gtmIdMatch || v.gtm_id === qp_id)) {
         gtm[v.gtm_id] = {};
         if (!v.gtm_consent) gtm[v.gtm_id].noConsent = true;
-        if (v.gtm_env) gtm[v.gtm_id].env = v.gtm_env;
+        // The column accepts a VARIABLE (macrosInSelect), so this value is not
+        // limited to the four listed options — it is whatever the variable
+        // resolved to at request time. Anything unrecognised falls back to the
+        // "Custom Parameters" column (which may itself be a variable), so a
+        // computed configuration has one place to put its parameters.
+        //
+        // An UNSET column is deliberately NOT that fallback: ''/undefined/false
+        // is what an untouched row looks like, and appending parameters to rows
+        // nobody configured would be the opposite of a default. A stored boolean
+        // true is the former "yes" and keeps meaning the env parameters.
+        let envStr = '';
+        const mode = v.gtm_use;
+        if (mode === 'env' || mode === true) envStr = envParams;
+        else if (mode === 'all') envStr = allParams;
+        else if (mode === 'custom') envStr = normParams(v.gtm_param);
+        else if (mode !== 'no' && mode !== false && mode !== '' && typeof mode !== 'undefined' && mode !== null) {
+          // A variable that resolved to something unexpected lands here. It is
+          // honoured, but also SAID OUT LOUD: a broken or renamed variable would
+          // otherwise change which GTM environment a container loads without
+          // leaving a trace anywhere.
+          logToConsole('warn', '✗ Unknown value for the URL Parameters column, using Custom Parameters', mode);
+          envStr = normParams(v.gtm_param);
+        }
+        if (envStr) gtm[v.gtm_id].env = envStr;
         if (v.gtm_url) gtm[v.gtm_id].gtmURL = v.gtm_url;
       }
     }
