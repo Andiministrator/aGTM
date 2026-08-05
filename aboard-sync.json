@@ -1797,7 +1797,14 @@
             "qa": true,
             "complexity": "mittel",
             "effort": "M",
-            "comments": [],
+            "comments": [
+              {
+                "id": "794ac47b-d020-402f-b133-edae8d00a18e",
+                "author": "Claude Opus",
+                "text": "VIER PRUEFLAEUFE (2 x Code, 2 x Doku, unabhaengige Sub-Agents, 2026-08-05) — Befunde behoben, Commits e8a88ba / a2e32c4 / effbb92 / d18ff95 / c44ab96.\n\nDIE HAERTUNG SCHUETZTE DEN FALSCHEN MODUS. Das 1000-Zeichen-Budget galt nur fuer \"all from URL\" - den Modus, von dem der Hilfetext abraet. \"env from URL\" (der empfohlene) und der Variablenwert hatten gar keine Grenze. Beide gedeckelt; die drei env-Parameter sind jetzt ein ATOMARES Set: ueber Budget wird keiner angewandt, weil ein Request mit gtm_preview ohne gtm_auth kein Teilerfolg ist, sondern einer, den GTM mit einem Stub beantwortet.\n\nREIHENFOLGE ENTSCHEIDET. In \"all\" kommen die env-Parameter jetzt zuerst. Vorher galt die Reihenfolge der Request-URL: eine Landingpage mit gclid/_gl vor gtm_auth konnte genau den Parameter aus dem Budget draengen, fuer den die Spalte da ist - GTM haette dann nur fuer Paid-Traffic nicht geladen.\n\nMEIN l-SCHUTZ WAR UMGEHBAR. Der QA-Lauf hat es aufgemacht: %69d= kommt beim Empfaenger als id= an. Jeder Schluessel mit Prozent-Escape wird jetzt verweigert. Ohne das haengt die Sicherheit daran, dass googletagmanager.com das erste Vorkommen gewinnen laesst - gemessen, nirgends zugesichert, und ein selbst gehostetes /gtm.js kann es anders machen.\n\nLOG-STUFEN TRENNEN ZWEI SORTEN PROBLEM. Aufrufergetriebene Meldungen auf debug (jeder kann sie bei jedem Request ausloesen), Konfigurationsfehler bleiben warn. Der haeufigste Ersteinrichtungsfehler - env gewaehlt, Request traegt keinen der drei - hinterliess GAR KEINE Spur und loggt jetzt.\n\nLIBRARY: gtm_load ergaenzt das fuehrende &. Eingefuegt als \"gtm_auth=abc\" entstand \"&l=dataLayergtm_auth=abc\" - GTM laedt, schreibt in einen dataLayer, den niemand liest, ohne Fehlermeldung. +36 Byte minifiziert, +29 gzip.\n\nDOKU: der Integrationsschnipsel im Client-README war NICHT LAUFFAEHIG (18 typografische Anfuehrungszeichen). Nonce-Feld trug die Beschreibung des dataLayer-Hooks, Repo-Link zeigte auf ein fremdes Projekt, Developer-README band sein Logo ueber einen absoluten lokalen Pfad ein, Client-Changelog hatte zweimal \"Version 1.3\". Neu: Doku-Landkarte, Troubleshooting-Kapitel, Abschnitt \"Loading a GTM environment\", \"Upgrading from 1.4\" vor den 1700 Zeilen Entscheidungsprotokoll.\n\nBELEG: 1081 Tests gruen (+23). Mutationen alle gefangen (fuehrendes & weg, env-Vorrang weg, l-Schutz weg, Anfuehrungszeichen im Testnamen der UNGETRACKTEN 1.4.3-Datei). Der Namens-Waechter scannt jetzt auch ungetrackte .tpl - er erreichte vorher genau die Datei nicht, in der der Fehler passiert war. v1.5-Template: 17 Tests-Szenarien statt 9. 1.4.3: 20 Szenarien, displayName UND aGTMversion sagen beide 1.4.3 (die Konstante meldete 1.4.3pre - genau die Verwechslung, die der Header beenden soll).\n\nRELEASE: Client-only auf main, Tag sgtm-client-1.4.3 (Commit 2268746, gepusht). Bewusst KEIN v1.4.3-Library-Tag: Repository-Tags sind Library-Versionen, main bleibt 1.4.1, der Client bettet 1.4.2 ein - und der Blob passt zu keinem Commit (gegen alle 80 geprueft, die je aGTM.min.js anfassten). Ein v1.4.3 haette Reproduzierbarkeit behauptet, die das Repo nicht einloest. Andi legt das GitHub-Release ueber die Oberflaeche an.\n\nDREI ENTSCHEIDUNGEN (von Andi delegiert, getroffen und umgesetzt):\n1. findings.md gesplittet - aktiv 6 Eintraege / 8 KB, Archiv 157 / 204 KB. Vollstaendigkeit bewiesen: 163 Zeilen vorher, 163 nachher, mengengleich. Vier Grenzfaelle (rohe | aus Code-Snippets zerlegen die Statuszelle) einzeln nachgelesen statt geraten. Prio-Gate in CLAUDE.local.md auf \"P0 ODER P1\" - P0 wurde in 163 Findings nie vergeben, die Pruefung lief strukturell leer, waehrend das reale offene P1 (F-156) durchrutschte.\n2. glossar.md BEHALTEN statt geloescht - gegen die Kritiker-Empfehlung, mit Begruendung: docs/ ist gitignored, ein Loeschen waere unwiderruflich. Stattdessen Banner \"abgeleitet, nicht als Quelle zitieren\" + Datum der letzten Pruefung; beide belegten Fehler (Sources-API-Semantik, CMP-Zahl 25 statt 26) korrigiert.\n3. session_status-Kanon = README-for-Integrators.md. Die Tabelle stand fuenfmal identisch. README.md und README-for-Developers.md nennen die Werte jetzt in einem Satz und verlinken. CLAUDE.md behaelt seine Kopie (Agenten-Guide, muss selbst-enthaltend sein), SESSION-REDESIGN.md ist ein eingefrorenes Design-Protokoll.\n\nNEUE FINDINGS: F-161 (der env-Schalter, P1), F-162 (403 ohne return, 1.4.3-only), F-163 (Anfuehrungszeichen im Testnamen blockiert den Import). Knowledge ergaenzt: das Mengenvergleich-Muster (data.<feld> gegen \"name\": - findet F-159 UND F-161) und die Phantom-Fixture in der Tautologie-Falle.",
+                "created": "2026-08-05"
+              }
+            ],
             "displayId": 70
           },
           {
@@ -2113,7 +2120,11 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "## Array-Fehlerbehandlung — ich habe es anders gelöst als „Fehler melden\"\n\nStatt den wiederholten Parameter zu überspringen und zu warnen, werden jetzt **alle Werte in Reihenfolge reproduziert**: `?",
+      "since": "2026-08-05T07:08:58.370170+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
