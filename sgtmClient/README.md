@@ -101,17 +101,51 @@ Or you could use it to load a normal container for the Live/Production Website a
 
 ### GTM Container Setup
 
-You need to configurate one or more clientside GTM Containers. There are 4 options for each container:
+You need to configurate one or more clientside GTM Containers. There are 5 columns per container:
 
 - **GTM Container ID**
   The ID of the clientside GTM Container, e.g.: `GTM-XYZ123`.
   You can use GTM variables here. So you could configure a variable for the URL Query Parameter `id` to send the GTM Container ID with the URL of the integration code, e.g.: `https://ssgtm.yourdomain.com/aGTM.js?id=GTM-XYZ123`
 - **Consent Check**
   If you set this to `Yes`, the clientside GTM will only fire, if the user has given a consent to fire the GTM.
-- **Environment String**
-  You can use this to fire a special Environment of a clientside GTM Container.
+- **URL Parameters**
+  Which parameters of the `/aGTM.js` request are appended to this container's URL — the
+  way you load a specific GTM *environment*. Three fixed options, and the column also
+  accepts a **variable**:
+
+  | Option | Appended to the container URL |
+  |---|---|
+  | `no` (default) | nothing |
+  | `env from URL` | `gtm_auth`, `gtm_preview` and `gtm_cookies_win` from the request, if present |
+  | `all from URL` | every query parameter except the ones aGTM owns (`id`, `c`, `l`) |
+  | *a variable* | if it resolves to none of the three above, **its value IS the parameter string** |
+
+  So with `env from URL` on the container, an integration code pointing at
+  `…/aGTM.js?id=GTM-XYZ123&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x` loads
+  that container's `env-1` environment. For a fixed string instead, point the column at a
+  **Constant** variable holding e.g. `&gtm_auth=ABC123xyz&gtm_preview=env-1` — a leading
+  `?`/`&` is optional.
+
+  Guardrails, because that value goes verbatim into the address the page loads GTM from:
+
+  - A resolved value is **refused whole** — with the reason on the server console — when it
+    is no `k=v` parameter string, when it sets one of aGTM's own parameters (`id` selects
+    the container, `c` carries the page payload, `l` names the dataLayer), or when it is
+    longer than 1000 characters. **Refused means the *live* container loads** — not that
+    nothing happens.
+  - An **empty** value means "not configured" and appends nothing.
+  - Values from the request are URL-encoded, so a parameter cannot smuggle in further
+    parameters. A repeated parameter (`?a=1&a=2`) is reproduced in full rather than guessed
+    at. Repetitions are capped at 10 and the whole string at 1000 characters — a parameter
+    is dropped whole rather than cut in half, and the three `env` parameters are
+    all-or-nothing.
+
+  `all from URL` forwards whatever a caller puts in the URL into the address the page loads
+  GTM from — prefer `env from URL` unless you need it.
 - **Container URL**
   You can use this option to overwrite the Standard GTM URL (`https://www.googletagmanager.com/gtm.js`) with your own Container URL.
+- **Comment**
+  Free text. Only for you — e.g. to tell several containers apart.
 
 ### Consent Check
 
@@ -210,6 +244,31 @@ Please contact me if you found problems or have improvements:
 ---
 
 ## Changelog
+
+- Version 1.4.3, *05.08.2026*
+  - **Fixed: the "Use env Parameter" switch read a column that does not exist.** The
+    container table defines it as `gtm_use`, the code read `gtm_env` — so the environment
+    parameters were never appended, whatever the switch was set to. Broken since the column
+    was introduced (2025-09-24), i.e. in every version that had it
+  - **Added: "URL Parameters"** — the repaired column is now a per-container choice
+    (`no` / `env from URL` / `all from URL`) that also accepts a **variable**, whose
+    resolved value is then the parameter string itself. See *GTM Container Setup*
+    > **Upgrade note — check the integration URLs, not just the table.** A row is only
+    > affected if your integration snippet carries `gtm_auth`/`gtm_preview`, because the
+    > column pulls them from the request. If it does — e.g. a copied preview URL that was
+    > harmless while the switch was dead — that environment is served to **all** visitors
+    > from the import on. A row still holding the old `yes` keeps its meaning and starts
+    > working.
+  - **Fixed: the client-IP 403 did not stop the response.** After sending 403 the Client
+    fell through and built the full library as a second response. `returnResponse()` made
+    that moot on the wire, so it never showed — but the work happened on every blocked
+    request
+  - Embedded CMP `consent_check` codes refreshed from the current adapters (10 of 23 had
+    drifted). The most consequential: **Borlabs v2 never returned `true`**, so on a
+    Borlabs-v2 site aGTM never saw a consent result and GTM never loaded at all
+  - `___TESTS___`: 20 scenarios replace the single one whose every mock and assertion was
+    commented out
+  - The embedded aGTM library is **1.4.2** and unchanged by this release
 
 - Version 1.0, *01.06.2025*
   - Initial Version
