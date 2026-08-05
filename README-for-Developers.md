@@ -604,17 +604,12 @@ aGTM.d.session_status        // see lifecycle table below
 aGTM.d.consent_hash          // last successfully POSTed serialized consent
 ```
 
-**`aGTM.d.session_status` lifecycle:**
-
-| Value | Meaning |
-|---|---|
-| `""` | No `cfg.session` supplied (initial state) |
-| `"preset"` | `cfg.session` accepted but no usable consent block (the CMP path runs normally) |
-| `"preset_with_consent"` | `cfg.session.consent` accepted and seeded into `aGTM.d.consent`; sync `call_cc()` triggered |
-| `"synced"` | CMP decision diffed and POSTed to `consent_store_url`, server returned 2xx |
-| `"confirmed"` | CMP decision matches the preset, no POST needed |
-
-GTM Custom Templates can branch on this value (e.g. only personalize when `"preset_with_consent"` or `"confirmed"`).
+**`aGTM.d.session_status` lifecycle:** one of `""`, `"preset"`,
+`"preset_with_consent"`, `"synced"`, `"confirmed"`. The per-value table lives in
+[README-for-Integrators.md → Session status](README-for-Integrators.md#session_status-lifecycle)
+and is the canonical one — it is not repeated here, because five copies of it had
+already started to drift apart. GTM Custom Templates can branch on the value (e.g.
+only personalize when `"preset_with_consent"` or `"confirmed"`).
 
 ### `aGTM.f.consent_serialize(c)`
 

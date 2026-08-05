@@ -545,13 +545,11 @@ After `aGTM.f.config()` runs (typically right at page-load when the library is s
 - **`aGTM.d.attribution`** — keyed-by-method attribution object populated from `cfg.session.attribution` (sGTM Client) merged with the current URL/referrer. Empty `{}` when no attribution preset is supplied. Read fields like `aGTM.d.attribution.last_touch.sou`. See [Developer Documentation → Attribution](README-for-Developers.md#attribution-hybrid-merge) for the per-field merge rules.
 - **`aGTM.d.session_status`** — consent-sync lifecycle string, readable from GTM Custom Variables or any JS on the page:
 
-| Value | Meaning |
-|---|---|
-| `""` | No `cfg.session` supplied (feature inactive) |
-| `"preset"` | `cfg.session` accepted, but no usable consent block — CMP path proceeds normally |
-| `"preset_with_consent"` | `cfg.session.consent` was valid → seeded into `aGTM.d.consent`, GTM injects on the first tick (no CMP wait) |
-| `"synced"` | After `run_cc`: a CMP-driven consent change was diffed and successfully POSTed to `consent_store_url` |
-| `"confirmed"` | After `run_cc`: the CMP-derived state matched the preset — server already had this consent, no POST sent |
+One of `""` (feature inactive), `"preset"`, `"preset_with_consent"`, `"synced"` or
+`"confirmed"`. **What each value means and when it is set:**
+[README-for-Integrators.md → Session status](README-for-Integrators.md#session_status-lifecycle)
+— that table is the canonical one; this file deliberately does not repeat it, because
+five copies of it had already started to drift apart.
 
 Example use in a GTM Custom Variable (JavaScript Variable type):
 ```javascript
