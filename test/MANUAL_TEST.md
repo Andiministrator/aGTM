@@ -15,7 +15,7 @@ Open the browser console and check `aGTM.d` after each step.
 | 1.2 | `VERSION` contains `1.5` | `cat VERSION` → `1.5` |
 | 1.3 | `aGTM.js` header shows `@version 1.5` | Line 5 of aGTM.js |
 | 1.4 | `aGTM.d.version` equals `1.5` at runtime | `aGTM.d.version === '1.5'` in console |
-| 1.5 | `bun test` → all pass | `79 pass, 0 fail` |
+| 1.5 | `bun test` → all pass | `0 fail` (the pass count grows with every commit — do not pin it) |
 | 1.6 | `sgtmClient/template.tpl` displayName shows `aGTM v1.5` | grep displayName template.tpl |
 
 ---

@@ -55,9 +55,9 @@ Insert the following into your site’s `<head>`:
 ```html
 <script>
 (function(){
-  var src=’https://sgtm.yourdomain.com/aGTM.js?id=GTM-XYZ123’;
-  var d=’doc’,f=’ref’,l=’loc’,s=document.createElement(‘script’);
-  s.src=src+’&c=’+btoa(JSON.stringify({u:window[l+’ation’].href,r:window[d+’ument’][f+’errer’]}));
+  var src='https://sgtm.yourdomain.com/aGTM.js?id=GTM-XYZ123';
+  var d='doc',f='ref',l='loc',s=document.createElement('script');
+  s.src=src+'&c='+btoa(JSON.stringify({u:window[l+'ation'].href,r:window[d+'ument'][f+'errer']}));
   document.head.appendChild(s);
 })();
 </script>
@@ -117,7 +117,7 @@ to the table below — and it is a different question from the "Allowed IDs" fil
   is served. A request that carries no `?id=` at all then matches nothing and loads no
   container; the Client writes a warning to the server console when that happens.
 
-You need to configurate one or more clientside GTM Containers. There are 5 options for each container:
+You need to configurate one or more clientside GTM Containers. There are 5 columns per container:
 
 - **GTM Container ID**
   The ID of the clientside GTM Container, e.g.: `GTM-XYZ123`.
@@ -133,7 +133,7 @@ You need to configurate one or more clientside GTM Containers. There are 5 optio
   |---|---|
   | `no` (default) | nothing |
   | `env from URL` | `gtm_auth`, `gtm_preview` and `gtm_cookies_win` from the request, if present |
-  | `all from URL` | every query parameter of the request except aGTM's own `id` and `c` |
+  | `all from URL` | every query parameter except the ones aGTM owns (`id`, `c`, `l`) |
   | *a variable* | if it resolves to none of the three above, **its value IS the parameter string** |
 
   So with `env from URL` on the container, an integration code pointing at
@@ -145,20 +145,27 @@ You need to configurate one or more clientside GTM Containers. There are 5 optio
 
   Guardrails, because that value goes verbatim into the address the page loads GTM from:
 
-  - A resolved value only counts if it **looks** like a parameter string (`k=v` with a
-    non-empty name). A variable returning a container id, a stale `yes` or an error message
-    is ignored and written to the server console — a renamed or failing variable would
-    otherwise change which environment loads without leaving a trace anywhere.
+  - A resolved value is **refused whole** — with the reason on the server console — when it
+    is no `k=v` parameter string, when it sets one of aGTM's own parameters (`id` selects the
+    container, `c` carries the page payload, `l` names the dataLayer), or when it is longer
+    than 1000 characters. A renamed or failing variable would otherwise change which
+    environment loads without leaving a trace anywhere. **Refused means the *live* container
+    loads** — not that nothing happens.
   - An **empty** value means "not configured" and appends nothing; that is what an
     untouched row looks like, so it is not reported as an error.
   - Values taken from the request are URL-encoded, so a parameter cannot smuggle in further
     parameters. A parameter the caller repeated (`?a=1&a=2`) is reproduced in full rather
-    than guessed at. Repetitions are capped at 10 and the whole string at 1000 characters.
+    than guessed at. Repetitions are capped at 10 and the whole string at 1000 characters —
+    a parameter is dropped whole rather than cut in half, and the three `env` parameters are
+    all-or-nothing (a request carrying `gtm_preview` without `gtm_auth` is one GTM answers
+    with a stub, so half a set is worse than none).
 
   `all from URL` forwards whatever a caller puts in the URL into the address the page loads
   GTM from — prefer `env from URL` unless you need it.
 - **Container URL**
   You can use this option to overwrite the Standard GTM URL (`https://www.googletagmanager.com/gtm.js`) with your own Container URL.
+- **Comment**
+  Free text. Only for you — e.g. to tell several containers apart.
 
 ### Consent Check
 
@@ -210,9 +217,13 @@ If you need a diffrenet name (as "dataLayer") for the GTM Datalayer, you can spe
 
 The dataLayer.push function is the connection from the dataLayer Array to the Google Tag Manager. If this function is changed, the connection can be lost. With this feature you can decide, what to do in this case.
 
-#### Nonce Value (for Consent Security Policy)
+#### Nonce Value (for Content Security Policy)
 
-The dataLayer.push function is the connection from the dataLayer Array to the Google Tag Manager. If this function is changed, the connection can be lost. With this feature you can decide, what to do in this case.
+If your site runs a Content Security Policy that only allows scripts carrying a
+per-request nonce, put that nonce here (usually a GTM variable that reads it from
+a request header or the page). aGTM then sets it on the GTM `<script>` tag it
+injects, so the browser accepts it. Leave it empty if you do not use a CSP nonce
+— an empty value changes nothing.
 
 #### aGTM Debug Mode
 
@@ -234,7 +245,7 @@ The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session managemen
 8. Answers with `Cache-Control: private, no-store`. The body inlines this visitor's `cfg.session` (uid, sid, and for a returning visitor their recorded consent) while the URL is identical for every visitor, so a shared cache must never store it.
 9. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript. The `consent_store_url` is auto-built from the request host + the fixed path `/aGTMconsent` — the integrator only flips a checkbox to enable/disable the route.
 
-aGTM receives the pre-populated `session` object (Phase 2 preset gate accepts any object with `sid` or `consent`); Phase 3 additionally seeds `aGTM.d.consent` and `aGTM.d.consent_hash` from `cfg.session.consent`. No client-side session fetch is performed.
+aGTM receives the pre-populated `session` object (the preset gate accepts any object carrying `sid`, `consent`, `attribution` or a non-empty `source`); Phase 3 additionally seeds `aGTM.d.consent` and `aGTM.d.consent_hash` from `cfg.session.consent`. No client-side session fetch is performed.
 
 When the browser POSTs consent updates to `https://<sgtm-host>/aGTMconsent`, the handler:
 1. **Forward F→C user-ID promotion**: if the carried uid starts with `F.*` and the new consent grants the required services, the Client generates a stable `C.*` uid, calls `/promote` to atomically migrate the session pointer + consent record, sets the new `C.*` cookie, and echoes `{ok: true, uid: <newC>}` so the library updates `aGTM.d.session.uid`. Skips the legacy `/consent` POST (already written by `/promote`).
@@ -446,7 +457,7 @@ library the Client was built with, so it also tells you which library your visit
 Feel free to use or change the code. If you have suggestions for improvement, please write to me.
 
 - **Licence:** Apache 2.0
-- **Repository:** [GA4 Event Importer - Github Repository](https://github.com/Andiministrator/ga4-tracking-pixel)
+- **Repository:** [aGTM - Github Repository](https://github.com/Andiministrator/aGTM)
 
 ### Author and Contact
 
@@ -466,8 +477,26 @@ Please contact me if you found problems or have improvements:
 
 ## Changelog
 
-- Version 1.3, *in development*
+> The Client no longer carries a version of its own: `./build.sh` writes the library
+> version into both the template `displayName` and the `aGTM Version` constant, and a
+> live container answers with it in the `x-agtm-version` header. The numbered entries
+> below up to *Version 1.3, 04.05.2026* are the historical Client-only numbering.
+
+- Version 1.5, *in development*
   - aGTM Client Template updated to v1.5 (matches the v1.5 redesign of aGTM)
+  - **Fixed: the "Use env Parameter" switch read a column that does not exist.** The
+    table defines it as `gtm_use`, the code read `gtm_env` — so the environment
+    parameters were never appended, whatever the switch was set to. Broken since the
+    column was introduced (2025-09-24), i.e. in every version that had it
+  - **Added: "URL Parameters"** — the repaired column is now a per-container choice
+    (`no` / `env from URL` / `all from URL`) that also accepts a **variable**, whose
+    resolved value is then the parameter string itself. See *GTM Container Setup*
+    > **Upgrade note.** A row is only affected if your **integration URL** carries
+    > `gtm_auth`/`gtm_preview` — the column pulls them from the request. If it does
+    > (e.g. a copied preview URL that was harmless while the switch was dead), that
+    > environment is served to **all** visitors from the re-import on. Check the
+    > integration snippets, not just the table. A row still holding the old `yes`
+    > keeps its meaning and starts working.
   - **`x-agtm-version` response header** on every `/aGTM.js` and `/aGTMconsent` response — the way to ask a live container which version it runs (see *Testing*)
   - **Fixed: "Fire only GTM container matching the ID in URL" had no effect.** The v1.5 rewrite filtered the container table on `?id=` unconditionally, so the checkbox did nothing and a request without `?id=` received *no* container at all. The checkbox works again, and unchecked means all configured containers are served — as documented under *GTM Container Setup*
   - `Content-Type` of the served library carries `charset=utf-8` again
@@ -486,7 +515,7 @@ Please contact me if you found problems or have improvements:
     - `GET /tp/session/{tenant}/{user}` → `{sessionId, counter, ga4sid, muidga4, consent?}`
     - `POST /tp/session/{tenant}/{user}/consent` (body = `ConsentState` JSON, full replace) → `{ok: true, sessionId}`
 
-- Version 1.3, *04.05.2026*
+- Version 1.3, *04.05.2026* (last of the Client-only numbering)
   - New config group: **Pre-aGTM Init Script** — `pre_init_enabled`, `pre_init_code`
   - New documentation section: **CMP Loader Pattern** — recommends the noConsent-container approach over the inline script field
 

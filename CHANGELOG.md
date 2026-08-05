@@ -2,6 +2,29 @@
 
 ## Version 1.5 — *in development*
 
+### Upgrading from 1.4 — the short version
+
+**Removed config options** (gone, no migration shim): `session_url`, `session_wait`,
+`session_timeout`, `session_gtm_on_deny`, `session_consent_url`, `session_deny_service`.
+Removed functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.f.xfetch`.
+Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
+
+**New config options:** `user_id`, `session_salt`, `consent_store_url`,
+`consent_store_enc`, `consent_poll_ms`, `session`.
+
+**Behaviour you should know about before upgrading:**
+- The session feature no longer fetches anything from the browser — the sGTM Client
+  delivers it. A standalone integrator without that Client keeps the plain consent flow.
+- `chelp()` is **fail-closed** now: a required purpose/service/vendor against an empty
+  consent string no longer counts as granted. If GTM stops loading somewhere after the
+  upgrade, that requirement was never actually met before either.
+- The "aGTM - DL Repeat" tag needs library **1.5+** — against an older library it warns
+  and does nothing.
+- sGTM Client only: the "URL Parameters" column starts working (see below).
+
+The full per-change rationale follows; it is long because it doubles as the design
+record. If you only want to know what to touch, the four points above are it.
+
 ### Fixed — the sGTM Client's "Use env Parameter" switch never did anything
 
 The container table defines the column as `gtm_use`; the config builder read `v.gtm_env`,
@@ -31,12 +54,37 @@ There is deliberately no second column for a custom value: one field carries bot
 choice and, in that case, the value. A fixed string is a **Constant** variable holding
 e.g. `&gtm_auth=ABC123xyz&gtm_preview=env-1`; a leading `?`/`&` is optional.
 
+> **The scope narrowed, and the old help text promised more.** It used to say "all
+> (env-)URL parameters that start with `gtm_`". `env from URL` now transfers exactly the
+> three parameters GTM defines for environments. Anyone who relied on a further `gtm_*`
+> parameter being forwarded should use `all from URL` instead.
+
 Details that are decisions rather than mechanics:
 
-- A resolved value only counts if it **looks** like a parameter string (`k=v` with a
-  non-empty name — the empty-name case `&=value` was caught by the test, not by reading
-  the guard). Anything else is ignored **and logged**: a renamed or failing variable would
-  otherwise change which GTM environment a container loads without leaving a trace.
+- A resolved value is **refused whole** — and the reason logged — when it is no `k=v`
+  parameter string (the empty-name case `&=value` was caught by the test, not by reading
+  the guard), when it sets a parameter aGTM owns, or when it exceeds the budget. A renamed
+  or failing variable would otherwise change which GTM environment a container loads
+  without leaving a trace. Refusing means the **live** container loads, not that nothing
+  happens.
+- **`id`, `c` and `l` are refused on both paths.** `l` names the dataLayer, so a caller's
+  copy would send GTM to an object nobody reads — a silent, error-free total outage of the
+  measurement. Refusing it here means safety does not rest on how a given `/gtm.js`
+  resolves duplicate parameters (googletagmanager.com honours the first occurrence —
+  measured, never promised). A percent-escaped key (`%69d=`) is refused too: it would
+  reach the receiving server decoded.
+- **The three `env` parameters are an atomic set.** Over budget, none of them is applied:
+  an environment request carrying `gtm_preview` without `gtm_auth` is not a partial
+  success, it is one GTM answers with a stub — "too long" would silently become "GTM does
+  not load".
+- **In `all from URL` the env parameters are emitted first.** Order decides what survives
+  the budget, and it used to be the order of the request URL: a landing page carrying
+  `gclid`/`_gl`/`utm_*` ahead of `gtm_auth` could push out exactly the parameter the column
+  exists for — GTM then fails to load for those visitors only, traffic-source dependent.
+- **Log levels split the two kinds of problem.** Caller-driven events (repetition cap,
+  length cap, `env` selected but absent from the request) are `debug`, because anyone can
+  trigger them on every request by forwarding the page query; a value the *tenant*
+  configured wrongly stays `warn` and would otherwise drown in them.
 - An **empty** resolved value means "not configured" and is not an error. `''`/`undefined`/
   `null`/`false` is what an untouched row looks like, and appending something to rows
   nobody configured would be the opposite of a default.
@@ -54,11 +102,12 @@ Details that are decisions rather than mechanics:
 `all from URL` forwards whatever a caller puts in the URL into the address the page loads
 GTM from. It is off by default and the field help says so.
 
-> **Upgrade note:** the switch was inert, so nothing that runs today changes by itself —
-> but a tenant who set it to "yes" expecting environment parameters has been silently
-> getting the live container. After the re-import that row means `env from URL` and will
-> start loading the environment it was configured for. Check who has it set before rolling
-> out.
+> **Upgrade note — check the integration URLs, not just the table.** The switch was inert,
+> so nothing that runs today changes by itself. A row is only affected if your
+> **integration snippet** carries `gtm_auth`/`gtm_preview`, because the column pulls them
+> from the request. If it does — for instance a copied preview URL that was harmless while
+> the switch was dead — that environment is served to **all** visitors from the re-import
+> on. A row still holding the old `yes` keeps its meaning and starts working.
 
 ### Fixed — the sGTM Client's "fire only the matching container" checkbox did nothing
 
@@ -1538,7 +1587,7 @@ Three new tests cover the hardening (F.* race-safety, non-C-prefix defensive, `g
 - New template options (sGTM Client): `sources_enabled` (boolean, default false), `sources_api_url` (text), `sources_attribution` (boolean, default false), `sources_method` (SELECT, default `last_touch`). Tenant is reused from the existing `tenant_id` field.
 - The aGTM library's only involvement is the preset-gate widening + deep-copy that carry `cfg.session.source`/`cfg.session.attribution` through to `aGTM.d.session.*`; the POST itself is purely server-side.
 - **Hardening (F-01/F-02):** `sources_method` is now validated against the five api4sources methods (`last_touch`/`first_touch`/`last_click`/`first_click`/`last_non_direct_click`) at config time — a stale or overridden value falls back to `last_touch` instead of requesting/wrapping attribution under an invalid key. An empty `attribution {}` in the Sources response is no longer wrapped, so it can't create a dead `aGTM.d.attribution[method]` entry. Applied byte-identically to `sgtmClient/template.tpl` and `sgtmClient/src/…`.
-- Test client: `internal/api4sources/smoketest.tpl` (gitignored) extended with sources steps 5-8 (insert, dedup, referrer-change insert, no-active-session skip). Sources steps reuse the session created in step 1 (same Redis), so the original 4 session steps are the precondition; sources steps run only in auto-mode (`?auto=1` / `?format=json`), not in the manual single-step wizard.
+- Test client: `internal/api/smoketest.tpl` (gitignored) extended with sources steps 5-8 (insert, dedup, referrer-change insert, no-active-session skip). Sources steps reuse the session created in step 1 (same Redis), so the original 4 session steps are the precondition; sources steps run only in auto-mode (`?auto=1` / `?format=json`), not in the manual single-step wizard.
 - Smoketest: step 6 (sources-dedup) gained a configurable retry loop (`step6_max_attempts`, default 3) with no-op session GETs between attempts to mask api4sources eventual-consistency lag.
 - Smoketest: step 3 (consent re-read) gained a `step3_warn_only` toggle (default on). Missing consent on the immediate re-read now produces a yellow `WARN` instead of a red `FAIL`, and the overall verdict can now be `PASS_WITH_WARN`. Rationale: production consent flow doesn't depend on this read — the CMP delivers consent later asynchronously. Hard Phase-0 semantics still available by unchecking the toggle.
 

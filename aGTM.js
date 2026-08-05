@@ -1004,7 +1004,10 @@ aGTM.f.urlListener = function (eventname, interval, fallback) {
  * @param {string} p - Name of GTM container ID URL Parameter, e.g. "st".
  * @param {string} l - Name of the GTM dataLayer, usually: "dataLayer".
  * @param {object} o - Object with further GTM settings like environment string, GTM URL, and GTM code.
- * Usage: aGTM.f.gtm_load(window, document, 'XYZ123', 'dataLayer', {gtm_auth: 'abc123', gtm_preview: 'env-1', gtm_cookies_win: 'x'});
+ * Usage: aGTM.f.gtm_load(window, document, 'XYZ123', 'id', 'dataLayer', {env: '&gtm_auth=abc123&gtm_preview=env-1&gtm_cookies_win=x'});
+ * Note: `o.env` is appended to the script URL verbatim and must therefore start
+ * with "&" — gtm_load prepends one if it is missing, so a value copied without
+ * it cannot swallow the "&l=<dataLayer>" that precedes it.
  */
 aGTM.f.gtm_load = function (w, d, i, p, l, o) {
   if (!aGTM.d.config) { aGTM.f.log("e7", null); return; }
@@ -1066,6 +1069,12 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
     // Construct the GTM script URL
     var gtmUrl = o.gtmURL || "https://www." + aGTM.n.tm + ".com/gtm.js";
     var envParam = o.env || "";
+    // Must start with "&": it is concatenated straight after "&l=" + dataLayer
+    // name. A value pasted without it (e.g. "gtm_auth=abc") would produce
+    // "&l=dataLayergtm_auth=abc" — GTM loads, writes to a dataLayer nobody
+    // reads, and nothing errors. The sGTM Client guarantees the "&", a
+    // standalone integrator has no such guarantee.
+    if (envParam && envParam.charAt(0) !== "&") envParam = "&" + envParam;
     var q = gtmUrl.indexOf("?")===-1 ? "?" : "&";
     scriptTag.src = gtmUrl + q + p + "=" + i + "&l=" + l + envParam;
   }

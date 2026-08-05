@@ -17,7 +17,8 @@
 // exactly what is evidenced and does not invent a stricter charset — an
 // over-broad rule here would just be noise on names nobody can import-test.
 //
-// What it cannot cover: templates outside the repo (e.g. a client kept in tmp/).
+// It covers untracked templates too (see allTemplates below) — the file that
+// caused this was one of them.
 import { describe, test, expect } from 'bun:test';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -25,10 +26,21 @@ import { execFileSync } from 'child_process';
 
 const ROOT = join(import.meta.dir, '..', '..');
 
-/** Every git-tracked .tpl file, relative to the repo root. */
-function trackedTemplates() {
-  const out = execFileSync('git', ['ls-files', '-z', '*.tpl'], { cwd: ROOT, encoding: 'utf8' });
-  return out.split('\0').filter(Boolean);
+/**
+ * Every .tpl in the working tree — tracked AND untracked.
+ *
+ * Untracked ones matter most: the import that cost the round trip was a client
+ * kept under tmp/ (gitignored), i.e. exactly the file `git ls-files` cannot see.
+ * A guard that misses the place the defect happened is decoration.
+ */
+function allTemplates() {
+  const tracked = execFileSync('git', ['ls-files', '-z', '*.tpl'], { cwd: ROOT, encoding: 'utf8' })
+    .split('\0').filter(Boolean);
+  // --others WITHOUT --exclude-standard: gitignored files are the point here.
+  const untracked = execFileSync(
+    'git', ['ls-files', '-z', '--others', '*.tpl'], { cwd: ROOT, encoding: 'utf8' }
+  ).split('\0').filter(Boolean);
+  return [...new Set([...tracked, ...untracked])].sort();
 }
 
 /** The scenario names of a template's ___TESTS___ block ([] when it has none). */
@@ -40,7 +52,7 @@ function scenarioNames(file) {
 }
 
 describe('GTM template test-scenario names are importable', () => {
-  const templates = trackedTemplates();
+  const templates = allTemplates();
 
   test('there are templates to check at all', () => {
     // Guards the guard: a broken glob would make every assertion below vacuous.

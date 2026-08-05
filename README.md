@@ -2,6 +2,21 @@
 
 ![aGTM - a Galactic Tagging Modulator](assets/aGTM-100px.png)
 
+## Which document do you need?
+
+| I want to … | Read |
+|---|---|
+| add aGTM to a website | this file |
+| read aGTM's data in (server-side) GTM — session, consent, attribution | [README-for-Integrators.md](README-for-Integrators.md) |
+| serve aGTM from my own server-side GTM | [sgtmClient/README.md](sgtmClient/README.md) |
+| know which dataLayer events arrive, and when | [EVENTS.md](EVENTS.md) |
+| debug a live integration in the browser | [devtools-extension/README.md](devtools-extension/README.md) — the aGTM Inspector |
+| work on the library itself | [README-for-Developers.md](README-for-Developers.md) |
+
+🇩🇪 Kurzeinstieg auf Deutsch: [README.de.md](README.de.md) · Interactive test page: [playground/index.html](playground/index.html)
+
+---
+
 ## Table of Contents
 
 - [What is it for? - General Information](#what-is-it-for----general-information)
@@ -10,9 +25,12 @@
 - [Consent Handling](#consent-handling)
 - [Optout](#optout)
 - [Integration options for Google Tag Manager](#integration-options-for-google-tag-manager)
+- [Loading a GTM environment (staging / preview)](#loading-a-gtm-environment-staging--preview)
+- [POST Transport](#post-transport)
 - [GTM Custom Templates for the use with aGTM](#gtm-custom-templates-for-the-use-with-agtm)
 - [DataLayer Events that aGTM uses](#datalayer-events-that-agtm-uses)
 - [Extensions](#extensions)
+- [Troubleshooting](#troubleshooting)
 - [Debugging](#debugging)
 - [Frequently Asked Questions (FAQ)](#frequently-asked-questions--faq-)
 - [Author and Contact](#author-and-contact)
@@ -135,7 +153,7 @@ With this integration variant you get out a Javascript code, which conatins all 
 ### Alternative Integration Variant: Web-Folder-based Usage in explained steps
 
 This is the normal usage, where you upload the aGTM folder to your webserver.
-_There is also a possibility to use it just in one file (or Javascript code), see the next chapter for that._
+_There is also a possibility to use it just in one file (or Javascript code), see the previous chapter for that._
 To use it as normal, follow these steps:
 
 1. **Upload the necessary files**
@@ -719,6 +737,32 @@ The configuration option "gtmURL" will be ignored in this case.
 
 ---
 
+## Loading a GTM environment (staging / preview)
+
+GTM environments let one container ID serve different versions — a staging one to
+your test site, the live one to visitors. GTM identifies them with three URL
+parameters that you get from **GTM → Admin → Environments → Get snippet**:
+`gtm_auth`, `gtm_preview` and `gtm_cookies_win`.
+
+There are two ways to hand them to aGTM, and you only need one:
+
+**Standalone (aGTM.js on your own server):** put them into the container's `env`
+option. The value is appended to the GTM script URL as-is, so write it as one
+query string. A leading `&` is expected — aGTM adds one if you forget it:
+
+```javascript
+aGTM.f.config({
+  gtm: { 'GTM-XYZ123': { env: '&gtm_auth=ABC123xyz&gtm_preview=env-1&gtm_cookies_win=x' } }
+});
+```
+
+**Served from your server-side GTM:** the environment is configured per container
+in the Client, in the **URL Parameters** column — including the option to take the
+parameters straight from the `/aGTM.js` request, so one snippet can serve staging
+and live. See [sgtmClient/README.md](sgtmClient/README.md#gtm-container-setup).
+
+---
+
 ## POST Transport
 
 aGTM can send events directly to a server-side endpoint via HTTP POST, independently of Google Tag Manager. This is useful for server-side event collection, pre-consent tracking, and use with a sGTM collect endpoint.
@@ -787,6 +831,37 @@ but it still holds the v1.1 state — use the files above instead.
 There are extensions available to extend the functionality of aGTM, e.g. to use it together with external tool.
 
 Find the available extensions in the [aGTM Extension Documentation](ext/README-extensions.md).
+
+---
+
+## Troubleshooting
+
+Four things that go wrong most often. If none of them fits, the
+[aGTM Inspector](devtools-extension/README.md) shows consent, queue and injection
+state at a glance, and [Debugging](#debugging) below explains the log.
+
+**GTM does not load at all.**
+Check in this order: (1) does `aGTM.d.consent.gtmConsent` become `true`? If not,
+your CMP has not answered or the `consent_check` does not recognise it. (2) Do the
+`gtmPurposes` / `gtmServices` / `gtmVendors` requirements match what your CMP
+actually grants? A requirement that is never met blocks GTM forever — that is the
+point of it, but it is also the most common misconfiguration. (3) Is a container
+configured at all (`aGTM.c.gtm`)?
+
+**Events arrive twice.**
+Usually a tag that fires on both the original and the replayed event. Repeated
+events carry `aGTMrepeated: true` — exclude that in the trigger of tags that must
+fire only once (conversions above all).
+
+**Events go missing.**
+Events fired before consent are parked in `aGTM.d.f` and replayed after GTM loads
+— but only if the "aGTM - DL Repeat" tag is set up. Without it they stay parked.
+Check `aGTM.d.f` in the console: if it holds your events, the replay is missing,
+not the push.
+
+**A `_post` event never reaches the endpoint.**
+POST is consent-gated like everything else unless the event carries `_noConsent`.
+Also check `transport_url` — an event with `_post: true` and no URL sends nothing.
 
 ---
 

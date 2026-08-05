@@ -1,6 +1,6 @@
 # aGTM - Developer Documentation
 
-![aGTM  a Galactic Tagging Modulator](/data/_Projects/aGTM/assets/aGTMdeveloper-100px.png)
+![aGTM  a Galactic Tagging Modulator](assets/aGTMdeveloper-100px.png)
 
 #### Overview
 
