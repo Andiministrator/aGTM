@@ -1675,6 +1675,12 @@
                 "author": "Claude Opus",
                 "created": "2026-08-03",
                 "text": "ROLLOUT-BEDINGUNGEN vor dem Re-Import (aus der Kritiker-Runde, seine Nummerierung):\n\n1. BASELINE SICHERN, sonst ist der erwartete Sprung hinterher nicht von einem Tracking-Fehler zu unterscheiden: Anteil Besucher mit C.* / mit F.* / ohne Cookie, davon die F.*-Traeger MIT gespeichertem Consent. Erste Gruppe unbetroffen, zweite wird migriert, dritte verliert das Cookie. Dazu sessionCount, Consent-Rate und First-Touch-Attribution (afs/lcs/fss) je Tag ueber mindestens eine Woche.\n\n2. API4SGTM-KAPAZITAET fuer die Promote-Herde (F-157): jeder wiederkehrende Besucher mit F.*-Cookie UND Consent loest beim ersten Aufruf nach dem Import ein /promote aus. Das wird VOR buildAndSend awaited, Timeout 5 s - bricht api4sgtm unter der Spitze ein, haengt die /aGTM.js-Auslieferung und damit der GTM-Load. Latenz + Fehlerrate in der ersten Stunde beobachten.\n\n3. NICHT waehrend einer api4sgtm-Stoerung importieren. Mit dem K1-Fix ist das kein Datenverlust mehr, aber die Promote-Migration laeuft dann ins Leere und die Herde kommt spaeter noch einmal.\n\n4. CACHE-CONTROL IN DER VORSCHAU PRUEFEN. Der Header ist neu. Die access_response-Permission steht auf writeHeaderAccess=\"specific\" ohne Liste im .tpl - dieselbe Form wie im Smoketest-Template, und der Client schreibt live bereits drei verschiedene Header-Namen, also ist es belegbar erlaubt. Der GTM-Testblock kann es NICHT beweisen, weil setResponseHeader dort gemockt ist und ein Mock die Permission umgeht. Einmal in der Vorschau nachsehen, dass die Antwort den Header traegt und kein Permission-Fehler kommt.\n\n5. ERWARTETE KENNZAHLEN-SPRUENGE (bewusster Preis, steht in SESSION-REDESIGN 7b): vor der Einwilligung rollt der User-Key jetzt taeglich. sessionCount setzt fuer diese Population taeglich zurueck, \"neu vs. wiederkehrend\" kippt Richtung neu, und First-Touch-Attribution geht fuer Besucher verloren, die erst bei einem spaeteren Besuch einwilligen. Kein Defekt.\n\n6. ROLLBACK: als neue Container-Version importieren, Vorgaengerversion behalten. Parallelbetrieb alt/neu ist unkritisch. Ein Zurueckschalten heilt geloeschte Cookies aber nicht."
+              },
+              {
+                "id": "911bf9b9-1c67-4808-bdf1-8a92e4d25de3",
+                "author": "Claude Opus",
+                "created": "2026-08-10",
+                "text": "Bezug aus der Datenschutz-Auskunft (Karte #71): Die Datenschutz-Session fuehrt diesen Punkt bei sich als P0, mit der Einordnung, dass ein ohne Einwilligung gesetztes _TPU den Speichertatbestand des Paragraf 25 Abs. 1 TDDDG erfuellt - ein Cookie-Scan zeigt es in zwei Minuten. Der Rollout ist damit nicht nur Hygiene, sondern Compliance.\n\nDAZU NEU UND SCHWERWIEGEND: F-165. hasRequiredConsent() ist default-permissiv (jsSourceCode.js:101-106) - ohne gesetztes consent_service/purpose/vendor liefert sie IMMER true, und diese drei Felder sind bei cookie_mode=always (dem Default) nicht einmal sichtbar. Meldet die CMP beim Ablehnen noch eine essenzielle Kategorie, folgt: Promote -> _TPU mit C.*, 365 Tage, NACH EINER ABLEHNUNG.\n\nVor dem Rollout messen: CMP ablehnen, dann _TPU pruefen - in DevTools unter Application/Cookies, NICHT per JS. Das Cookie ist httpOnly, ein JS-basierter Cookie-Scanner sieht es nie und spricht es faelschlich frei."
               }
             ]
           },
@@ -1693,7 +1699,15 @@
             "links": [],
             "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js: der sd.consent-Passthrough im Session-GET-Callback (r.consent -> sd.consent) und der Auto-Denial-Zweig direkt darunter (sd.ret). existingCookie wird in afterBotCheck einmalig gelesen und steht im Closure zur Verfuegung. Getestet wird es mit test/sgtm/client-harness.js: Session-API liefert einen Consent, Besucher OHNE Cookie -> der Consent darf nicht im ausgelieferten JS landen; Besucher MIT C.*-Cookie -> er muss es weiterhin. Vorher klaeren: ein Besucher, der seine Cookies loescht, aber schon eingewilligt hatte, verliert damit die Kontinuitaet und wird erneut gefragt - das ist der Preis und er ist zu benennen. Byte-Identitaet von template.tpl beachten (build.sh synct nur den base64-Blob). Findings F-156, Vorgeschichte F-153/F-155.",
             "displayId": 63,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "comments": [
+              {
+                "id": "5c0e1ddb-8393-43a7-8fb5-1f18df9067c2",
+                "author": "Claude Opus",
+                "created": "2026-08-10",
+                "text": "Rechtliche Einordnung von aussen (Datenschutz-Session, Bezug Karte #71): Eine Einwilligung, die nicht von der betroffenen Person stammt, ist KEINE Einwilligung (Art. 4 Nr. 11 DSGVO), und Art. 7 Abs. 1 verlangt den Nachweis gerade DIESER Bekundung. Sie fuehren den Punkt bei sich als P0.\n\nDie Entscheidung bleibt Andis - aber sie sollte mit dieser Einordnung getroffen werden, nicht ohne. Verwandt: F-167 (leere Consent-Bedingungstabelle laedt GTM auch bei Ablehnung) trifft dieselbe Klasse - ein Gate, das im ausgelieferten Zustand offen ist."
+              }
+            ]
           },
           {
             "id": "961aee35-a679-4d50-9e0b-c6c60551d3e1",
@@ -1837,6 +1851,18 @@
               }
             ],
             "displayId": 70
+          },
+          {
+            "id": "d9708f16-9a2f-430f-8d3a-96ce02acf417",
+            "title": "Datenschutz-Auskunft WeDaPi/MEININGER - 8 neue Findings, 2 davon P1 (Consent-Gate)",
+            "description": "ANKER FUER DEN NAECHSTEN CHAT. Volle Uebergabe (nennt Kundennamen, deshalb nicht hier):\ndocs/uebergabe-datenschutz-auskunft-2026-08-10.md\n\nDie Datenschutz-Session (/home/andi/projects/datenschutz) hat 9 belegpflichtige Fragen\nzum Produkt gestellt (ein externer DSB laesst die Website scannen). Kein Code geaendert -\nreine Auskunft. QA + Kritiker fanden 16 Befunde an meiner Antwort, davon 3 P1.\n\nNEUE FINDINGS: F-164 bis F-171 (docs/findings.md).\n\nDIE ZWEI P1, DIE ANDIS ENTSCHEIDUNG BRAUCHEN:\n- F-167: leere Consent-Bedingungstabelle = fail-open, UND das ist der ausgelieferte\n  Zustand. chelp() gibt bei leerer Anforderung true zurueck (aGTM.js:492-497), die\n  Tabelle wird leer ausgeliefert (template.tpl:349/350), und die CMP meldet bei\n  Ablehnung hasResponse=true (cc_ccm19.js:54-60). Ergebnis: GTM laedt auch nach\n  Alles-ablehnen. Stufe 3 des Fixes verschiebt ein LIVE laufendes Consent-Gate\n  (gleiche Risikoklasse wie F-156) - gehoert vor die Entscheidung, nicht dahinter.\n- F-169: README.md:47 verspricht oeffentlich, GTM werde nicht vor oder ohne Consent\n  geladen. Vier Konfigurationen halten das nicht (noConsent-Container, Auto-Denial\n  mit Default true, F-167, iFrame-Modus). Der Satz steht unter externer Pruefung.\n\nSCHNELL ABZURAEUMEN: F-168 - consent_store_enc ist anhakbar, der Server antwortet\ndann mit 501 und schreibt nichts, der Hilfetext schweigt dazu. Einzeiler, hohe Wirkung.\n\nEIGENER FEHLER, VERFAHREN GEFIXT: F-166 - git tag sortiert alphabetisch, der neueste\nTag ist sgtm-client-1.4.3 (2026-08-05), nicht v1.4.1. Der 1.4.3-Client hat 324 statt\n1358 Zeilen und kennt WEDER Cookie NOCH Session NOCH Fingerprint NOCH Auto-Denial.\nImmer: git for-each-ref --sort=-creatordate refs/tags\n\nOFFENE FRAGEN AN ANDI (Details in der Uebergabedatei):\n1. Laeuft bei MEININGER ueberhaupt die Session-API (session_api_url + tenant_id)?\n   Ohne sie greift die Auto-Denial gar nicht - das entscheidet die halbe Analyse.\n2. Tagesstempel im buildStr des Fingerprints - geplant oder nicht? Im Repo gibt es\n   dazu weder Karte noch Finding; heute ist er ein Suffix hinter dem Hash.\n3. Darf die Antwortdatei aus datenschutz/tmp/ in deren getracktes Verzeichnis?\n4. Eigene Karten fuer F-167/F-169 anlegen?",
+            "columnId": "col-schreiben",
+            "owner": "Claude Opus",
+            "critical": true,
+            "complexity": "M",
+            "effort": 3,
+            "agentContext": "docs/uebergabe-datenschutz-auskunft-2026-08-10.md - volle Uebergabe (gitignored, lokal)\ndocs/findings.md - F-164 bis F-171\nknowledge/topics/auskunft-ueber-das-eigene-produkt.md - die 6 Fehlerklassen dieser Runde\nknowledge/topics/versionsarchaeologie-ausgelieferte-staende.md - zwei Tag-Namensraeume\nZustellkanal zur Datenschutz-Session: Datei nach /home/andi/projects/datenschutz/tmp/\nablegen. SendMessage erreicht sie NICHT (ihre Session hat keinen Messaging-Socket,\nweil sie vor dem Socket-Verzeichnis gestartet ist). Sie erreicht uns, wir sie nicht.\nES5-Reflex beachten, falls aus den Findings Code-Arbeit wird: var, keine Arrow-Fns,\ndanach bun test + ./build.sh ohne Warnung.",
+            "displayId": 71
           }
         ]
       },
@@ -2122,11 +2148,15 @@
         ]
       }
     ],
-    "nextDisplayId": 71,
+    "nextDisplayId": 72,
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": null,
+    "awaitingUser": {
+      "question": "### Library — läuft im Non-Consent-Fall\n\n| Merkmal | API | Fundstelle | Non-Consent?",
+      "since": "2026-08-10T16:05:40.635629+00:00",
+      "askedBy": "Claude Sonnet 4.6"
+    },
     "identities": [
       {
         "id": "user-default",
