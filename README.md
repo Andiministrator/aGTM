@@ -591,10 +591,18 @@ them apply to you before you rely on the default in a privacy statement.
 
 | Case | What happens | Configured in |
 |---|---|---|
+| **Consent check switched off** | No CMP is consulted at all. aGTM records `hasResponse: true` with the feedback *“No Consent Check configured”* and injects GTM right away. | `cmp: 'none'` |
 | **No consent conditions configured** | The consent check has nothing to require, so it is satisfied by anything — including a rejection. GTM loads after “reject all”. | `gtmPurposes` / `gtmServices` / `gtmVendors`, resp. the *Consent Check Conditions* table of the sGTM Client. **Ships empty.** |
 | **`noConsent` containers** | Containers marked `noConsent: true` are injected at startup, before any decision. Intended for loading a CMP or consent-free diagnostics. | `gtm` container table, column *Consent Check* |
 | **Server-side auto-denial** | The sGTM Client records “no consent” for a returning visitor without a stored decision, and — with `auto_deny_load_gtm` (default **on**) — still loads GTM, so that only tags gated on `aGTMconsent` may fire. | sGTM Client, *auto_deny_load_gtm* |
 | **iFrame mode** | Inside an iframe, consent is taken from the parent window and the CMP check is skipped. | `iframeSupport` |
+
+One more, not an option but a misconfiguration worth knowing: if you enable **Custom CMP Check**
+in the sGTM Client and leave the pre-filled default code in place, that code reports
+`hasResponse: true` and takes the granted purposes/services/vendors from your *static
+configuration* instead of from a CMP (its own feedback says *“no valid check fct given,
+cfg used”*). No visitor is ever asked. Replace the default with a real check, or leave
+Custom CMP Check off.
 
 **How to check your own setup** — this is the only reliable test, and it takes half a
 minute: open the site, reject everything in the consent banner, then read
