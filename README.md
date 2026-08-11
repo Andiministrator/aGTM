@@ -44,7 +44,7 @@ aGTM can help you to make your life easier, if you use the Google Tag Manager de
 
 ### In short
 
-The “aGTM” provides functions for an easier and more data privacy friendly integration/handling of Google Tag Manager. GTM will not be fired before or without consent. In addition there is some basic functionality provided for the use in GTM Custom Templates. And there are some cool GTM Custom Templates ...
+The “aGTM” provides functions for an easier and more data privacy friendly integration/handling of Google Tag Manager. By default, GTM is not loaded until a consent decision is available; which conditions have to be met is defined by the **Consent Check Conditions** of your setup, and a few documented options deliberately relax this — see [When aGTM loads GTM without a consent decision](#when-agtm-loads-gtm-without-a-consent-decision). In addition there is some basic functionality provided for the use in GTM Custom Templates. And there are some cool GTM Custom Templates ...
 
 ### Something more detailed
 
@@ -52,7 +52,7 @@ Handling Google Tag Manager and (cookie) consent is often very tiring and frustr
 Especially when, for example, eCommerce events come into the GTM dataLayer, but the consent information only comes later, the setup in Google Tag Manager becomes difficult.
 If there is also a requirement to use Google Consent Mode with GTM, further problems arise.
 This Javascript library replaces the normal code to integrate the Google Tag Manager into the website.
-The advantage is that the (cookie) consent information is already available before the Google Tag Manager is loaded. Or (in other words) the Google Tag Manager is only loaded when the consent is available. And (depending on the configuration) only if the visitor has agreed to the delivery of the GTM in the consent banner - so it is also a very data protection-friendly solution.
+The advantage is that the (cookie) consent information is already available before the Google Tag Manager is loaded. Or (in other words) in the default setup the Google Tag Manager is only loaded once the consent decision is available. And (depending on the configuration) only if the visitor has agreed to the delivery of the GTM in the consent banner - so it is also a very data protection-friendly solution.
 In any case, with the GTM setup you no longer have to worry about whether and when the consent is available, but can take care of the actual setup.
 
 ### Even more information
@@ -581,6 +581,32 @@ This logic lives entirely in the sGTM Client (template + `jsSourceCode.js`) — 
 ## Consent Handling
 
 > **Loading the CMP itself before aGTM checks consent?** See the [CMP Loader Pattern](sgtmClient/README.md#cmp-loader-pattern) in the sGTM Client docs — a dedicated `noConsent` container is the recommended way; an inline script field in the sGTM Client template is available as a fallback.
+
+### When aGTM loads GTM without a consent decision
+
+aGTM's default is to wait for a consent decision before injecting GTM. That default
+is not absolute: the following options deliberately load GTM without one. They exist
+for good reasons, but each is a decision you make for your setup — so verify which of
+them apply to you before you rely on the default in a privacy statement.
+
+| Case | What happens | Configured in |
+|---|---|---|
+| **No consent conditions configured** | The consent check has nothing to require, so it is satisfied by anything — including a rejection. GTM loads after “reject all”. | `gtmPurposes` / `gtmServices` / `gtmVendors`, resp. the *Consent Check Conditions* table of the sGTM Client. **Ships empty.** |
+| **`noConsent` containers** | Containers marked `noConsent: true` are injected at startup, before any decision. Intended for loading a CMP or consent-free diagnostics. | `gtm` container table, column *Consent Check* |
+| **Server-side auto-denial** | The sGTM Client records “no consent” for a returning visitor without a stored decision, and — with `auto_deny_load_gtm` (default **on**) — still loads GTM, so that only tags gated on `aGTMconsent` may fire. | sGTM Client, *auto_deny_load_gtm* |
+| **iFrame mode** | Inside an iframe, consent is taken from the parent window and the CMP check is skipped. | `iframeSupport` |
+
+**How to check your own setup** — this is the only reliable test, and it takes half a
+minute: open the site, reject everything in the consent banner, then read
+
+```javascript
+aGTM.d.consent.gtmConsent   // expected: false
+```
+
+If it is `true` after a rejection, GTM loads despite the rejection — in most cases
+because no consent conditions are configured. Note that the conditions have to name
+what your CMP actually reports (a category or service name it emits), and must not
+name the essential/necessary category, which many CMPs report even after a rejection.
 
 ### Use Event Listeners instead of the default timer
 

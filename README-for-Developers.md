@@ -262,7 +262,7 @@ Understanding when and how GTM gets injected into the DOM is essential for exten
 
 #### Overview
 
-aGTM sits between the page and Google Tag Manager. Its core job is: **do not inject GTM until the user's consent decision is available.** Events fired before consent are queued and replayed once GTM is loaded.
+aGTM sits between the page and Google Tag Manager. Its core job is: **do not inject GTM until the user's consent decision is available.** Events fired before consent are queued and replayed once GTM is loaded. Four documented options deliberately bypass that gate — see [When aGTM loads GTM without a consent decision](README.md#when-agtm-loads-gtm-without-a-consent-decision).
 
 The flow starts with `aGTM.f.init()`, which the integrator calls after providing the configuration and the CMP-specific `consent_check` function.
 
