@@ -2077,6 +2077,24 @@
             "comments": [],
             "columnId": "col-backlog",
             "displayId": 69
+          },
+          {
+            "id": "agtm-v16-fp-daystamp-hash",
+            "title": "Fingerprint: Tagesstempel in den Hash statt nur als Suffix (CNIL-Kriterium 2)",
+            "description": "Den Tagesstempel in den Fingerprint-HASH aufnehmen, statt ihn nur als Suffix anzuhaengen.\n\nIST (jsSourceCode.js:543-583): getFingerprintString() hasht `buildStr`, das ausschliesslich Request-Header enthaelt (accept-language, client-ip, sgtm-host, user-agent, sec-ch-ua*, x-geoip-*, x-scheme). Der Tagesstempel wird erst in getFingerprint() NACH dem Hash angehaengt: F<lim>1<lim><tenant><lim><base64(sha256(header))>.<YYYYMMDD>. Der Hash-Anteil ist damit ueber Tage hinweg stabil und im Wert sichtbar — genau die stabile Komponente, die CNIL-Kriterium 2 (zeitlich variable Komponente) adressiert.\n\nSOLL: den Stempel in buildStr aufnehmen, damit der Hash selbst taeglich wechselt.\n\nAUFWAND: klein. Ein zusaetzlicher Eintrag in `requestHeaders` (z. B. day: getFingerprintTimestamp()) genuegt; die Schleife nimmt ihn mit, der truthy-Guard greift. Eine Reihenfolge-Frage gibt es nicht, weil ohnehin ueber die Objekt-Keys iteriert wird.\n\nOPERATIV FOLGENLOS — wichtig fuer die Risikoeinschaetzung: die vollstaendige uid rotiert HEUTE SCHON taeglich (der Suffix ist Teil des Session-API-Pfads, jsSourceCode.js:1216). Der Sitzungsschluessel wechselt also mit oder ohne die Aenderung im selben Takt; es gehen keine Sitzungen zusaetzlich verloren. Die uid wird nirgends zerlegt (nur isFingerprintUid prueft das Prefix), die Aenderung ist damit self-contained.\n\nWAS SIE NICHT TUT: F-156 bleibt unberuehrt. Zwei Besucher mit gleichen Headern am selben Tag leiten weiterhin denselben Schluessel ab — die Kollision und damit die Consent-Vererbung aendert sich nicht. Beides nicht vermengen: das hier ist Identifizierbarkeit/CNIL, F-156 ist die Einwilligungs-Zuordnung.\n\nHERKUNFT: Zusage aus dem MEININGER-Datenschutzdossier (dort F-95/F-130); laut Datenschutz-Session hat Andi es am 11.08.2026 als sicher bestaetigt. Kein Termin zugesagt. BITTE VON ANDI GEGENZEICHNEN — die Bestaetigung kam hier nur ueber die Nebensession an.",
+            "status": "offen",
+            "priority": "mittel",
+            "owner": "",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "S",
+            "effort": 1,
+            "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js:543-583 (getFingerprintString / getFingerprintTimestamp / getFingerprint). Aenderung MUSS identisch in sgtmClient/template.tpl (___SANDBOXED_JS_FOR_SERVER___) landen — Byte-Identitaet ist Invariante, siehe CLAUDE.md. Danach bun test + ./build.sh.",
+            "links": [],
+            "comments": [],
+            "columnId": "col-backlog",
+            "displayId": 72
           }
         ]
       },
@@ -2160,7 +2178,7 @@
         ]
       }
     ],
-    "nextDisplayId": 72,
+    "nextDisplayId": 73,
     "attachments": [],
     "background": null,
     "templates": [],
