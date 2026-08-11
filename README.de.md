@@ -8,7 +8,7 @@
 
 ## Was ist aGTM?
 
-aGTM (*a Galactic Tagging Modulator*) ist eine JavaScript-Library, die den Google Tag Manager (GTM) erst dann in die Seite lädt, wenn die Einwilligung des Nutzers vorliegt. Events, die vor der Einwilligung gefeuert werden, werden automatisch zwischengespeichert und nach dem GTM-Load nachgereicht – du musst dich im GTM-Setup nicht mehr darum kümmern, ob und wann Consent verfügbar ist.
+aGTM (*a Galactic Tagging Modulator*) ist eine JavaScript-Library, die den Google Tag Manager (GTM) standardmäßig erst dann in die Seite lädt, wenn die Consent-Entscheidung des Nutzers vorliegt. Welche Bedingungen dabei erfüllt sein müssen, legt deine Consent-Konfiguration fest; einige dokumentierte Optionen lockern das bewusst – siehe [When aGTM loads GTM without a consent decision](README.md#when-agtm-loads-gtm-without-a-consent-decision). Events, die vor der Einwilligung gefeuert werden, werden automatisch zwischengespeichert und nach dem GTM-Load nachgereicht – du musst dich im GTM-Setup nicht mehr darum kümmern, ob und wann Consent verfügbar ist.
 
 **Kernfunktionen:**
 - GTM-Einbindung erst nach Consent (DSGVO-konform)
