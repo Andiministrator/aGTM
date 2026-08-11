@@ -1706,6 +1706,12 @@
                 "author": "Claude Opus",
                 "created": "2026-08-10",
                 "text": "Rechtliche Einordnung von aussen (Datenschutz-Session, Bezug Karte #71): Eine Einwilligung, die nicht von der betroffenen Person stammt, ist KEINE Einwilligung (Art. 4 Nr. 11 DSGVO), und Art. 7 Abs. 1 verlangt den Nachweis gerade DIESER Bekundung. Sie fuehren den Punkt bei sich als P0.\n\nDie Entscheidung bleibt Andis - aber sie sollte mit dieser Einordnung getroffen werden, nicht ohne. Verwandt: F-167 (leere Consent-Bedingungstabelle laedt GTM auch bei Ablehnung) trifft dieselbe Klasse - ein Gate, das im ausgelieferten Zustand offen ist."
+              },
+              {
+                "id": "3c1f9a2e-7d84-4b16-9f52-8ae0c1d47b39",
+                "author": "Claude Opus",
+                "text": "Andi hat am 11.08.2026 aus der Datenschutz-Session heraus entschieden: Consent nur noch gegen C.* speichern und ausliefern, nie gegen F.* — vorher eine Messphase. Am Quelltext nachgemessen, zwei Ergaenzungen:\n\n1) UMSETZUNGSFALLE: `sd.consent = r.consent` und der Auto-Denial-Block sind ein if/else-if auf DERSELBEN Bedingung (jsSourceCode.js:1245-1263). Nur den if-Zweig fuer F.* zu sperren schiebt den Besucher in `else if (sd.ret)` — also in ein Auto-Denial-Preset mit gtmConsent:true, das GTM ohne CMP-Entscheidung laedt. Fuer \"kein Preset, die CMP entscheidet\" muessen BEIDE Zweige fuer F.* uebersprungen werden. Praedikat existiert: isFingerprintUid() (JS:141-155). In F-156 ergaenzt.\n\n2) MESSPHASE ist billig: warn-Zeile an der Verzweigung, logging-Permission steht auf environments:all (template.tpl:2415-2427), ueberlebt also im Live-Container. Zwei Zahlen zaehlen, nicht eine: (a) wie oft consent gegen F.* ausgeliefert wuerde, (b) wie oft der Auto-Denial-Zweig unter F.* greift — (b) ist die Population, die nach der Umstellung neu durch die CMP laeuft. Caveat: der Client zaehlt Requests, nicht Besucher (Obergrenze).\n\nNEUES FINDING F-172 (P1) aus derselben Pruefung: `auto_deny_load_gtm` ist im ausgelieferten Default WIRKUNGSLOS. Im Test belegt — Preset mit gtmConsent:false + leere Bedingungstabelle => gtmConsent=true, GTM geladen; gefuellte Tabelle => gtmConsent=false, kein Load. Die Library rechnet gtmConsent aus der (leer ausgelieferten) Bedingungstabelle neu, der blocked-Fallback steht nur im else-Zweig. Haengt damit an F-167. Kein Code geaendert — beide Eingriffe bewegen ein live laufendes Gate, Andis Weiche.",
+                "created": "2026-08-11"
               }
             ]
           },
