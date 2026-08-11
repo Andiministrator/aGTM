@@ -2152,11 +2152,7 @@
     "attachments": [],
     "background": null,
     "templates": [],
-    "awaitingUser": {
-      "question": "### Library — läuft im Non-Consent-Fall\n\n| Merkmal | API | Fundstelle | Non-Consent?",
-      "since": "2026-08-10T16:05:40.635629+00:00",
-      "askedBy": "Claude Sonnet 4.6"
-    },
+    "awaitingUser": null,
     "identities": [
       {
         "id": "user-default",
