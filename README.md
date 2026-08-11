@@ -584,10 +584,13 @@ This logic lives entirely in the sGTM Client (template + `jsSourceCode.js`) — 
 
 ### When aGTM loads GTM without a consent decision
 
-aGTM's default is to wait for a consent decision before injecting GTM. That default
-is not absolute: the following options deliberately load GTM without one. They exist
-for good reasons, but each is a decision you make for your setup — so verify which of
-them apply to you before you rely on the default in a privacy statement.
+aGTM's default is to wait for a consent decision before injecting GTM. That default is
+not absolute — the cases below load GTM without one. Four of them are switches **you**
+turn on deliberately, for good reasons; they are listed here so you can state them, not
+because there is anything wrong with them. The exception is the second row: an empty
+consent-condition table is what aGTM **ships with**, so that one applies until you
+configure it. Check which of these apply before you rely on the default in a privacy
+statement.
 
 | Case | What happens | Configured in |
 |---|---|---|
@@ -595,7 +598,7 @@ them apply to you before you rely on the default in a privacy statement.
 | **No consent conditions configured** | The consent check has nothing to require, so it is satisfied by anything — including a rejection. GTM loads after “reject all”. | `gtmPurposes` / `gtmServices` / `gtmVendors`, resp. the *Consent Check Conditions* table of the sGTM Client. **Ships empty.** |
 | **`noConsent` containers** | Containers marked `noConsent: true` are injected at startup, before any decision. Intended for loading a CMP or consent-free diagnostics. | `gtm` container table, column *Consent Check* |
 | **Server-side auto-denial** | The sGTM Client records “no consent” for a returning visitor without a stored decision, and — with `auto_deny_load_gtm` (default **on**) — still loads GTM, so that only tags gated on `aGTMconsent` may fire. | sGTM Client, *auto_deny_load_gtm* |
-| **iFrame mode** | Inside an iframe, consent is taken from the parent window and the CMP check is skipped. | `iframeSupport` |
+| **iFrame mode** | Inside an iframe, aGTM grants consent itself and skips the CMP check — the decision is expected to have been made in the parent document, which runs its own check, and events are forwarded there via `postMessage`. Note that this **also injects whatever GTM container is configured for the iframe instance**; if the iframe should only forward events to the parent, configure no container for it. | `iframeSupport` |
 
 One more, not an option but a misconfiguration worth knowing: if you enable **Custom CMP Check**
 in the sGTM Client and leave the pre-filled default code in place, that code reports
