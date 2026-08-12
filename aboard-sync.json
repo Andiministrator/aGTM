@@ -2095,6 +2095,24 @@
             "comments": [],
             "columnId": "col-backlog",
             "displayId": 72
+          },
+          {
+            "id": "agtm-v16-iframe-rethink",
+            "title": "iFrame-Modus zu Ende denken: GTM im iFrame laden oder nicht — und was darf raus?",
+            "description": "Der iFrame-Modus ist nie zu Ende gedacht worden. Andi (12.08.2026): \"theoretisch soll da der GTM schon rein, aber der darf nichts rausschicken sondern nur als message nach oben senden. oder lassen wir ihn raus und nur den aGTM und die aGTM-Tags arbeiten?\"\n\n== IST-ZUSTAND, gemessen (nicht gelesen) ==\n\n- GTM WIRD im iFrame geladen (iframeSupport + is_iframe => gtmConsent=true, inject()). Unveraendert seit v1.0, git log -S \"Page is iFrame\" liefert genau einen Commit.\n- fire() verhaelt sich anders: User-Events gehen per postMessage ans Elternfenster, NICHT in den eigenen dataLayer. Das ist die Haelfte, die funktioniert.\n- ABER die Trennung ist nicht sauber. Gemessen mit einem Event vor und einem nach dem Handshake:\n    dataLayer im iFrame : [\"aGTM_ready\", \"gtm.js\"]\n    aGTM_ready.hastyEvents: [\"early_event\"]      <-- das VOR dem Handshake gefeuerte User-Event\n    postMessage nach oben : [\"late_event\"]\n  Der GTM im iFrame bekommt also die frueh gefeuerten Events ueber den hastyEvents-Replay doch zu sehen, die spaeteren nicht. Welche Events ein iFrame-GTM verarbeitet, haengt damit vom Zeitpunkt des Handshakes ab — eine zeitabhaengige Teilmenge, die niemand so entworfen hat.\n\n== DIE ZWEI OPTIONEN (Andis Frage) ==\n\n(a) GTM bleibt im iFrame, darf aber nichts nach aussen senden.\n    Offene Frage: aGTM kann das nicht erzwingen. Laeuft ein Tag, sendet es. Der einzige Hebel der Library ist, dem iFrame-GTM gar keine Events mehr zu geben — dann ist (a) faktisch (b) plus ein geladener, leerlaufender Container. Zu klaeren: wozu dann noch laden?\n(b) Kein GTM im iFrame; nur aGTM und die aGTM-Tags arbeiten, alles geht per Message nach oben.\n    Waere ein BREAKING CHANGE fuer die dokumentierte Nutzung \"run GTM inside an iframe without requiring its own consent banner\" (README.md:275). Wer das heute so einsetzt, verliert seine Messung im iFrame.\n\n== MINDESTENS ZU ENTSCHEIDEN ==\n\n1. Soll das Laden an is_iframe gekoppelt werden, oder bleibt es an der Container-Konfiguration haengen (heutiger Zustand: laedt genau dann, wenn fuer die iFrame-Instanz ein Container konfiguriert ist)?\n2. Unabhaengig von 1: die hastyEvents-Asymmetrie ist in JEDER Variante falsch. Entweder der iFrame-GTM bekommt alle User-Events oder keine — nicht die, die zufaellig frueh kamen.\n3. Braucht es einen eigenen Schalter statt der Doppelbelegung von iframeSupport? Heute teilen sich zwei legitime Nutzungen einen Schalter: reiner Event-Weiterleiter und iFrame mit eigenem GTM auf Eltern-Consent.\n4. Datenschutz-Seite: die Nebensession wollte \"im iFrame geht nichts nach extern\" als Entlastung ins MEININGER-Dossier schreiben. Das ist derzeit eine Aussage ueber die Konfiguration, nicht ueber die Library (siehe F-176). Eine Entscheidung hier macht daraus eine belastbare Produktaussage — oder eben nicht.\n\n== BEZUG ==\nF-176 (Erwartungsluecke, P2). Nicht zu verwechseln mit F-175 (gtm:{} wirft) — das ist ein eigener Bug, der nur beim Nachgehen dieser Frage auffiel.\nDoku, die mitziehen muss: README.md (\"### iframeSupport\" + die Bypass-Tabelle), README-for-Developers.md (Call-Graph), gtm/tags/iframe-support/.",
+            "status": "offen",
+            "priority": "mittel",
+            "owner": "",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": 3,
+            "agentContext": "Messpunkte: aGTM.js:2292-2300 (init, iFrame-Zweig), aGTM.js:1141-1169 (initGTM), aGTM.js:1012-1022 (gtm_load pusht aGTM_ready+gtm.js lokal), aGTM.js:1254-1290 (iFrameFire), aGTM.js:2555-2565 (fire-Weiche). Verhalten reproduzierbar mit aGTM.d.is_iframe=true + window.top-Stub; siehe test/iframe_handshake.test.js als Vorlage. Jede Aenderung ist ES5 + bun test + ./build.sh.",
+            "links": [],
+            "comments": [],
+            "columnId": "col-backlog",
+            "displayId": 73
           }
         ]
       },
@@ -2178,7 +2196,7 @@
         ]
       }
     ],
-    "nextDisplayId": 73,
+    "nextDisplayId": 74,
     "attachments": [],
     "background": null,
     "templates": [],
