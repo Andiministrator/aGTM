@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 05.08.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 12.08.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -1139,10 +1139,24 @@ aGTM.f.pageready = function (evob) {
  * Usage: aGTM.f.initGTM(false);
  */
 aGTM.f.initGTM = function (noConsentGTM) {
+  // No container configuration at all: nothing to inject. An empty object
+  // (`gtm: {}`) and a missing `gtm` key mean the same thing here — see the
+  // removed fallback below.
   if (typeof aGTM.c.gtm != 'object' || !aGTM.c.gtm) return;
-  var count = 0;
+  // There used to be a `if (!count) { gtm_load(…, aGTM.c.gtm[containerId]…) }`
+  // fallback here, meant to implement the v1.2 promise "load aGTM without
+  // loading a container". It could never work: `count === 0` holds exactly when
+  // the object has no own enumerable keys, and then `containerId` — the loop
+  // variable of a loop that never ran — is `undefined`, so the fallback threw a
+  // TypeError instead of loading anything. That killed `init()` outright: no
+  // GTM, no chkDPready(), and jserrors() never installed, so the failure could
+  // not even report itself. Reachable through the documented loader snippet,
+  // which assigns the integrator's object straight to `aGTM.c` (`gtm: {}` or a
+  // stray `gtm: []`). Removed rather than repaired: the promise it was meant to
+  // keep needs decisions this fix must not make silently (whether a
+  // container-less instance emits the lifecycle events at all, and if so how
+  // `gtmLoaded` bookkeeping and `noConsentGTM` apply). Tracked separately.
   for (var containerId in aGTM.c.gtm) {
-    count++;
     if (aGTM.c.gtm.hasOwnProperty(containerId)) {
       if (typeof aGTM.c.gtm[containerId].hasLoaded != 'boolean') aGTM.c.gtm[containerId].hasLoaded = false;
       if (!aGTM.c.gtm[containerId].hasLoaded && (!noConsentGTM || aGTM.c.gtm[containerId].noConsent)) {
@@ -1157,16 +1171,6 @@ aGTM.f.initGTM = function (noConsentGTM) {
         aGTM.c.gtm[containerId].hasLoaded = true;
       }
     }
-  }
-  if (!count) {
-    aGTM.f.gtm_load(
-      window,
-      document,
-      '',
-      aGTM.c.gtm[containerId].idParam ? aGTM.c.gtm[containerId].idParam : '',
-      aGTM.c.gdl,
-      null
-    );
   }
 };
 
