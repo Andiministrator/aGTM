@@ -1881,6 +1881,12 @@
                 "author": "Claude Opus",
                 "text": "UEBERGABE 12.08.2026 (Kontextschnitt).\n\nERLEDIGT IN DIESER SESSION\n- F-169 behoben und gepusht (b31e73e, 7a99ffe, a5505b3): die unbedingte README-Zusage \"GTM will not be fired before or without consent\" ist an allen VIER Fundstellen praezisiert (README.md:47 + :53, README.de.md:11, README-for-Developers.md:265), dazu neuer Abschnitt \"When aGTM loads GTM without a consent decision\" unter Consent Handling mit FUENF Bypass-Faellen und dem Ablehnungstest. Die urspruengliche Vierer-Liste war selbst unvollstaendig — cmp:none fehlte.\n- F-175 behoben und gepusht (39e9356): leeres gtm-Objekt killte init() komplett. 8 Regressionstests, mutationsgeprueft (7 fallen ohne den Fix). 1089 Tests gruen, build.sh sauber, min.js 36.168 -> 36.052 B.\n- Datenschutz-Session (MEININGER-Dossier) durchgaengig begleitet, sechs Runden. Ergebnis dort eingearbeitet, Aktenstand deckungsgleich.\n\nNEUE FINDINGS\n- F-172 (P2) auto_deny_load_gtm ist im Default wirkungslos · F-173 (P2) doppelte Tabellenzeilen ueberschreiben sich · F-174 (P2) Tabelle und Schalter sind ein UND · F-176 (P2) iFrame-Erwartungsluecke · F-177 (P1) container-lose Instanz feuert keine Lifecycle-Events, v1.2-Changelog-Zusage nie eingeloest · F-178/F-179 (P1 SECURITY) iFrame-Tag reicht Steuer-Flags aus Fremdframes durch + unverankerte Regex-Allow-Liste.\n- F-46 von P3 auf P1 hochgestuft: die Bewertung \"Laufzeitrisiko = 0\" galt nur der eingebetteten Alt-Library. Der oeffentlich verteilte Workspace-Export traegt den iFrame-Tag auf dem Stand VOR F-33 und ist damit die verwundbarste Fassung. Braucht GTM-UI-Zugang => Andi.\n\nNAECHSTER SCHRITT\nKarte #74 — F-178/F-179 umsetzen. Spezifikation ist vollstaendig und von Andi entschieden, nur noch ausfuehren. Nicht in dieser Session begonnen, weil ein halb angewendeter Sicherheitspatch an einem ausgelieferten Template schlechter waere als keiner.\n\nOFFEN UND UNANGETASTET\nF-167 (leere Bedingungstabelle, Andis Weiche) · F-156 (Consent-Vererbung + Messphase) · F-165 · main-Merge fuer v1.5. Karten #72 (Tagesstempel, von Andi gegengezeichnet) und #73 (iFrame-Modus zu Ende denken) liegen im v1.6-Backlog.\n\nBOARD: auf Op-Inbox migriert (ADR-0067) — Ops via makeOp an aboard-sync.inbox/ anhaengen, NIE aboard-sync.json direktschreiben.",
                 "created": "2026-08-12"
+              },
+              {
+                "id": "697a46ee-cf49-49b0-af5b-4ee727ac1906",
+                "author": "Claude Opus",
+                "text": "FORTSCHRITT 12.08.2026 (Andi hat die Auswahl delegiert: \"entscheide du, aber halte aGTM klein und leicht\").\n\nGEWAEHLT und erledigt: das Doku-/Hilfetext-Buendel — F-168 und F-170 sind behoben, F-174 im Doku-Teil abgeschlossen, F-167 Stufe (1)+(2) sowie die Hilfetext-Zwischenschritte zu F-172/F-173 sind drin. Eigene Karte in Erledigt, Commit f572cf1 auf dev.\n\nAUSWAHLBEGRUENDUNG: es behebt vier unwahre Zusagen in ausgelieferter UI und Doku, kostet null Bytes in aGTM.min.js (byte-identisch, 36.052 B — die einzige Library-Aenderung sind Kommentare) und bewegt keine Consent-Semantik. Genau die Klasse Arbeit, die ein DSB liest und die trotzdem nichts riskiert.\n\nBEWUSST LIEGENGEBLIEBEN: F-167 Stufe (3), F-156, F-165, F-177 — alle vier verschieben ein live laufendes Gate oder brauchen eine Messung an einem echten Tenant. F-46 braucht GTM-UI-Zugang. Diese Karte bleibt deshalb in Arbeit.",
+                "created": "2026-08-12"
               }
             ]
           },
@@ -1908,6 +1914,24 @@
             ],
             "columnId": "col-erledigt",
             "displayId": 74
+          },
+          {
+            "id": "agtm-v15-doku-consent-gate-texte",
+            "title": "Vier Einstellungen versprachen etwas, das der Code nicht tut (F-168/F-170 + Texte zu F-167/F-172/F-173/F-174)",
+            "description": "Das Doku-/Hilfetext-Buendel aus der Datenschutz-Runde — ausgewaehlt, weil es die einzige sicherheitsrelevante Arbeit war, die KEINE Weiche von Andi braucht und kein live laufendes Consent-Gate bewegt.\n\nERLEDIGT (Commit f572cf1, dev):\n- F-170 (behoben): \"encrypt\"/\"encryption\" ist an allen Stellen zu \"obfuscation\" geworden, inkl. der UI-Labels im Client (Encrypt … -> Obfuscate … (NOT encryption); Session/Transport Encryption Salt -> Session/Transport Salt). aGTM.f.enc ist Base64 + Caesar-Shift aus dem Salt allein — kein Schluesselmaterial, trivial umkehrbar. Betroffen: README.md, README-for-Developers.md, README-for-Integrators.md, CLAUDE.md, ROADMAP.md, SESSION-REDESIGN.md, sgtmClient/README.md, Kommentare in aGTM.js.\n- F-168 (behoben): consent_store_enc schaltet still die gesamte server-seitige Consent-Persistenz ab (501, speichert nichts, nur Container-Log). Steht jetzt am Feld selbst und in jeder Config-Tabelle; die Beispiel-Snippets im Developer-Guide zeigen die Option nicht mehr eingeschaltet.\n- F-167 Stufe (1)+(2): notSetText nennt zuerst die Konsequenz (EMPTY MEANS NO CONSENT GATE), der Hilfetext traegt die volle Auswahlregel + den Abnahmetest (Alles ablehnen -> gtmConsent muss false sein).\n- F-172/F-174: der auto_deny_load_gtm-Hilfetext nennt die Abhaengigkeit von der Bedingungstabelle und dass Tabelle + Schalter ein UND ueber zwei Besucherpopulationen sind.\n- F-173: der stille Ueberschreib-Effekt doppelter Zeilen steht im Hilfetext.\n\nNICHT angefasst (bewusst): jede Verhaltensaenderung. Die leere Tabelle bleibt fail-open, der Schalter bleibt wirkungslos im Default. Das sind Andis Weichen (F-167 Stufe 3, F-173 Code).\n\nBELEGE: aGTM.min.js byte-identisch (36.052 B, taucht im Diff gar nicht auf — die Library-Aenderung sind ausschliesslich Kommentare). Sandbox-Logik-Block byte-identisch zur Client-Source (nur ___TEMPLATE_PARAMETERS___ angefasst). 1089 Tests gruen, build.sh sauber, ___TEMPLATE_PARAMETERS___ als JSON validiert.",
+            "status": "done",
+            "priority": "P2",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "S",
+            "effort": 2,
+            "agentContext": "sgtmClient/template.tpl ___TEMPLATE_PARAMETERS___ (Consent-Bedingungstabelle ~Z.349, consent_store_enc ~Z.608, auto_deny_load_gtm ~Z.759, transport_enc/salt ~Z.867). NIE den ___SANDBOXED_JS_FOR_SERVER___-Block anfassen — der muss byte-identisch zu sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js bleiben. Nach Template-Edit: JSON.parse des Parameter-Blocks als Syntaxcheck, dann ./build.sh + bun test.",
+            "links": [],
+            "comments": [],
+            "displayId": 79,
+            "columnId": "col-erledigt"
           }
         ]
       },
@@ -2293,7 +2317,7 @@
         ]
       }
     ],
-    "nextDisplayId": 79,
+    "nextDisplayId": 80,
     "attachments": [],
     "background": null,
     "templates": [],
