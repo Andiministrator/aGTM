@@ -330,14 +330,14 @@ aGTM.f.config = function (cfg) {
 
   // Transport/POST configuration
   aGTM.f.an(aGTM.c, "transport_url", cfg, ""); // Endpoint URL for direct POST transport (e.g. sGTM collect endpoint)
-  aGTM.f.an(aGTM.c, "transport_enc", cfg, false); // Default: encrypt POST payload
-  aGTM.f.an(aGTM.c, "transport_salt", cfg, 0); // Default salt for POST payload encryption (integer >= 1)
+  aGTM.f.an(aGTM.c, "transport_enc", cfg, false); // Default: obfuscate POST payload (Base64 + Caesar shift, NOT encryption)
+  aGTM.f.an(aGTM.c, "transport_salt", cfg, 0); // Default salt for POST payload obfuscation (integer >= 1)
 
   // Session configuration
   aGTM.f.an(aGTM.c, "user_id", cfg, ""); // User identifier (logged-in CRM ID), exposed for integrators
-  aGTM.f.an(aGTM.c, "session_salt", cfg, 0); // Salt for consent-store POST encryption; also fallback for POST transport salt
+  aGTM.f.an(aGTM.c, "session_salt", cfg, 0); // Salt for consent-store POST obfuscation; also fallback for POST transport salt
   aGTM.f.an(aGTM.c, "consent_store_url", cfg, ""); // POST endpoint for consent diffs (sGTM Client persists into Session API)
-  aGTM.f.an(aGTM.c, "consent_store_enc", cfg, false); // Encrypt consent-store POST payload with session_salt
+  aGTM.f.an(aGTM.c, "consent_store_enc", cfg, false); // Obfuscate consent-store POST payload with session_salt. Keep false: no server-side decoder exists, the sGTM Client answers such a body with 501 and stores nothing.
   aGTM.f.an(aGTM.c, "consent_poll_ms", cfg, 2000); // CMP state-change poll interval (ms) after init success; 0 disables polling. Only active when consent_store_url is set (otherwise nothing to push)
   // If session data is pre-populated by the sGTM Client, store it directly.
   // Accept any object with sid, consent, attribution, or source.
@@ -2355,12 +2355,12 @@ aGTM.f.enc = function(str, salt) {
 /**
  * Sends data as an HTTP POST request to a given URL.
  * Plain body format:     {"e": <data object>}
- * Encrypted body format: {"q": "<encoded string>"}
+ * Obfuscated body format: {"q": "<encoded string>"} (Base64 + Caesar shift, NOT encryption)
  * @property {function} aGTM.f.xsend
  * @param {string} url - The endpoint URL.
  * @param {object} data - The data object to send.
- * @param {boolean} encrypt - Whether to encrypt the payload.
- * @param {number} salt - Salt for encryption (integer >= 1).
+ * @param {boolean} encrypt - Whether to obfuscate the payload (see aGTM.f.enc — this is not encryption).
+ * @param {number} salt - Salt for the obfuscation (integer >= 1).
  */
 aGTM.f.xsend = function(url, data, encrypt, salt) {
   if (!url || typeof url !== 'string') return;

@@ -639,9 +639,11 @@ Handler responsibilities (the parts the **library** observes or depends on):
   `{ ok:true, uid:"…" }`; the library adopts a returned `uid` into `aGTM.d.session.uid` **only when it
   starts with literal `C.`** (an upgrade marker — the library never downgrades an already-upgraded ID
   to an echoed fallback).
-- **Encrypted bodies** (`{"q":"…"}`, i.e. `consent_store_enc:true`) require a symmetric server-side
-  decoder. It is not part of v1.5 — the reference handler responds `501`. Keep `consent_store_enc` off
-  until full-stack encryption support ships.
+- **Obfuscated bodies** (`{"q":"…"}`, i.e. `consent_store_enc:true`) require a symmetric server-side
+  decoder. It is not part of v1.5 — the reference handler responds `501` and stores nothing, so the
+  option silently disables consent persistence. Keep `consent_store_enc` off until full-stack
+  encryption support ships. Note the payload transform is Base64 + Caesar shift (`aGTM.f.enc`) —
+  obfuscation, not encryption.
 
 ---
 
