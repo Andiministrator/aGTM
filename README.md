@@ -473,11 +473,11 @@ Optional logged-in user CRM ID. Stored on `aGTM.d.session.uid` so integrators / 
 
 ### session_salt
 
-Numeric salt used to obfuscate the consent-store POST payload (when `consent_store_enc: true`). Also serves as a fallback salt for the POST transport feature when no per-event salt and no `transport_salt` is configured. Same algorithm as `aGTM.f.enc()` (Base64 + Caesar shift).
+Numeric salt used to obfuscate the consent-store POST payload (when `consent_store_enc: true`). Also serves as a fallback salt for the POST transport feature when no per-event salt and no `transport_salt` is configured. Same algorithm as `aGTM.f.enc()` (Base64 + Caesar shift — obfuscation, not encryption).
 
 - Type: number (integer ≥ 1)
 - Example: `42`
-- Default: `0` (no encryption)
+- Default: `0` (no obfuscation)
 
 ### consent_store_url
 
@@ -490,6 +490,11 @@ POST endpoint that aGTM sends consent diffs to (Phase 3 of the v1.5 redesign). T
 ### consent_store_enc
 
 If `true`, the consent-store POST payload is obfuscated using `session_salt`.
+
+> **Leave this off.** Obfuscation is Base64 + Caesar shift (`aGTM.f.enc`) — trivially reversible, no key
+> material — so it is *not* encryption and must not be claimed as one. More importantly, no server-side
+> decoder exists: the sGTM Client answers an obfuscated body with `501 Not Implemented` and stores
+> nothing, so turning this on silently disables your entire server-side consent persistence.
 
 - Type: boolean
 - Example: `true`
@@ -521,7 +526,9 @@ Endpoint URL for direct HTTP POST transport to a server-side backend (e.g., a sG
 
 ### transport_enc
 
-Enable obfuscation of POST payloads using Base64 + Caesar shift encoding.
+Enable obfuscation of POST payloads using Base64 + Caesar shift encoding. This is obfuscation, not
+encryption: it is trivially reversible and carries no key material, so do not list it as an encryption
+measure in a record of processing activities.
 
 - Type: boolean
 - Example: `true`
@@ -533,7 +540,7 @@ Numeric salt for POST payload obfuscation. Must be an integer ≥ 1. If not set,
 
 - Type: number
 - Example: `42`
-- Default: `0` (no encryption)
+- Default: `0` (no obfuscation)
 
 ---
 

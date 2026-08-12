@@ -65,8 +65,8 @@ aGTM.f.config({
 
   // --- POST transport (new in v1.5) ---
   transport_url:  'https://collect.example.com/event', // sGTM collect endpoint
-  transport_enc:  true,  // encrypt payload with Base64 + Caesar shift (default: false)
-  transport_salt: 42,    // encryption salt, integer >= 1
+  transport_enc:  true,  // obfuscate payload: Base64 + Caesar shift, NOT encryption (default: false)
+  transport_salt: 42,    // obfuscation salt, integer >= 1
 
   // --- Session feature (v1.5 redesign — see SESSION-REDESIGN.md) ---
   // Session and consent data arrive from the sGTM Client via cfg.session.
@@ -74,9 +74,9 @@ aGTM.f.config({
   // diffs back; the sGTM Client persists them into the Session API record.
   // When served via sGTM Client, consent_store_url is auto-filled as
   // https://<sgtm-host>/aGTMconsent — only standalone integrators set it.
-  session_salt:       42,                                  // salt for consent-store POST; also fallback for transport_salt
+  session_salt:       42,                                  // obfuscation salt for consent-store POST; also fallback for transport_salt
   consent_store_url:  'https://sgtm.example.com/aGTMconsent', // auto-filled by sGTM Client; standalone uses fixed path
-  consent_store_enc:  true,                                // encrypt consent-store POST payload with session_salt
+  consent_store_enc:  false,                               // keep off: server answers 501 and stores nothing (see below)
   user_id:            'user-abc-123',                      // optional: logged-in user CRM ID, exposed for integrators
   session: { sid: 's-abc', uid: 'u-123' },                 // pre-populated by the sGTM Client (accepted with sid, consent, attribution, OR source)
 
@@ -433,8 +433,8 @@ aGTM.f.fire({
 | `_post` key | Type | Description |
 |---|---|---|
 | `url` | string | Endpoint URL (overrides `transport_url`) |
-| `enc` | boolean | Encrypt payload (overrides `transport_enc`) |
-| `salt` | number | Salt for encryption (overrides `transport_salt`) |
+| `enc` | boolean | Obfuscate payload (overrides `transport_enc`) |
+| `salt` | number | Salt for the obfuscation (overrides `transport_salt`) |
 | `consent` | boolean | Attach current consent state to POST body |
 
 `_post_sent: true` is set on the event object by aGTM after the POST is sent. The webGTM Community Tag checks this flag and skips its own `sendPixel` call to avoid double-sending.
@@ -446,12 +446,18 @@ Plain (`enc: false`):
 { "e": { "event": "purchase", "revenue": 99.9, ... } }
 ```
 
-Encrypted (`enc: true`):
+Obfuscated (`enc: true`):
 ```json
 { "q": "<obfuscated string>" }
 ```
 
-The encryption uses Base64 + Caesar shift, compatible with the aEvents GTM tag. The sGTM server can decode both formats with the same logic.
+The transform is Base64 + Caesar shift (`aGTM.f.enc`), compatible with the aEvents GTM tag. The sGTM
+server can decode both formats with the same logic.
+
+> **This is obfuscation, not encryption.** The shift is derived from the salt alone (`salt % 63 + 1`),
+> there is no key material, and anyone with the payload can reverse it. Do not present `*_enc` as an
+> encryption measure in a record of processing activities. A real crypto upgrade is a v1.6+ topic
+> (OE-6); the field names stay as they are for compatibility.
 
 #### Standalone usage (no webGTM)
 
@@ -500,7 +506,7 @@ aGTM.f.config({
   },
   session_salt:      42,
   consent_store_url: 'https://collect.example.com/consent',  // POST endpoint for diffs
-  consent_store_enc: true,                                    // encrypt with session_salt
+  consent_store_enc: false,                                   // keep off: server answers 501, stores nothing
   user_id:           'u-12345'                                // optional, exposed for integrators
 });
 ```
@@ -510,9 +516,9 @@ aGTM.f.config({
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `user_id` | string | `""` | Optional logged-in user CRM ID, exposed for integrators |
-| `session_salt` | number | `0` | Encryption salt for the consent-store POST; also fallback salt for POST transport (`_post`) when neither the event nor `transport_salt` provides one |
+| `session_salt` | number | `0` | Obfuscation salt for the consent-store POST; also fallback salt for POST transport (`_post`) when neither the event nor `transport_salt` provides one |
 | `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When served via the sGTM Client, the URL is built **browser-side** at config time from `document.currentScript.src` + fixed path `/aGTMconsent` — works under any reverse-proxy prefix transparently. Standalone integrators set this manually. Empty string disables the diff/store mechanism. |
-| `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is encrypted with `session_salt` |
+| `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is obfuscated with `session_salt` (Base64 + Caesar shift — **not** encryption). **Unusable in v1.5:** no server-side decoder exists, `/aGTMconsent` answers `501` and stores nothing, so enabling this silently disables consent persistence. |
 | `consent_poll_ms` | number | `2000` | Interval (ms) for the periodic CMP state-change poll started after the first successful init. Set to `0` to disable. Only takes effect when `consent_store_url` is set. Catches CMPs that emit updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) which would otherwise bypass the `consent_events` matcher in `aGTM.f.fire()`. |
 | `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid`, `consent`, `attribution`, or `source`. Extra non-meta fields the sGTM Client captures from the Sources API (e.g. `source`, the affiliate cookie value) are deep-copied through to `aGTM.d.session.*` and readable in webGTM via a JS variable (e.g. `aGTM.d.session.source`). |
 

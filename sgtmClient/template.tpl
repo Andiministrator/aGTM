@@ -346,8 +346,8 @@ ___TEMPLATE_PARAMETERS___
           }
         ],
         "newRowButtonText": "Add Consent Check",
-        "notSetText": "Add at least one consition, otherwise no consent check will run.",
-        "help": "Setup the Consent Conditions. Add at least one consition, otherwise no consent check will run."
+        "notSetText": "EMPTY MEANS NO CONSENT GATE: with no condition here, aGTM loads GTM for every visitor — including one who clicked Deny all. Add at least one condition.",
+        "help": "Defines what has to be granted before aGTM loads GTM.<br/><br/><b>Empty = fail-open.</b> With no row, the check passes for everybody and GTM loads even after Deny all. This is the delivered default — an empty table is not a neutral state.<br/><br/><b>Type:</b> pick the one your CMP adapter actually fills — not every adapter fills all three (purposes only: cookiebot, onetrust, orestbida, shopify, clickskeks · services only: ccm19, shopware6, acris, perspectivefunnel · purposes+vendors: consentmanager, sourcepoint). A type your adapter never fills means GTM never loads at all.<br/><br/><b>Value:</b> the exact string the CMP emits (Cookiebot: the keys of <code>Cookiebot.consent</code>, e.g. statistics · CCM19: the embedding name from the CCM19 backend), not a free-text label. <b>Never use the essential/necessary category</b> — many CMPs still report it after Deny all, which leaves the gate open just as an empty table does.<br/><br/><b>One row per type.</b> A second row of the same type silently overwrites the first. For several requirements put them comma-separated into a single value; they are combined with AND.<br/><br/><b>Scope:</b> this table gates the normal CMP path (a visitor who actually decided). It does NOT gate the server-side auto-denial path — that one is governed by the Load GTM even under server-side auto-denial checkbox. The two are an AND over two different visitor populations, not alternatives.<br/><br/><b>Accept it like this:</b> click Deny all, then read <code>aGTM.d.consent.gtmConsent</code> in the browser console — it must be false."
       },
       {
         "type": "GROUP",
@@ -606,18 +606,18 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "CHECKBOX",
         "name": "consent_store_enc",
-        "checkboxText": "Encrypt Consent Store POST payload",
+        "checkboxText": "Obfuscate Consent Store POST payload (NOT encryption — currently unusable)",
         "simpleValueType": true,
         "defaultValue": false,
-        "help": "If checked, the consent-store POST body is obfuscated using the Session Encryption Salt below."
+        "help": "LEAVE THIS OFF. Server-side decryption is NOT implemented: when aGTM sends an obfuscated body, the <code>/aGTMconsent</code> handler answers <code>501 Not Implemented</code> and stores nothing — you lose the entire server-side consent persistence, and the only trace is a warning in the container log. Also note that the obfuscation is Base64 + Caesar shift (trivially reversible), not encryption. Keep this unchecked until full-stack encryption support ships."
       },
       {
         "type": "TEXT",
         "name": "session_salt",
-        "displayName": "Session Encryption Salt (number)",
+        "displayName": "Session Salt (number, used for obfuscation)",
         "simpleValueType": true,
         "defaultValue": "",
-        "help": "Numeric salt used by aGTM to obfuscate the consent-store POST payload (when Encrypt Consent Store POST is on) and as a fallback for the Transport Salt below."
+        "help": "Numeric salt used by aGTM to obfuscate the consent-store POST payload (when Obfuscate Consent Store POST payload is on — which is currently unusable, see above) and as a fallback for the Transport Salt below. Obfuscation is Base64 + Caesar shift, not encryption: it is trivially reversible and is no protection measure you can claim in a record of processing activities."
       },
       {
         "type": "SELECT",
@@ -760,7 +760,7 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "Load GTM even under server-side auto-denial",
         "simpleValueType": true,
         "defaultValue": true,
-        "help": "Phase 1 redesign: when this Client encounters a returning visitor with no recorded consent in the Session API, it constructs a server-side auto-denial consent block. If checked (default), the embedded gtmConsent flag is set to true so GTM still loads (only services requiring aGTMconsent fire). Uncheck to block GTM entirely on auto-denial."
+        "help": "When this Client encounters a returning visitor with no recorded consent in the Session API, it constructs a server-side auto-denial consent block. If checked (default), the embedded gtmConsent flag is set to true so GTM still loads (only services requiring aGTMconsent fire).<br/><br/><b>Unchecking only works when the Consent Check Conditions table above is filled.</b> With an empty table the library recomputes the flag as granted and loads GTM regardless of this checkbox — so on the delivered default configuration this switch has no effect at all. Fill the table first, then this switch behaves as described.<br/><br/>Note that unchecking means GTM does not load <i>at all</i> for that population, so no diagnostic or consent-free tags run either. If your goal is to load GTM but fire no consent-requiring tags, leave this checked and gate the tags inside the container instead."
       }
     ]
   },
@@ -865,7 +865,7 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "CHECKBOX",
         "name": "transport_enc",
-        "checkboxText": "Encrypt POST payload",
+        "checkboxText": "Obfuscate POST payload (NOT encryption)",
         "simpleValueType": true,
         "defaultValue": false,
         "help": "If checked, POST payloads are obfuscated using the Transport Salt below."
@@ -873,10 +873,10 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "TEXT",
         "name": "transport_salt",
-        "displayName": "Transport Encryption Salt (number)",
+        "displayName": "Transport Salt (number, used for obfuscation)",
         "simpleValueType": true,
         "defaultValue": "",
-        "help": "A numeric salt for encrypting POST payloads. Only used when Encrypt POST Payload is checked. If not set, the Session Encryption Salt is used as fallback."
+        "help": "A numeric salt for the obfuscation of POST payloads. Only used when Obfuscate POST payload is checked. If not set, the Session Salt is used as fallback. The transformation is Base64 + Caesar shift (aGTM.f.enc) — obfuscation, not encryption: it is trivially reversible and carries no key material, so do not list it as an encryption measure in a record of processing activities."
       }
     ]
   },

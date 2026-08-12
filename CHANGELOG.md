@@ -39,6 +39,49 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Documentation — four settings promised something the code does not do
+
+No behaviour changes here, no bytes added to the library: `aGTM.min.js` is byte-identical
+before and after. What changed is what the product *says about itself* in the places an
+integrator reads before ticking a box — four claims that were wrong or, worse, quietly
+inverted (F-167, F-168, F-170, F-172, F-173, F-174).
+
+- **"Encrypt" was never encryption.** `aGTM.f.enc` is Base64 plus a Caesar shift whose
+  offset is derived from the salt alone (`salt % 63 + 1`) — no key material, reversible by
+  anyone holding the payload. The word "encrypt"/"encryption" appeared across the README,
+  the developer and integrator guides, the roadmap and the sGTM Client UI, and the field
+  names (`*_enc`, `*_salt` — "salt" being a cryptographic term) reinforced it. That is not
+  a naming quibble: an integrator copies such a claim into their record of processing
+  activities under Art. 32 GDPR. Every occurrence now says *obfuscation* and names the
+  algorithm; the UI labels read "Obfuscate … (NOT encryption)". **The field names stay**
+  for compatibility. A real crypto upgrade remains a v1.6+ topic.
+- **`consent_store_enc` silently disables consent persistence.** The server has no
+  decoder: `/aGTMconsent` answers an obfuscated body with `501` and stores nothing, and the
+  only trace is a line in the container log — far from the checkbox you just ticked in good
+  faith. Neither the field help nor the config tables mentioned this. They do now, and the
+  example snippets in the developer guide no longer show the option switched **on**.
+- **An empty "Consent Check Conditions" table is fail-open, and it is the delivered
+  default.** With no row, `chelp()` passes for everybody and GTM loads even after *Deny
+  all*. The old placeholder read "otherwise no consent check will run", which reads like
+  "nothing happens" rather than "everything loads". The field help now states the
+  consequence first, and adds what the table actually needs to close the gate: the type
+  your CMP adapter really fills (a wrong type means GTM loads *never*), the exact string
+  the CMP emits, never the essential/necessary category (many CMPs report it after *Deny
+  all*), one row per type — **a second row of the same type silently overwrites the
+  first** — and the acceptance test: click *Deny all*, `aGTM.d.consent.gtmConsent` must be
+  `false`.
+- **"Load GTM even under server-side auto-denial" does nothing when unchecked — unless
+  that table is filled.** The library recomputes the flag from the consent conditions, so
+  on the delivered default configuration the switch has no effect at all. Its help said
+  "Uncheck to block GTM entirely on auto-denial" without that condition. It now names the
+  dependency, and points out that the table and the switch are an **AND over two different
+  visitor populations** (a visitor who decided vs. a returning visitor with nothing on
+  file), not two ways of doing the same thing.
+
+The behavioural questions behind these texts — should an empty table keep meaning "no
+gate"? — are deliberately still open; changing them moves a consent gate that is running
+live. Documenting the trap is not the same as fixing it, and is not meant to look like it.
+
 ### Security — the iFrame Support tag passed control flags from any frame into `fire()`
 
 The "aGTM iFrame Support" tag runs in the **top** frame and copied a foreign

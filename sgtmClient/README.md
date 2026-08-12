@@ -178,16 +178,39 @@ In case you have a special consent tool, you could create an own consent_check f
 
 #### Consent Check Conditions
 
-Setup the Consent Conditions. Add at least one consition, otherwise no consent check will run.
-Depending, which CMP you have selected, it will provide the given Consent for Purposes, Services and/or Vendors.
-Now you could say, that the GTM should only fire, if the user has given consent for the Category "Statistics".
-And (in addition) the user has given consent for the special service "Google Tag Manager"
-That is what you can configure here:
+Defines what has to be granted before aGTM loads GTM. Depending on which CMP you selected, it provides
+the given consent for Purposes, Services and/or Vendors. You can say here that GTM should only fire if
+the user consented to the category "Statistics" — and (in addition) to the specific service
+"Google Tag Manager".
 
 - **Type**
   Select what you want to check (e.g. Services).
 - **Value**
-  The Value (String/Text) what has the selected Type to contain (e.g. ",Google Tag Manager,").
+  The Value (String/Text) the selected Type has to contain (e.g. ",Google Tag Manager,").
+
+> **An empty table is fail-open, and it is the delivered default.** With no row, the check passes for
+> every visitor and GTM loads even after *Deny all*. An empty table is not a neutral state — see
+> *When aGTM loads GTM without a consent decision* in the main [README](../README.md#consent-handling).
+
+Four things decide whether this table actually closes the gate:
+
+1. **Type** — pick the one your CMP adapter really fills; not every adapter fills all three
+   (*purposes* only: cookiebot, onetrust, orestbida, shopify, clickskeks · *services* only: ccm19,
+   shopware6, acris, perspectivefunnel · *purposes* + *vendors*: consentmanager, sourcepoint).
+   A type your adapter never fills means GTM never loads at all.
+2. **Value** — the exact string the CMP emits (Cookiebot: the keys of `Cookiebot.consent`, e.g.
+   `statistics`; CCM19: the embedding name from the CCM19 backend), not a free-text label.
+   **Never use the essential/necessary category** — many CMPs still report it after *Deny all*,
+   which leaves the gate open just as an empty table does.
+3. **One row per type** — a second row of the same type silently overwrites the first. Put several
+   requirements comma-separated into a single value; they are combined with AND.
+4. **Scope** — this table gates the normal CMP path (a visitor who actually decided). It does *not*
+   gate the server-side auto-denial path, which is governed by
+   *[Load GTM even under server-side auto-denial](#load-gtm-even-under-server-side-auto-denial-auto_deny_load_gtm)*.
+   The two are an AND over two different visitor populations, not alternatives.
+
+Accept the configuration like this: click *Deny all*, then read `aGTM.d.consent.gtmConsent` in the
+browser console — it must be `false`.
 
 #### Advanced CMP Settings
 
@@ -268,7 +291,17 @@ Checkbox, default ON. When checked, aGTM (Phase 3) POSTs consent diffs to the fi
 
 #### Load GTM even under server-side auto-denial (`auto_deny_load_gtm`)
 
-When the Session API has no recorded consent for a returning visitor, the Client constructs a server-side auto-denial. If checked (default), the embedded `gtmConsent` flag is set to `true` so GTM still loads (only services requiring `aGTMconsent` fire). Uncheck to block GTM entirely under auto-denial.
+When the Session API has no recorded consent for a returning visitor, the Client constructs a server-side auto-denial. If checked (default), the embedded `gtmConsent` flag is set to `true` so GTM still loads (only services requiring `aGTMconsent` fire). Uncheck to block GTM under auto-denial.
+
+> **Unchecking only works when *Consent Check Conditions* is filled.** With an empty table the library
+> recomputes the flag as granted (`chelp()` returns `true` when nothing is required) and loads GTM
+> regardless of this checkbox — so on the delivered default configuration this switch has no effect at
+> all. Fill the table first, then it behaves as documented.
+
+Note that unchecking means GTM does not load *at all* for that population, so no diagnostic or
+consent-free tags run either. If your goal is "load GTM but fire no consent-requiring tags", leave this
+checked and gate the tags inside the container instead (trigger/consent-check variable against
+`aGTMconsent`).
 
 #### Cookie Mode
 
@@ -343,13 +376,17 @@ Individual events can override these global defaults via the `_post` property in
 
 The global default URL for HTTP POST transport. Leave empty to disable POST transport globally.
 
-#### Encrypt POST payload
+#### Obfuscate POST payload (`transport_enc`)
 
 If checked, the POST payload is obfuscated using the Transport Salt before sending. Requires Transport Salt to be set.
 
-#### Transport Encryption Salt
+> **"Encrypt" is a misnomer kept for field-name compatibility.** The transformation is Base64 + a
+> Caesar shift derived from the salt (`aGTM.f.enc`). It is obfuscation — trivially reversible, no key
+> material — and must not be listed as an encryption measure in a record of processing activities.
 
-A numeric salt for encrypting POST payloads. Only active when payload encryption is checked. If not set here, the Session Encryption Salt is used as fallback.
+#### Transport Salt (`transport_salt`)
+
+A numeric salt for the obfuscation of POST payloads. Only active when payload obfuscation is checked. If not set here, the Session Salt is used as fallback.
 
 ### Pre-aGTM Init Script
 

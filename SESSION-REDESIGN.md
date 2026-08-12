@@ -112,7 +112,7 @@ POST to `aGTM.c.consent_store_url`. When the library is served by the sGTM Clien
 }
 ```
 
-Excluded from payload: `gtmConsent`, `blocked` (both client-derived). Encryption: optional, via `aGTM.c.session_salt` (kept). Server returns `{ok:true}` (or empty 204); response body is not consumed by aGTM.
+Excluded from payload: `gtmConsent`, `blocked` (both client-derived). Obfuscation (Base64 + Caesar shift, not encryption): optional, via `aGTM.c.session_salt` (kept) — but see the 501 guard in §Encrypted-mode guard, it is unusable server-side. Server returns `{ok:true}` (or empty 204); response body is not consumed by aGTM.
 
 ---
 
@@ -206,7 +206,7 @@ Then `consent_check('update')` repopulates whatever the CMP knows. Without this 
 - **Hash strategy:** blacklist-based stable string serialization (auto-includes new CMP fields like `consent_id`, `serviceIDs`); no full-JSON.stringify, no real hash function. Excludes `gtmConsent` and `blocked`.
 - **No migration code:** v1.5 is unreleased. Old session API names are gone, not deprecated.
 - **No config alias for `session_url`:** removed cleanly.
-- **Encryption salt:** `session_salt` is retained and reused for consent-store POSTs.
+- **Obfuscation salt:** `session_salt` is retained and reused for consent-store POSTs (`aGTM.f.enc` = Base64 + Caesar shift, not encryption).
 - **`session_status` repurposed** as a consent-sync lifecycle indicator (`""`, `"preset"`, `"preset_with_consent"`, `"synced"`, `"confirmed"`) — see §5. Adds real value (cache-hit measurability) instead of being deprecated.
 - **`xfetch` deleted entirely:** orphan after `session_fetch` removal. Verified no other callers — sGTM Client uses GTM-Server APIs (`sendHttpRequest`/`sendHttpGet`), not aGTM helpers; tmp/aEvents-tag mentions xfetch only in a hypothetical README comment. The aEvents README will get a small follow-up edit to remove the dead reference.
 - **Consent-store endpoint** is its own config (`consent_store_url`), not derived from the library URL. Integrators may want different paths/cache rules.

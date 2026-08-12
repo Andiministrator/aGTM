@@ -10,7 +10,7 @@ This roadmap outlines planned features and milestones for aGTM. It reflects curr
 - POST transport layer: `aGTM.f.xsend()` for direct HTTP POST to a configurable endpoint
 - `aGTM.f.enc()` for payload obfuscation (Base64 + Caesar shift, compatible with aEvents GTM tag)
 - New config options: `transport_url`, `transport_enc`, `transport_salt`, `consent_store_url`, `consent_store_enc`, `consent_poll_ms`, `session_salt`, `session`, `user_id`
-- `_post` event property in `aGTM.f.fire()` for per-event POST configuration and encryption
+- `_post` event property in `aGTM.f.fire()` for per-event POST configuration and payload obfuscation
 - `_noConsent` event property: bypasses consent gate for both DL push and POST
 - `_noDLPush` event property: skips the GTM dataLayer push but still records internally + still POSTs — for Google-independent event transport
 - Foundation for standalone aGTM usage without a webGTM container
