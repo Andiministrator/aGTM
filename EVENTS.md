@@ -26,7 +26,7 @@ Three per-event flags control that gate:
 
 | Flag | Effect |
 |---|---|
-| `_noConsent: true` | bypasses the consent gate — event is pushed immediately (functional/legal events) |
+| `_noConsent: true` | bypasses the consent gate — event is pushed immediately (functional/legal events). From an iFrame only if the "aGTM iFrame Support" tag in the top frame opts in (off by default, v1.5+) |
 | `_noDLPush: true` | event is **not** pushed to the GTM dataLayer; still recorded in `aGTM.d.dl` + `aGTM.l`, POST transport still fires |
 | `_post: true \| {url,enc,salt,consent}` | additionally sends the event via POST (server-side transport); `_post_sent` marks it as sent |
 

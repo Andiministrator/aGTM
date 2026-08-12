@@ -44,10 +44,17 @@ Define a list of hostnames to specify which iFrames should be allowed to send ev
 - **Hostname**: The domain name from which events are allowed.
 - **Regexp?**: Enable if the hostname is a regular expression.
 
-> ⚠️ **After updating to v1.5: enter your hostnames.** An empty list used to accept
-> events from **any** http/https origin. It now rejects **everything** — see the
-> breaking change below. If iFrame events stop arriving after the update, that is
-> the reason, and the tag says so once in the browser console.
+> ⚠️ **After updating to v1.5, two things changed about this table.** (1) An empty
+> list used to accept events from **any** http/https origin and now rejects
+> **everything** — enter your hostnames. (2) A **regex** entry is anchored now: an
+> entry that used to match subdomains by substring (`example\.com` matching
+> `shop.example.com`) matches exactly and nothing else. Rewrite it as
+> `.*\.example\.com`, or better use one exact row per hostname with "Regexp?"
+> off. If iFrame events stop arriving after the update, look here first — the tag
+> writes one console line per reason (empty/unusable list, no matching entry,
+> reserved event name, stripped `_noConsent`), but only **once per page**, and it
+> never names the rejected origin or event, because that text comes from the
+> sender.
 
 > **Security — fail-closed origin handling.** Foreign-origin `postMessage`s are
 > validated before an event is fired:
@@ -63,9 +70,10 @@ Define a list of hostnames to specify which iFrames should be allowed to send ev
 >   write `shop\.example\.com`, otherwise `shopXexample.com` matches too. If you
 >   do not need a pattern, leave "Regexp?" off; the plain comparison is exact.
 > - aGTM's **control flags are never taken from a foreign message**: every key
->   starting with `_` is skipped (`_noConsent` only with the opt-in below), as are
->   `aGTMts`, `aGTMparams`, `aGTMchk`, `aGTMdl`, `eventModel` and
->   `__proto__`/`constructor`/`prototype`. Without this, an embedded frame could
+>   starting with `_` or `gtm.` is skipped (`_noConsent` only with the opt-in
+>   below), as are `aGTMts`, `aGTMparams`, `aGTMchk`, `aGTMdl`, `eventModel` and
+>   `constructor`/`prototype`. **This is a namespace rule, not a list of flags** —
+>   it also drops *your own* fields if you prefix them with `_`, so don't. Without this, an embedded frame could
 >   POST page data to its own endpoint (`_post`) past the consent gate
 >   (`_noConsent`) and invisibly (`_noDLPush`) — or suppress **every** event of
 >   the page, because `fire()` silently skips an event carrying `eventModel` or a
@@ -85,8 +93,12 @@ Define a list of hostnames to specify which iFrames should be allowed to send ev
 > *content* is not checked. An allow-listed frame can fire any non-reserved event
 > with any payload, and the sender is not verified beyond its origin (the message
 > event's `source` never reaches the template), so anything running inside an
-> allow-listed origin can send events in its name. Keep the list to origins you
-> control.
+> allow-listed origin can send events in its name. The comparison covers the
+> **hostname only** — not scheme or port, so `https://shop.example.com` and
+> `http://shop.example.com:8080` are the same entry. And the values read from the
+> page's own dataLayer ("dataLayer Variables") are still **overwritten** by a key
+> of the same name in the foreign message; only the "Additional Event Parameters"
+> win over it. Keep the list to origins you control.
 
 ### Allow `_noConsent` from iFrames
 
