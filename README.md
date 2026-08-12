@@ -833,7 +833,7 @@ When calling `aGTM.f.fire()`, these special properties control routing and dispa
 | Property | Type | Description |
 |---|---|---|
 | `_post` | boolean \| object | Send event via HTTP POST. `true` uses global defaults; object `{ url, enc, salt }` overrides per event. |
-| `_noConsent` | boolean | Bypass the consent gate — event is dispatched and POST is sent immediately regardless of consent state. |
+| `_noConsent` | boolean | Bypass the consent gate — event is dispatched and POST is sent immediately regardless of consent state. **From an iFrame** this flag only survives if the "aGTM iFrame Support" tag in the top frame has "Allow `_noConsent` from iFrames" switched on (off by default); `_post`/`_post_sent`/`_noDLPush` are always stripped there. |
 | `_noDLPush` | boolean | Skip the GTM dataLayer push (`sendnaus()` is not called). The event is still logged internally in `aGTM.d.dl` and `aGTM.l`, and POST transport still fires. Use with `_noConsent` for pre-consent events that must not trigger GTM tags. |
 
 ---

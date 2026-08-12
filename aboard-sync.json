@@ -1891,15 +1891,22 @@
             "status": "offen",
             "priority": "hoch",
             "owner": "Claude Opus",
-            "qa": false,
-            "critical": true,
+            "qa": true,
+            "critical": false,
             "blocked": false,
             "complexity": "M",
             "effort": 3,
             "agentContext": "Alles Noetige steht in der Beschreibung; zusaetzlich docs/findings.md F-178/F-179 (Messungen + beide Pruefberichte) und F-46 (Workspace-Export). Datei hat BOM+CRLF. Nach der Aenderung: bun test (1089 gruen als Ausgangsstand) — das .tpl selbst wird nur von test/sgtm/tpl-test-names.test.js auf Szenarionamen geprueft, die Tag-Logik testet der ___TESTS___-Block im GTM-UI. ./build.sh ist fuer eine reine Template-Aenderung NICHT noetig (das Tag haengt nicht am ES5/base64-Pfad).",
             "links": [],
-            "comments": [],
-            "columnId": "col-backlog",
+            "comments": [
+              {
+                "id": "bc647834-ddce-4898-a73a-288e5822b1b6",
+                "author": "Claude Opus",
+                "text": "F-178/F-179 umgesetzt — Template auf Version 1.2.\n\nAlle 9 Spec-Punkte drin: Merge-Loop überspringt Steuer-Keys (führendes _, aGTMts/aGTMparams/aGTMchk/aGTMdl/eventModel, __proto__/constructor/prototype); neue Checkbox „Allow _noConsent from iFrames\" (Default aus), _post/_post_sent/_noDLPush immer gestrippt; Eventnamen-Check auf dem FINALEN Namen per indexOf(...)===0; leere Hostname-Liste fail-closed + logging-Permission zurück + warnOnce-Zeile (einmal pro Seite, der Listener sieht jede postMessage); Regex-Spalte verankert; addparameter nach dem Merge; ___NOTES___ entschärft; Doku in CHANGELOG/Tag-README/README.md/README-for-Integrators.md.\n\nVerifikation: 16 ___TESTS___-Szenarien (5 alt + 11 neu) gegen den echten Sandbox-Code mit einem Wegwerf-Harness gefahren — alle grün — und mutationsgeprüft: jede entfernte Schutzmaßnahme macht mindestens ein Szenario rot. bun test: 1089 grün (unverändert). ./build.sh nicht nötig (Tag hängt nicht am ES5/base64-Pfad).\n\nZwei Abweichungen von der Spec, beide erzwungen:\n1) Die Spec sagt „die 5 bestehenden Szenarien bleiben unverändert grün\". Durch Punkt 4 (fail-closed) stimmt das nicht mehr: drei von ihnen liefen mit leerer hostnamelist. „Event prefix is applied\" wäre rot geworden, die beiden anderen wären aus dem falschen Grund grün geblieben (abgelehnt durch die leere Liste statt durch den geprüften Mechanismus). Sie haben jetzt einen Allow-List-Eintrag; die Assertions sind unverändert.\n2) Drei Szenarien zusätzlich zu den acht der Spec: _noConsent-Opt-in, Regex-Verankerung (F-179 hatte sonst gar keinen Test) und Merge-Reihenfolge (Punkt 6 hatte sonst keinen).\n\nRestrisiko unverändert offen, gehört nicht in diese Karte: e.source ist im Template strukturell unerreichbar (nur per Library-Fix), consent_events bleibt ein Steuerkanal über den Eventnamen, aGTM.d.f ungedeckelt, und F-46 (öffentlicher Workspace-Export auf dem Stand VOR F-33) ist weiter offen — der CHANGELOG-Eintrag weist jetzt darauf hin.\n\nNICHT von mir prüfbar: der echte Import ins GTM-UI inkl. Tests-Tab. Die JSON-Blöcke sind maschinell validiert, Szenarionamen sind anführungszeichenfrei (F-163-Falle), BOM+CRLF erhalten.",
+                "created": "2026-08-12"
+              }
+            ],
+            "columnId": "col-erledigt",
             "displayId": 74
           }
         ]
