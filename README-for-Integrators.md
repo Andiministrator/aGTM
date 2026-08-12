@@ -541,11 +541,23 @@ aGTM.f.fire({ event: 'purchase', revenue: 99.90 });
 **Do not set** `aGTMts` or `eventModel` yourself — their presence makes `fire()` skip the event
 (loop/ping guards).
 
-**Sending events out of an iFrame?** The "aGTM iFrame Support" tag in the top frame strips
-the control flags out of the message before it reaches `fire()`: `_post`, `_post_sent` and
-`_noDLPush` always, `_noConsent` unless the operator switched on "Allow `_noConsent` from
-iFrames" (off by default). Event names starting with `aGTM`, `gtm.`, `aDOMready`/`vDOMready`
-or `aPAGEready`/`vPAGEready` are rejected outright. Plain event payload is unaffected.
+**Sending events out of an iFrame?** The "aGTM iFrame Support" tag in the top frame filters
+the message before it reaches `fire()`, and it filters by **namespace, not by a list of
+flags**:
+
+- **Every key with a leading `_` is dropped.** That covers `_post`, `_post_sent` and
+  `_noDLPush` always, and `_noConsent` unless the operator switched on "Allow `_noConsent`
+  from iFrames" (off by default) — but it equally covers *your own* fields. Do not use a
+  `_` prefix for payload you need on the other side.
+- Every key starting with `gtm.` is dropped, as are `aGTMts`, `aGTMparams`, `aGTMchk`,
+  `aGTMdl` and `eventModel` (they are GTM's or the library's own control fields).
+- Event names starting with `aGTM`, `gtm.`, `aDOMready`/`vDOMready` or
+  `aPAGEready`/`vPAGEready` are rejected outright.
+- The top frame must allow-list your iFrame's hostname, otherwise nothing arrives at all.
+
+Everything else passes through unchanged. Note that values the top frame reads from its own
+dataLayer ("dataLayer Variables" in the tag) are still overwritten by a key of the same name
+in your message — the additional parameters configured in the tag are not.
 
 ### POST transport contract
 

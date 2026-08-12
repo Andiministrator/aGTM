@@ -24,6 +24,16 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   message** (it used to accept any http/https origin). If you use that tag, enter your
   hostnames before publishing — otherwise iFrame events stop arriving. The tag logs one
   line to the console when this happens.
+- **Breaking, same tag: a regex allow-list entry is anchored now.** An entry that used to
+  match subdomains by substring (`example\.com` matching `shop.example.com`) matches
+  exactly and nothing else from now on. Rewrite it as `.*\.example\.com`, or better, use
+  one exact row per hostname with "Regexp?" off.
+- **Behaviour change, same tag: `_noConsent` arriving from an iFrame is stripped by
+  default** (`_post`/`_post_sent`/`_noDLPush` always). If your iFrame sends functional or
+  legally required events with that flag, they now wait for the consent decision instead
+  of firing immediately — switch on "Allow `_noConsent` from iFrames" to get the old
+  behaviour. Keys with a leading `_` are dropped as a rule, so do not use `_` prefixes for
+  your own payload fields.
 - sGTM Client only: the "URL Parameters" column starts working (see below).
 
 The full per-change rationale follows; it is long because it doubles as the design
@@ -89,7 +99,13 @@ other direction, and it was open.
   `shopXexample.com`. The field help now says so.
 - **The additional event parameters are applied after the message**, so they actually
   overwrite it — as their own help text always claimed. Until now a foreign value won
-  over a configured `traffic_type`/`user_id`.
+  over a configured `traffic_type`/`user_id`. They cannot undo the checks either: a row
+  named `event`, or one carrying a control-flag name, is skipped. **Note the remaining
+  asymmetry:** the values read from the page's own dataLayer ("dataLayer Variables") are
+  still set *before* the message and are therefore still overwritable by a foreign key of
+  the same name. Whether that should change is a product decision, not a bug fix — if you
+  put `user_id` in that table rather than in the additional parameters, a foreign frame
+  can still replace it.
 - Eleven new `___TESTS___` scenarios cover each of these, including a counter-guard that
   the legitimate `iFrameFire` fields still pass.
 
