@@ -655,9 +655,16 @@ aGTM.d.consent.gtmConsent   // expected: false
 ```
 
 If it is `true` after a rejection, GTM loads despite the rejection — in most cases
-because no consent conditions are configured. Note that the conditions have to name
-what your CMP actually reports (a category or service name it emits), and must not
-name the essential/necessary category, which many CMPs report even after a rejection.
+because no consent conditions are configured. The conditions have to name what your CMP
+actually reports (a category or service name it emits).
+
+One distinction decides whether `true` after a rejection is a bug or the plan. If the
+conditions are meant to **gate**, do not name the essential/necessary category — many CMPs
+report it even after a rejection, so the gate stands open for everyone. If you deliberately
+load GTM as an **essential service** — regardless of the choice, but only once a choice
+exists — then naming exactly that category is the correct way to say so, and `true` after a
+rejection is the intended result. What that setup still buys you is timing: GTM waits for a
+decision instead of loading against a default-denied consent state.
 
 ### Use Event Listeners instead of the default timer
 
