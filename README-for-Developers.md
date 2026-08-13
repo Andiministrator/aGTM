@@ -466,7 +466,7 @@ server can decode both formats with the same logic.
 When no GTM container is configured, `aGTM.f.fire()` still sends the POST and pushes to the local dataLayer. No GTM is required:
 
 ```javascript
-aGTM.f.config({ transport_url: 'https://sgtm.example.com/collect', transport_salt: 42 });
+aGTM.f.config({ cmp: 'none', transport_url: 'https://sgtm.example.com/collect', transport_salt: 42 });
 aGTM.f.init();
 aGTM.f.fire({ event: 'pageview', _post: { enc: true } });
 ```
@@ -475,6 +475,14 @@ Since v1.5 such an instance also emits its own lifecycle events — `aGTM_ready`
 `hastyEvents`), `aPageview` if configured, and `aGTM_consent` — into the dataLayer, even
 though it loads no container. `gtm.js` is deliberately **not** emitted: that event announces
 a GTM load, aGTM performs none here, and a GTM loaded by someone else emits its own.
+
+**The consent gate still applies to those events.** They are emitted from `inject()`, so
+everything that gates `inject()` gates them: the snippet above carries `cmp: 'none'` for
+exactly that reason. With a CMP configured they appear once consent is available — and with
+a CMP but an *empty* condition table nothing appears at all, because that case is
+fail-closed since v1.5 (see `allowEmptyConsentConditions`). Without any `cmp` at all,
+`run_cc` aborts with `e14` (no `consent_check`), `inject()` never runs, and the dataLayer
+stays empty.
 
 That is the second use of a container-less instance: GTM is loaded elsewhere (the CMS,
 another script, a hand-placed snippet) while the page still needs aGTM's events. GTM

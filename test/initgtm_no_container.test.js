@@ -14,7 +14,9 @@
 // even when it loads later.
 //
 // No switch gates this. "No container configured" is already the integrator
-// saying "aGTM does not load GTM here".
+// saying "aGTM does not load GTM here". One exception, and it is not a switch
+// either: inside an iframe the documented forwarder setup IS "no container",
+// and there the events would land in a dataLayer nobody reads.
 //
 // Mutation-checked (numbers measured, see the bottom of this file).
 
@@ -93,6 +95,21 @@ describe('F-177 — lifecycle without a container', () => {
     expect(aGTM.d.gtmLoaded || []).toEqual([]);
   });
 
+  test('an iframe forwarder stays silent — no local lifecycle, no urlListener', () => {
+    // The documented forwarder setup IS "no container configured" (README:
+    // configure none if the iframe should only forward to the parent). Without
+    // the is_iframe guard it would emit aGTM_ready/aPageview into its own
+    // dataLayer, which no GTM reads, and with vPageviews configured install a
+    // urlListener there — a permanent listener with no consumer.
+    aGTM.d.is_iframe = true;
+    aGTM.f.config({ iframeSupport: true, aPageview: true, vPageviews: true });
+    aGTM.f.init();
+    expect(events()).toEqual([]);
+    expect(aGTM.d.gtmLoaded || []).toEqual([]);
+    // objinit seeds this to false; the point is that init() did not flip it.
+    expect(aGTM.d.urlListener_active).toBe(false);
+  });
+
   test('a configured container is unaffected (no collateral damage)', () => {
     var loaded = [];
     var orig = aGTM.f.gtm_load;
@@ -123,12 +140,14 @@ describe('F-177 — lifecycle without a container', () => {
   });
 });
 
-// Mutation results, measured (9 tests green unmutated):
+// Mutation results, measured (10 tests green unmutated):
 //   * container-less gtm_load call removed from initGTM  → 4 fail
 //   * bookkeeping moved back behind `if (!i) return;`    → 2 fail, incl.
 //     "the lifecycle fires exactly once" — exactly the defect that would have
 //     made the naive fix wrong, so it earns its own case.
 //   * `!noConsentGTM` guard dropped                      → 1 fail
 //     ("initGTM(true) alone emits nothing").
+//   * `!aGTM.d.is_iframe` guard dropped                  → 1 fail
+//     ("an iframe forwarder stays silent").
 // Each part of the change is therefore covered by at least one test that
 // actually fails without it.

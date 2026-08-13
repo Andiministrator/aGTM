@@ -587,11 +587,21 @@ aGTM.f.run_cc = function (action) {
   // behaviour rather than an edge case (F-167). An empty requirement is now
   // treated as "no decision has been expressed that could justify loading",
   // i.e. fail-closed, and an integrator who deliberately wants no gate at all
-  // says so with allowEmptyConsentConditions. Note `cmp: 'none'` and the
-  // iframe mode do not pass through here — they set gtmConsent directly and
-  // are unaffected on purpose: those are explicit choices, this is a blank.
+  // says so with allowEmptyConsentConditions.
+  //
+  // `cmp: 'none'` is excluded explicitly, not by accident of control flow. Its
+  // init path sets gtmConsent directly and never reaches run_cc — but run_cc
+  // IS reachable afterwards: a consent_check loaded by other means plus a
+  // consent_events match calls run_cc('update'), which would then flip
+  // gtmConsent to false on a container that is already injected. GTM stays
+  // loaded (aGTM.d.init is true, inject() never runs again), so nothing looks
+  // broken — while every later event is queued into aGTM.d.f and never
+  // delivered, because only inject() drains that queue. Silent event loss on a
+  // configuration whose whole point is "do not gate me". The iframe mode is
+  // covered by the same reasoning and the same flag it sets on itself.
+  var noGate = aGTM.c.cmp === 'none' || (aGTM.c.iframeSupport && aGTM.d.is_iframe);
   var noConditions = !aGTM.c.gtmPurposes && !aGTM.c.gtmServices && !aGTM.c.gtmVendors;
-  if (noConditions && !aGTM.c.allowEmptyConsentConditions) {
+  if (noConditions && !noGate && !aGTM.c.allowEmptyConsentConditions) {
     aGTM.d.consent.gtmConsent = false;
     // Logged once, not per call: run_cc('update') also runs on the consent
     // poll (every consent_poll_ms), and aGTM.f.log neither dedupes nor caps —
@@ -1206,7 +1216,21 @@ aGTM.f.initGTM = function (noConsentGTM) {
   // Gated on `!noConsentGTM`, so this runs on the post-consent initGTM(false)
   // and not on the pre-consent initGTM(true) pass for noConsent containers —
   // announcing readiness before the consent decision would be wrong.
-  if (!hasContainer && !noConsentGTM) {
+  // `aGTM.d.containerLessRun` guards the repeat, not gtmLoaded.length: the
+  // Simulation tab (and inject() itself, via a second consent update) calls
+  // initGTM(false) again, which would append another 'no_gtm_id' every time.
+  // The lifecycle block inside gtm_load is already gated on gtmLoaded.length,
+  // so nothing double-fired — the array just grew, and the Inspector renders
+  // it as "geladen".
+  // Not in an iframe. The documented iframe-forwarder setup is precisely "no
+  // container configured" (README: configure none if the iframe should only
+  // forward events to the parent), so without this guard every such iframe
+  // would start emitting aGTM_ready/aPageview into its OWN dataLayer, which no
+  // GTM reads — and with vPageviews configured it would also install a
+  // urlListener there, a permanent listener with no consumer. Its user events
+  // go to the parent via postMessage; the parent runs its own lifecycle.
+  if (!hasContainer && !noConsentGTM && !aGTM.d.containerLessRun && !aGTM.d.is_iframe) {
+    aGTM.d.containerLessRun = true;
     aGTM.f.gtm_load(window, document, '', '', aGTM.c.gdl, {});
   }
 };
@@ -1509,7 +1533,7 @@ aGTM.f.evLstn = function (el, ev, fct, opts) {
         el.addEventListener(ev, function (e) {
           fct(
             typeof e.data != "undefined" ? e.data : null,
-            typeof e.origin == "string" ? e.origin : "",
+            typeof e.origin == "string" ? e.origin : ""
           );
         });
       }
@@ -1864,7 +1888,7 @@ aGTM.f.observer = function (selector, event, callback) {
           // If the added node has children, check each child node
           if (node.nodeType === 1 && node.querySelectorAll) {
             var matchingElements = node.querySelectorAll(
-              selector.toLowerCase(),
+              selector.toLowerCase()
             );
             Array.prototype.forEach.call(matchingElements, function (element) {
               aGTM.f.elLst(element, event, callback);

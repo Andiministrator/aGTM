@@ -207,10 +207,15 @@ Four things decide whether this table actually closes the gate:
    which leaves the gate open just as an empty table does.
 3. **One row per type** — a second row of the same type silently overwrites the first. Put several
    requirements comma-separated into a single value; they are combined with AND.
-4. **Scope** — this table gates the normal CMP path (a visitor who actually decided). It does *not*
-   gate the server-side auto-denial path, which is governed by
-   *[Load GTM even under server-side auto-denial](#load-gtm-even-under-server-side-auto-denial-auto_deny_load_gtm)*.
-   The two are an AND over two different visitor populations, not alternatives.
+4. **Scope** — three states, and they are not symmetric:
+   - **Empty (the delivered default):** no GTM for anybody, on either path. The library
+     refuses before the auto-denial fallback is ever reached.
+   - **Empty + the opt-out below:** GTM loads for everybody, and
+     *[Load GTM even under server-side auto-denial](#load-gtm-even-under-server-side-auto-denial-auto_deny_load_gtm)*
+     becomes powerless too — the granted result is decided before it is consulted.
+   - **Filled:** this table gates the normal CMP path (a visitor who actually decided),
+     while the auto-denial path is governed by that checkbox. Only here are the two an AND
+     over two different visitor populations.
 
 Accept the configuration like this: click *Deny all*, then read `aGTM.d.consent.gtmConsent` in the
 browser console — it must be `false`.
@@ -333,6 +338,16 @@ Controls when the user ID cookie is set:
 | `never` | No `Set-Cookie` header is ever sent, not even to delete one; the fingerprint-based ID is used |
 | `consent` | Cookie is only set when the Session API consent state grants the required services (or when an existing cookie is already present) |
 
+> **A stored consent is only handed to a visitor whose uid is cookie-bound (since v1.5).**
+> Without a cookie the session is keyed on the server-side fingerprint, which is derived
+> from IP, user agent, client hints and ASN/geo and is therefore *not* per-visitor — two
+> people behind the same NAT on the same browser build derive the same key, and the second
+> one would receive the first one's consent and get GTM injected without ever having seen a
+> CMP. Such visitors now go through the CMP instead. **Consequence for `never`:** in that
+> mode no `C.*` is ever written, so no visitor is ever cookie-bound and the consent preset
+> never applies — every visit goes through the CMP. Expect consent rates and the GTM load
+> ratio to move when this reaches an existing installation.
+
 **In every mode the cookie value is a minted `C.*`, never the fingerprint.** The `C.*` is created at the moment consent is granted: via `/promote` when a Session API is configured (the session pointer moves with it), or minted locally by the Client when none is. A visitor who never answers the CMP therefore carries no user-ID cookie — including under `always`. That mode means *set the cookie irrespective of consent*, not *store a shared fingerprint in the browser*: the fingerprint is derived from IP, user agent, client hints and ASN/geo, so two visitors behind the same NAT running the same browser share it, and freezing it into a cookie would make that collision permanent.
 
 #### Cookie Name / Cookie Lifetime / Cookie Domain
@@ -349,10 +364,8 @@ Name, lifetime **in days** (converted to `max-age` internally; a non-positive va
 > never written again. If you want a different name, set this field explicitly — an explicit
 > value always wins over the default.
 
-Note that a visitor who has not answered the CMP carries **no** cookie at all, including
-under *Cookie Mode: always*: the stable `C.*` value is minted at the moment consent is
-granted. `always` means "set the cookie regardless of consent", not "freeze a shared
-fingerprint" — see *Cookie Mode* below.
+A visitor who has not answered the CMP carries **no** cookie at all, including under
+*Cookie Mode: always* — see *[Cookie Mode](#cookie-mode)* for why.
 
 #### Fingerprint Allowed
 

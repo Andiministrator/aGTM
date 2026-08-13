@@ -102,7 +102,13 @@ export function runClient(opts = {}) {
       if (list.length > 0 && typeof list[0] === 'object' && list[0] !== null) {
         return list.filter((c) => c.name === name).map((c) => c.value);
       }
-      return list;
+      // Flat form: the values belong to the USER-ID cookie, i.e. the name the
+      // config asks for (or the default). Returning them for every name asked
+      // was the original behaviour and it lied — once the Client started
+      // reading legacy names too, every flat-form test suddenly had a legacy
+      // cookie it never declared, and the Client dutifully retired it.
+      const uidName = (opts.data && opts.data.cookie_name) || '_tpf';
+      return name === uidName ? list : [];
     },
     setCookie: (name, val, o) => { state.cookies.push({ name: name, val: val, maxAge: o && o['max-age'] }); },
     fromBase64: (s) => Buffer.from(s, 'base64').toString('utf8'),

@@ -90,7 +90,7 @@ authoritative shape** an integrator can rely on.
 | `aGTM.d.init` | boolean | `inject()` | `true` once GTM has been injected into the DOM. |
 | `aGTM.d.config` | boolean | `config()` | `true` once config has been applied. |
 | `aGTM.d.is_iframe` | boolean | objinit | `true` if the page runs inside an iframe. |
-| `aGTM.d.gtmLoaded` | array | `config()`/`gtm_load` | Container IDs already injected. |
+| `aGTM.d.gtmLoaded` | array | `config()`/`gtm_load` | Container IDs aGTM has run `gtm_load` for. Since v1.5 the entry is written *before* the script tag is inserted, so it records the attempt rather than a confirmed injection — and a container-less instance records the literal `'no_gtm_id'` (see *lifecycle without a container*). |
 | `aGTM.d.timer` | object | listeners/polls | Active `setInterval` handles (`consent`, `consent_poll`). |
 | `aGTM.d.errors` | array | `log()` | Collected error entries (also carried in `aGTM_ready`). |
 

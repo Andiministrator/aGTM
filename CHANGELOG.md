@@ -10,7 +10,7 @@ Removed functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.
 Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 
 **New config options:** `user_id`, `session_salt`, `consent_store_url`,
-`consent_store_enc`, `consent_poll_ms`, `session`.
+`consent_store_enc`, `consent_poll_ms`, `session`, `allowEmptyConsentConditions`.
 
 **Behaviour you should know about before upgrading:**
 - The session feature no longer fetches anything from the browser — the sGTM Client
@@ -18,6 +18,19 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 - `chelp()` is **fail-closed** now: a required purpose/service/vendor against an empty
   consent string no longer counts as granted. If GTM stops loading somewhere after the
   upgrade, that requirement was never actually met before either.
+- **Breaking: an EMPTY consent-condition table no longer loads GTM.** With `gtmPurposes`,
+  `gtmServices` and `gtmVendors` all empty, GTM used to load for everybody — including a
+  visitor who clicked *deny all*. The sGTM Client ships that table empty, so this is the
+  most likely reason for "GTM stopped loading after the update". The fix is one row in the
+  table; to deliberately run without a gate, set `allowEmptyConsentConditions: true`
+  (Client: *Load GTM without any consent gate*).
+- **sGTM Client: a visitor without a user-id cookie no longer receives a consent preset.**
+  Without a cookie the session is keyed on a server-side fingerprint that is not
+  per-visitor, so the stored consent of a stranger could be handed to them. Those visitors
+  now go through the CMP again — expect consent rates and the GTM load ratio to move.
+- **sGTM Client: the user-id cookie default is `_tpf`** (it was `_TPU` during v1.5
+  development). A cookie written under the old name is read, carried over and retired, so
+  nobody loses their id.
 - The "aGTM - DL Repeat" tag needs library **1.5+** — against an older library it warns
   and does nothing.
 - **Breaking, "aGTM iFrame Support" tag: an empty hostname allow-list now rejects every
@@ -172,27 +185,32 @@ inverted (F-167, F-168, F-170, F-172, F-173, F-174).
   only trace is a line in the container log — far from the checkbox you just ticked in good
   faith. Neither the field help nor the config tables mentioned this. They do now, and the
   example snippets in the developer guide no longer show the option switched **on**.
-- **An empty "Consent Check Conditions" table is fail-open, and it is the delivered
-  default.** With no row, `chelp()` passes for everybody and GTM loads even after *Deny
+- **An empty "Consent Check Conditions" table was fail-open, and it was the delivered
+  default** — with no row, `chelp()` passed for everybody and GTM loaded even after *Deny
   all*. The old placeholder read "otherwise no consent check will run", which reads like
-  "nothing happens" rather than "everything loads". The field help now states the
-  consequence first, and adds what the table actually needs to close the gate: the type
-  your CMP adapter really fills (a wrong type means GTM loads *never*), the exact string
-  the CMP emits, never the essential/necessary category (many CMPs report it after *Deny
-  all*), one row per type — **a second row of the same type silently overwrites the
-  first** — and the acceptance test: click *Deny all*, `aGTM.d.consent.gtmConsent` must be
-  `false`.
+  "nothing happens" rather than "everything loads". **That behaviour is gone as of the
+  Breaking change above**; the texts described here were the first step, written while it
+  was still the case. What remains valid is what the field help now teaches about filling
+  the table: the type your CMP adapter really fills (a wrong type means GTM loads
+  *never*), the exact string the CMP emits, never the essential/necessary category (many
+  CMPs report it after *Deny all*), one row per type — **a second row of the same type
+  silently overwrites the first** — and the acceptance test: click *Deny all*,
+  `aGTM.d.consent.gtmConsent` must be `false`.
 - **"Load GTM even under server-side auto-denial" does nothing when unchecked — unless
   that table is filled.** The library recomputes the flag from the consent conditions, so
-  on the delivered default configuration the switch has no effect at all. Its help said
-  "Uncheck to block GTM entirely on auto-denial" without that condition. It now names the
-  dependency, and points out that the table and the switch are an **AND over two different
-  visitor populations** (a visitor who decided vs. a returning visitor with nothing on
-  file), not two ways of doing the same thing.
+  with an empty table the switch has no effect. Its help said "Uncheck to block GTM
+  entirely on auto-denial" without that condition. It now names the dependency, and points
+  out that the table and the switch are an **AND over two different visitor populations**
+  (a visitor who decided vs. a returning visitor with nothing on file), not two ways of
+  doing the same thing. Since the Breaking change above, an empty table means no GTM
+  either way — the switch still only bites once a real condition exists.
 
-The behavioural questions behind these texts — should an empty table keep meaning "no
-gate"? — are deliberately still open; changing them moves a consent gate that is running
-live. Documenting the trap is not the same as fixing it, and is not meant to look like it.
+These texts were written as documentation only, before the behavioural questions behind
+them were decided. The biggest one — should an empty table keep meaning "no gate"? — was
+answered in the Breaking change above and the texts were rewritten accordingly. Two remain
+open on purpose: duplicate rows of the same type still overwrite each other silently
+(named in the help, not fixed), and consent is still persisted under the shared fingerprint
+key when no cookie exists.
 
 ### Security — the iFrame Support tag passed control flags from any frame into `fire()`
 

@@ -356,7 +356,16 @@ Both write sites now use a **whitelist**: only a value starting with the literal
 
 The inheritance of one visitor's consent by another **does not run through the cookie**, and removing the cookie does not stop it. Visitor B never receives A's cookie; B derives the *same fingerprint*, the Session API GET returns A's record including `consent`, and that is passed into `cfg.session.consent` — so aGTM sets `preset_with_consent` and injects GTM although B has never seen a CMP. Measured against the running source, not inferred.
 
-The fix even makes the collision **more frequent** for the population before consent: previously A carried a frozen `F(…D0)` while B derived `F(…D1)`, so they diverged after a day; now both derive today's value and collide daily. The cause is the fingerprint **as a session key**, not its storage in a cookie. Removing it from the cookie remains right on its own terms — a shared, IP-derived identifier with a one-year lifetime in the terminal device is not defensible regardless of the cause — but the open half is tracked as F-156, and the candidate fix (pass `sd.consent` through only when an `existingCookie` proves a per-browser binding) is a change to a live consent gate and needs its own decision.
+The fix even makes the collision **more frequent** for the population before consent: previously A carried a frozen `F(…D0)` while B derived `F(…D1)`, so they diverged after a day; now both derive today's value and collide daily. The cause is the fingerprint **as a session key**, not its storage in a cookie. Removing it from the cookie remains right on its own terms — a shared, IP-derived identifier with a one-year lifetime in the terminal device is not defensible regardless of the cause.
+
+**Read path closed (2026-08-13).** The candidate named above was decided and implemented: a consent preset is passed through only for a **cookie-bound** uid. Both branches are gated on it, not just the stored consent — the server-side auto-denial branch reads like a safe fallback but sets `gtmConsent` from `autoDenyLoadGtm` (default **true**), so leaving it open would have moved the visitor from one GTM-loading preset to another. An `F.*` **cookie** still counts as cookie-bound: it lives in exactly one browser, and the lazy F→C promote depends on that consent being read (`shouldLazyPromote` → `sessionConsentGranted`).
+
+Two consequences to know before rolling out:
+
+- Visitors without a cookie see the CMP again. That is the point, and it will show up in consent rates and the GTM load ratio.
+- Under **`cookie_mode: 'never'`** no `C.*` is ever written, so `existingCookie` stays empty permanently — for such installations `preset_with_consent` is effectively dead and every visit goes through the CMP. This is a real behaviour change for that mode, not an edge case.
+
+**Write path still open (F-156, option B).** When no cookie exists, consent is *persisted* under the shared fingerprint key regardless, so the shared record still comes into existence and can be written by whoever gets there first. Closing that means persisting only under a `C.*` uid — and paying for it when no cookie can be established (the decision is then lost server-side and the visitor is asked on every request). Kept as an idea, deliberately not scheduled.
 
 ### The price of the chosen route
 
