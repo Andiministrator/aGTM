@@ -1119,8 +1119,14 @@ const isCookieUid = function(uid) {
 // and gets asked by the CMP again, and — worse — an F.* value written by the
 // bug F-153 fixed would sit there untouched for its full lifetime, since the
 // cleanup below searches under CFG.cookieName only.
-// '_TPU' was the v1.5 default; '_tpf' appeared on a live installation whose
-// cookie_name had been set by hand. Both are read, never written.
+// '_TPU' was the v1.5 default. Its origin is now documented rather than
+// guessed: it comes from the older, separate "user_id" server template
+// (tmp/user_id v1.3.tpl), where it was the EXAMPLE in the field help — that
+// field had no defaultValue at all ("If this field is left empty, no cookie
+// will be created"). The v1.5 refactor turned that example into a default, so
+// nobody ever chose it as a name. '_tpf' appeared on a live installation whose
+// cookie_name had been set by hand; it is not produced by any template in this
+// repo and its meaning remains unknown. Both are read, never written.
 const LEGACY_COOKIE_NAMES = ['_TPU', '_tpf'];
 
 // Reads the user-id cookie, falling back to the legacy names. Returns the value
