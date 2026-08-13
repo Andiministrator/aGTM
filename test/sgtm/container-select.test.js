@@ -10,37 +10,13 @@
 // library loaded and never injected GTM. No test noticed, because every existing
 // fixture passes a single container whose id matches the harness default query.
 import { describe, test, expect } from 'bun:test';
-import { runClient } from './client-harness.js';
+import { runClient, injectedConfig } from './client-harness.js';
 
 const TWO = [
   { gtm_id: 'GTM-AAA', gtm_consent: true },
   { gtm_id: 'GTM-BBB', gtm_consent: true }
 ];
 const BASE = { gtm: TWO, cookie_mode: 'always' };
-
-/**
- * The config object literal the Client injects. It is wrapped in an IIFE that
- * derives consent_store_url, so the literal is the first `{"` after the call —
- * matched by counting braces rather than by a regex, which would trip over the
- * nested objects of the container table.
- */
-function injectedConfig(body) {
-  const call = body.lastIndexOf('aGTM.f.config(');
-  if (call < 0) return null;
-  const start = body.indexOf('{"', call);
-  if (start < 0) return null;
-  let depth = 0, inStr = false, esc = false;
-  for (let i = start; i < body.length; i++) {
-    const ch = body[i];
-    if (esc) { esc = false; continue; }
-    if (ch === '\\') { esc = true; continue; }
-    if (ch === '"') { inStr = !inStr; continue; }
-    if (inStr) continue;
-    if (ch === '{') depth++;
-    else if (ch === '}' && --depth === 0) return JSON.parse(body.slice(start, i + 1));
-  }
-  return null;
-}
 
 /** The `gtm` object of the injected config. */
 function containers(body) {

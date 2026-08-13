@@ -149,6 +149,33 @@ export function runClient(opts = {}) {
   return { ...state, throws: null };
 }
 
+/**
+ * The config object literal the Client injects into the served library. It is
+ * wrapped in an IIFE that derives consent_store_url, so the literal is the
+ * first `{"` after the call — matched by counting braces rather than by a
+ * regex, which would trip over the nested objects of the container table.
+ *
+ * Lives here rather than in one test file because a second copy would drift,
+ * and a drifted parser reads a config that was never served.
+ */
+export function injectedConfig(body) {
+  const call = body.lastIndexOf('aGTM.f.config(');
+  if (call < 0) return null;
+  const start = body.indexOf('{"', call);
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < body.length; i++) {
+    const ch = body[i];
+    if (esc) { esc = false; continue; }
+    if (ch === '\\') { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) return JSON.parse(body.slice(start, i + 1));
+  }
+  return null;
+}
+
 /** Cookie writes only — a delete is max-age 0 and is not a write. */
 export function cookiesWritten(r) {
   return r.cookies.filter((c) => c.maxAge !== 0);

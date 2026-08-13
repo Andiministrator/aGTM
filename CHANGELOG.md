@@ -52,6 +52,32 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Fixed — two rows of the same type in the consent table no longer overwrite each other
+
+sGTM Client. *Consent Check Conditions* is a per-row table with an **Add Consent Check**
+button, so requiring two services reads like two rows. The config builder assigned each row
+in turn (`c[type] = value`), which means the **last** row won and the first requirement
+disappeared — while the GTM UI kept displaying both. The operator saw a stricter gate than
+the one that ran, and the error direction was **fail-open**: the visitor only had to grant
+one of the two services. The same applied to the legacy `ck` table.
+
+Two halves, because either alone leaves a hole:
+
+- **Runtime:** values of the same type are joined with a comma instead of replacing each
+  other. That is exactly the form `aGTM.f.chelp()` splits and ANDs, i.e. the string an
+  operator would have typed into a single row. **An existing configuration with such a pair
+  now enforces both values** — the gate it always looked like. If GTM stops loading for a
+  container after this update, that second row was the requirement nobody was meeting.
+- **UI:** the *Type* column is `isUnique` now, so the ambiguity cannot be created in the
+  first place. It cannot replace the runtime fix: the column accepts a **variable**, so two
+  rows can still resolve to the same type at request time without the UI ever seeing it.
+
+Cells that cannot carry a requirement are dropped instead of written, and the Client logs one
+`warn` line naming the type. An empty value would otherwise append a bare comma — `chelp()`
+would then require an **empty** token, which no consent string contains, closing the gate for
+everybody including a visitor who granted everything. A non-string (a variable resolving to a
+number, say) would reach `.split()` in the library and take `run_cc()` down for every visitor.
+
 ### Fixed — the user-id cookie default is `_tpf`, the name that was actually in use
 
 For part of the v1.5 development the default was `_TPU`, and it was never a chosen name:
@@ -193,9 +219,9 @@ inverted (F-167, F-168, F-170, F-172, F-173, F-174).
   was still the case. What remains valid is what the field help now teaches about filling
   the table: the type your CMP adapter really fills (a wrong type means GTM loads
   *never*), the exact string the CMP emits, never the essential/necessary category (many
-  CMPs report it after *Deny all*), one row per type — **a second row of the same type
-  silently overwrites the first** — and the acceptance test: click *Deny all*,
-  `aGTM.d.consent.gtmConsent` must be `false`.
+  CMPs report it after *Deny all*), one row per type — a second row of the same type
+  silently overwrote the first, **also fixed since** (see *two rows of the same type* above)
+  — and the acceptance test: click *Deny all*, `aGTM.d.consent.gtmConsent` must be `false`.
 - **"Load GTM even under server-side auto-denial" does nothing when unchecked — unless
   that table is filled.** The library recomputes the flag from the consent conditions, so
   with an empty table the switch has no effect. Its help said "Uncheck to block GTM
