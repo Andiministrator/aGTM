@@ -109,7 +109,7 @@ Three things make a "first visit" a fiction, and none of them announce themselve
 2. **State lives in more places than the site's consent cookie.** Depending on the CMP:
    - the **page's own origin** — cookies *and* `localStorage` (`cc_matomo`,
      `cc_jtl_consent`, `cc_tramino`, `cc_perspectivefunnel` read their decision straight
-     out of `localStorage`), plus aGTM's own user-id cookie (`_aGTMuid` by default when the
+     out of `localStorage`), plus aGTM's own user-id cookie (`_tpf` by default when the
      sGTM Client serves the library — if that survives, the Client resolves the user,
      returns the stored consent as `cfg.session.consent`, and GTM injects on the first
      tick with no banner);
@@ -141,14 +141,14 @@ report is "not tested from a clean state", not a result you did not have.
     // Same list the aGTM Inspector ships (devtools-extension/sim.js, SIM_COOKIE_DEFAULT)
     // — keep them in sync. `consent`/`consentPermission`/`tracking-preferences` are the
     // localStorage keys cc_matomo, cc_jtl_consent, cc_tramino and cc_perspectivefunnel
-    // read; `_aGTMuid` is aGTM's own user-id cookie on the sGTM-Client path (`_TPU`
-    // was the default before v1.5, `_tpf` a hand-configured name — both still occur
-    // in browsers, so all three are listed). Matching is
+    // read; `_tpf` is aGTM's own user-id cookie on the sGTM-Client path (`_TPU` was
+    // the default for part of the v1.5 development and is still read by the Client,
+    // so both may occur in a browser). Matching is
     // case-sensitive substring, so a site's custom `cookie_name` needs adding by hand.
     var pats = ['__cmp','consent','Consent','tracking-preferences','borlabs-cookie','klaro',
                 'cookiefirst','cmplz_','cookieyes','didomi','osano','TERMLY','termly',
                 'cc_cookie','_tracking_consent','cmpsettings','Optanon','euconsent-v2',
-                'ucData','uc_settings','_iub_cs','_aGTMuid','_tpf','_TPU','aGTM','agtm'];
+                'ucData','uc_settings','_iub_cs','_tpf','_TPU','aGTM','agtm'];
     function hit(n) { return pats.some(function (p) { return n.indexOf(p) >= 0; }); }
     var d = document, names = [];
     (d.cookie || '').split(';').forEach(function (c) {

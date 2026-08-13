@@ -1,18 +1,25 @@
-// The user-id cookie default changed from `_TPU` to `_aGTMuid` in v1.5.
+// The user-id cookie default was corrected to `_tpf` in v1.5.
 //
-// A rename that only touches the default silently orphans every cookie already
-// in a browser: the visitor looks brand new, loses their stable C.* id and the
-// consent recorded under it, and gets asked by the CMP again. Worse, an F.*
-// value written by the bug F-153 fixed would sit there for its full lifetime,
-// because that cleanup searches under CFG.cookieName only.
+// `_TPU` had been the default since the v1.5 Session refactor, and it was never
+// a chosen name: it was the EXAMPLE in the field help of the older, separate
+// "user_id" server template, whose field had no default at all. The refactor
+// promoted that example to a default — and nobody noticed, because every real
+// installation had cookie_name set to `_tpf` by hand. Measured: no customer
+// site carries a `_TPU` cookie. The default now matches what actually runs.
 //
-// So the legacy names are still READ (never written), the value is carried over
-// to the current name, and the old cookie is then retired. `_TPU` was the v1.5
-// default; `_tpf` was configured by hand on one installation.
+// The correction still has to be non-destructive. A default that only moves
+// would orphan any cookie written under the old name: the visitor looks brand
+// new, loses their stable C.* id and the consent recorded under it, and gets
+// asked by the CMP again. So `_TPU` is still READ (never written), the value is
+// carried over to the current name, and the old cookie is then retired.
 //
-// Mutation-checked (6 green unmutated):
-//   * LEGACY_COOKIE_NAMES emptied            -> 3 fail
-//   * the legacy cookie left in place        -> 3 fail
+// That fallback also keeps an earlier fix working: the cleanup that removes an
+// F.* fingerprint wrongly written into the cookie searches under the CONFIGURED
+// name, so without the legacy read it would never find those again.
+//
+// Mutation-checked (5 green unmutated):
+//   * LEGACY_COOKIE_NAMES emptied     -> 2 fail
+//   * the legacy cookie left in place -> 2 fail
 // Note the harness had to be taught the cookie NAME for this: its
 // getCookieValues stub returned the same list for every name, so a fallback
 // chain could never miss and these tests would have been green without the
@@ -48,12 +55,12 @@ function configObj(r) {
   return null;
 }
 
-describe('user-id cookie rename _TPU -> _aGTMuid', () => {
+describe('user-id cookie default corrected to _tpf', () => {
   test('a fresh visitor with a C.* id gets the new name', () => {
     const r = runClient({ data: { ...BASE }, cookies: ['C.1.t.abcdef123456.1700000000'], http: OK });
     expect(r.throws).toBeNull();
     const names = cookieWrites(r).map((c) => c[0]);
-    expect(names).toContain('_aGTMuid');
+    expect(names).toContain('_tpf');
     expect(names).not.toContain('_TPU');
   });
 
@@ -68,21 +75,11 @@ describe('user-id cookie rename _TPU -> _aGTMuid', () => {
     // freshly minted one — this is what "nobody is logged out" means here.
     expect(configObj(r).session.uid).toBe('C.1.t.abcdef123456.1700000000');
     const writes = cookieWrites(r);
-    expect(writes).toContainEqual(['_aGTMuid', 'C.1.t.abcdef123456.1700000000']);
+    expect(writes).toContainEqual(['_tpf', 'C.1.t.abcdef123456.1700000000']);
     // ...and the old one is retired rather than left behind as a duplicate.
     expect(writes).toContainEqual(['_TPU', '']);
   });
 
-  test('the hand-configured _tpf name is carried over as well', () => {
-    const r = runClient({
-      data: { ...BASE },
-      cookies: [{ name: '_tpf', value: 'C.1.t.abcdef123456.1700000000' }],
-      http: OK
-    });
-    expect(r.throws).toBeNull();
-    expect(configObj(r).session.uid).toBe('C.1.t.abcdef123456.1700000000');
-    expect(cookieWrites(r)).toContainEqual(['_tpf', '']);
-  });
 
   test('an F.* left in a legacy cookie is still cleaned up (F-153 must not regress)', () => {
     // The whole point of keeping the legacy names readable: this cleanup runs

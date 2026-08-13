@@ -52,7 +52,7 @@ const CFG = {
   consentService: data.consent_service || '',
   consentPurpose: data.consent_purpose || '',
   consentVendor: data.consent_vendor || '',
-  cookieName: data.cookie_name || '_aGTMuid',
+  cookieName: data.cookie_name || '_tpf',
   cookieLifetimeDays: makeNumber(data.cookie_lifetime || 365),
   cookieDomain: data.cookie_domain || 'auto',
   fingerprintAllowed: data.fingerprint_allowed !== false,
@@ -163,21 +163,26 @@ const isCookieUid = function(uid) {
   return !!(uid && typeof uid === 'string' && uid.indexOf('C.') === 0);
 };
 
-// Cookie names this Client used before the default became '_aGTMuid'. Kept
-// because a rename that only changes the default silently orphans every cookie
-// already in a browser: the visitor looks brand new, loses their stable C.* id
-// and gets asked by the CMP again, and — worse — an F.* value written by the
-// bug F-153 fixed would sit there untouched for its full lifetime, since the
-// cleanup below searches under CFG.cookieName only.
-// '_TPU' was the v1.5 default. Its origin is now documented rather than
-// guessed: it comes from the older, separate "user_id" server template
-// (tmp/user_id v1.3.tpl), where it was the EXAMPLE in the field help — that
-// field had no defaultValue at all ("If this field is left empty, no cookie
-// will be created"). The v1.5 refactor turned that example into a default, so
-// nobody ever chose it as a name. '_tpf' appeared on a live installation whose
-// cookie_name had been set by hand; it is not produced by any template in this
-// repo and its meaning remains unknown. Both are read, never written.
-const LEGACY_COOKIE_NAMES = ['_TPU', '_tpf'];
+// Cookie names this Client used before the default became '_tpf'. Kept because
+// a rename that only changes the default silently orphans every cookie already
+// in a browser: the visitor looks brand new, loses their stable C.* id and gets
+// asked by the CMP again, and — worse — an F.* value written by the bug F-153
+// fixed would sit there untouched for its full lifetime, since the cleanup
+// below searches under CFG.cookieName only.
+//
+// '_TPU' was the default from the v1.5 Session refactor until it was corrected.
+// It was never a chosen name: it comes from the older, separate "user_id"
+// server template (tmp/user_id v1.3.tpl), where it was the EXAMPLE in the field
+// help — that field had no defaultValue at all ("If this field is left empty,
+// no cookie will be created"). The refactor turned that example into a default,
+// and nobody noticed because every real installation had cookie_name set to
+// '_tpf' by hand. That is why '_tpf' is the default now: it is what actually
+// runs, and a default that matches reality is worth more than one that reads
+// well. Measured, not assumed — no customer site carries a '_TPU' cookie.
+//
+// Read only, never written. An entry equal to the configured name is skipped,
+// so this stays correct whatever cookie_name is set to.
+const LEGACY_COOKIE_NAMES = ['_TPU'];
 
 // Reads the user-id cookie, falling back to the legacy names. Returns the value
 // plus the name it came from ('' when it came from the configured one), because

@@ -113,9 +113,9 @@ anything else applies.
 same tab proves nothing (GTM cannot be un-injected once `aGTM.d.init` is `true`), and
 clearing the site's consent cookie is rarely the whole state. Also in play: the page's own
 `localStorage` (`cc_matomo`, `cc_jtl_consent`, `cc_tramino`, `cc_perspectivefunnel` read
-their decision from there), aGTM's own user-id cookie (`_aGTMuid` by default on the sGTM-Client
-since v1.5, `_TPU` before that and `_tpf` on one hand-configured installation — all three
-are still read and cleaned up, so any of them may show up in a browser
+their decision from there), aGTM's own user-id cookie (`_tpf` by default on the sGTM-Client
+since v1.5; `_TPU` was the default for part of the v1.5 development and is still read and
+retired by the Client, so either may show up in a browser
 path — if it survives, the Client returns the stored consent and GTM injects with no
 banner), and, for third-party-hosted CMPs (Consentmanager, Usercentrics, Cookiebot,
 OneTrust, Sourcepoint), a second copy in **their** origin that the page cannot reach at

@@ -33,7 +33,7 @@ const BASE = {
   cookie_mode: 'always',
   session_api_url: 'https://api.example/tp/session',
   tenant_id: 't',
-  cookie_name: '_aGTMuid'
+  cookie_name: '_tpf'
 };
 
 const STORED_CONSENT = {

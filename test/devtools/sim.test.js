@@ -1290,25 +1290,15 @@ describe("buildCookieResetCode — coverage gaps found by review", () => {
     expect(res.cleared).toEqual(["_TPU"]);
     expect(Object.keys(w.__store)).toEqual(["PHPSESSID"]);
   });
-  test("_aGTMuid — the default since v1.5 — is cleared by its own entry", () => {
-    expect(SIM_COOKIE_DEFAULT).toContain("_aGTMuid");
-    var w = jarAt("/", "_aGTMuid=C.1.abc; PHPSESSID=keep");
+  test("_tpf — the Client's default user-id cookie — is cleared", () => {
+    // The name every real installation runs, and the Client's default since
+    // v1.5. Its own entry matters because the broad "aGTM"/"agtm" fragments do
+    // not match it — nothing else in the list would.
+    expect(SIM_COOKIE_DEFAULT).toContain("_tpf");
+    var w = jarAt("/", "_tpf=C.1.abc; PHPSESSID=keep");
     var res = run(buildCookieResetCode(splitTokens(SIM_COOKIE_DEFAULT), {}), w);
-    expect(res.cleared).toEqual(["_aGTMuid"]);
+    expect(res.cleared).toEqual(["_tpf"]);
     expect(Object.keys(w.__store)).toEqual(["PHPSESSID"]);
-  });
-  test("_aGTMuid survives someone tightening the broad 'aGTM' fragment", () => {
-    // Matching is substring and case-sensitive, and "_aGTMuid" contains "aGTM"
-    // — so the list would clear it even without its own entry, which makes that
-    // entry look redundant. It is not: if someone later anchors or drops the
-    // very broad "aGTM"/"agtm" fragments, the user-id cookie must not go with
-    // them. This runs the real reset with those two fragments removed.
-    var narrowed = splitTokens(SIM_COOKIE_DEFAULT).filter(function (p) {
-      return p !== "aGTM" && p !== "agtm";
-    });
-    var w = jarAt("/", "_aGTMuid=C.1.abc; PHPSESSID=keep");
-    var res = run(buildCookieResetCode(narrowed, {}), w);
-    expect(res.cleared).toEqual(["_aGTMuid"]);
   });
   test("a cookie scoped to a parent path is reached from a deep page", () => {
     var w = jarAt("/de/produkt/42", "OptanonConsent=x@/de/; __cmpconsent1=y@/");
@@ -1340,9 +1330,8 @@ describe("SIM_COOKIE_DEFAULT — coverage of what aGTM's own adapters actually r
     expect(hit("perspective.tracking-preferences.42")).toBe(true);
   });
   test("aGTM's own user-id cookie is covered on every naming path", () => {
-    expect(hit("_aGTMuid")).toBe(true);  // sGTM Client default since v1.5
-    expect(hit("_TPU")).toBe(true);      // the default before that
-    expect(hit("_tpf")).toBe(true);      // hand-configured on one installation
+    expect(hit("_tpf")).toBe(true);      // sGTM Client default since v1.5
+    expect(hit("_TPU")).toBe(true);      // briefly the default during v1.5 dev
     expect(hit("aGTMoptout")).toBe(true); // a stuck opt-out looks exactly like "aGTM broken"
   });
 
