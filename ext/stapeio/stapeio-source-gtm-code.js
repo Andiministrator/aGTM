@@ -34,10 +34,10 @@
       d   = document, // document object
       s   = 'script', // Tag Type "script"
       dl  = 'dataLayer', // DataLayer Name
-      cid = 'PNDZXPFF', // GTM Container-ID (without GTM-)
-      ep  = 'https://dt.jansen-versand.de', // Endpoint
+      cid = 'XXXXXXX', // GTM Container-ID (without GTM-)
+      ep  = 'https://sgtm.example.com', // Endpoint
       cdn = '', // contains subdomain when Stape CDN is enabled
-      sid = 'vhmjybfb', // Custom Loader Identifiery
+      sid = 'xxxxxxxx', // Custom Loader Identifiery
       usc = 'stapeUserId', // User ID Source for Cookie Keeper
       dlv = '', // variable storing query parameter (&l=) with dataLayer name
       kid = '', // value of CookieKeeper ID
