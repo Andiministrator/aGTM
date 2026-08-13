@@ -42,7 +42,16 @@ const SRC = readFileSync(
  * @param opts.reqBody     request body (for the /aGTMconsent POST handler)
  * @param opts.query       request query parameters
  * @param opts.http        (url, body) => {statusCode, body} | null to reject
- * @param opts.cookies     values getCookieValues() returns
+ * @param opts.cookies     what getCookieValues(name) returns. Two forms:
+ *                      - array of strings: returned for EVERY name asked for.
+ *                        The original form, kept because most tests only ever
+ *                        deal with one cookie and do not care about the name.
+ *                      - array of {name, value}: filtered by the requested
+ *                        name. Needed as soon as the Client reads more than one
+ *                        name — e.g. the legacy user-id cookies it still reads
+ *                        after the _TPU -> _aGTMuid rename. With the flat form
+ *                        such a lookup can never miss, so the fallback chain
+ *                        would look correct in a test and be untested.
  * @param opts.clientIP    remote address
  * @returns {{status, body, headers, claimed, returned, logs, cookies, throws}}
  *          `cookies` records every setCookie() call as {name, val, maxAge} in
@@ -88,7 +97,13 @@ export function runClient(opts = {}) {
     sendHttpRequest: (url, o, body) => thenable(() => httpFn(url, body)),
     getRequestHeader: (h) => (opts.headers || {})[h] || '',
     getRemoteAddress: () => (opts.clientIP === undefined ? '203.0.113.7' : opts.clientIP),
-    getCookieValues: () => opts.cookies || [],
+    getCookieValues: (name) => {
+      const list = opts.cookies || [];
+      if (list.length > 0 && typeof list[0] === 'object' && list[0] !== null) {
+        return list.filter((c) => c.name === name).map((c) => c.value);
+      }
+      return list;
+    },
     setCookie: (name, val, o) => { state.cookies.push({ name: name, val: val, maxAge: o && o['max-age'] }); },
     fromBase64: (s) => Buffer.from(s, 'base64').toString('utf8'),
     toBase64: (s) => Buffer.from(s, 'utf8').toString('base64'),
