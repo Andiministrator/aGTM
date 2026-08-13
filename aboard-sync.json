@@ -1893,6 +1893,12 @@
                 "author": "Claude Opus",
                 "created": "2026-08-13",
                 "text": "WEICHEN GESTELLT 13.08.2026. Andi hat alle drei entschieden, Umsetzung ist durch und auf dev (4ac262f).\n\n- F-167: fail-closed + Opt-out allowEmptyConsentConditions. BREAKING fuer jede Installation mit leerer Bedingungstabelle - die laedt ab jetzt kein GTM, bis eine Zeile drin steht oder der Schalter gesetzt wird.\n- F-172: dadurch miterledigt. Bei leerer Tabelle laedt GTM ohnehin nicht mehr, die Fehlrichtung des Findings existiert nicht mehr. Der erst gestern korrigierte Hilfetext war dadurch selbst falsch und ist nachgezogen.\n- F-177: umgebaut, noch in v1.5 - auf Andis Anwendungsfall hin (GTM wird von extern geladen, die Events werden trotzdem gebraucht). Meine urspruengliche Empfehlung war \"nicht bauen\"; sie beruhte darauf, dass es ohne GTM keinen dataLayer-Konsumenten gibt, und genau das stimmt in seinem Fall nicht.\n- F-156: Option A umgesetzt (Lesepfad). Option B als Karte im v1.6-Backlog, ausdruecklich als Idee ohne Einplanung.\n- F-46: Warnung im gtm/README gesetzt; der Re-Export aus der GTM-UI bleibt Andis Zug.\n\nOFFEN AUF DIESER KARTE: F-165 (Ablehnungstest bei einem echten Tenant - _TPU-Cookie lesen, beginnt der Wert mit C., ist der Befund bestaetigt), F-164, F-171 (PRIVACY-DATAFLOW.md, v1.6-Kandidat), F-154, F-160."
+              },
+              {
+                "id": "55addec9-3434-4f99-bebb-1dfa75092de7",
+                "author": "Claude Opus",
+                "created": "2026-08-13",
+                "text": "QA + KRITIKER ueber die Session gelaufen (8093d99). Kein P1. Fuenf P2, alle behoben - Details auf der eigenen Karte und als F-180..F-188 im Archiv.\n\nFuer diese Karte relevant: F-165 ist unveraendert UNGEPRUEFT und in findings.md jetzt ausdruecklich so markiert. Andis Ablehnungstest lief gegen den alten Client (kein Re-Import), der schreibt grundsaetzlich kein User-ID-Cookie - das Ergebnis sagt also nichts. Beim richtigen Test zusaetzlich beachten: der kritische Pfad haengt an hasExplicitSignal, meldet die CMP beim Ablehnen leere Strings, greift F-165 fuer diesen Tenant ohnehin nicht.\n\nWeiter offen auf dieser Karte: F-164, F-171 (PRIVACY-DATAFLOW.md, v1.6-Kandidat), F-154, F-160, F-173."
               }
             ]
           },
@@ -1980,6 +1986,24 @@
               }
             ],
             "displayId": 82,
+            "columnId": "col-erledigt"
+          },
+          {
+            "id": "agtm-v15-qa-kritiker-runde",
+            "title": "QA + Kritiker ueber die ganze Session - 21 Findings, alle behoben (F-180..F-188)",
+            "description": "Zwei parallele Sub-Agent-Runden ueber d8e7ef0..HEAD, beide selbst-enthaltend geprompted (Sub-Agents haben keinen Memory-Zugriff, Projektregeln + knowledge-Pfade explizit mitgegeben). Kein P1, aber fuenf P2 mit echter Reichweite.\n\nDIE ZWEI WICHTIGSTEN CODE-FUNDE:\n\n1. cmp:none war NICHT ausgenommen (F-180) - entgegen dem, was Kommentar, CLAUDE.md UND ein Testkommentar behaupteten. Nur der INIT-Pfad umgeht run_cc; danach bleibt run_cc erreichbar (handgeladener consent_check + consent_events-Treffer) und dreht gtmConsent auf false bei bereits injiziertem Container. GTM bleibt geladen, nichts sieht kaputt aus - und jedes weitere Event versandet still in aGTM.d.f, weil nur inject() diese Queue leert. Jetzt expliziter noGate-Ausdruck statt Behauptung ueber den Kontrollfluss.\n\n2. Cookie-Loeschen war namens-asymmetrisch (F-181). Gelesen wurde ueber alle Namen, geloescht nur unter dem konfigurierten - ein Consent-WIDERRUF loeschte also ein Cookie, das es nicht gibt, das echte ueberlebte und wurde beim naechsten Request wieder gelesen. Der Widerrufspfad ist der falscheste Ort dafuer.\n\nWEITERE: readUidCookie brach beim ersten Treffer ab (F-182, ein F.* neben dem aktuellen Cookie ueberlebte den F-153-Cleanup) - iFrame-Weiterleiter bekam den container-losen Lifecycle inkl. urlListener ohne Empfaenger (F-183) - container-loser Lauf war nicht idempotent - zwei ES2017-Trailing-Commas in aGTM.js aus der VORIGEN Session (F-187, neuer Guard test/es5_syntax.test.js mit acorn --ecma5 + Selbsttest).\n\nDREI DOKU-STELLEN SAGTEN ETWAS, DAS DER CODE NICHT TUT:\n- Das Standalone-Snippet in README-for-Developers.md trug kein cmp, die direkt darunter zugesagten Lifecycle-Events feuerten also nie (F-184, gemessen). Exakt die Fehlerklasse, die diese Session bei vier Client-Einstellungen gefunden hat - in der eigenen Doku.\n- CHANGELOG widersprach sich beim zentralen Breaking Change (F-185): der Doku-Abschnitt vom Vormittag sagte noch fail-open sei der ausgelieferte Zustand.\n- SESSION-REDESIGN.md beschrieb den F-156-Fix weiter als offenen Kandidaten (F-188) - im Praesens, waehrend derselbe Diff ihn umsetzte. CLAUDE.md nennt die Datei als Pflichtlektuere vor Consent-Arbeit.\n\naGTM-Inspector.zip war stale (F-186): ohne m_consent_no_conditions, also genau den Log-Eintrag, auf den drei Dokumente fuer die Diagnose zeigen. Neu gepackt + verifiziert.\n\nBELEGE: 1128 Tests gruen (+8), build.sh sauber, Sandbox-Block byte-identisch, Template-Parameter gueltiges JSON. aGTM.min.js 36.052 -> 36.539 B (+487 ueber die ganze Session). Jeder Code-Fix mutationsgeprueft, jede Mutation einzeln gemessen. knowledge/ nachgezogen (u.a. consent-gate-fail-closed.md, die dem neuen Verhalten AKTIV widersprach), neue Datei default-werte-als-produktentscheidung.md, F-167..F-177 + F-180..F-188 ins Archiv.",
+            "status": "done",
+            "priority": "P2",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "L",
+            "effort": 6,
+            "agentContext": "QA-Checkliste: docs/qa/schritt-qa.md. Sub-Agent-Prompts muessen selbst-enthaltend sein (kein Memory) - Projektregeln + knowledge/topics-Pfade explizit mitgeben, sonst pruefen sie gegen Annahmen. Wichtig: den Client NICHT gegen ES5 pruefen lassen (Server-Sandbox erlaubt const/let/for-of), sondern gegen sgtm-sandbox-lint. Nach jedem devtools-extension/-Touch: scripts/pack-devtools-extension.sh (build.sh macht das bewusst nicht).",
+            "links": [],
+            "comments": [],
+            "displayId": 83,
             "columnId": "col-erledigt"
           }
         ]
@@ -2384,7 +2408,7 @@
         ]
       }
     ],
-    "nextDisplayId": 83,
+    "nextDisplayId": 84,
     "attachments": [],
     "background": null,
     "templates": [],
