@@ -125,12 +125,15 @@ describe('config() — synchronous call_cc trigger when preset consent is usable
     resetAGTM({
       session: { sid: 's-1', consent: { hasResponse: true, services: ',svc,' } },
       gtm: {},
-      cmp: 'none'
+      cmp: 'none',
+      gtmServices: 'svc'
     });
     aGTM.f.inject = origInject;
     // Synchronous call_cc → run_cc('init') → consent_check returns true →
-    // chelp passes (no required services configured) → gtmConsent=true →
+    // the configured requirement 'svc' is met by the preset → gtmConsent=true →
     // call_cc → inject() called immediately (no 500 ms wait).
+    // gtmServices is set on purpose: this used to pass with no requirement at
+    // all, which was the F-167 fail-open, not a property of the preset path.
     expect(injected).toBe(true);
     expect(aGTM.d.consent.gtmConsent).toBe(true);
   });

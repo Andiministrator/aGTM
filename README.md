@@ -438,6 +438,29 @@ The vendor(s) that must be agreed to in order to activate the GTM (comma-separat
 - Example: `'Google Inc'`
 - Default: `''`
 
+### allowEmptyConsentConditions
+
+Load GTM even though `gtmPurposes`, `gtmServices` and `gtmVendors` are **all** empty, i.e.
+run no consent gate at all.
+
+Default `false` means fail-closed: with no requirement configured, aGTM does not load GTM.
+Up to v1.4 the opposite applied — every `chelp()` check answers “nothing required →
+satisfied”, so an empty configuration granted consent to everybody, including a visitor who
+had just rejected everything.
+
+Set this to `true` only if you deliberately want no gate — for instance a container that
+carries nothing requiring consent. It cannot weaken a requirement you did configure: with
+at least one of the three set, the flag has no effect.
+
+If GTM stopped loading after upgrading to v1.5, this is the first thing to check — and the
+fix is usually a missing requirement, not this flag. aGTM writes one log entry
+(`m_consent_no_conditions`) in that case, readable via `aGTM_debug.js` or the aGTM
+Inspector.
+
+- Type: boolean
+- Example: `true`
+- Default: `false`
+
 ### gtmAttr
 
 Additional HTML attributes to add to the GTM `<script>` tag. Useful e.g. for CMP attribute-based consent systems that require a specific `data-*` attribute on the script tag.
@@ -594,15 +617,18 @@ This logic lives entirely in the sGTM Client (template + `jsSourceCode.js`) — 
 aGTM's default is to wait for a consent decision before injecting GTM. That default is
 not absolute — the cases below load GTM without one. Four of them are switches **you**
 turn on deliberately, for good reasons; they are listed here so you can state them, not
-because there is anything wrong with them. The exception is the second row: an empty
-consent-condition table is what aGTM **ships with**, so that one applies until you
-configure it. Check which of these apply before you rely on the default in a privacy
-statement.
+because there is anything wrong with them. Check which of these apply before you rely on
+the default in a privacy statement.
+
+The second row used to be the exception — an empty consent-condition table is what aGTM
+**ships with**, so it applied until you configured something. As of v1.5 that case is
+fail-closed: an empty table now means GTM is not loaded, and running without a gate has to
+be requested explicitly.
 
 | Case | What happens | Configured in |
 |---|---|---|
 | **Consent check switched off** | No CMP is consulted at all. aGTM records `hasResponse: true` with the feedback *“No Consent Check configured”* and injects GTM right away. | `cmp: 'none'` |
-| **No consent conditions configured** | The consent check has nothing to require, so it is satisfied by anything — including a rejection. GTM loads after “reject all”. | `gtmPurposes` / `gtmServices` / `gtmVendors`, resp. the *Consent Check Conditions* table of the sGTM Client. **Ships empty.** |
+| **No consent conditions configured** | **Changed in v1.5: this is now fail-closed** — with no requirement configured, GTM is not loaded at all. Up to v1.4 the check had nothing to require, was satisfied by anything including a rejection, and GTM loaded after “reject all”. To deliberately run without a gate, say so explicitly. | `gtmPurposes` / `gtmServices` / `gtmVendors`, resp. the *Consent Check Conditions* table of the sGTM Client (**ships empty**). Opt-out: `allowEmptyConsentConditions: true` |
 | **`noConsent` containers** | Containers marked `noConsent: true` are injected at startup, before any decision. Intended for loading a CMP or consent-free diagnostics. | `gtm` container table, column *Consent Check* |
 | **Server-side auto-denial** | The sGTM Client records “no consent” for a returning visitor without a stored decision, and — with `auto_deny_load_gtm` (default **on**) — still loads GTM, so that only tags gated on `aGTMconsent` may fire. | sGTM Client, *auto_deny_load_gtm* |
 | **iFrame mode** | Inside an iframe, aGTM grants consent itself and skips the CMP check — the decision is expected to have been made in the parent document, which runs its own check, and events are forwarded there via `postMessage`. Note that this **also injects whatever GTM container is configured for the iframe instance**; if the iframe should only forward events to the parent, configure no container for it. From v1.5 the receiving "aGTM iFrame Support" tag in the parent **must** have the iframe's hostname in its allow-list, and it strips aGTM's control flags out of the message — see that tag's README before relying on `_noConsent` from an iframe. | `iframeSupport` |

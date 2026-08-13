@@ -188,9 +188,12 @@ the user consented to the category "Statistics" — and (in addition) to the spe
 - **Value**
   The Value (String/Text) the selected Type has to contain (e.g. ",Google Tag Manager,").
 
-> **An empty table is fail-open, and it is the delivered default.** With no row, the check passes for
-> every visitor and GTM loads even after *Deny all*. An empty table is not a neutral state — see
-> *When aGTM loads GTM without a consent decision* in the main [README](../README.md#consent-handling).
+> **An empty table means no GTM at all (changed in v1.5).** With no row, aGTM loads no container —
+> the gate is closed, not open. Up to v1.4 the opposite applied: the check passed for every visitor
+> and GTM loaded even after *Deny all*, and since this table **ships empty**, that was the delivered
+> default. If you deliberately want no consent gate, tick *Load GTM without any consent gate* below;
+> leaving the form blank no longer expresses it. See *When aGTM loads GTM without a consent decision*
+> in the main [README](../README.md#consent-handling).
 
 Four things decide whether this table actually closes the gate:
 
@@ -211,6 +214,22 @@ Four things decide whether this table actually closes the gate:
 
 Accept the configuration like this: click *Deny all*, then read `aGTM.d.consent.gtmConsent` in the
 browser console — it must be `false`.
+
+#### Load GTM without any consent gate (`allow_empty_consent_conditions`)
+
+Checkbox, default **off**. Restores the pre-v1.5 behaviour for an *empty* condition table: GTM loads
+regardless of what the CMP reports. Only tick it if you deliberately run no consent gate — a container
+that carries nothing requiring consent, for example — and note the reason somewhere, because the
+setting is indistinguishable from an oversight later.
+
+It cannot weaken a gate you did configure: with at least one row in the table above, the checkbox has
+no effect at all. It reaches the library as `allowEmptyConsentConditions: true`, and only ever as
+`true` — a container that never saw this field keeps the safe default.
+
+**If GTM stopped loading after the v1.5 update, this is not the fix.** The cause is almost always a
+condition table that was empty all along and was silently passing everybody through. aGTM writes one
+log entry (`m_consent_no_conditions`) when it closes the gate for that reason — visible in the aGTM
+Inspector or via `aGTM_debug.js`.
 
 #### Advanced CMP Settings
 
@@ -293,10 +312,11 @@ Checkbox, default ON. When checked, aGTM (Phase 3) POSTs consent diffs to the fi
 
 When the Session API has no recorded consent for a returning visitor, the Client constructs a server-side auto-denial. If checked (default), the embedded `gtmConsent` flag is set to `true` so GTM still loads (only services requiring `aGTMconsent` fire). Uncheck to block GTM under auto-denial.
 
-> **Unchecking only works when *Consent Check Conditions* is filled.** With an empty table the library
-> recomputes the flag as granted (`chelp()` returns `true` when nothing is required) and loads GTM
-> regardless of this checkbox — so on the delivered default configuration this switch has no effect at
-> all. Fill the table first, then it behaves as documented.
+> **This switch only bites when *Consent Check Conditions* is filled.** With an empty table the library
+> refuses to load GTM anyway (fail-closed since v1.5), so the checkbox makes no difference there — it
+> decides between loading and not loading only once a real condition exists. Up to v1.4 the same
+> emptiness had the opposite effect: `chelp()` answered "nothing required → satisfied" and GTM loaded
+> regardless of this checkbox.
 
 Note that unchecking means GTM does not load *at all* for that population, so no diagnostic or
 consent-free tags run either. If your goal is "load GTM but fire no consent-requiring tags", leave this
