@@ -149,9 +149,36 @@ describe('F-167 — empty consent conditions are fail-closed', () => {
     });
   });
 
-  // cmp:'none' and the iframe mode set gtmConsent directly and never pass
-  // through run_cc's chelp chain. They are explicit choices by the integrator,
-  // whereas an empty table is a blank — the gate must not catch them.
+  // cmp:'none' and the iframe mode are explicit choices by the integrator,
+  // whereas an empty table is a blank — the gate must not catch them. Note the
+  // exclusion is an EXPLICIT flag (`noGate`), not a property of control flow:
+  // it is true that their init path sets gtmConsent directly without passing
+  // through run_cc, but run_cc remains reachable afterwards, which is what the
+  // first test below covers.
+  test("cmp:'none' keeps gtmConsent even when run_cc DOES run later", () => {
+    // The init path of cmp:'none' bypasses run_cc — but run_cc stays reachable:
+    // a consent_check loaded by other means plus a consent_events match calls
+    // run_cc('update'). Before the noGate guard that flipped gtmConsent to
+    // false on an already-injected container: GTM stays loaded (inject() never
+    // runs again), nothing looks broken, and every later event is queued into
+    // aGTM.d.f and never delivered — only inject() drains that queue.
+    document.cookie = '';
+    resetAGTM();
+    globalThis.dataLayer = [];
+    aGTM.f.config({ cmp: 'none', consent_events: 'cmpUpdate', gtm: { 'GTM-XXXX': {} } });
+    aGTM.f.init();
+    expect(aGTM.d.consent.gtmConsent).toBe(true);
+
+    aGTM.f.consent_check = function () { aGTM.d.consent.hasResponse = true; return true; };
+    aGTM.f.fire({ event: 'cmpUpdate' });
+    expect(aGTM.d.consent.gtmConsent).toBe(true);
+
+    var before = aGTM.d.f.length;
+    aGTM.f.fire({ event: 'purchase', value: 1 });
+    expect(aGTM.d.f.length).toBe(before);
+    expect(dataLayer.map(function (e) { return e && e.event; })).toContain('purchase');
+  });
+
   test("cmp:'none' still injects (it never goes through the chelp chain)", () => {
     document.cookie = '';
     resetAGTM();

@@ -148,6 +148,28 @@ describe('F-156 — consent preset requires a cookie-bound uid', () => {
     expect(session(r).consent.feedback).toBe('Consent denied by aGTM');
   });
 
+  test('the empty-conditions opt-out is wired through to the library', () => {
+    // One line in the Client (`if (data.allow_empty_consent_conditions) …`) is
+    // the entire escape hatch for a breaking change at live customers. It had
+    // no test at all: the library side is covered in consent_gate_empty, the
+    // wiring was not.
+    const on = runClient({
+      data: { ...BASE, allow_empty_consent_conditions: true },
+      cookies: ['C.1.t.abcdef123456.1700000000'],
+      http: () => ({ statusCode: 200, body: JSON.stringify(STORED_CONSENT) })
+    });
+    expect(configObj(on).allowEmptyConsentConditions).toBe(true);
+
+    const off = runClient({
+      data: { ...BASE },
+      cookies: ['C.1.t.abcdef123456.1700000000'],
+      http: () => ({ statusCode: 200, body: JSON.stringify(STORED_CONSENT) })
+    });
+    // Absent, not `false` — a container that never saw the field must keep the
+    // library's own safe default rather than have it overwritten.
+    expect(configObj(off).allowEmptyConsentConditions).toBeUndefined();
+  });
+
   test('every path still produces a response (no branch left dangling)', () => {
     [[], ['C.1.t.abcdef123456.1700000000'], ['F.1.t.deadbeef.20260813']].forEach((cookies) => {
       const r = runClient({

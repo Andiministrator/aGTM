@@ -471,6 +471,7 @@ aGTM.f.inject()
 | Object | Purpose |
 |---|---|
 | `aGTM.c` | Configuration (set via `aGTM.f.config()`) |
+| `aGTM.c.allowEmptyConsentConditions` | Opt-out of the empty-conditions gate. `false` (default) means fail-closed: with `gtmPurposes`/`gtmServices`/`gtmVendors` **all** empty, `run_cc` sets `gtmConsent = false` (F-167). Cannot weaken a requirement that IS configured. `cmp:'none'` and the iframe mode are excluded via an explicit `noGate` flag — not by control flow, because `run_cc` stays reachable for them through `consent_events`. |
 | `aGTM.c.consent_events` | Comma-separated event names that trigger `run_cc('update')` when seen in `fire()` |
 | `aGTM.c.consent_event_attr` | Parsed attribute conditions for `consent_events` (keyed by event name) |
 | `aGTM.c.dlSet` | Map of `{ targetProp: dlVariableName }` — auto-appended to every event in `fire()` |
@@ -483,6 +484,9 @@ aGTM.f.inject()
 | `aGTM.d.consent_hash` | Phase 3: stable serialization of `aGTM.d.consent` (blacklist of `gtmConsent`/`blocked`) at the **last successful consent-store POST**. Used to gate the diff/POST in `run_cc()` and to support retry on 5xx (advances only on 2xx). |
 | `aGTM.d.last_consent_hash` | State-change hash, advanced on **every** `run_cc()` regardless of POST success. Used to gate `sendnaus(aGTM_consent_update)` + `consent_callback` so the periodic CMP poll does not flood when the consent state is stable. |
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
+| `aGTM.d.noCondLogged` | Guards the `m_consent_no_conditions` log entry to one per page load — `run_cc('update')` also runs on the consent poll, and `aGTM.f.log` neither dedupes nor caps |
+| `aGTM.d.containerLessRun` | `true` once the container-less lifecycle has run (F-177). Keeps a repeated `initGTM(false)` — the Simulation tab does this — from appending another `'no_gtm_id'` to `gtmLoaded` |
+| `aGTM.d.gtmLoaded` | Container IDs `gtm_load` ran for. Written **before** the script tag is inserted (it gates the lifecycle block), so it records the attempt; a container-less run records `'no_gtm_id'` |
 | `aGTM.d.session` | Session & user data pre-populated from `cfg.session` (sGTM Client injection — see Session Feature below). Carries the Session API record: `uid`/`sid`/`ret`/`sst`/`vct`/`ga4sid`/`muidga4`, the counters `created`/`lastInteraction`/`pvCount`/`eventCount`/`sessionCount`, plus `consent`, `source` and `attribution` when present. **`vct` is the API's `counter` (requests within the session), NOT the visit count — that is `sessionCount`.** `counter` is not repeated under its own name; `customerId`/`user` are dropped as redundant. `ret`/`vct` semantics stay as they are because `ret` gates the server-side consent auto-denial. |
 | `aGTM.d.session_status` | Consent-sync lifecycle: `""` (no preset), `"preset"` (cfg.session accepted, no usable consent — this also covers a source-/attribution-only delivery that carries no `sid`), `"preset_with_consent"` (preset consent seeded into `aGTM.d.consent`), `"synced"` (CMP decision diffed and POSTed to `consent_store_url`), `"confirmed"` (CMP decision matches the preset, no POST needed). |
 | `aGTM.d.bot` | Bot-check verdict from the sGTM Client (`cfg.bot`), `{}` when the check is off. Shape `{isBot, score, band, primarySignal, signals[]}`. Only ever present for a **non-blocked** visitor — a definitive bot gets HTTP 403 and no library. Meant for *marking* (a webGTM `traffic_type` dimension), never for blocking. See "Bot check" below. |

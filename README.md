@@ -416,7 +416,9 @@ The object with the GTM containers to inject (GTM container ID as key, options a
 
 ### gtmPurposes
 
-The purpose(s) that must be agreed to in order to activate the GTM (comma-separated)
+The purpose(s) that must be agreed to in order to activate the GTM (comma-separated).
+**Leaving all three of `gtmPurposes`/`gtmServices`/`gtmVendors` empty is fail-closed since
+v1.5** — GTM is then not loaded at all; see [`allowEmptyConsentConditions`](#allowemptyconsentconditions).
 
 - Type: string
 - Example: `'Functional'`
@@ -683,9 +685,16 @@ There are 4 config options to inject the GTM consent-depending:
 - gtmPurposes
 - gtmServices
 - gtmVendors
+- allowEmptyConsentConditions
 
 You can use it to inject the GTM only if the regarding consent for it was given.
 That means, you can add one or more purpose(s), service(s) or vendor(s) to the option(s). If there is one or more missing consent of it, the GTM or GTAG will not be injected (only if all configured purposes and vendors have consent).
+
+**Leaving all three empty is fail-closed since v1.5.** With no requirement at all, GTM is
+not injected — up to v1.4 the opposite applied and it was injected for everybody, including
+a visitor who had just rejected everything. To deliberately run without a consent gate, set
+`allowEmptyConsentConditions: true`; it only covers this empty case and cannot weaken a
+requirement you did configure. `cmp: 'none'` and the iframe mode are unaffected either way.
 
 ### consent_events
 

@@ -103,6 +103,43 @@ describe('user-id cookie default corrected to _tpf', () => {
     expect(cookieWrites(r).map((c) => c[0])).toContain('_own');
   });
 
+  test('the /aGTMconsent POST handler reads the legacy name too', () => {
+    // Covered separately because every other test here goes through /aGTM.js.
+    // Removing the legacy read from the POST handler would not fail any of
+    // them — and that path is where a fresh uid would be minted for exactly
+    // the visitors the carry-over is meant to protect.
+    const urls = [];
+    const r = runClient({
+      data: { ...BASE, consent_service: 'analytics' },
+      path: '/aGTMconsent',
+      method: 'POST',
+      cookies: [{ name: '_TPU', value: 'C.1.t.abcdef123456.1700000000' }],
+      reqBody: JSON.stringify({ sid: 's1', consent: { services: ',analytics,' } }),
+      http: (url) => { urls.push(url); return { statusCode: 200, body: '{"ok":true}' }; }
+    });
+    expect(r.throws).toBeNull();
+    // The uid from the legacy cookie is what the consent gets persisted under —
+    // it appears in the Session API path the handler calls.
+    expect(urls.join(' ')).toContain('C.1.t.abcdef123456.1700000000');
+  });
+
+  test('a stale legacy cookie is retired even when the current one exists', () => {
+    // readUidCookie used to stop at the first hit, so a second, older cookie
+    // stayed in the browser whenever the current one was present — including an
+    // F.*, i.e. exactly what the F-153 cleanup removes, and it becomes
+    // authoritative again once the current cookie expires.
+    const r = runClient({
+      data: { ...BASE },
+      cookies: [
+        { name: '_tpf', value: 'C.1.t.abcdef123456.1700000000' },
+        { name: '_TPU', value: 'F.1.t.deadbeef.20260813' }
+      ],
+      http: OK
+    });
+    expect(r.throws).toBeNull();
+    expect(cookieWrites(r)).toContainEqual(['_TPU', '']);
+  });
+
   test('no legacy cookie present: nothing extra is written', () => {
     const r = runClient({ data: { ...BASE }, cookies: ['C.1.t.abcdef123456.1700000000'], http: OK });
     expect(cookieWrites(r).filter((c) => c[1] === '')).toEqual([]);

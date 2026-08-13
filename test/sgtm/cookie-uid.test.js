@@ -289,7 +289,7 @@ describe('POST /aGTMconsent never writes a fingerprint either', () => {
     expect(written(r)).toEqual([]);
   });
 
-  test('withdrawn consent still deletes the cookie', () => {
+  test('withdrawn consent still deletes the cookie — under every name it reads', () => {
     const r = runClient({
       data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', consent_service: 'analytics', cookie_delete: true },
       path: '/aGTMconsent',
@@ -298,6 +298,28 @@ describe('POST /aGTMconsent never writes a fingerprint either', () => {
     });
     expect(r.throws).toBeNull();
     expect(written(r)).toEqual([]);
-    expect(cookiesDeleted(r).length).toBe(1);
+    // One delete per name the Client would ever read: the configured one plus
+    // every legacy name. Reading is name-spanning, so deleting has to be — a
+    // visitor whose id sits in a legacy cookie would otherwise get a delete
+    // header for a name their browser does not have, keep the real cookie, and
+    // have the identity read straight back in on the next request. A delete for
+    // a cookie that does not exist is a no-op; the reverse is not.
+    const deletedNames = cookiesDeleted(r).map(function (c) { return c.name; });
+    expect(deletedNames).toContain('aGTMuid');
+    expect(deletedNames).toContain('_TPU');
+  });
+
+  test('the withdrawal deletes the legacy name even when the id came from there', () => {
+    // The case the name-spanning delete exists for: nothing under the current
+    // name, the identity lives in _TPU.
+    const r = runClient({
+      data: { gtm: GTM, cookie_mode: 'consent', consent_service: 'analytics', cookie_delete: true },
+      path: '/aGTMconsent',
+      method: 'POST',
+      cookies: [{ name: '_TPU', value: 'C.1.t.abcdef123456.1700000000' }],
+      reqBody: JSON.stringify({ sid: 's1', consent: { services: ',essential,' } })
+    });
+    expect(r.throws).toBeNull();
+    expect(cookiesDeleted(r).map(function (c) { return c.name; })).toContain('_TPU');
   });
 });
