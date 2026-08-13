@@ -1956,6 +1956,24 @@
             "comments": [],
             "displayId": 80,
             "columnId": "col-erledigt"
+          },
+          {
+            "id": "agtm-v15-cookie-rename",
+            "title": "User-ID-Cookie heisst jetzt _aGTMuid (war _TPU) - mit Uebernahme der Altnamen",
+            "description": "Ausloeser: Andis Frage \"woher kommt _TPU und sollten wir das aendern?\".\n\nBEFUND: _TPU war nie ein gewaehlter Name. Es kam mit 9d302d7 (v1.5-Session-Refactor) - davor schrieb der Client GAR KEIN User-ID-Cookie - und nichts im Repo erklaert es: kein Kommentar, keine Commit-Message. Wahrscheinlichste Lesart \"TP user\" nach dem /tp/-Praefix der api4sgtm-Endpunkte.\n\nNAMENSWAHL: Andi hatte _wdp oder _tpf vorgeschlagen und mit \"wenn du das empfiehlst\" zugestimmt - meine Empfehlung war aber _aGTMuid, nicht _tpf. Klargestellt und _aGTMuid umgesetzt. Beide Alternativen haben einen konkreten Defekt: _tpf heisst wahrscheinlich \"TP fingerprint\" und wuerde das Cookie nach genau dem Wert benennen, der dort nie stehen darf (F-153); _wdp ist eine Kundenabkuerzung und gehoert nicht in einen Produkt-Default.\n\nMIGRATION (der eigentliche Aufwand): Ein Rename, der nur den Default verschiebt, verwaist jedes bereits gesetzte Cookie - der Besucher wirkt neu, verliert seine stabile C.*-ID und den darunter gespeicherten Consent und wird erneut gefragt. Deshalb liest der Client die Altnamen (_TPU, _tpf) weiter, uebernimmt den Wert auf den aktuellen Namen und entsorgt das alte Cookie. Altnamen werden nie geschrieben. Beide Pfade lesen ueber denselben Helfer - haette ich den /aGTMconsent-POST-Handler vergessen, haetten genau diese Besucher eine frische uid gemintet bekommen.\n\nUND: die Legacy-Lesung haelt den F-153-Fix am Leben. Der F.*-Cleanup sucht unter CFG.cookieName - ohne Altnamen-Lesung faende er die alten Cookies nie wieder und sie blieben ihre volle Lebensdauer im Browser stehen.\n\nBELEGE: 1121 Tests gruen. 6 neue Tests (test/sgtm/cookie-rename.test.js), mutationsgeprueft: LEGACY_COOKIE_NAMES leeren => 3 fallen, Altcookie liegenlassen => 3 fallen. Dazu 2 im Inspector-Test, einer davon haelt fest, dass _aGTMuid auch dann noch geloescht wird, wenn jemand spaeter das sehr breite \"aGTM\"-Reset-Fragment verschaerft (es matcht heute per Substring, was den eigenen Eintrag redundant aussehen laesst). aGTM.min.js unveraendert - die Library ist nicht beteiligt.\n\nNEBENBEFUND: der Test-Harness musste Cookie-NAMEN lernen. Sein getCookieValues-Stub lieferte fuer jeden Namen dieselbe Liste, eine Fallback-Kette konnte also nie danebengreifen - die Tests waeren ohne das Feature gruen gewesen.",
+            "status": "done",
+            "priority": "P2",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": 4,
+            "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js: CFG.cookieName (~Z.55), LEGACY_COOKIE_NAMES + readUidCookie (~Z.165, muss VOR dem /aGTMconsent-Handler stehen - Sandbox verbietet Forward-Refs auf const-fn-expressions), POST-Fallback (~Z.240), GET-Aufloesung (~Z.1105), dropLegacy (~Z.1215). IMMER beide Dateien (template.tpl Sandbox-Block byte-identisch). Feld-Default in ___TEMPLATE_PARAMETERS___ + zwei ___TESTS___-Stellen. devtools-extension/sim.js: SIM_COOKIE_DEFAULT ergaenzen UND den bisherigen Wert nach SIM_COOKIE_DEFAULTS_PAST kopieren (sonst behalten Nutzer mit gespeicherter Liste die alte). test/sgtm/client-harness.js kann jetzt {name,value}-Cookies.",
+            "links": [],
+            "comments": [],
+            "displayId": 82,
+            "columnId": "col-erledigt"
           }
         ]
       },
@@ -2359,7 +2377,7 @@
         ]
       }
     ],
-    "nextDisplayId": 82,
+    "nextDisplayId": 83,
     "attachments": [],
     "background": null,
     "templates": [],
