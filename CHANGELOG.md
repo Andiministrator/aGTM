@@ -95,10 +95,13 @@ Two halves, because either alone leaves a hole:
 - **UI:** the *Type* column is `isUnique` now, so the ambiguity cannot be created in the
   first place. It cannot replace the runtime fix: the column accepts a **variable**, so two
   rows can still resolve to the same type at request time without the UI ever seeing it —
-  and it never sees a configuration that already exists.
+  and it never sees a configuration that already exists. *(What `isUnique` does to a stored
+  configuration that already contains a duplicate is untested against the GTM UI — merge such
+  rows before re-importing and the question does not arise. Stated as the open assumption it
+  is, rather than as a fact.)*
 
-That last point is why the join is **logged**, one `warn` line per request naming the type
-and the resulting value:
+That last point is why the merge is **logged**, one `warn` line per affected type, carrying
+the resulting value:
 
 ```
 ✗ Consent condition type listed more than once - the values are combined with AND,
@@ -108,13 +111,34 @@ and the resulting value:
 
 Nobody should have to read a changelog to find out why GTM stopped loading after an update.
 The line sits in the container log, i.e. where the symptom is, and it disappears when the
-rows are merged into one.
+rows are merged into one. A duplicate that merely repeats a value already required changes
+nothing and is *not* reported as a tightening.
 
-Cells that cannot carry a requirement are dropped instead of written, and the Client logs one
-`warn` line naming the type. An empty value would otherwise append a bare comma — `chelp()`
-would then require an **empty** token, which no consent string contains, closing the gate for
-everybody including a visitor who granted everything. A non-string (a variable resolving to a
-number, say) would reach `.split()` in the library and take `run_cc()` down for every visitor.
+**Values are normalised, not concatenated** — every token trimmed, blanks and repetitions
+dropped. That is what makes the merge safe rather than dangerous: a raw join would have
+turned a single typed trailing comma (`ga4,` plus `meta`) into `ga4,,meta`, and the consent
+check then requires an **empty** token, which no consent string contains. The gate would have
+been shut for 100% of visitors on a site where that same configuration worked before — a
+total measurement outage caused by the fix itself, on the next template re-import. A
+blank-only cell (`"   "`) was the same failure without needing the comma.
+
+Rows that carry no requirement are refused rather than written, each with its own `warn` line:
+a type outside the six known keys, a value that is not a string, and a row that adds nothing.
+
+**The type is whitelisted by value, not just checked for shape** — the same doctrine as the
+bot check, and for a concrete reason. Because the column takes a variable, a type resolving to
+`allowEmptyConsentConditions` used to write a non-empty string into it, which the library
+reads as truthy: the whole fail-closed gate above would switch back **off**, and the checkbox
+that owns that key only overwrites the value when it is ticked — so it survived in exactly the
+default configuration. `cmp` → `'none'` and `gtm` (corrupting the container table into a
+string) were reachable the same way. The lookup uses `=== 1`, so `constructor`/`toString`
+cannot inherit their way through.
+
+One table further up, the **container table** has the same defect and is now at least
+reported: two rows with the same GTM id collapse into one, the earlier row's settings vanish
+silently, and if the surviving row is the one *without* a consent check, the container loads
+before any decision. Which row should win is a product decision, so this one is logged, not
+repaired.
 
 ### Fixed — the user-id cookie default is `_tpf`, the name that was actually in use
 
