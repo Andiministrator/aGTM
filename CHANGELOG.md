@@ -68,14 +68,31 @@ state is "only the non-selectable categories", which is byte-for-byte what a del
 *deny all* looks like.
 
 `IsAlertBoxClosed()` is OneTrust's own answer to exactly this question and is now
-authoritative **in both directions**: `false` makes the adapter return `false`, so aGTM
-keeps waiting instead of deciding. It is read from `OneTrust` or from `Optanon` —
-whichever exposes it, because CookiePro deployments do not always publish the `OneTrust`
-global while `Optanon` is the object this adapter already depends on.
+authoritative on the `update` path **in both directions**: `false` makes the adapter
+return `false`, so aGTM keeps waiting instead of deciding. On `init` it decides only
+until something has set `hasResponse` — that short-circuit still wins, deliberately,
+because the sGTM Client's `preset_with_consent` path hands in a stored earlier decision
+on purpose.
 
-Where **neither** object offers the API, the two legacy signals still decide, exactly as
-before. That is deliberate: those setups keep their previous behaviour rather than
-trading one silent failure (GTM too early) for another (GTM never).
+**What that function actually answers**, read out of the shipped SDK (5.11.0, 6.36.0,
+202608.1.0) rather than assumed: the `OptanonAlertBoxClosed` cookie is present **and** no
+re-consent is due. So it means *an answer has been recorded*, not *the banner is on
+screen*. It is read from `OneTrust`, else from `Optanon`. Those two are the **same
+object** on every build checked (`window.OneTrust = window.Optanon = …`, confirmed live:
+`OneTrust === Optanon`), and `IsAlertBoxClosed` is created in the same object literal as
+`GetDomainData` — so an installation that reaches this code has it. The second lookup and
+the legacy fallback are insurance against unknown or older builds, **not** a known
+CookiePro trait; do not read them as "some setups keep the old behaviour", because on
+those builds the fallback is unreachable. Only a real boolean counts as an answer, and a
+throwing SDK method cannot escape the check.
+
+**One case to check before rolling this out.** OneTrust can be configured to show no
+banner at all in a region (`ShowAlertNotice: false`, a geolocation rule). Where that
+happens and the setup is not soft opt-in, nothing writes that cookie, so
+`IsAlertBoxClosed()` stays `false` for the whole visit and **GTM never loads for those
+visitors** — silently, where before it would have loaded. Whether aGTM should treat
+"OneTrust asks nothing" as a decision is an open question (finding F-198); see
+`cmp/README-cmp.md` for how to check your own tenant.
 
 Note what this does **not** change: with the condition table naming the non-selectable
 category, GTM still loads after a rejection. That is a legitimate setup — "load
@@ -84,7 +101,26 @@ in the field help (see below). The fix is about *when*, not *whether*.
 
 Compatible with aGTM **1.4.x and 1.5.x**: the file touches only `aGTM.d.consent` and the
 `typeof`-guarded `aGTM.f.log`, both unchanged across the two lines. A test asserts that
-surface so a future edit cannot quietly add a 1.5-only dependency.
+surface so a future edit cannot quietly add a 1.5-only dependency. The behavioural half
+was verified by hand against the 1.4 line: the adapter now returns `false` on `update`,
+and 1.4's `run_cc` has neither the field reset nor the snapshot/restore, so a `false`
+there simply logs and returns.
+
+**This reaches nobody until it is deployed.** Standalone integrations need the rebuilt
+`cmp/cc_onetrust_cookiepro.min.js`; sGTM Client users need the Client template re-imported
+(or the embedded code in *Your Code for CMP Check* replaced). Until then every affected
+site runs unchanged.
+
+### Fixed — CMP Tramino: a granted consent was reported as "no answer yet"
+
+Found by the critic round on the OneTrust fix. `cmp/cc_tramino.js` set
+`hasResponse = true` on its success path and then fell off the end of the function,
+returning `undefined`. `run_cc()` reads that as falsy, logs `m8` and never calls
+`inject()`. On the `init` path it healed itself on the next 500 ms poll through the
+`hasResponse` short-circuit — so it only ever looked like a small delay. On `update`
+under 1.5 the field reset clears `hasResponse` first, the short-circuit no longer
+applies, and **every consent change was swallowed silently**. Now returns `true`, with a
+test file that had not existed.
 
 ### Added — `PRIVACY-DATAFLOW.md`: what is sent, to whom, when, and what the default is
 
@@ -315,9 +351,12 @@ inverted (F-167, F-168, F-170, F-172, F-173, F-174).
   was still the case. What remains valid is what the field help now teaches about filling
   the table: the type your CMP adapter really fills (a wrong type means GTM loads
   *never*), the exact string the CMP emits, never the essential/necessary category (many
-  CMPs report it after *Deny all*), one row per type — a second row of the same type
-  silently overwrote the first, **also fixed since** (see *two rows of the same type* above)
-  — and the acceptance test: click *Deny all*, `aGTM.d.consent.gtmConsent` must be `false`.
+  CMPs report it after *Deny all* — but see *naming the essential category is a valid
+  setup* above: for an "essential service, once a decision exists" setup that entry is the
+  correct one), one row per type — a second row of the same type silently overwrote the
+  first, **also fixed since** (see *two rows of the same type* above) — and the acceptance
+  test: click *Deny all*, `aGTM.d.consent.gtmConsent` must be `false` unless you
+  deliberately run that essential-service setup.
 - **"Load GTM even under server-side auto-denial" does nothing when unchecked — unless
   that table is filled.** The library recomputes the flag from the consent conditions, so
   with an empty table the switch has no effect. Its help said "Uncheck to block GTM

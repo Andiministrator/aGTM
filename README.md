@@ -664,7 +664,9 @@ report it even after a rejection, so the gate stands open for everyone. If you d
 load GTM as an **essential service** — regardless of the choice, but only once a choice
 exists — then naming exactly that category is the correct way to say so, and `true` after a
 rejection is the intended result. What that setup still buys you is timing: GTM waits for a
-decision instead of loading against a default-denied consent state.
+decision instead of loading against a default-denied consent state — **provided the CMP
+adapter only reports `hasResponse` once a decision really exists.** That is a property of
+each adapter, not of the table; see `cmp/README-cmp.md` for the one that had it wrong.
 
 ### Use Event Listeners instead of the default timer
 

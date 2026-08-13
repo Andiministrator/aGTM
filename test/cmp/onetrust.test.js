@@ -43,14 +43,38 @@ function domainData(opts) {
   };
 }
 
-/** Installs the CMP globals and runs the check. `boxClosed`: true/false/undefined. */
+/**
+ * Installs the CMP globals and runs the check.
+ *
+ * `boxClosed`   what IsAlertBoxClosed() returns (any value, or a thrown Error).
+ * `otShape`     how the OneTrust global looks:
+ *                 'object'   plain object carrying the method (default)
+ *                 'function' a FUNCTION carrying the method — a real CMP shape
+ *                            (cc_secure_privacy has the precedent) and the one
+ *                            a `typeof == 'object'` test would silently skip
+ *                 'no-api'   object without the method → Optanon must take over
+ *                 'null'     the global exists but is null
+ *                 'absent'   no OneTrust global at all
+ * `optanonApi`  also put IsAlertBoxClosed on Optanon.
+ *
+ * Every combination is spelled out rather than derived, so a test's name and the
+ * state it actually creates cannot drift apart.
+ */
 function check(opts) {
   const o = opts || {};
   const data = domainData(o);
+  const answer = () => { if (o.boxClosed instanceof Error) throw o.boxClosed; return o.boxClosed; };
+
   globalThis.Optanon = { GetDomainData: () => data };
-  if (o.optanonHasApi) globalThis.Optanon.IsAlertBoxClosed = () => o.boxClosed;
-  if (o.boxClosed === undefined || o.optanonHasApi) delete globalThis.OneTrust;
-  else globalThis.OneTrust = { IsAlertBoxClosed: () => o.boxClosed };
+  if (o.optanonApi) globalThis.Optanon.IsAlertBoxClosed = answer;
+
+  delete globalThis.OneTrust;
+  const shape = o.otShape || (o.boxClosed === undefined || o.optanonApi ? 'absent' : 'object');
+  if (shape === 'object') globalThis.OneTrust = { IsAlertBoxClosed: answer };
+  else if (shape === 'function') { const f = function () {}; f.IsAlertBoxClosed = answer; globalThis.OneTrust = f; }
+  else if (shape === 'no-api') globalThis.OneTrust = { somethingElse: 1 };
+  else if (shape === 'null') globalThis.OneTrust = null;
+
   const ok = globalThis.aGTM.f.consent_check('update');
   return { ok: ok, consent: globalThis.aGTM.d.consent };
 }
@@ -70,9 +94,11 @@ describe('OneTrust: a decision must exist before anything is reported', () => {
     expect(r.consent.hasResponse).toBeFalsy();
   });
 
-  test('the same state without the guard would have reported "declined" as a decision', () => {
-    // Documents WHY false is correct: the category state before a decision is
-    // identical to the state after "deny all" — only the non-selectable one is on.
+  test('after a real decision, that same category state maps to "declined"', () => {
+    // This is the reason the guard is needed, spelled out: the category state
+    // BEFORE any decision is byte-for-byte the state after "deny all" — only the
+    // non-selectable category is on. So the category data alone can never tell
+    // the two apart, and something outside it has to answer "has anyone decided".
     const r = check({ boxClosed: true, interaction: 1, granted: ['C0001'] });
     expect(r.ok).toBe(true);
     expect(r.consent.feedback).toBe('Consent declined');
@@ -100,9 +126,65 @@ describe('OneTrust: a decision must exist before anything is reported', () => {
 
   // The API lives on OneTrust for some deployments and on Optanon for others.
   // CookiePro does not always publish the `OneTrust` global at all.
-  test('the guard also works when only Optanon exposes IsAlertBoxClosed', () => {
-    expect(check({ boxClosed: false, optanonHasApi: true }).ok).toBe(false);
-    expect(check({ boxClosed: true, optanonHasApi: true }).ok).toBe(true);
+  test('only Optanon exposes IsAlertBoxClosed → still waits before a decision', () => {
+    expect(check({ boxClosed: false, optanonApi: true }).ok).toBe(false);
+  });
+
+  test('only Optanon exposes IsAlertBoxClosed → reports after a decision', () => {
+    expect(check({ boxClosed: true, optanonApi: true }).ok).toBe(true);
+  });
+
+  // A OneTrust global that does NOT carry the method must not shadow Optanon's.
+  test('OneTrust without the method falls through to Optanon', () => {
+    expect(check({ otShape: 'no-api', optanonApi: true, boxClosed: false }).ok).toBe(false);
+    expect(check({ otShape: 'no-api', optanonApi: true, boxClosed: true }).ok).toBe(true);
+  });
+
+  test('a null OneTrust global does not throw and does not shadow Optanon', () => {
+    const r = check({ otShape: 'null', optanonApi: true, boxClosed: false });
+    expect(r.ok).toBe(false);
+  });
+});
+
+// The ways the guard could silently stop guarding. Each of these once passed the
+// check while the banner was open — the QA round proved it by mutation.
+describe('OneTrust: the guard cannot be bypassed by an unexpected shape', () => {
+  // A CMP global may be a FUNCTION that also carries methods. A `typeof ==
+  // 'object'` test skips it, and the adapter falls back to the legacy signals —
+  // which is exactly the bug this fix exists to end (Interaction was 1).
+  test('OneTrust as a function still guards', () => {
+    expect(check({ otShape: 'function', boxClosed: false, interaction: 1 }).ok).toBe(false);
+    expect(check({ otShape: 'function', boxClosed: true, interaction: 1 }).ok).toBe(true);
+  });
+
+  // Only a real boolean counts. A truthy non-boolean must NOT read as "decided",
+  // or the adapter claims a decision that never happened.
+  for (const bad of ['false', 'true', 1, 'yes', {}]) {
+    test(`IsAlertBoxClosed() returning ${JSON.stringify(bad)} is not a decision`, () => {
+      // No usable answer → legacy path. With no legacy signal either, it waits.
+      const r = check({ boxClosed: bad, interaction: 0 });
+      expect(r.ok).toBe(false);
+      expect(r.consent.hasResponse).toBeFalsy();
+    });
+  }
+
+  test('a falsy non-boolean is not a decision either', () => {
+    expect(check({ boxClosed: 0, interaction: 0 }).ok).toBe(false);
+    expect(check({ boxClosed: null, interaction: 0 }).ok).toBe(false);
+  });
+
+  // run_cc() does not catch, and it is called from aGTM.f.fire() — a throw here
+  // would abort the event before its dataLayer push, losing the event itself.
+  test('a throwing IsAlertBoxClosed does not escape consent_check', () => {
+    let r;
+    expect(() => { r = check({ boxClosed: new Error('boom'), interaction: 0 }); }).not.toThrow();
+    expect(r.ok).toBe(false);
+  });
+
+  test('a throwing IsAlertBoxClosed falls back to the legacy signals, not to a claim', () => {
+    // Legacy signal present → reports, as a setup without the API would.
+    const r = check({ boxClosed: new Error('boom'), interaction: 0, interactionType: 'accept all' });
+    expect(r.ok).toBe(true);
   });
 });
 
@@ -128,15 +210,55 @@ describe('OneTrust: setups without IsAlertBoxClosed keep their old behaviour', (
 });
 
 describe('OneTrust: contract with aGTM 1.4.x and 1.5.x', () => {
-  // The adapter must not depend on anything that only one of the two lines has.
-  test('touches only aGTM.d.consent and the typeof-guarded aGTM.f.log', () => {
-    const src = require('fs').readFileSync('./cmp/cc_onetrust_cookiepro.js', 'utf8');
-    const used = (src.match(/aGTM\.[a-z]\.[a-zA-Z_]+/g) || []).filter((v, i, a) => a.indexOf(v) === i).sort();
+  /** Source with comments removed — see the note in the test below. */
+  function code() {
+    return require('fs').readFileSync('./cmp/cc_onetrust_cookiepro.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  }
+
+  // This is a "no 1.5-only API surface" check, not proof of compatibility — it
+  // reads the source, it does not run the adapter against a 1.4 library. What it
+  // buys is that a future edit cannot reach for a 1.5-only helper unnoticed.
+  //
+  // Comments are stripped BEFORE matching. Without that, merely *naming*
+  // aGTM.f.fire in a comment fails the test (it did), which pushes the next
+  // author to mutilate an explanation rather than fix code — the opposite of
+  // what a guard should incentivise.
+  //
+  // The behavioural half of the compatibility claim, verified by hand against
+  // the 1.4 line and recorded here because no test captures it: the adapter now
+  // returns false on the 'update' path. In 1.4.x, run_cc has neither the B2
+  // field reset nor the snapshot/restore, so a false there simply logs m8 and
+  // returns — nothing had been cleared that would need restoring. In 1.5.x the
+  // snapshot is restored on false. Harmless in both.
+  test('no 1.5-only aGTM API surface', () => {
+    const used = (code().match(/aGTM\.[a-z]\.[a-zA-Z_]+/g) || []).filter((v, i, a) => a.indexOf(v) === i).sort();
     expect(used).toEqual(['aGTM.d.consent', 'aGTM.f.consent_check', 'aGTM.f.log']);
     // aGTM.f.log is optional in both lines — never called unguarded.
-    const unguarded = src.split('\n').filter((l) =>
+    const unguarded = code().split('\n').filter((l) =>
       l.indexOf('aGTM.f.log(') >= 0 && l.indexOf("typeof aGTM.f.log=='function'") < 0);
     expect(unguarded).toEqual([]);
+  });
+
+  // Every functional test above runs 'update'. The guard has to hold on 'init'
+  // too — that is the path the very first check takes.
+  test("the guard also holds on the 'init' path", () => {
+    globalThis.Optanon = { GetDomainData: () => domainData({ interaction: 1 }), IsAlertBoxClosed: () => false };
+    delete globalThis.OneTrust;
+    expect(globalThis.aGTM.f.consent_check('init')).toBe(false);
+    globalThis.Optanon.IsAlertBoxClosed = () => true;
+    expect(globalThis.aGTM.f.consent_check('init')).toBe(true);
+  });
+
+  // ...but a hasResponse that is ALREADY set short-circuits before the guard.
+  // Documented rather than "fixed": that short-circuit is load-bearing for the
+  // sGTM Client's preset_with_consent path, where a stored earlier decision is
+  // handed in deliberately. So the guard is authoritative on 'update', and on
+  // 'init' only until something has set hasResponse.
+  test("a preset hasResponse short-circuits 'init' before the guard runs", () => {
+    globalThis.Optanon = { GetDomainData: () => domainData({}), IsAlertBoxClosed: () => false };
+    globalThis.aGTM.d.consent = { hasResponse: true };
+    expect(globalThis.aGTM.f.consent_check('init')).toBe(true);
   });
 
   test("the 'init' short-circuit is intact (load-bearing for preset_with_consent)", () => {
@@ -149,7 +271,10 @@ describe('OneTrust: contract with aGTM 1.4.x and 1.5.x', () => {
     expect(globalThis.aGTM.f.consent_check()).toBe(false);
   });
 
-  test('ES5 only — no let/const/arrow/template literal in the shipped source', () => {
+  // Quick smoke check only. The AUTHORITATIVE ES5 guard is test/es5_syntax.test.js,
+  // which parses every cmp/*.js with acorn --ecma5 and catches what this regex
+  // cannot (class, spread, default parameters).
+  test('ES5 smoke check — no let/const/arrow/template literal', () => {
     const src = require('fs').readFileSync('./cmp/cc_onetrust_cookiepro.js', 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
     expect(src).not.toMatch(/\b(let|const)\s/);

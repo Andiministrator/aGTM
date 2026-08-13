@@ -214,7 +214,10 @@ Four things decide whether this table actually closes the gate:
    GTM as an **essential service** — regardless of what the visitor chooses, but only once a choice exists
    — then the non-selectable category is exactly the right entry, and the table means *wait for a decision*
    rather than *wait for a yes*. That is a legitimate setup: it keeps tags from firing against a
-   default-denied consent state, which is what happens when GTM loads before the banner is answered.
+   default-denied consent state, which is what happens when GTM loads before the banner is
+   answered. It only holds as far as the CMP adapter does — the table is never consulted until
+   the adapter reports a decision, so "wait for a decision" is that adapter's promise, not the
+   table's (see `cmp/README-cmp.md`).
 3. **One row per type** — put several requirements comma-separated into a single value; they are
    combined with AND. Up to v1.4 a second row of the same type silently overwrote the first: the
    gate that ran was weaker than the one on screen, and nothing said so. As of v1.5 the values are

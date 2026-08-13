@@ -252,6 +252,41 @@ Use the following value for the `cmp` Parameter:
 
 - onetrust_cookiepro
 
+**How a decision is recognised (changed in adapter v1.2, 2026-08-13).** The check
+asks `IsAlertBoxClosed()` — read from `OneTrust`, else from `Optanon` — and treats
+it as authoritative: `false` means *no decision yet*, and the adapter returns
+`false` so aGTM keeps waiting rather than loading GTM against an unanswered banner.
+
+That replaced a gate built on `customPayload.Interaction > 0`. Measured on a live
+site: that value was `1` on a page whose banner had never been touched, so aGTM
+reported a consent state, injected GTM, and a GA4 `page_view` went out before the
+visitor had any say. The category data alone cannot catch this — before a decision
+it shows *only the non-selectable categories*, which is byte-for-byte what a
+deliberate *deny all* looks like.
+
+**What `IsAlertBoxClosed()` actually answers.** Read out of the shipped SDK
+(5.11.0, 6.36.0, 202608.1.0): it is `OptanonAlertBoxClosed` cookie present **and**
+no re-consent due. So it means *"an answer has been recorded"*, not *"the banner is
+on screen"*. The cookie is written when the visitor closes the banner or the
+preference centre, in soft opt-in mode, or through the SDK's own
+`SetAlertBoxClosed()`.
+
+> **Check this before you roll the adapter out.** OneTrust can be configured to show
+> **no banner at all** in a region (`ShowAlertNotice: false`, a geolocation rule).
+> Where that happens and the setup is not soft opt-in, nothing ever writes that
+> cookie — `IsAlertBoxClosed()` stays `false` for the whole visit, and aGTM will
+> keep waiting, so **GTM never loads for those visitors, silently**. Before the
+> change they would have loaded. Verify in the browser console of an affected
+> region: `Optanon.GetDomainData().ShowAlertNotice` and `OneTrust.IsAlertBoxClosed()`.
+> If you need GTM to load where OneTrust asks nothing, say so — this is a
+> deliberate open decision, not an oversight (finding F-198).
+
+`OneTrust` and `Optanon` are the same object on every SDK build checked
+(`window.OneTrust = window.Optanon = …`), and `IsAlertBoxClosed` is created in the
+same object literal as `GetDomainData`. The second lookup and the legacy fallback
+in the adapter are therefore insurance against unknown or older builds — not a
+known CookiePro trait.
+
 ### Orest Bida Cookie Consent
 
 Use the following value for the `cmp` Parameter:
