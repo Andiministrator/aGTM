@@ -1887,6 +1887,12 @@
                 "author": "Claude Opus",
                 "text": "FORTSCHRITT 12.08.2026 (Andi hat die Auswahl delegiert: \"entscheide du, aber halte aGTM klein und leicht\").\n\nGEWAEHLT und erledigt: das Doku-/Hilfetext-Buendel — F-168 und F-170 sind behoben, F-174 im Doku-Teil abgeschlossen, F-167 Stufe (1)+(2) sowie die Hilfetext-Zwischenschritte zu F-172/F-173 sind drin. Eigene Karte in Erledigt, Commit f572cf1 auf dev.\n\nAUSWAHLBEGRUENDUNG: es behebt vier unwahre Zusagen in ausgelieferter UI und Doku, kostet null Bytes in aGTM.min.js (byte-identisch, 36.052 B — die einzige Library-Aenderung sind Kommentare) und bewegt keine Consent-Semantik. Genau die Klasse Arbeit, die ein DSB liest und die trotzdem nichts riskiert.\n\nBEWUSST LIEGENGEBLIEBEN: F-167 Stufe (3), F-156, F-165, F-177 — alle vier verschieben ein live laufendes Gate oder brauchen eine Messung an einem echten Tenant. F-46 braucht GTM-UI-Zugang. Diese Karte bleibt deshalb in Arbeit.",
                 "created": "2026-08-12"
+              },
+              {
+                "id": "d2d86afc-769d-40ca-b1e2-ef07e39d580d",
+                "author": "Claude Opus",
+                "created": "2026-08-13",
+                "text": "WEICHEN GESTELLT 13.08.2026. Andi hat alle drei entschieden, Umsetzung ist durch und auf dev (4ac262f).\n\n- F-167: fail-closed + Opt-out allowEmptyConsentConditions. BREAKING fuer jede Installation mit leerer Bedingungstabelle - die laedt ab jetzt kein GTM, bis eine Zeile drin steht oder der Schalter gesetzt wird.\n- F-172: dadurch miterledigt. Bei leerer Tabelle laedt GTM ohnehin nicht mehr, die Fehlrichtung des Findings existiert nicht mehr. Der erst gestern korrigierte Hilfetext war dadurch selbst falsch und ist nachgezogen.\n- F-177: umgebaut, noch in v1.5 - auf Andis Anwendungsfall hin (GTM wird von extern geladen, die Events werden trotzdem gebraucht). Meine urspruengliche Empfehlung war \"nicht bauen\"; sie beruhte darauf, dass es ohne GTM keinen dataLayer-Konsumenten gibt, und genau das stimmt in seinem Fall nicht.\n- F-156: Option A umgesetzt (Lesepfad). Option B als Karte im v1.6-Backlog, ausdruecklich als Idee ohne Einplanung.\n- F-46: Warnung im gtm/README gesetzt; der Re-Export aus der GTM-UI bleibt Andis Zug.\n\nOFFEN AUF DIESER KARTE: F-165 (Ablehnungstest bei einem echten Tenant - _TPU-Cookie lesen, beginnt der Wert mit C., ist der Befund bestaetigt), F-164, F-171 (PRIVACY-DATAFLOW.md, v1.6-Kandidat), F-154, F-160."
               }
             ]
           },
@@ -1931,6 +1937,24 @@
             "links": [],
             "comments": [],
             "displayId": 79,
+            "columnId": "col-erledigt"
+          },
+          {
+            "id": "agtm-v15-drei-weichen",
+            "title": "Drei Weichen entschieden und umgesetzt: F-167 fail-closed + Opt-out, F-177 Lifecycle ohne Container, F-156 Option A",
+            "description": "Andi hat nach dem Durchgehen entschieden. Alle drei bewegen ein live laufendes Gate, deshalb je mit Kosten benannt.\n\nF-167 (BREAKING): leere Bedingungstabelle laedt kein GTM mehr. chelp() antwortet \"nichts gefordert = erfuellt\", und der Client liefert die Tabelle LEER aus - das war also der Auslieferungs-Default, kein Randfall. Opt-out aGTM.c.allowEmptyConsentConditions / Client-Feld \"Load GTM without any consent gate\", wirkt NUR auf den leeren Fall. Ein Log-Eintrag m_consent_no_conditions, EINMAL (run_cc(update) laeuft auch im Poll, aGTM.f.log dedupliziert nicht und deckelt nicht). Zwei Alt-Tests mussten umgeschrieben werden - sie behaupteten woertlich gtmConsent=true bei NULL Anforderungen.\n\nF-177: container-lose Instanz feuert jetzt aGTM_ready/aPageview/aGTM_consent. Andis Anwendungsfall hat meine Empfehlung umgedreht: GTM kann von extern geladen werden, waehrend die Seite die Events braucht - dann gibt es sehr wohl einen dataLayer-Konsumenten. gtm.js bleibt aus (kuendigt ein Laden an, das hier nicht stattfindet). Buchfuehrung gtmLoaded.push VOR den !i-Return gezogen, sonst feuert der Lifecycle bei jedem Aufruf erneut. Nur bei initGTM(false). KEIN neuer Schalter - \"kein Container konfiguriert\" ist bereits die Aussage.\n\nF-156 (Option A, Option B nur als Idee): Preset UND Auto-Denial nur noch bei cookie-gebundener uid. Praedikat ist existingCookie, NICHT isFingerprintUid(sessionUid) - ein F.*-COOKIE ist pro Browser und der Lazy-F->C-Promote haengt daran (shouldLazyPromote -> sessionConsentGranted). Der Auto-Denial-Zweig musste mit ausgeschlossen werden: er liest sich wie ein sicherer Fallback, setzt gtmConsent aber aus autoDenyLoadGtm (Default true).\n\nF-46 Zwischenmassnahme: gtm/README-gtm-templates.md warnt jetzt vor dem Import in einen Produktivcontainer und benennt die Schwaeche des enthaltenen iFrame-Tags. Am Objekt gemessen: WEB-Container, 0 Clients (also gar keine sGTM-Client-Version drin), exportTime 2025-07-04 = Tag-Datum v1.4.1, eingebettete Library @version 1.3.\n\nBELEGE: 1113 Tests gruen (+24 neu in 3 Dateien). Jede Aenderung mutationsgeprueft, jede Mutation EINZELN gemessen statt einer Sammelzahl: F-167 3/1, F-177 4/2/1, F-156 2/2. build.sh sauber, Sandbox-Block byte-identisch zur Client-Source, Template-Parameter als JSON validiert. aGTM.min.js 36.052 -> 36.396 B (+344, gzip +94).\n\nNEBENBEFUND: der F-156-Test war zuerst gruen aus dem falschen Grund - die Extraktion schnitt ab dem ERSTEN aGTM.f.config( und zog damit den eingebetteten Library-Blob in die Assertion (\"consent\" steckt auch in consent_store_url). Jetzt wird das Config-Objekt geparst statt gestringmatcht.",
+            "status": "done",
+            "priority": "P1",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "L",
+            "effort": 8,
+            "agentContext": "aGTM.js: run_cc-Gate ~Z.590 (noConditions), initGTM ~Z.1149 (hasContainer + container-loser gtm_load), gtm_load ~Z.1085 (gtmLoaded.push vor !i-Return). Config-Option in config() bei den an()-Aufrufen. Log-Id in BEIDEN Tabellen pflegen: aGTM_debug.js UND devtools-extension/logmap.js - test/logmap_sync.test.js ist der Drift-Guard. Client: jsSourceCode.js ~Z.1245 (uidIsBrowserBound) + ~Z.944 (allow_empty_consent_conditions), IMMER beide Dateien (template.tpl Sandbox-Block byte-identisch). Tests: test/consent_gate_empty.test.js, test/initgtm_no_container.test.js, test/sgtm/consent-inheritance.test.js (Harness test/sgtm/client-harness.js).",
+            "links": [],
+            "comments": [],
+            "displayId": 80,
             "columnId": "col-erledigt"
           }
         ]
@@ -2234,6 +2258,24 @@
             "comments": [],
             "columnId": "col-backlog",
             "displayId": 78
+          },
+          {
+            "id": "agtm-v16-f156-option-b",
+            "title": "IDEE (nicht eingeplant): Consent nicht mehr unter dem Fingerprint-Schluessel SPEICHERN (F-156 Option B)",
+            "description": "Von Andi ausdruecklich als Idee aufgehoben, NICHT zur Umsetzung eingeplant (2026-08-13).\n\nOption A ist umgesetzt und schliesst den LESEPFAD: ohne Cookie wird kein Consent-Preset mehr ausgeliefert. Offen bleibt der SCHREIBPFAD - ohne Cookie wird die Entscheidung weiterhin unter dem geteilten Fingerprint-Schluessel persistiert, der Datensatz entsteht also weiter und kann von dem beschrieben werden, der zuerst da ist.\n\nOption B waere: Consent nur noch unter einer C.*-uid persistieren. Betrifft den /aGTMconsent-Handler und den Promote-Pfad.\n\nPREIS, warum es nicht einfach besser ist: kommt kein Cookie zustande (cookie_mode never, Browser blockt), geht die Entscheidung server-seitig verloren und der Besucher wird bei JEDEM Aufruf neu gefragt. Das ist der Grund fuer die Zurueckstellung, nicht fehlende Zeit.\n\nVerworfene Alternativen aus derselben Runde, damit sie nicht wiederkehren: Fingerprint schaerfen (mehr Entropie = mehr Fingerprinting, CNIL-Richtung falsch, und NAT+gleiches Browser-Image kollidiert weiter); nur Ablehnungen vererben (laeuft auf A hinaus, und der einzige deny-aehnliche Fall - die Auto-Denial - laedt GTM ja gerade); Preset-Feature ganz aufgeben (kostet den v1.5-Hauptvorteil, und dem Cookie darf man trauen).",
+            "status": "todo",
+            "priority": "P2",
+            "owner": "",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "M",
+            "effort": 3,
+            "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js: /aGTMconsent-Handler + tryPromote/shouldPromote. Immer BEIDE Dateien (template.tpl Sandbox-Block byte-identisch). Praedikat isFingerprintUid() existiert (JS ~Z.141-155). Gegenstueck Option A steckt bei ~Z.1245 (uidIsBrowserBound). Tests: test/sgtm/consent-inheritance.test.js deckt bislang NUR den Lesepfad ab - das steht dort auch so im Kopfkommentar.",
+            "links": [],
+            "comments": [],
+            "displayId": 81,
+            "columnId": "col-backlog"
           }
         ]
       },
@@ -2317,7 +2359,7 @@
         ]
       }
     ],
-    "nextDisplayId": 80,
+    "nextDisplayId": 82,
     "attachments": [],
     "background": null,
     "templates": [],
