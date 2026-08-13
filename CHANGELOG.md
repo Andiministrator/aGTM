@@ -39,6 +39,87 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Breaking — an empty consent-condition table no longer loads GTM
+
+**If GTM stops loading after this update, this is why, and the fix is one row in a
+table.** `aGTM.f.chelp()` answers "nothing required → satisfied", so with `gtmPurposes`,
+`gtmServices` and `gtmVendors` all empty the condition chain was `true` for everybody —
+including a visitor who had just clicked *deny all*. That was not a corner case: the sGTM
+Client ships its *Consent Check Conditions* table **empty**, so it was the delivered
+default (F-167). An empty requirement is now treated as "nothing has been expressed that
+could justify loading", i.e. fail-closed.
+
+Who is affected: anyone running a CMP with no condition configured. Nothing else changes —
+a configured requirement behaves exactly as before, in both directions (a met requirement
+grants, an unmet one denies, F-49 unchanged). `cmp: 'none'` and the iframe mode set the
+flag directly and never pass through this chain; they are explicit choices, whereas an
+empty table is a blank, and the two must not be confused.
+
+**The opt-out:** `allowEmptyConsentConditions: true` (sGTM Client: *Load GTM without any
+consent gate*) restores the old behaviour for the empty case. It cannot weaken a
+requirement you did configure — with at least one of the three set it has no effect at all,
+by design: it is an opt-out for the blank form, not a global "load GTM anyway" switch.
+
+When the gate closes for this reason, aGTM writes **one** log entry
+(`m_consent_no_conditions`) — once, not per call, because `run_cc('update')` also runs on
+the consent poll and an entry per tick would bury the log it is meant to explain. Read it
+with `aGTM_debug.js` or the aGTM Inspector.
+
+Two existing tests had to be rewritten for this, and that is worth stating plainly: both
+asserted `gtmConsent === true` for a configuration with **no requirement at all**. They
+were not wrong about the code — they documented the fail-open faithfully. They now state a
+real requirement, which is what they meant to test.
+
+### Added — aGTM without a GTM container now runs its own lifecycle
+
+An instance with no container configured emitted **nothing**: no `aGTM_ready` (and with it
+no `hastyEvents` for the DL-Repeat tag), no `aPageview`, no `aGTM_consent`. The dataLayer
+simply stayed empty, without an error. The pushes live inside `aGTM.f.gtm_load`, which was
+only ever called per configured container. The v1.2 changelog already promised this ("load
+aGTM without loading a container"); the branch written for it accessed the loop variable of
+a loop that never ran, threw a `TypeError`, and thereby killed `init()` outright — that was
+F-175, removed rather than repaired because reviving it needed decisions a bugfix must not
+make silently. This is that decision (F-177).
+
+The case it serves: **GTM is loaded by someone else** — the CMS, another script, a
+hand-placed snippet — while the page still needs aGTM's events. GTM replays the dataLayer
+array from its start, so it picks them up even when it loads after aGTM.
+
+- `gtm.js` is deliberately **not** emitted without a container. That event announces a GTM
+  load; aGTM performs none here, and an externally loaded GTM emits its own.
+- The `gtmLoaded` bookkeeping moved **in front of** the no-container exit. It gates the
+  lifecycle block ("did we already announce ourselves?"), and behind that exit it never ran
+  without a container — every further call would have re-fired `aGTM_ready`. The
+  `'no_gtm_id'` placeholder was written for exactly this case and had been unreachable
+  since it was introduced.
+- Only on the post-consent `initGTM(false)` pass, never on the pre-consent `initGTM(true)`
+  one for `noConsent` containers — announcing readiness before the decision would be wrong.
+- **No new switch.** Configuring no container is already the integrator saying "aGTM does
+  not load GTM here"; a second flag repeating it would only be one more thing to know.
+
+### Fixed — a visitor could inherit a stranger's consent through the fingerprint
+
+Without a user-ID cookie the sGTM Client keys the session on a server-side fingerprint
+derived from IP, user agent, client hints and ASN/geo. That is **not per-visitor**: two
+people behind the same NAT on the same browser build derive the same key. The Client then
+passed the stored consent of whoever got there first into `cfg.session.consent`, the
+library set `preset_with_consent`, and GTM was injected for someone who had never seen a
+CMP (F-156).
+
+The stored consent and the server-side auto-denial are now only passed through for a
+**cookie-bound** uid. An `F.*` cookie still counts — it sits in that one browser, and the
+lazy F→C promote needs the consent — so the migration path is unaffected; what is excluded
+is the case where the uid came from the fingerprint because no cookie exists.
+
+The auto-denial branch had to be excluded as well, and that is the subtle part: it *looks*
+like a safe fallback ("Consent denied by aGTM") but sets `gtmConsent` from
+`auto_deny_load_gtm`, which defaults to **true** — so leaving it in place would have moved
+the visitor from one preset that loads GTM to another.
+
+**What remains open:** consent is still *persisted* under the shared fingerprint key when
+no cookie exists, so the shared record can still be written. Closing that is a separate
+step, deliberately not bundled here.
+
 ### Documentation — four settings promised something the code does not do
 
 No behaviour changes here, no bytes added to the library: `aGTM.min.js` is byte-identical

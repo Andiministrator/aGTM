@@ -294,7 +294,9 @@ aGTM.f.call_cc()
   ├─ run_cc('init')
   │    ├─ consent_check('init')   — CMP-specific; reads CMP state, writes aGTM.d.consent
   │    └─ evaluates gtmPurposes / gtmServices / gtmVendors
-  │         → sets aGTM.d.consent.gtmConsent = true/false
+  │         → all three empty && !allowEmptyConsentConditions
+  │           → gtmConsent = false (fail-closed since v1.5, see below)
+  │         → otherwise sets aGTM.d.consent.gtmConsent = true/false
   ├─ clears the consent interval timer
   └─ inject()
 
@@ -469,6 +471,22 @@ aGTM.f.init();
 aGTM.f.fire({ event: 'pageview', _post: { enc: true } });
 ```
 
+Since v1.5 such an instance also emits its own lifecycle events — `aGTM_ready` (carrying
+`hastyEvents`), `aPageview` if configured, and `aGTM_consent` — into the dataLayer, even
+though it loads no container. `gtm.js` is deliberately **not** emitted: that event announces
+a GTM load, aGTM performs none here, and a GTM loaded by someone else emits its own.
+
+That is the second use of a container-less instance: GTM is loaded elsewhere (the CMS,
+another script, a hand-placed snippet) while the page still needs aGTM's events. GTM
+replays the dataLayer array from its start, so it picks the events up even when it loads
+after aGTM. No switch turns this on — configuring no container is already the statement
+that aGTM does not load GTM here.
+
+Up to v1.4 none of these events fired without a container, silently: the pushes live inside
+`gtm_load`, which was only ever called per configured container. The v1.2 changelog promised
+this ("load aGTM without loading a container"); the code written for it threw a `TypeError`
+and never ran (F-175, F-177).
+
 ## Session & User Data
 
 > **v1.5 redesign — see [SESSION-REDESIGN.md](SESSION-REDESIGN.md).** The library no longer issues a client-side HTTP call for session data; it consumes a pre-populated `cfg.session` object that the sGTM Client injects into the library response. When the response carries a stored consent block, GTM injects on the same tick — no CMP wait. Subsequent CMP decisions are diffed against the preset and POSTed back to a dedicated `consent_store_url` endpoint.
@@ -519,6 +537,7 @@ aGTM.f.config({
 | `session_salt` | number | `0` | Obfuscation salt for the consent-store POST; also fallback salt for POST transport (`_post`) when neither the event nor `transport_salt` provides one |
 | `consent_store_url` | string | `""` | POST endpoint for consent diffs. The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record. When served via the sGTM Client, the URL is built **browser-side** at config time from `document.currentScript.src` + fixed path `/aGTMconsent` — works under any reverse-proxy prefix transparently. Standalone integrators set this manually. Empty string disables the diff/store mechanism. |
 | `consent_store_enc` | boolean | `false` | If `true`, the consent-store POST payload is obfuscated with `session_salt` (Base64 + Caesar shift — **not** encryption). **Unusable in v1.5:** no server-side decoder exists, `/aGTMconsent` answers `501` and stores nothing, so enabling this silently disables consent persistence. |
+| `allowEmptyConsentConditions` | boolean | `false` | Load GTM although `gtmPurposes`/`gtmServices`/`gtmVendors` are **all** empty, i.e. run no consent gate. The default is fail-closed (v1.5, F-167): with no requirement configured, GTM is not loaded — up to v1.4 an empty configuration granted consent to everybody, including a visitor who rejected everything. Cannot weaken a requirement you did configure. One log entry `m_consent_no_conditions` is written when the gate closes for this reason. |
 | `consent_poll_ms` | number | `2000` | Interval (ms) for the periodic CMP state-change poll started after the first successful init. Set to `0` to disable. Only takes effect when `consent_store_url` is set. Catches CMPs that emit updates via direct `dataLayer.push()` (CCM19, Cookiebot, Usercentrics, …) which would otherwise bypass the `consent_events` matcher in `aGTM.f.fire()`. |
 | `session` | object | `null` | Pre-populated session object from the sGTM Client; accepted when it is an object with `sid`, `consent`, `attribution`, or `source`. Extra non-meta fields the sGTM Client captures from the Sources API (e.g. `source`, the affiliate cookie value) are deep-copied through to `aGTM.d.session.*` and readable in webGTM via a JS variable (e.g. `aGTM.d.session.source`). |
 

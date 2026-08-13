@@ -394,6 +394,14 @@ aGTM.f.call_cc()             — called by timer, manually, or sync from config(
   │    │    └─ on 'init' with hasResponse=true → short-circuit returns true
   │    │       (load-bearing for preset_with_consent path)
   │    │
+  │    ├─ [ALL of gtmPurposes/Services/Vendors empty && !allowEmptyConsentConditions]
+  │    │    → gtmConsent = false (fail-closed, F-167) + one-time log
+  │    │      m_consent_no_conditions. chelp() answers "nothing required →
+  │    │      satisfied", so without this the chain below is true for everyone
+  │    │      and GTM loads after "deny all" — and the sGTM Client ships its
+  │    │      condition table EMPTY, so that was the delivered default.
+  │    │      cmp:'none' and the iframe mode set gtmConsent directly and never
+  │    │      reach here: those are explicit choices, an empty table is a blank.
   │    ├─ evaluates gtmPurposes/Services/Vendors → sets aGTM.d.consent.gtmConsent
   │    │   (fallback: aGTM.d.consent.blocked === true → gtmConsent=true.
   │    │    Set by sGTM Client server-side auto-denial in cfg.session.consent.)
@@ -425,10 +433,21 @@ aGTM.f.inject()
   ├─ copy pre-existing window[gdl] items → aGTM.d.f (queue)
   ├─ [gtmConsent == true]
   │    ├─ aGTM.f.initGTM(false)
-  │    │    └─ aGTM.f.gtm_load() per container
-  │    │         ├─ sendnaus(aGTM_ready)  — carries aGTM.hastyEvents = aGTM.d.f
-  │    │         ├─ sendnaus(gtm.js)
-  │    │         └─ insert <script> tag into DOM  — GTM loads asynchronously
+  │    │    ├─ [container(s) configured] aGTM.f.gtm_load() per container
+  │    │    │    ├─ sendnaus(aGTM_ready)  — carries aGTM.hastyEvents = aGTM.d.f
+  │    │    │    ├─ sendnaus(gtm.js)
+  │    │    │    ├─ gtmLoaded.push(id)    — gates the block above; runs BEFORE
+  │    │    │    │                          the no-id exit, else it never runs
+  │    │    │    │                          without a container (F-177)
+  │    │    │    └─ insert <script> tag into DOM  — GTM loads asynchronously
+  │    │    └─ [NO container configured] aGTM.f.gtm_load(…, i='', …, {})
+  │    │         └─ same lifecycle, minus gtm.js (emitted only with an id) and
+  │    │            minus the script tag. For setups where GTM is loaded by
+  │    │            someone else (CMS, hand-placed snippet) but the page still
+  │    │            needs aGTM's events — GTM replays the dataLayer from the
+  │    │            start, so a later GTM still sees them. Not gated by a
+  │    │            switch: "no container" already says it. Only on
+  │    │            initGTM(false), never on the pre-consent initGTM(true).
   │    └─ aGTM.d.init = true
   └─ aGTM.f.chkDPready()    — fire aDOMready / aPAGEready if configured
 ```

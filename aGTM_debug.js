@@ -41,6 +41,7 @@ aGTM.d.logmap = aGTM.d.logmap || {
   ,m7:  { type:'msg', msg:'Event prepared for dataLayer.push' }
   ,m8:  { type:'msg', msg:'Consent Setup called, but consent not (yet) available' }
   ,m9:  { type:'msg', msg:'Event fired to dataLayer' }
+  ,m_consent_no_conditions:  { type:'msg', msg:'GTM was NOT loaded: no consent condition is configured (gtmPurposes/gtmServices/gtmVendors are all empty). An empty requirement is fail-closed since v1.5 — configure a condition, or set allowEmptyConsentConditions:true to load GTM without any consent gate' }
   ,m_session_preset:         { type:'msg', msg:'Session preset accepted from cfg.session (no usable consent block)' }
   ,m_session_preset_consent: { type:'msg', msg:'Session preset accepted from cfg.session, incl. a valid consent block' }
   ,m_bot_preset:             { type:'msg', msg:'Bot-check verdict accepted from cfg.bot into aGTM.d.bot' }

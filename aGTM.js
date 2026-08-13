@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 12.08.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 13.08.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -286,6 +286,7 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "gtmPurposes", cfg, ""); // The purpose(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Functional'
   aGTM.f.an(aGTM.c, "gtmServices", cfg, ""); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
   aGTM.f.an(aGTM.c, "gtmVendors", cfg, ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
+  aGTM.f.an(aGTM.c, "allowEmptyConsentConditions", cfg, false); // Load GTM even though gtmPurposes/gtmServices/gtmVendors are ALL empty, i.e. run no consent gate at all. Default false = fail-closed: with no requirement configured, GTM is not loaded (F-167). Only set this if you deliberately want no gate; it does not weaken a gate you did configure.
   aGTM.f.an(aGTM.c, "gtmAttr", cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
   aGTM.f.an(aGTM.c, "dlSet", cfg, {}); // Set dataLayer variables, that should always be attached to an event
   aGTM.f.an(aGTM.c, "useListener", cfg, false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
@@ -579,7 +580,29 @@ aGTM.f.run_cc = function (action) {
     return false;
   }
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
-  if (
+  // No consent condition configured at all. Each chelp() call answers "nothing
+  // required → satisfied", so the chain below would be true for everybody and
+  // GTM would load even after the visitor clicked "deny all" — the delivered
+  // default of the sGTM Client ships this table empty, so that was the default
+  // behaviour rather than an edge case (F-167). An empty requirement is now
+  // treated as "no decision has been expressed that could justify loading",
+  // i.e. fail-closed, and an integrator who deliberately wants no gate at all
+  // says so with allowEmptyConsentConditions. Note `cmp: 'none'` and the
+  // iframe mode do not pass through here — they set gtmConsent directly and
+  // are unaffected on purpose: those are explicit choices, this is a blank.
+  var noConditions = !aGTM.c.gtmPurposes && !aGTM.c.gtmServices && !aGTM.c.gtmVendors;
+  if (noConditions && !aGTM.c.allowEmptyConsentConditions) {
+    aGTM.d.consent.gtmConsent = false;
+    // Logged once, not per call: run_cc('update') also runs on the consent
+    // poll (every consent_poll_ms), and aGTM.f.log neither dedupes nor caps —
+    // an entry per tick would bury the log it is meant to explain. Without
+    // this line the answer to "why did GTM stop loading after the update?"
+    // lives only in the docs.
+    if (!aGTM.d.noCondLogged) {
+      aGTM.d.noCondLogged = true;
+      aGTM.f.log("m_consent_no_conditions", null);
+    }
+  } else if (
     aGTM.f.chelp(aGTM.c.gtmPurposes, aGTM.d.consent.purposes) &&
     aGTM.f.chelp(aGTM.c.gtmServices, aGTM.d.consent.services) &&
     aGTM.f.chelp(aGTM.c.gtmVendors, aGTM.d.consent.vendors)
@@ -1031,7 +1054,17 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
     aGTM.f.sendnaus(aGTM.f.aGTM_event('aGTM_consent'));
     aGTM.d.consentEvent_fired = true;
   }
-  // Return if no container id
+  // Bookkeeping BEFORE the no-container exit. It gates the lifecycle block
+  // above ("did we already announce ourselves?"), so it has to run on every
+  // path that got past it — including the container-less one, which returns
+  // just below. It used to sit at the very end of this function, i.e. behind
+  // that return, which made `gtmLoaded.length` stay 0 forever without a
+  // container: every further call re-fired aGTM_ready. The 'no_gtm_id'
+  // placeholder was written for exactly this case and was unreachable.
+  aGTM.d.gtmLoaded.push(i ? i : 'no_gtm_id');
+  // Return if no container id. Everything above is the aGTM lifecycle and
+  // runs without a container on purpose (see aGTM.f.initGTM); everything
+  // below builds and injects the GTM script tag and needs an id.
   if (!i) return;
   // Set default for GTM ID Parameter
   if (!p) p = 'id';
@@ -1081,8 +1114,6 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
   // Insert the GTM script tag into the document
   var firstScriptTag = d.getElementsByTagName("script")[0];
   firstScriptTag.parentNode.insertBefore(scriptTag, firstScriptTag);
-  // Add the GTM Container ID to control object
-  aGTM.d.gtmLoaded.push(i ? i : 'no_gtm_id');
 };
 
 /**
@@ -1139,38 +1170,44 @@ aGTM.f.pageready = function (evob) {
  * Usage: aGTM.f.initGTM(false);
  */
 aGTM.f.initGTM = function (noConsentGTM) {
-  // No container configuration at all: nothing to inject. An empty object
-  // (`gtm: {}`) and a missing `gtm` key mean the same thing here — see the
-  // removed fallback below.
-  if (typeof aGTM.c.gtm != 'object' || !aGTM.c.gtm) return;
-  // There used to be a `if (!count) { gtm_load(…, aGTM.c.gtm[containerId]…) }`
-  // fallback here, meant to implement the v1.2 promise "load aGTM without
-  // loading a container". It could never work: `count === 0` holds exactly when
-  // the object has no own enumerable keys, and then `containerId` — the loop
-  // variable of a loop that never ran — is `undefined`, so the fallback threw a
-  // TypeError instead of loading anything. That killed `init()` outright: no
-  // GTM, no chkDPready(), and jserrors() never installed, so the failure could
-  // not even report itself. Reachable through the documented loader snippet,
-  // which assigns the integrator's object straight to `aGTM.c` (`gtm: {}` or a
-  // stray `gtm: []`). Removed rather than repaired: the promise it was meant to
-  // keep needs decisions this fix must not make silently (whether a
-  // container-less instance emits the lifecycle events at all, and if so how
-  // `gtmLoaded` bookkeeping and `noConsentGTM` apply). Tracked separately.
-  for (var containerId in aGTM.c.gtm) {
-    if (aGTM.c.gtm.hasOwnProperty(containerId)) {
-      if (typeof aGTM.c.gtm[containerId].hasLoaded != 'boolean') aGTM.c.gtm[containerId].hasLoaded = false;
-      if (!aGTM.c.gtm[containerId].hasLoaded && (!noConsentGTM || aGTM.c.gtm[containerId].noConsent)) {
-        aGTM.f.gtm_load(
-          window,
-          document,
-          containerId,
-          aGTM.c.gtm[containerId].idParam ? aGTM.c.gtm[containerId].idParam : '',
-          aGTM.c.gdl,
-          aGTM.c.gtm[containerId]
-        );
-        aGTM.c.gtm[containerId].hasLoaded = true;
+  // Whether any container is actually configured. "No `gtm` key", "gtm: {}"
+  // and "gtm: []" all mean the same thing here: nothing to inject.
+  var hasContainer = false;
+  if (typeof aGTM.c.gtm == 'object' && aGTM.c.gtm) {
+    for (var containerId in aGTM.c.gtm) {
+      if (aGTM.c.gtm.hasOwnProperty(containerId)) {
+        hasContainer = true;
+        if (typeof aGTM.c.gtm[containerId].hasLoaded != 'boolean') aGTM.c.gtm[containerId].hasLoaded = false;
+        if (!aGTM.c.gtm[containerId].hasLoaded && (!noConsentGTM || aGTM.c.gtm[containerId].noConsent)) {
+          aGTM.f.gtm_load(
+            window,
+            document,
+            containerId,
+            aGTM.c.gtm[containerId].idParam ? aGTM.c.gtm[containerId].idParam : '',
+            aGTM.c.gdl,
+            aGTM.c.gtm[containerId]
+          );
+          aGTM.c.gtm[containerId].hasLoaded = true;
+        }
       }
     }
+  }
+  // No container configured: still run the aGTM lifecycle once. The events it
+  // emits (aGTM_ready incl. hastyEvents, aPageview, aGTM_consent) are aGTM's
+  // own, not GTM's, and there are setups where GTM is loaded by someone else
+  // — another script, the CMS, a hand-placed snippet — while the page still
+  // needs those events. GTM processes the dataLayer array from the start, so
+  // it picks them up even when it loads later. No extra switch gates this:
+  // "no container configured" is already the integrator saying "aGTM does not
+  // load GTM here", and a second flag repeating it would only be one more
+  // thing to know. `gtm.js` stays out on its own — gtm_load emits it only
+  // with a container id, which is correct: that event announces a load we did
+  // not perform, and an externally loaded GTM emits its own.
+  // Gated on `!noConsentGTM`, so this runs on the post-consent initGTM(false)
+  // and not on the pre-consent initGTM(true) pass for noConsent containers —
+  // announcing readiness before the consent decision would be wrong.
+  if (!hasContainer && !noConsentGTM) {
+    aGTM.f.gtm_load(window, document, '', '', aGTM.c.gdl, {});
   }
 };
 

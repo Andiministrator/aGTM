@@ -63,9 +63,19 @@ describe('aGTM.f.run_cc() — blocked flag on update', () => {
   });
 
   test('gtmConsent=true after update when user accepts (all required consents given)', () => {
-    aGTM.c.gtmServices = ''; // no requirement
+    // A configured requirement that IS met. This test used to run with
+    // gtmServices = '' ("no requirement") and still expect true — which was
+    // exactly the F-167 fail-open: an empty condition table granted consent to
+    // everybody. Since that is now fail-closed, the test has to state a real
+    // requirement to keep testing what it means to test.
+    aGTM.c.gtmServices = 'Google Tag Manager';
     aGTM.d.consent = { hasResponse: false, blocked: false,
                         purposes: '', services: '', vendors: '' };
+    aGTM.f.consent_check = function() {
+      aGTM.d.consent.hasResponse = true;
+      aGTM.d.consent.services = ',Google Tag Manager,';
+      return true;
+    };
     aGTM.f.run_cc('update');
     expect(aGTM.d.consent.gtmConsent).toBe(true);
   });
