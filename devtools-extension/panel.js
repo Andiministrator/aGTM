@@ -883,6 +883,18 @@ function eventTable(list, prefix, reversed) {
 /* ---------- GTM ---------- */
 // GTM injection status/containers/script-tags as HTML. Formerly its own tab; now
 // appended at the bottom of the Diagnose tab (a dedicated tab wasn't worth it).
+// aGTM.d.gtmLoaded records the containers gtm_load() ran for. Since F-177 the
+// library also runs the full lifecycle WITHOUT a container (aGTM_ready, replay,
+// no script tag — for setups where GTM is placed by a CMS) and records that as
+// the literal 'no_gtm_id'. Printed raw it reads like a container ID that isn't
+// one; say what it means instead.
+function loadedLabel(loaded) {
+  if (!loaded || !loaded.length) return "—";
+  return loaded.map(function (id) {
+    return id === "no_gtm_id" ? "ohne Container (Lifecycle lief, kein Script-Tag)" : id;
+  }).join(", ");
+}
+
 function gtmCardsHtml() {
   var s = state.snap;
   var containers = s.containers || [];
@@ -910,7 +922,7 @@ function gtmCardsHtml() {
     '<div class="k">dataLayer-Variable</div><div class="v mono">' + esc(s.gdl || "—") + "</div>" +
     '<div class="k">dataLayer-Einträge (live)</div><div class="v mono">' + (dllen === null ? '<span class="muted">—</span>' : esc(dllen)) + "</div>" +
     '<div class="k">aktive gtmID</div><div class="v mono">' + esc(s.gtmID || "—") + "</div>" +
-    '<div class="k">geladen (aGTM.d.gtmLoaded)</div><div class="v mono">' + esc(loaded.join(", ") || "—") + "</div>" +
+    '<div class="k">geladen (aGTM.d.gtmLoaded)</div><div class="v mono">' + esc(loadedLabel(loaded)) + "</div>" +
     '<div class="k">Script-Tags im DOM</div><div class="v">' + (scripts.length ? '<span class="chip ok">' + esc(scripts.length) + "</span>" : '<span class="chip">0</span>') + "</div>" +
     '<div class="k">Lade-Domain</div><div class="v">' + loadMode + "</div>" +
     "</div></div>";

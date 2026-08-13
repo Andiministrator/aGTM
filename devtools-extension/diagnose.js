@@ -60,6 +60,15 @@
       : { key: "consent", label: "Consent erkannt", status: "warn",
           detail: "Noch keine Consent-Antwort (hasResponse=false) — Banner evtl. offen." });
 
+    // 2b) Consent condition configured at all. This is the reason behind the most
+    //     confusing symptom there is: the visitor accepts everything and GTM still
+    //     never loads. Since v1.5 an empty gtmPurposes/gtmServices/gtmVendors is
+    //     fail-closed (F-167) — and the sGTM Client ships that table EMPTY, so it
+    //     is the delivered default, not an edge case. Without this line the
+    //     "GTM injiziert" check below says "Wartet auf Consent", which is true and
+    //     useless: the wait never ends.
+    checks.push(consentGateStatus(snap));
+
     // 3) GTM injection reached the DOM.
     if (snap.init && arr(snap.gtmScripts).length) {
       checks.push({ key: "inject", label: "GTM injiziert", status: "pass",
@@ -430,6 +439,74 @@
   // Health check for the bot check — the mode is otherwise invisible. `mark`
   // looks exactly like `block` until a bot shows up, so a filter left switched
   // off after a rollout measurement would never be noticed again.
+  /**
+   * "Is the library at least version maj.min?" — answered from aGTM.d.version,
+   * which is a display string ("1.5", "1.6-pre", "1.4.1"). Only the leading two
+   * numbers are compared; a suffix like "-pre" is ignored. Returns null when the
+   * string carries no parsable version, so the caller can say "not determinable"
+   * instead of assuming one of the two opposite behaviours.
+   */
+  function atLeastVersion(v, maj, min) {
+    if (typeof v !== "string" && typeof v !== "number") return null;
+    var m = String(v).match(/^\s*(\d+)(?:\.(\d+))?/);
+    if (!m) return null;
+    var a = parseInt(m[1], 10), b = m[2] ? parseInt(m[2], 10) : 0;
+    if (a !== maj) return a > maj;
+    return b >= min;
+  }
+
+  /**
+   * The consent-condition gate, mirroring aGTM.f.run_cc exactly:
+   *   noGate       = cmp === 'none' || (iframeSupport && is_iframe)
+   *   noConditions = !gtmPurposes && !gtmServices && !gtmVendors
+   *   noConditions && !noGate && !allowEmptyConsentConditions  →  gtmConsent = false
+   * Reproduced rather than inferred from gtmConsent, because the point is to name
+   * the CAUSE while the symptom ("GTM lädt nicht") is still ambiguous.
+   */
+  function consentGateStatus(snap) {
+    snap = snap || {};
+    var cfg = snap.config;
+    var label = "Consent-Bedingung";
+    // A config that failed to serialise (F-56 sentinel) reads as "all three empty"
+    // — which is exactly the accusation this check makes. Refuse to make it.
+    if (!cfg || typeof cfg !== "object" || cfg.__unserializable) {
+      return { key: "gate", label: label, status: "na",
+        detail: "aGTM.c nicht lesbar — Bedingungen nicht prüfbar." };
+    }
+    var have = [];
+    if (cfg.gtmPurposes) have.push("gtmPurposes");
+    if (cfg.gtmServices) have.push("gtmServices");
+    if (cfg.gtmVendors) have.push("gtmVendors");
+    if (have.length) {
+      return { key: "gate", label: label, status: "pass",
+        detail: "konfiguriert über " + have.join(" + ") };
+    }
+    // From here on: all three empty.
+    if (snap.cmp === "none") {
+      return { key: "gate", label: label, status: "na",
+        detail: "cmp:'none' — die Library gated hier bewusst nicht (siehe „Consent-Mechanismus\")." };
+    }
+    if (cfg.iframeSupport && snap.isIframe) {
+      return { key: "gate", label: label, status: "na",
+        detail: "iFrame-Modus — die Library gated hier bewusst nicht." };
+    }
+    if (cfg.allowEmptyConsentConditions) {
+      return { key: "gate", label: label, status: "warn",
+        detail: "Keine Bedingung konfiguriert, aber allowEmptyConsentConditions:true — GTM lädt für JEDEN, auch nach „Alle ablehnen\". Nur korrekt, wenn das die Absicht ist." };
+    }
+    var v15 = atLeastVersion(snap.version, 1, 5);
+    if (v15 === true) {
+      return { key: "gate", label: label, status: "fail",
+        detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer — seit v1.5 fail-closed: gtmConsent bleibt false, GTM lädt nie. Bedingung eintragen (im sGTM Client die Tabelle „Consent\") oder bewusst allowEmptyConsentConditions:true setzen." };
+    }
+    if (v15 === false) {
+      return { key: "gate", label: label, status: "fail",
+        detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer, und diese Library (v" + snap.version + ") ist älter als v1.5 — dort ist eine leere Bedingung fail-OPEN: GTM lädt für jeden, auch nach „Alle ablehnen\". Bedingung eintragen oder Library aktualisieren." };
+    }
+    return { key: "gate", label: label, status: "warn",
+      detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer. Welche Wirkung das hat, hängt an der Library-Version (ab v1.5 lädt GTM nie, davor für jeden) — aGTM.d.version ist hier nicht auswertbar." };
+  }
+
   function botCheckStatus(snap) {
     var b = botSummary((snap || {}).bot);
     if (b.state === "absent") return null;

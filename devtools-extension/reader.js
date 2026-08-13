@@ -270,6 +270,11 @@
       // (require a sub-path prefix, so first-party traffic isn't swept in).
       pageHost: (typeof location !== "undefined" && location && location.host) ? location.host : "",
       init: !!d.init,
+      // Needed to reproduce run_cc's `noGate` exactly (aGTM.js: cmp==='none' ||
+      // (iframeSupport && is_iframe)). Without it the empty-conditions check
+      // would have to guess at the iframe half and could accuse a setup the
+      // library never gates.
+      isIframe: !!d.is_iframe,
       // Simulation-tab block state (set by the opt-in Simulation tab's block action;
       // read-only here). Lets the panel re-apply a persisted block after a reload.
       blocked: !!d.__inspBlocked,
