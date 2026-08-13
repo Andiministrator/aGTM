@@ -52,6 +52,40 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Added — aGTM Inspector: the Diagnose tab names the empty-condition gate
+
+The breaking change further down ("an empty consent-condition table no longer loads GTM")
+produces the most confusing symptom this library has: the visitor accepts everything and
+GTM still never loads. The Inspector could not say why. Its health check reported "GTM
+injiziert: N/A — wartet auf Consent", which is true and useless, because the wait never
+ends.
+
+The Diagnose tab now carries a **"Consent-Bedingung"** check. It reproduces `run_cc`'s gate
+instead of reading the result of it (`gtmConsent`), because the whole point is to name the
+cause while the symptom is still ambiguous — and it reproduces the library's exclusions
+exactly rather than approximately:
+
+- `gtmPurposes`/`gtmServices`/`gtmVendors` all empty on a v1.5+ library → **fail**, naming
+  both ways out (configure a row, or `allowEmptyConsentConditions: true`).
+- The same table with `allowEmptyConsentConditions: true` → **warn**, not fail: GTM loads
+  for everyone including after "deny all", which is correct only if it was intended.
+- `cmp: 'none'`, and `iframeSupport` **while the page really is in an iframe** → **N/A**.
+  The library excludes those two explicitly, so accusing them would be a false positive.
+  `iframeSupport` alone is not the exclusion — `aGTM.d.is_iframe` is now part of the
+  reader snapshot so the second half is checked rather than assumed.
+- A library older than v1.5 → **fail** with the *opposite* explanation: there an empty
+  table is fail-**open**, so GTM loads even after "deny all".
+- `aGTM.d.version` unreadable → **warn** that says it cannot tell which of the two applies,
+  rather than picking one. An unserialisable `aGTM.c` (the F-56 sentinel) reads exactly
+  like "all three empty", so it degrades to N/A instead of making the accusation.
+
+Also in this tab: `aGTM.d.gtmLoaded` renders the container-less lifecycle (`'no_gtm_id'`,
+added in "aGTM without a GTM container now runs its own lifecycle") as *"ohne Container
+(Lifecycle lief, kein Script-Tag)"* instead of printing a literal that reads like a
+container ID nobody configured.
+
+The Inspector is off the ES5/`build.sh` path; `aGTM-Inspector.zip` was re-packed.
+
 ### Fixed — CMP OneTrust/CookiePro: GTM loaded while the banner was still open
 
 Measured on a live site: the banner was visible, `OneTrust.IsAlertBoxClosed()` was

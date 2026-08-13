@@ -146,7 +146,7 @@ function sampleSnap() {
       { some: "internal_message" }
     ],
     gtmScripts: [{ id: "aGTM_tm_GTM-XXX", host: "sgtm.fc-moto.com", inline: false }],
-    config: { cmp: "", gtm: { "GTM-XXX": {} }, gdl: "dataLayer", consent_store_url: "https://sgtm.fc-moto.com/aGTMconsent" },
+    config: { cmp: "", gtm: { "GTM-XXX": {} }, gdl: "dataLayer", gtmServices: "Google Analytics", consent_store_url: "https://sgtm.fc-moto.com/aGTMconsent" },
     dl: [{ event: "page_view", aGTMts: 111, page_title: "Home", value: 0 }, { aGTMts: 333, note: "internal" }],
     queue: [{ event: "add_to_cart", aGTMts: 222, value: 12.5, currency: "EUR" }],
     queueLen: 1,
@@ -870,6 +870,17 @@ describe("Diagnose tab", () => {
     expect(html).toContain("Injection-Status");           // GTM status card
     expect(html).toContain("Container — aGTM.c.gtm");     // container table
     expect(html).toContain("Injizierte Script-Tags (DOM)"); // sample has one script tag
+  });
+  test("the container-less lifecycle (F-177) is named, not printed as a container ID", () => {
+    const P = globalThis.__panel;
+    const snap = sampleSnap();
+    snap.gtmLoaded = ["no_gtm_id"];
+    P.setSnap(snap);
+    P.setTab("diagnose"); P.render();
+    const html = globalThis.document.getElementById("tab-diagnose")._html;
+    expect(html).toContain("ohne Container");
+    expect(html).not.toContain("no_gtm_id");
+    P.setSnap(sampleSnap());
   });
   test("timeline resolves markers from log ids + network (config/pending/inject/firstTag)", () => {
     const P = globalThis.__panel;

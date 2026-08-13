@@ -16,7 +16,8 @@ function okSnap() {
     pageHost: "fc-moto.com", version: "1.5", cmp: "", hasConsentCheck: true,
     init: true, gtmScripts: [{ id: "aGTM_tm_GTM-X" }], session_status: "synced",
     consent: { hasResponse: true, gtmConsent: true, services: "a,b", purposes: "1,2", vendors: "" },
-    containers: [{ id: "GTM-X", url: "https://sgtm.fc-moto.com/gtm.js", hasLoaded: true, noConsent: false }]
+    containers: [{ id: "GTM-X", url: "https://sgtm.fc-moto.com/gtm.js", hasLoaded: true, noConsent: false }],
+    config: { gtmServices: "Google Analytics,Google Ads" }
   };
 }
 
@@ -28,6 +29,7 @@ describe("healthChecks", () => {
     expect(byKey(checks, "inject").status).toBe("pass");
     expect(byKey(checks, "leaks").status).toBe("pass");
     expect(byKey(checks, "traps").status).toBe("pass");
+    expect(byKey(checks, "gate").status).toBe("pass");
   });
   test("no cmp and no consent_check → fail", () => {
     const s = okSnap(); s.cmp = ""; s.hasConsentCheck = false;
@@ -51,6 +53,55 @@ describe("healthChecks", () => {
     const s = okSnap(); s.init = false; s.gtmScripts = []; s.consent.gtmConsent = false;
     expect(byKey(healthChecks(s, [], [], true), "inject").status).toBe("na");
   });
+  // The empty-conditions gate (F-167). Mirrors aGTM.f.run_cc:
+  //   noConditions && !noGate && !allowEmptyConsentConditions → gtmConsent=false.
+  test("all three condition fields empty on v1.5 → fail, names the way out", () => {
+    const s = okSnap(); s.config = {};
+    const ch = byKey(healthChecks(s, [], [], true), "gate");
+    expect(ch.status).toBe("fail");
+    expect(ch.detail).toContain("allowEmptyConsentConditions");
+  });
+  test("empty conditions but allowEmptyConsentConditions:true → warn, not fail", () => {
+    const s = okSnap(); s.config = { allowEmptyConsentConditions: true };
+    expect(byKey(healthChecks(s, [], [], true), "gate").status).toBe("warn");
+  });
+  test("empty conditions under cmp:'none' → N/A (the library does not gate there)", () => {
+    const s = okSnap(); s.config = {}; s.cmp = "none";
+    expect(byKey(healthChecks(s, [], [], true), "gate").status).toBe("na");
+  });
+  test("empty conditions in the iframe mode → N/A (same exclusion)", () => {
+    const s = okSnap(); s.config = { iframeSupport: true }; s.isIframe = true;
+    expect(byKey(healthChecks(s, [], [], true), "gate").status).toBe("na");
+  });
+  test("iframeSupport WITHOUT actually being in an iframe is not the exclusion", () => {
+    const s = okSnap(); s.config = { iframeSupport: true }; s.isIframe = false;
+    expect(byKey(healthChecks(s, [], [], true), "gate").status).toBe("fail");
+  });
+  test("empty conditions on a pre-1.5 library → fail, but the opposite effect", () => {
+    const s = okSnap(); s.config = {}; s.version = "1.4.1";
+    const ch = byKey(healthChecks(s, [], [], true), "gate");
+    expect(ch.status).toBe("fail");
+    expect(ch.detail).toContain("fail-OPEN");
+  });
+  test("empty conditions with an unreadable version → warn, says it cannot tell", () => {
+    const s = okSnap(); s.config = {}; s.version = null;
+    const ch = byKey(healthChecks(s, [], [], true), "gate");
+    expect(ch.status).toBe("warn");
+    expect(ch.detail).toContain("Library-Version");
+  });
+  test("an unserialisable aGTM.c must not be read as 'all empty' (F-56 sentinel)", () => {
+    const s = okSnap(); s.config = { __unserializable: true };
+    expect(byKey(healthChecks(s, [], [], true), "gate").status).toBe("na");
+  });
+  test("any one of the three fields set → pass, names which", () => {
+    for (const k of ["gtmPurposes", "gtmServices", "gtmVendors"]) {
+      const s = okSnap(); s.config = { [k]: "x" };
+      const ch = byKey(healthChecks(s, [], [], true), "gate");
+      expect(ch.status).toBe("pass");
+      expect(ch.detail).toContain(k);
+    }
+  });
+
   test("leaks present → fail", () => {
     const checks = healthChecks(okSnap(), [{ vendor: "TikTok", url: "https://analytics.tiktok.com/i" }], [], true);
     expect(byKey(checks, "leaks").status).toBe("fail");
@@ -163,7 +214,7 @@ describe("buildReportMarkdown / buildReportJSON", () => {
     expect(json.report).toBe("aGTM-compliance");
     expect(json.page).toBe("fc-moto.com");
     expect(json.overall).toBe("fail");
-    expect(json.health.length).toBe(5);
+    expect(json.health.length).toBe(6);
     expect(json.consent.gtmConsent).toBe(true);
     expect(json.timeline.length).toBe(3);
     expect(json.leaks[0].vendor).toBe("TikTok");
