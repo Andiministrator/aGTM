@@ -214,7 +214,18 @@ Four things decide whether this table actually closes the gate:
    combined with AND. The *Type* column refuses a duplicate row now. Up to v1.5 it did not, and the
    second row silently overwrote the first: the gate that ran was weaker than the one on screen, and
    nothing said so. An older configuration that still carries such a pair now has **both** values
-   counted (they are joined with a comma) — merge them into one row the next time you edit the table.
+   counted (they are joined with a comma), and the Client writes one `warn` line per request:
+
+   ```
+   ✗ Consent condition type listed more than once - the values are combined with AND,
+     which is STRICTER than before v1.5. Merge them into a single comma-separated row:
+     gtmServices = ga4,meta
+   ```
+
+   That is the line to look for if GTM stopped loading after the update. Merge the rows into one
+   and it goes away. (`isUnique` alone could not have covered this: it stops a *new* duplicate in
+   the UI, but it never sees a configuration that already exists, and the Type column accepts a
+   variable — two rows can resolve to the same type at request time without the UI noticing.)
 4. **Scope** — three states, and they are not symmetric:
    - **Empty (the delivered default):** no GTM for anybody, on either path. The library
      refuses before the auto-denial fallback is ever reached.

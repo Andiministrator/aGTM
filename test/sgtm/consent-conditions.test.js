@@ -51,6 +51,39 @@ describe('consent condition table → config', () => {
     expect(c.gtmServices).toBe('ga4,meta');
   });
 
+  // The join is silent in the config but not in the log. For a configuration
+  // written before v1.5 it CHANGES the requirement (last row → all rows), so
+  // "why did GTM stop loading after the update" has to be answerable from the
+  // container log, not from a changelog.
+  test('a duplicate type is reported at warn, naming the type and the result', () => {
+    const r = runClient({
+      data: {
+        ...BASE,
+        consent: [
+          { consent_type: 'gtmServices', consent_value: 'ga4' },
+          { consent_type: 'gtmServices', consent_value: 'meta' }
+        ]
+      }
+    });
+    const line = r.logs.find((l) => l.indexOf('listed more than once') >= 0);
+    expect(line).toBeDefined();
+    expect(line).toContain('gtmServices');
+    expect(line).toContain('ga4,meta');
+  });
+
+  test('a single row of each type produces no duplicate warning', () => {
+    const r = runClient({
+      data: {
+        ...BASE,
+        consent: [
+          { consent_type: 'gtmServices', consent_value: 'ga4' },
+          { consent_type: 'gtmPurposes', consent_value: 'statistics' }
+        ]
+      }
+    });
+    expect(r.logs.some((l) => l.indexOf('listed more than once') >= 0)).toBe(false);
+  });
+
   test('three rows of the same type keep their order', () => {
     const c = cfgFor([
       { consent_type: 'gtmVendors', consent_value: 'v1' },
