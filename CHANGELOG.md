@@ -39,6 +39,37 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Changed — the user-id cookie is called `_aGTMuid` now, not `_TPU`
+
+`_TPU` was never a chosen product name. It appeared with the v1.5 Session refactor
+(`9d302d7`) — before that the Client wrote no user-id cookie at all — and nothing in the
+repository explains it: no comment, no commit message. The likeliest reading is "TP user",
+after the `/tp/…` prefix all api4sgtm endpoints share. That is a poor name for something a
+visitor can see in their browser and a data protection officer will ask about, and the
+question came up in exactly that setting.
+
+**No visitor loses anything.** A rename that only changes the default would orphan every
+cookie already written: the visitor looks brand new, loses their stable `C.*` id and the
+consent recorded under it, and gets asked by the CMP again. So the Client still **reads**
+the legacy names — `_TPU`, and `_tpf` which one installation had configured by hand —
+carries the value over to the current name, and then retires the old cookie. The legacy
+names are never written.
+
+That fallback is not cosmetic in one specific way: the cleanup that removes an `F.*`
+fingerprint wrongly written into the cookie (the bug fixed earlier in this release)
+searches under the *configured* name. Without the legacy read it would never find those
+again, and they would sit in browsers for their full lifetime — the one outcome that
+cleanup exists to prevent.
+
+An explicitly configured *Cookie Name* still wins; only the default moved. The aGTM
+Inspector's cookie-reset list carries all three names, and the previous default list is
+recorded as a past default so a user who never edited the field is lifted to the new one.
+
+Two candidates were considered and dropped: `_tpf`, because its likeliest expansion is
+"TP fingerprint" — naming the cookie after the one value that must never be in it — and
+`_wdp` as a customer abbreviation, because a product default should not carry the name of
+a single customer.
+
 ### Breaking — an empty consent-condition table no longer loads GTM
 
 **If GTM stops loading after this update, this is why, and the fix is one row in a

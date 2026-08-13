@@ -339,6 +339,20 @@ Controls when the user ID cookie is set:
 
 Name, lifetime **in days** (converted to `max-age` internally; a non-positive value yields a session cookie), and domain for the user ID cookie. The cookie is set via `Set-Cookie` in the server response (not via JavaScript), making it ITP-resistant.
 
+> **The default name changed in v1.5 from `_TPU` to `_aGTMuid`.** `_TPU` said nothing about
+> who sets the cookie — a question that has to be answered in a data protection audit, and
+> a name nobody could resolve from the repository either. Cookies already in a browser are
+> **not** lost: the Client still *reads* `_TPU` and `_tpf` (a name configured by hand on one
+> installation), carries the value over to the current name and then retires the old cookie,
+> so no visitor loses their id or their recorded consent. The legacy names are never
+> written. If you want to keep a specific name, set this field explicitly — an explicit
+> value always wins over the default.
+
+Note that a visitor who has not answered the CMP carries **no** cookie at all, including
+under *Cookie Mode: always*: the stable `C.*` value is minted at the moment consent is
+granted. `always` means "set the cookie regardless of consent", not "freeze a shared
+fingerprint" — see *Cookie Mode* below.
+
 #### Fingerprint Allowed
 
 If checked, a fingerprint-based user ID `F{lim}1{lim}{tenant}{lim}{hash}.{date}` is generated when no cookie is available, used as the Session API key on first visits — and **only** there, never as a cookie value. Once the visitor consents, the Client gives them a stable cookie-based ID `C.1{lim}{tenant}{lim}{rand12}.{ms}` (via the api4sgtm `/promote` endpoint when a Session API is configured, minted locally otherwise) and writes that `C.*` to the cookie — so the persistent identifier is a true random cookie ID, not the daily-rolling fingerprint. `{lim}` is the configured `fip_limiter` (recommended `.`); the literal `C.` two-character prefix on the C-side is mandated by api4sgtm. Returning visitors carrying an `F.*` cookie from older deploys are migrated lazily on their next request.

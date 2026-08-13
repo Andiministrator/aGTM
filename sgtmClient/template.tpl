@@ -714,8 +714,8 @@ ___TEMPLATE_PARAMETERS___
         "name": "cookie_name",
         "displayName": "Cookie Name",
         "simpleValueType": true,
-        "defaultValue": "_TPU",
-        "help": "Name of the server-side user ID cookie"
+        "defaultValue": "_aGTMuid",
+        "help": "Name of the server-side user ID cookie.<br/><br/><b>The default changed in v1.5 from <code>_TPU</code> to <code>_aGTMuid</code>.</b> The old name said nothing about who sets the cookie — a question you have to answer in a data protection audit. Cookies already written under <code>_TPU</code> (or <code>_tpf</code>, used on one installation) are still <i>read</i>, carried over to the current name and then retired, so nobody loses their id or their recorded consent. Set this field explicitly if you want to keep a specific name."
       },
       {
         "type": "TEXT",
@@ -1002,7 +1002,7 @@ const CFG = {
   consentService: data.consent_service || '',
   consentPurpose: data.consent_purpose || '',
   consentVendor: data.consent_vendor || '',
-  cookieName: data.cookie_name || '_TPU',
+  cookieName: data.cookie_name || '_aGTMuid',
   cookieLifetimeDays: makeNumber(data.cookie_lifetime || 365),
   cookieDomain: data.cookie_domain || 'auto',
   fingerprintAllowed: data.fingerprint_allowed !== false,
@@ -1113,6 +1113,36 @@ const isCookieUid = function(uid) {
   return !!(uid && typeof uid === 'string' && uid.indexOf('C.') === 0);
 };
 
+// Cookie names this Client used before the default became '_aGTMuid'. Kept
+// because a rename that only changes the default silently orphans every cookie
+// already in a browser: the visitor looks brand new, loses their stable C.* id
+// and gets asked by the CMP again, and — worse — an F.* value written by the
+// bug F-153 fixed would sit there untouched for its full lifetime, since the
+// cleanup below searches under CFG.cookieName only.
+// '_TPU' was the v1.5 default; '_tpf' appeared on a live installation whose
+// cookie_name had been set by hand. Both are read, never written.
+const LEGACY_COOKIE_NAMES = ['_TPU', '_tpf'];
+
+// Reads the user-id cookie, falling back to the legacy names. Returns the value
+// plus the name it came from ('' when it came from the configured one), because
+// the caller has to delete that legacy cookie once the value has been carried
+// over. Declared here, up-front, for the same reason as isFingerprintUid: the
+// /aGTMconsent POST handler is a directly executed top-level statement and
+// GTM's sandboxed-JS parser rejects forward references to const-bound function
+// expressions.
+const readUidCookie = function() {
+  const cur = CFG.cookieName ? getCookieValues(CFG.cookieName, true) : null;
+  if (cur && cur.length > 0 && cur[0]) return {value: cur[0], legacy: ''};
+  let out = {value: '', legacy: ''};
+  for (const ln of LEGACY_COOKIE_NAMES) {
+    if (!out.value && ln !== CFG.cookieName) {
+      const lv = getCookieValues(ln, true);
+      if (lv && lv.length > 0 && lv[0]) out = {value: lv[0], legacy: ln};
+    }
+  }
+  return out;
+};
+
 // F→C promote via api4sgtm /promote endpoint. Atomic Redis TxPipeline
 // server-side: migrates the active session pointer from oldUid to newUid
 // AND records the consent in one operation. Returns the new UID on success
@@ -1186,8 +1216,10 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   // Resolve uid: explicit in payload first, then fall back to cookie.
   let cpUid = cpData.uid || '';
   if (!cpUid && CFG.cookieName) {
-    const fbVals = getCookieValues(CFG.cookieName, true);
-    cpUid = (fbVals && fbVals.length > 0) ? fbVals[0] : '';
+    // Legacy names included: a visitor still carrying the pre-rename cookie
+    // would otherwise arrive here without a uid, get a fresh one minted, and
+    // lose the session and consent recorded under the old id.
+    cpUid = readUidCookie().value;
   }
 
   // Phase 3 payload shape: { uid, sid, consent: {...} }.
@@ -2024,8 +2056,9 @@ const afterBotCheck = function(isBot) {
   // otherwise fingerprint. No more random uid generation — the session API
   // record key stays consistent across loads, so consent persisted under it on
   // one page is found on the next.
-  const uidVals = getCookieValues(CFG.cookieName, true);
-  const existingCookie = (uidVals && uidVals.length > 0) ? uidVals[0] : '';
+  const uidCookie = readUidCookie();
+  const existingCookie = uidCookie.value;
+  const legacyCookieName = uidCookie.legacy;
   const fpUid = CFG.fingerprintAllowed ? getFingerprint() + (CFG.debugSuffix ? '_' + CFG.debugSuffix : '') : '';
   const sessionUid = existingCookie || fpUid;
   if (CFG.debug) logToConsole('debug', 'User ID for session', sessionUid);
@@ -2142,6 +2175,22 @@ const afterBotCheck = function(isBot) {
       // is what gets written, replacing the F.* in the browser.
       if (willWriteFreshC) {
         writeCookie(sessionData.uid);
+      }
+
+      // Retire the pre-rename cookie once its value has been carried over —
+      // otherwise the browser keeps both and the old one, which no code writes
+      // any more, would linger for its full lifetime. Two conditions, and the
+      // second is the reason this is not just cosmetic:
+      //  - willWriteFreshC: the value now lives under the current name, so the
+      //    old one is redundant. Without this guard a cookieMode where nothing
+      //    is written would delete the visitor's only id.
+      //  - isFingerprintUid: an F.* under a legacy name is exactly what F-153
+      //    set out to clear. That cleanup searches CFG.cookieName only, so
+      //    after the rename it would never find these again.
+      const dropLegacy = !!legacyCookieName && CFG.cookieMode !== 'never' && (willWriteFreshC || isFingerprintUid(existingCookie));
+      if (dropLegacy) {
+        setCookie(legacyCookieName, '', {domain: CFG.cookieDomain, path: '/', sameSite: 'none', httpOnly: true, secure: true, 'max-age': 0}, true);
+        if (CFG.debug) logToConsole('debug', '✓ Retired legacy user-id cookie', legacyCookieName);
       }
 
       if (CFG.debug) logToConsole('debug', '✓ Session', sessionData);
@@ -2662,7 +2711,7 @@ scenarios:
     runCode(mockData);
     assertApi('setResponseStatus').wasCalledWith(200);
     assertApi('setCookie').wasCalled();
-    assertThat(ckName).isEqualTo('_TPU');
+    assertThat(ckName).isEqualTo('_aGTMuid');
     assertThat(ckVal).isEqualTo('C.1$cl_test$123.456');
 
 - name: POST consent route in cookie-consent mode without granted consent writes no cookie
@@ -2792,7 +2841,7 @@ setup: |-
       cmp: '',
       tenant_id: 'cl_test',
       consent_store_enabled: true,
-      cookie_name: '_TPU',
+      cookie_name: '_aGTMuid',
       cookie_mode: 'always',
       cookie_lifetime: 365,
       fingerprint_allowed: true,
