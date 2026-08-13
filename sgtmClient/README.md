@@ -208,8 +208,13 @@ Four things decide whether this table actually closes the gate:
    A type your adapter never fills means GTM never loads at all.
 2. **Value** — the exact string the CMP emits (Cookiebot: the keys of `Cookiebot.consent`, e.g.
    `statistics`; CCM19: the embedding name from the CCM19 backend), not a free-text label.
-   **Never use the essential/necessary category** — many CMPs still report it after *Deny all*,
-   which leaves the gate open just as an empty table does.
+   **Two very different jobs — pick deliberately.** If this table is meant to *gate* (no GTM unless the
+   visitor agreed to something), **do not name the essential/necessary category**: many CMPs report it even
+   after *Deny all*, which leaves the gate open just as an empty table does. If instead you deliberately load
+   GTM as an **essential service** — regardless of what the visitor chooses, but only once a choice exists
+   — then the non-selectable category is exactly the right entry, and the table means *wait for a decision*
+   rather than *wait for a yes*. That is a legitimate setup: it keeps tags from firing against a
+   default-denied consent state, which is what happens when GTM loads before the banner is answered.
 3. **One row per type** — put several requirements comma-separated into a single value; they are
    combined with AND. Up to v1.4 a second row of the same type silently overwrote the first: the
    gate that ran was weaker than the one on screen, and nothing said so. As of v1.5 the values are
