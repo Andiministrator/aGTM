@@ -115,11 +115,11 @@ var agtm_stapeio_cfg = (function( cfg ) {
 
 })({
   // Stape IO Config Start
-   cid: 'PNDZXPFF' // GTM Container-ID (without GTM-)
+   cid: 'XXXXXXX' // GTM Container-ID (without GTM-)
   ,dl:  'dataLayer' // DataLayer Name
-  ,ep:  'https://dt.jansen-versand.de' // Endpoint
+  ,ep:  'https://sgtm.example.com' // Endpoint
   ,cdn: '' // Subdomain (with https://) when Stape CDN is enabled
-  ,sid: 'vhmjybfb' // Identifier for the custom loader (optional)
+  ,sid: 'xxxxxxxx' // Identifier for the custom loader (optional)
   ,usc: 'stapeUserId' // User ID Source for Cookie Keeper
   ,dlv: '' // variable storing query parameter (&l=) with dataLayer name
   ,kid: '' // value of CookieKeeper ID
