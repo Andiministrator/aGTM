@@ -10,6 +10,7 @@
 | read aGTM's data in (server-side) GTM — session, consent, attribution | [README-for-Integrators.md](README-for-Integrators.md) |
 | serve aGTM from my own server-side GTM | [sgtmClient/README.md](sgtmClient/README.md) |
 | know which dataLayer events arrive, and when | [EVENTS.md](EVENTS.md) |
+| answer a privacy review — what is sent, to whom, when, and what is the default | [PRIVACY-DATAFLOW.md](PRIVACY-DATAFLOW.md) |
 | debug a live integration in the browser | [devtools-extension/README.md](devtools-extension/README.md) — the aGTM Inspector |
 | work on the library itself | [README-for-Developers.md](README-for-Developers.md) |
 
@@ -621,6 +622,10 @@ not absolute — the cases below load GTM without one. Four of them are switches
 turn on deliberately, for good reasons; they are listed here so you can state them, not
 because there is anything wrong with them. Check which of these apply before you rely on
 the default in a privacy statement.
+
+> GTM is not the only thing that can happen before a decision. For the complete picture —
+> every request, its recipient, the setting that causes it and the delivered default — see
+> **[PRIVACY-DATAFLOW.md](PRIVACY-DATAFLOW.md)**.
 
 The second row used to be the exception — an empty consent-condition table is what aGTM
 **ships with**, so it applied until you configured something. As of v1.5 that case is

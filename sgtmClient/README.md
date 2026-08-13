@@ -3,6 +3,11 @@
 **An Client Template for the server-side Google Tag Manager**
 This guide explains how to use the aGTM Client inside a Server-Side Google Tag Manager container.
 
+> Answering a privacy review? Every request this Client makes — bot check, Session API,
+> Sources API, the user-id cookie, what the response publishes into the page — is listed
+> with its trigger, recipient, governing field, delivered default and consent timing in
+> [PRIVACY-DATAFLOW.md](../PRIVACY-DATAFLOW.md).
+
 ## Table of Contents
 
 - [What is it for? - General Information](#what-is-it-for----general-information)

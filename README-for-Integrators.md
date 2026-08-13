@@ -9,6 +9,8 @@
 > - [`README.md`](README.md) — end-user setup / CMP list / config reference
 > - [`README-for-Developers.md`](README-for-Developers.md) — internal workings, call graphs, extending the library
 > - [`SESSION-REDESIGN.md`](SESSION-REDESIGN.md) — architectural rationale for the v1.5 session/consent model
+> - [`PRIVACY-DATAFLOW.md`](PRIVACY-DATAFLOW.md) — the same surface seen from the outside:
+>   which request goes where, under which setting, before or after the consent decision
 >
 > **Version:** aGTM 1.5 · **Scope:** the public runtime contract only (no internal server API specifics).
 

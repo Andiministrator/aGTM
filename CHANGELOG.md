@@ -52,6 +52,30 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Added — `PRIVACY-DATAFLOW.md`: what is sent, to whom, when, and what the default is
+
+New document at the repository root. `README-for-Integrators.md` is a data *contract* —
+which field holds what. It cannot answer the question a data protection officer actually
+asks: which request leaves the browser or the server, what does it carry, who receives it,
+which setting causes it, what is shipped to someone who configures nothing, and does it
+happen **before or after** the consent decision. Answering that once took hours of reading
+the source, and that DPO will not be the last one.
+
+Fifteen flows, each with trigger, payload, recipient, governing field, delivered default and
+consent timing: the `/aGTM.js` request with its Base64 page URL and referrer, the bot check,
+the Session API read, the Sources POST, the user-id cookie, what the response body publishes
+into `aGTM.d.*`, pre-init code, promote and consent write — plus the browser-side ones that
+exist without the sGTM Client at all: the GTM container load, the CMP adapter file, `_post`
+transport, the consent store, and the one CMP adapter that probes its vendor's CDN before
+any decision has been made.
+
+It is deliberately more than a list. It separates the two deployment shapes, because most
+wrong privacy statements about aGTM come from applying shape B's flows to a standalone
+install (or the reverse); it names the identifiers and says plainly that the server-side
+fingerprint is **not** per-person; it carries the console snippets and the rejection test to
+verify all of it on a live site rather than trusting the document; and it maps the rows onto
+the fields of a GDPR Art. 30 record, so it doubles as the template an integrator fills in.
+
 ### Fixed — two rows of the same type in the consent table no longer overwrite each other
 
 sGTM Client. *Consent Check Conditions* is a per-row table with an **Add Consent Check**
