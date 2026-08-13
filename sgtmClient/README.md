@@ -205,8 +205,11 @@ Four things decide whether this table actually closes the gate:
    `statistics`; CCM19: the embedding name from the CCM19 backend), not a free-text label.
    **Never use the essential/necessary category** — many CMPs still report it after *Deny all*,
    which leaves the gate open just as an empty table does.
-3. **One row per type** — a second row of the same type silently overwrites the first. Put several
-   requirements comma-separated into a single value; they are combined with AND.
+3. **One row per type** — put several requirements comma-separated into a single value; they are
+   combined with AND. The *Type* column refuses a duplicate row now. Up to v1.5 it did not, and the
+   second row silently overwrote the first: the gate that ran was weaker than the one on screen, and
+   nothing said so. An older configuration that still carries such a pair now has **both** values
+   counted (they are joined with a comma) — merge them into one row the next time you edit the table.
 4. **Scope** — three states, and they are not symmetric:
    - **Empty (the delivered default):** no GTM for anybody, on either path. The library
      refuses before the auto-denial fallback is ever reached.

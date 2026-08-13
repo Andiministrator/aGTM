@@ -927,6 +927,33 @@ const botFieldsFromResponse = function(body) {
 // precedent here and would be an unverified assumption in server-sandbox code.
 const botState = {verdict: null};
 
+// Adds one row of a consent-condition table to the config. Rows of the SAME
+// type are joined with a comma instead of overwriting each other (F-173): a
+// plain `c[type] = value` kept only the LAST row while the UI kept showing all
+// of them, so an operator who required two services silently got the weaker
+// gate — and the error direction was fail-open. A comma-joined value is exactly
+// the form the library splits and ANDs (aGTM.f.chelp), so two rows now mean
+// what the table looks like it means.
+//
+// Empty and non-string cells are dropped in BOTH columns, and that is not
+// tidiness: appending an empty value would leave a bare comma, i.e. an empty
+// requirement token that no consent string can ever contain — turning a
+// half-filled row into a gate nobody passes. A non-string can arrive because
+// both columns accept a variable; the library would call .split() on it and
+// take the whole response down with a type error.
+//
+// A dropped row is logged at `warn`, not `debug`: unlike the caller-driven URL
+// parameter caps, nobody but the tenant can produce this, and its consequence
+// is a consent gate that differs from the one in the form.
+const addConsentCond = function(c, type, value) {
+  if (typeof type !== 'string' || !type) return;
+  if (typeof value !== 'string' || !value) {
+    logToConsole('warn', '✗ Consent condition without a usable value, row ignored', type);
+    return;
+  }
+  c[type] = c[type] ? c[type] + ',' + value : value;
+};
+
 // Declared BEFORE its callers on purpose. It used to sit at the end of the file,
 // which made every synchronous serve path a forward reference to a `const`
 // function expression — a temporal-dead-zone error in the server sandbox that
@@ -1002,8 +1029,8 @@ const buildAndSend = function(sessionData) {
     }
     c.gtm = gtm;
   }
-  if (data.consent) { for (const v of data.consent) { c[v.consent_type] = v.consent_value; } }
-  if (data.ck_consent) { for (const v of data.ck_consent) { c[v.ck_consent_type] = v.ck_consent_value; } }
+  if (data.consent) { for (const v of data.consent) { addConsentCond(c, v.consent_type, v.consent_value); } }
+  if (data.ck_consent) { for (const v of data.ck_consent) { addConsentCond(c, v.ck_consent_type, v.ck_consent_value); } }
   // Opt-out of the consent gate. Only reaches the library as `true`, so a
   // container that never saw this field keeps the safe default (fail-closed on
   // an empty condition table, F-167). Deliberately independent of the table
