@@ -927,46 +927,124 @@ const botFieldsFromResponse = function(body) {
 // precedent here and would be an unverified assumption in server-sandbox code.
 const botState = {verdict: null};
 
+// The six keys a consent-condition row may write, and the ONLY ones. Both Type
+// columns are SELECTs, but both carry `macrosInSelect`, so the value is whatever
+// a GTM variable resolved to at request time — and the row writes straight into
+// the config object the browser receives. Without this gate a variable that
+// resolves to `allowEmptyConsentConditions` sets it to a non-empty string, which
+// is truthy at `aGTM.js` ("noConditions && !noGate && !allowEmptyConsentConditions"),
+// i.e. it switches the whole F-167 fail-closed gate back OFF — and the checkbox
+// below only overwrites it when it is ticked, so the value survives in exactly
+// the default configuration. `cmp` -> `'none'` and `gtm` (which would corrupt the
+// container table into a string) are reachable the same way. The README teaches
+// deriving a GTM variable from the request URL, so this is not purely
+// tenant-authored either.
+//
+// Whitelisted VALUES, not just shape — the same doctrine as the bot check, and
+// `=== 1` rather than truthiness so `toString`/`constructor`/`__proto__` cannot
+// inherit their way through (the F-01 lesson).
+const CONSENT_KEYS = {gtmPurposes: 1, gtmServices: 1, gtmVendors: 1, ckPurposes: 1, ckServices: 1, ckVendors: 1};
+
+// Types that appeared on more than one row, reported once each after the tables
+// are read. A const container mutated by property, the pattern this file already
+// uses for `botState` — and "one line per affected type" is the same shape as
+// the bot-check drift line, for the same reason: a line per row would print
+// intermediate values (`gtmVendors = v1,v2`) that are never actually served.
+const dupCondTypes = {};
+
+// Trim, written out because the server sandbox is not guaranteed to carry
+// String.prototype.trim and this file uses no regex literals at all. Same
+// charAt/slice shape as normParams() above.
+const trimCond = function(s) {
+  let a = 0;
+  let b = s.length;
+  while (a < b && ' \t\n\r'.indexOf(s.charAt(a)) >= 0) { a = a + 1; }
+  while (b > a && ' \t\n\r'.indexOf(s.charAt(b - 1)) >= 0) { b = b - 1; }
+  return s.slice(a, b);
+};
+
+// Merges a cell into an existing requirement and returns the CANONICAL comma
+// form: every token trimmed, blanks dropped, repetitions dropped, order kept.
+//
+// Normalising rather than concatenating is what makes the join safe. A raw
+// `existing + ',' + value` turns a single typed trailing comma — the likeliest
+// typo in a column whose own help text says "comma-separated" — into
+// `ga4,,meta`, and chelp() then requires an EMPTY token: it searches for ",,"
+// in the granted string, which no consent string contains. The gate would be
+// shut for 100% of visitors on a site where the same configuration worked
+// before the join existed, i.e. this fix would have caused a total measurement
+// outage on the next template re-import. A blank-only cell ('   ') is the same
+// failure with no trailing comma needed, and it passed the old truthiness
+// guard untouched.
+const condTokens = function(existing, value) {
+  const out = [];
+  const parts = (existing ? existing + ',' + value : value).split(',');
+  for (const p of parts) {
+    const t = trimCond(p);
+    if (t && out.indexOf(t) < 0) out.push(t);
+  }
+  return out.join(',');
+};
+
 // Adds one row of a consent-condition table to the config. Rows of the SAME
-// type are joined with a comma instead of overwriting each other (F-173): a
-// plain `c[type] = value` kept only the LAST row while the UI kept showing all
-// of them, so an operator who required two services silently got the weaker
-// gate — and the error direction was fail-open. A comma-joined value is exactly
-// the form the library splits and ANDs (aGTM.f.chelp), so two rows now mean
-// what the table looks like it means.
+// type are merged instead of overwriting each other (F-173): a plain
+// `c[type] = value` kept only the LAST row while the UI kept showing all of
+// them, so an operator who required two services silently got the weaker gate —
+// and the error direction was fail-open. A comma-joined value is exactly the
+// form the library splits and ANDs (aGTM.f.chelp), so two rows now mean what
+// the table looks like it means.
 //
-// Empty and non-string cells are dropped in BOTH columns, and that is not
-// tidiness: appending an empty value would leave a bare comma, i.e. an empty
-// requirement token that no consent string can ever contain — turning a
-// half-filled row into a gate nobody passes. A non-string can arrive because
-// both columns accept a variable; the library would call .split() on it and
-// take the whole response down with a type error.
+// Three ways a row can fail to carry a requirement, three distinct log lines,
+// because they call for three different corrections: a type outside the six
+// known keys (a variable resolved to something else), a value that is not a
+// string at all (a variable resolved to a number — it would reach `.split()` in
+// aGTM.f.chelp() and take run_cc() down for every visitor of that site), and a
+// value that normalises away to nothing new (empty, blank, or a repetition of
+// what is already required).
 //
-// A dropped row is logged at `warn`, not `debug`: unlike the caller-driven URL
-// parameter caps, nobody but the tenant can produce this, and its consequence
-// is a consent gate that differs from the one in the form.
-//
-// The JOIN is logged too, and that line is the more important of the two. For a
-// configuration written before this fix, the join CHANGES what the gate
-// requires: it used to demand the last row, now it demands all of them. That is
-// the correct reading of the form and the direction is fail-closed, but a
-// tenant must not have to read a changelog to find out why GTM stopped loading
-// after an update. The line names the type and the resulting value, so the
-// answer is in the container log where the symptom is. `isUnique` on the column
-// only stops NEW duplicates — it cannot see an existing configuration, and it
-// cannot see two rows whose type comes from a variable.
+// All three are `warn`, not `debug`: unlike the caller-driven URL parameter
+// caps, nobody but the tenant can produce them, and the consequence is a consent
+// gate that differs from the one in the form. A row that vanishes without a
+// trace is precisely what F-173 was — so no path here returns silently.
 const addConsentCond = function(c, type, value) {
-  if (typeof type !== 'string' || !type) return;
-  if (typeof value !== 'string' || !value) {
-    logToConsole('warn', '✗ Consent condition without a usable value, row ignored', type);
+  if (CONSENT_KEYS[type] !== 1) {
+    logToConsole('warn', '✗ Consent condition type is not one of gtmPurposes/gtmServices/gtmVendors/ckPurposes/ckServices/ckVendors, row ignored:', type);
     return;
   }
-  if (c[type]) {
-    c[type] = c[type] + ',' + value;
-    logToConsole('warn', '✗ Consent condition type listed more than once - the values are combined with AND, which is STRICTER than before v1.5. Merge them into a single comma-separated row:', type, '=', c[type]);
+  if (typeof value !== 'string') {
+    logToConsole('warn', '✗ Consent condition value is not a string (check that row\'s variable), row ignored:', type);
     return;
   }
-  c[type] = value;
+  const before = c[type] || '';
+  const merged = condTokens(before, value);
+  // Covers the empty cell, the blank-only cell and the duplicate row that
+  // repeats a value already required. All three are "this row changes nothing",
+  // and none of them should reach the browser: an empty token closes the gate
+  // for everybody, and a repetition would make the line below claim a
+  // tightening that did not happen.
+  if (merged === before) {
+    logToConsole('warn', '✗ Consent condition row adds nothing (empty, blank, or a value already required), row ignored:', type);
+    return;
+  }
+  c[type] = merged;
+  if (before) dupCondTypes[type] = 1;
+};
+
+// Reports the joins of addConsentCond(), one line per affected TYPE with the
+// final value. This is the more important of the two warnings. For a
+// configuration written before v1.5 the join CHANGES what the gate requires: it
+// used to demand the last row, now it demands all of them. That is the correct
+// reading of the form and the direction is fail-closed, but a tenant must not
+// have to read a changelog to find out why GTM stopped loading after an update.
+// The line sits in the container log, i.e. where the symptom is.
+//
+// `isUnique` on the column cannot replace it: it only stops a NEW duplicate in
+// the UI, it never sees a configuration that already exists, and it cannot see
+// two rows whose type comes from a variable.
+const logDupCondTypes = function(c) {
+  for (const dt in dupCondTypes) {
+    logToConsole('warn', '✗ Consent condition type listed more than once - the values are combined with AND, which is STRICTER than before v1.5. Merge them into a single comma-separated row:', dt, '=', c[dt]);
+  }
 };
 
 // Declared BEFORE its callers on purpose. It used to sit at the end of the file,
@@ -995,6 +1073,20 @@ const buildAndSend = function(sessionData) {
     const gtm = {};
     for (const v of data.gtm) {
       if (v.gtm_id && (!gtmIdMatch || v.gtm_id === qp_id)) {
+        // Same shape as F-173 one table further down, and the same fail-open
+        // direction: two rows carrying the same container id collapse into one,
+        // the earlier row's settings vanish, and the UI keeps showing both. If
+        // the surviving row is the one WITHOUT a consent check, the container
+        // loads before any decision — a row the operator wrote to gate it is
+        // simply gone. The id column has `isUnique`, but it also accepts a
+        // variable (its own help text teaches deriving it from `?id=`), so the
+        // UI cannot see a collision that only happens at request time.
+        //
+        // Only reported, not repaired: which row should win is a product
+        // decision (the stricter one? the first? merged?), and unlike the
+        // consent table there is no obviously correct merge for two differing
+        // container settings. Reporting it costs nothing and ends the silence.
+        if (gtm[v.gtm_id]) logToConsole('warn', '✗ GTM container listed more than once - only the LAST row applies, the earlier one is dropped (incl. its consent setting and URL):', v.gtm_id);
         gtm[v.gtm_id] = {};
         if (!v.gtm_consent) gtm[v.gtm_id].noConsent = true;
         // The column accepts a VARIABLE (macrosInSelect), so this value is not
@@ -1046,6 +1138,7 @@ const buildAndSend = function(sessionData) {
   }
   if (data.consent) { for (const v of data.consent) { addConsentCond(c, v.consent_type, v.consent_value); } }
   if (data.ck_consent) { for (const v of data.ck_consent) { addConsentCond(c, v.ck_consent_type, v.ck_consent_value); } }
+  logDupCondTypes(c);
   // Opt-out of the consent gate. Only reaches the library as `true`, so a
   // container that never saw this field keeps the safe default (fail-closed on
   // an empty condition table, F-167). Deliberately independent of the table

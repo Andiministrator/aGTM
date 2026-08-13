@@ -211,10 +211,10 @@ Four things decide whether this table actually closes the gate:
    **Never use the essential/necessary category** — many CMPs still report it after *Deny all*,
    which leaves the gate open just as an empty table does.
 3. **One row per type** — put several requirements comma-separated into a single value; they are
-   combined with AND. The *Type* column refuses a duplicate row now. Up to v1.5 it did not, and the
-   second row silently overwrote the first: the gate that ran was weaker than the one on screen, and
-   nothing said so. An older configuration that still carries such a pair now has **both** values
-   counted (they are joined with a comma), and the Client writes one `warn` line per request:
+   combined with AND. Up to v1.4 a second row of the same type silently overwrote the first: the
+   gate that ran was weaker than the one on screen, and nothing said so. As of v1.5 the values are
+   **merged**, so an older configuration that still carries such a pair now requires **both** — and
+   the Client writes one `warn` line per affected type, with the resulting value:
 
    ```
    ✗ Consent condition type listed more than once - the values are combined with AND,
@@ -223,9 +223,23 @@ Four things decide whether this table actually closes the gate:
    ```
 
    That is the line to look for if GTM stopped loading after the update. Merge the rows into one
-   and it goes away. (`isUnique` alone could not have covered this: it stops a *new* duplicate in
-   the UI, but it never sees a configuration that already exists, and the Type column accepts a
-   variable — two rows can resolve to the same type at request time without the UI noticing.)
+   and it goes away.
+
+   The *Type* column also carries `isUnique`, so a **new** duplicate cannot be entered. That is the
+   UI half only, and it cannot replace the merge: the column accepts a **variable**, so two rows can
+   still resolve to the same type at request time without the UI ever seeing it.
+
+   > **Not verified against the GTM UI:** we have not tested what `isUnique` does to a
+   > configuration that *already* contains a duplicate — whether GTM merely refuses the next new
+   > row, or flags the stored configuration when you open or save it. If you carry such a pair,
+   > merge the rows **before** re-importing the template, and you never find out. Tell us if you
+   > hit it and this paragraph gets replaced by a fact.
+
+   Rows that cannot carry a requirement are refused rather than written, each with its own `warn`
+   line naming the type: a value that is not a string (a variable resolving to a number would break
+   the consent check for every visitor), a type outside the six known keys, and a row that adds
+   nothing — empty, blank, or a repetition of a value already required. Values are normalised, so a
+   stray trailing comma or surrounding spaces cannot turn into a requirement nobody can satisfy.
 4. **Scope** — three states, and they are not symmetric:
    - **Empty (the delivered default):** no GTM for anybody, on either path. The library
      refuses before the auto-denial fallback is ever reached.
