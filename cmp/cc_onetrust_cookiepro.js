@@ -11,8 +11,10 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: OneTrust CookiePro
- * @version 1.1
- * @lastupdate 05.11.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.2
+ * @lastupdate 13.08.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @compatibility aGTM 1.4.x and 1.5.x — this file touches only aGTM.d.consent and the
+ *   (typeof-guarded) aGTM.f.log, both of which exist unchanged in either line.
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -35,9 +37,47 @@ aGTM.f.consent_check = function (action) {
   if (typeof cData.customPayload.Interaction!='number') return false;
   if (typeof cData.dsDataElements!='object' || typeof cData.dsDataElements.Country!='string') return false;
   aGTM.d.consent.interactions = cData.customPayload.Interaction;
+
+  // Has the visitor actually decided yet?
+  //
+  // This has to be answered before anything below runs, because everything below
+  // reports the CURRENT category state — and before a decision that state is
+  // "only the non-selectable categories", which is indistinguishable from a
+  // deliberate "deny all". Reporting hasResponse for it makes aGTM believe a
+  // decision exists and load GTM against a banner nobody has answered
+  // (measured live, 2026-08-13: banner open, OptanonAlertBoxClosed unset, GTM
+  // injected and a GA4 page_view sent with gcs=G100).
+  //
+  // `IsAlertBoxClosed()` is OneTrust's own answer to exactly this question and is
+  // treated as AUTHORITATIVE in both directions: false means "still waiting", and
+  // the adapter returns false so aGTM keeps polling. It is read from OneTrust or
+  // Optanon, whichever exposes it — CookiePro deployments do not always publish
+  // the `OneTrust` global, while `Optanon` is the one this file already depends on.
+  //
+  // Only when NEITHER object offers it do the two legacy signals decide, exactly
+  // as before. That keeps setups without the API on their previous behaviour
+  // rather than trading one silent failure for another.
+  var boxClosed = null; // null = the API is not available here
+  if (typeof OneTrust=='object' && OneTrust && typeof OneTrust.IsAlertBoxClosed=='function') boxClosed = !!OneTrust.IsAlertBoxClosed();
+  else if (typeof Optanon.IsAlertBoxClosed=='function') boxClosed = !!Optanon.IsAlertBoxClosed();
+
   var interaction = false;
-  if (typeof cData.dsDataElements.InteractionType=='string' && cData.dsDataElements.InteractionType) interaction = true;
-  if (obj.ConsentModel.Name=='opt-in' && typeof cData.customPayload.Interaction=='number' && cData.customPayload.Interaction>0) interaction = true;
+  if (boxClosed===true) {
+    interaction = true;
+  } else if (boxClosed===false) {
+    // The visitor has not answered. Nothing below may run.
+    return false;
+  } else {
+    // Legacy path, unchanged. NOTE that `customPayload.Interaction` is NOT a count
+    // of user interactions: it was 1 on a live site whose banner had never been
+    // answered. It stays here only because it is the sole signal some setups have,
+    // and removing it would break them; it is no longer trusted where a better one
+    // exists. If GTM loads too early on a deployment that lands in this branch,
+    // check `OneTrust.IsAlertBoxClosed()` in the console — if that is a function,
+    // this branch should not have been reached.
+    if (typeof cData.dsDataElements.InteractionType=='string' && cData.dsDataElements.InteractionType) interaction = true;
+    if (obj.ConsentModel.Name=='opt-in' && typeof cData.customPayload.Interaction=='number' && cData.customPayload.Interaction>0) interaction = true;
+  }
   if (!interaction) return false;
 
   // Set Consent Model and Consent ID

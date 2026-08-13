@@ -52,6 +52,40 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Fixed — CMP OneTrust/CookiePro: GTM loaded while the banner was still open
+
+Measured on a live site: the banner was visible, `OneTrust.IsAlertBoxClosed()` was
+`false`, `OptanonAlertBoxClosed` was unset — the visitor had answered nothing. aGTM
+nevertheless reported a consent response, injected GTM, and a GA4 `page_view` went out
+with `gcs=G100`.
+
+The adapter opened its interaction gate on
+`ConsentModel == 'opt-in' && customPayload.Interaction > 0`. **That value is not a count
+of user interactions:** it was `1` on that page, while `dsDataElements.InteractionType`
+— the other signal — was empty. So the gate opened before any decision existed, and
+everything downstream then reported the *current* category state. Before a decision that
+state is "only the non-selectable categories", which is byte-for-byte what a deliberate
+*deny all* looks like.
+
+`IsAlertBoxClosed()` is OneTrust's own answer to exactly this question and is now
+authoritative **in both directions**: `false` makes the adapter return `false`, so aGTM
+keeps waiting instead of deciding. It is read from `OneTrust` or from `Optanon` —
+whichever exposes it, because CookiePro deployments do not always publish the `OneTrust`
+global while `Optanon` is the object this adapter already depends on.
+
+Where **neither** object offers the API, the two legacy signals still decide, exactly as
+before. That is deliberate: those setups keep their previous behaviour rather than
+trading one silent failure (GTM too early) for another (GTM never).
+
+Note what this does **not** change: with the condition table naming the non-selectable
+category, GTM still loads after a rejection. That is a legitimate setup — "load
+regardless of the choice, but only once a choice exists" — and is now described as such
+in the field help (see below). The fix is about *when*, not *whether*.
+
+Compatible with aGTM **1.4.x and 1.5.x**: the file touches only `aGTM.d.consent` and the
+`typeof`-guarded `aGTM.f.log`, both unchanged across the two lines. A test asserts that
+surface so a future edit cannot quietly add a 1.5-only dependency.
+
 ### Added — `PRIVACY-DATAFLOW.md`: what is sent, to whom, when, and what the default is
 
 New document at the repository root. `README-for-Integrators.md` is a data *contract* —
