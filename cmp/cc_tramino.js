@@ -40,6 +40,13 @@ aGTM.f.consent_check = function (action) {
   aGTM.d.consent.feedback = "Consent accepted";
   // Set response, run callback and return
   aGTM.d.consent.hasResponse = true;
+  // The success path returned `undefined` until 2026-08-13, i.e. falsy — run_cc
+  // logged m8 and never called inject(). On 'init' that healed itself on the next
+  // 500 ms tick via the hasResponse short-circuit at the top (so it only ever
+  // looked like a small delay), but on 'update' under 1.5 the B2 reset clears
+  // hasResponse first, the short-circuit no longer applies, and every consent
+  // change was swallowed silently.
+  return true;
 };
 
 //[aGTMlib.js Consentcheck]EOF
