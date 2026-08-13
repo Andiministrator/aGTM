@@ -49,7 +49,7 @@ const SRC = readFileSync(
  *                      - array of {name, value}: filtered by the requested
  *                        name. Needed as soon as the Client reads more than one
  *                        name — e.g. the legacy user-id cookies it still reads
- *                        after the _TPU -> _aGTMuid rename. With the flat form
+ *                        after the _TPU -> _tpf default correction. With the flat form
  *                        such a lookup can never miss, so the fallback chain
  *                        would look correct in a test and be untested.
  * @param opts.clientIP    remote address

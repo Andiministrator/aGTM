@@ -339,13 +339,14 @@ Controls when the user ID cookie is set:
 
 Name, lifetime **in days** (converted to `max-age` internally; a non-positive value yields a session cookie), and domain for the user ID cookie. The cookie is set via `Set-Cookie` in the server response (not via JavaScript), making it ITP-resistant.
 
-> **The default name changed in v1.5 from `_TPU` to `_aGTMuid`.** `_TPU` said nothing about
-> who sets the cookie — a question that has to be answered in a data protection audit, and
-> a name nobody could resolve from the repository either. Cookies already in a browser are
-> **not** lost: the Client still *reads* `_TPU` and `_tpf` (a name configured by hand on one
-> installation), carries the value over to the current name and then retires the old cookie,
-> so no visitor loses their id or their recorded consent. The legacy names are never
-> written. If you want to keep a specific name, set this field explicitly — an explicit
+> **The default is `_tpf` since v1.5.** For part of the v1.5 development it was `_TPU` — a
+> value that was never chosen as a name: it was the *example* in the field help of the
+> older, separate *user_id* template, whose field had no default at all, and the Session
+> refactor promoted that example to a default. Nobody noticed, because every real
+> installation had this field set to `_tpf` by hand. The default now matches what actually
+> runs. A cookie already written under `_TPU` is still **read**, carried over to the current
+> name and then retired, so no visitor loses their id or their recorded consent; `_TPU` is
+> never written again. If you want a different name, set this field explicitly — an explicit
 > value always wins over the default.
 
 Note that a visitor who has not answered the CMP carries **no** cookie at all, including

@@ -630,18 +630,17 @@ function simDefaultGcm() {
 // substring test, so PREFIXES are the efficient form: "__cmp" covers Consentmanager's
 // whole family (__cmpconsent<id>, __cmpccu<id>, __cmpcvcx…), which the earlier entry
 // "cmpsettings" did NOT match — Consentmanager sites were silently unaffected by a
-// reset (found on victors.de, 2026-07-27). `_aGTMuid` is aGTM's own user-id cookie
-// since v1.5; `_TPU` was the default before that and `_tpf` is a hand-configured
-// name seen on one installation. All three stay listed — a reset has to clear
-// whichever one the browser actually carries — and the "aGTM"/"agtm" fragments
-// do NOT match any of them (`_aGTMuid` differs in case, and substring matching
-// here is case-sensitive).
-var SIM_COOKIE_DEFAULT = "__cmp,consent,Consent,tracking-preferences,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,termly,cc_cookie,_tracking_consent,cmpsettings,Optanon,euconsent-v2,ucData,uc_settings,_iub_cs,_aGTMuid,_tpf,_TPU,aGTM,agtm";
+// reset (found on victors.de, 2026-07-27).
+// `_tpf` is aGTM's own user-id cookie — the Client's default since v1.5 and the
+// name every real installation already used. `_TPU` was the default for part of
+// the v1.5 development and is still read and retired by the Client, so a
+// browser may carry either; both stay listed. The "aGTM"/"agtm" fragments do
+// NOT match them.
+var SIM_COOKIE_DEFAULT = "__cmp,consent,Consent,tracking-preferences,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,termly,cc_cookie,_tracking_consent,cmpsettings,Optanon,euconsent-v2,ucData,uc_settings,_iub_cs,_tpf,_TPU,aGTM,agtm";
 // Earlier default lists. A user who never edited the field still carries the old string
 // in localStorage, so an exact match is lifted to the current default instead of
 // leaving them with a list that misses their CMP.
 var SIM_COOKIE_DEFAULTS_PAST = [
-  "__cmp,consent,Consent,tracking-preferences,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,termly,cc_cookie,_tracking_consent,cmpsettings,Optanon,euconsent-v2,ucData,uc_settings,_iub_cs,_tpf,_TPU,aGTM,agtm",
   "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,termly,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,_tpf,_TPU,aGTM,agtm",
   "__cmp,CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmplz_,cookieyes,didomi,osano,TERMLY,cc_cookie,mtm_consent,_tracking_consent,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,_tpf,aGTM,agtm",
   "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm",

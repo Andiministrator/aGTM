@@ -39,39 +39,36 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
-### Changed — the user-id cookie is called `_aGTMuid` now, not `_TPU`
+### Fixed — the user-id cookie default is `_tpf`, the name that was actually in use
 
-`_TPU` was never a chosen product name — it is an example that got promoted by accident.
-It comes from the older, separate "user_id" server template, where it was the **example**
-in the field help and the field had no default at all (*"If this field is left empty, no
-cookie will be created"*). The v1.5 Session refactor (`9d302d7`) made that example the
-default of the new `cookie_name` field; before that refactor the Client wrote no user-id
-cookie whatsoever. So nobody ever picked the name, and nothing in the repository explained
-it — which is a poor position to be in for something a visitor sees in their browser and a
-data protection officer asks about, and the question came up in exactly that setting.
+For part of the v1.5 development the default was `_TPU`, and it was never a chosen name:
+it was the **example** in the field help of the older, separate *user_id* server template,
+whose field had no default at all (*"If this field is left empty, no cookie will be
+created"*). The Session refactor (`9d302d7`) promoted that example to the default of the
+new `cookie_name` field. Nobody noticed for one simple reason — **every real installation
+had this field set to `_tpf` by hand**, and no customer site carries a `_TPU` cookie at
+all. The default now matches what actually runs.
 
-**No visitor loses anything.** A rename that only changes the default would orphan every
-cookie already written: the visitor looks brand new, loses their stable `C.*` id and the
-consent recorded under it, and gets asked by the CMP again. So the Client still **reads**
-the legacy names — `_TPU`, and `_tpf` which one installation had configured by hand —
-carries the value over to the current name, and then retires the old cookie. The legacy
-names are never written.
+That also settles a question the repository could not answer before: `_TPU` had no origin
+in any comment or commit message, which is exactly why it was worth chasing. `_tpf` has no
+recorded meaning either — not even its author remembers — but it is the name in the field,
+and matching reality beats renaming it to something that reads better.
 
-That fallback is not cosmetic in one specific way: the cleanup that removes an `F.*`
-fingerprint wrongly written into the cookie (the bug fixed earlier in this release)
-searches under the *configured* name. Without the legacy read it would never find those
-again, and they would sit in browsers for their full lifetime — the one outcome that
-cleanup exists to prevent.
+**The correction is still non-destructive.** A default that only moves would orphan any
+cookie written under the old name: the visitor looks brand new, loses their stable `C.*`
+id and the consent recorded under it, and gets asked by the CMP again. So the Client still
+**reads** `_TPU`, carries the value over to the current name, and then retires the old
+cookie. `_TPU` is never written again. Both the `/aGTM.js` path and the `/aGTMconsent` POST
+handler read through the same helper — missing the POST path would have minted a fresh uid
+for exactly those visitors.
 
-An explicitly configured *Cookie Name* still wins; only the default moved. The aGTM
-Inspector's cookie-reset list carries all three names, and the previous default list is
-recorded as a past default so a user who never edited the field is lifted to the new one.
+The fallback is not cosmetic in one specific way: the cleanup that removes an `F.*`
+fingerprint wrongly written into the cookie (fixed earlier in this release) searches under
+the *configured* name. Without the legacy read it would never find those again, and they
+would sit in browsers for their full lifetime — the one outcome that cleanup exists to
+prevent.
 
-Two candidates were considered and dropped: `_tpf`, because nobody — including its author —
-can say what it stands for, it is produced by no template in this repository, and its
-likeliest expansion ("TP fingerprint") would name the cookie after the one value that must
-never be in it; and `_wdp` as a customer abbreviation, because a product default should not
-carry the name of a single customer.
+An explicitly configured *Cookie Name* always wins; only the default moved.
 
 ### Breaking — an empty consent-condition table no longer loads GTM
 
