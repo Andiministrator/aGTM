@@ -347,7 +347,7 @@ ___TEMPLATE_PARAMETERS___
         ],
         "newRowButtonText": "Add Consent Check",
         "notSetText": "EMPTY MEANS NO GTM: since v1.5 an empty table is fail-closed — with no condition here, aGTM loads no GTM at all. Add at least one condition, or tick the opt-out below if you deliberately want no consent gate.",
-        "help": "Defines what has to be granted before aGTM loads GTM.<br/><br/><b>Empty = no GTM (changed in v1.5).</b> With no row, aGTM loads no container at all. Up to v1.4 an empty table meant the opposite — the check passed for everybody and GTM loaded even after Deny all. If that is what you actually want, say so with the opt-out below; leaving the form blank no longer expresses it.<br/><br/><b>Type:</b> pick the one your CMP adapter actually fills — not every adapter fills all three (purposes only: cookiebot, onetrust, orestbida, shopify, clickskeks · services only: ccm19, shopware6, acris, perspectivefunnel · purposes+vendors: consentmanager, sourcepoint). A type your adapter never fills means GTM never loads at all.<br/><br/><b>Value:</b> the exact string the CMP emits (Cookiebot: the keys of <code>Cookiebot.consent</code>, e.g. statistics · CCM19: the embedding name from the CCM19 backend), not a free-text label. <b>Never use the essential/necessary category</b> — many CMPs still report it after Deny all, which would leave the gate open for everyone.<br/><br/><b>One row per type.</b> For several requirements put them comma-separated into a single value; they are combined with AND. The Type column no longer accepts a second row of the same type — up to v1.5 it did, and that second row silently overwrote the first, so the gate that ran was weaker than the one shown here. If an older configuration still carries such a pair, both values now count (they are joined with a comma); merge them into one row when you next edit this table.<br/><br/><b>Scope — three states, and they are not symmetric:</b><br/>1. <b>Empty (default):</b> no GTM for anybody, on either path. The library refuses before the auto-denial fallback is ever reached.<br/>2. <b>Empty + the opt-out below:</b> GTM loads for everybody, and the auto-denial checkbox becomes powerless too — the granted result wins before it is consulted.<br/>3. <b>Filled:</b> this table gates the normal CMP path (a visitor who actually decided), while the auto-denial path is governed by the Load GTM even under server-side auto-denial checkbox. Only in this state are the two an AND over two different visitor populations.<br/><br/><b>Accept it like this:</b> click Deny all, then read <code>aGTM.d.consent.gtmConsent</code> in the browser console — it must be false."
+        "help": "Defines what has to be granted before aGTM loads GTM.<br/><br/><b>Empty = no GTM (changed in v1.5).</b> With no row, aGTM loads no container at all. Up to v1.4 an empty table meant the opposite — the check passed for everybody and GTM loaded even after Deny all. If that is what you actually want, say so with the opt-out below; leaving the form blank no longer expresses it.<br/><br/><b>Type:</b> pick the one your CMP adapter actually fills — not every adapter fills all three (purposes only: cookiebot, onetrust, orestbida, shopify, clickskeks · services only: ccm19, shopware6, acris, perspectivefunnel · purposes+vendors: consentmanager, sourcepoint). A type your adapter never fills means GTM never loads at all.<br/><br/><b>Value:</b> the exact string the CMP emits (Cookiebot: the keys of <code>Cookiebot.consent</code>, e.g. statistics · CCM19: the embedding name from the CCM19 backend), not a free-text label. <b>Never use the essential/necessary category</b> — many CMPs still report it after Deny all, which would leave the gate open for everyone.<br/><br/><b>One row per type.</b> For several requirements put them comma-separated into a single value; they are combined with AND. The Type column no longer accepts a second row of the same type — up to v1.5 it did, and that second row silently overwrote the first, so the gate that ran was weaker than the one shown here. If an older configuration still carries such a pair, both values now count (they are joined with a comma) and the container log carries one <code>warn</code> line per request naming the type and the resulting value. That is <b>stricter</b> than before, so it is also the first place to look if GTM stopped loading after the update; merge the rows into one and the line goes away.<br/><br/><b>Scope — three states, and they are not symmetric:</b><br/>1. <b>Empty (default):</b> no GTM for anybody, on either path. The library refuses before the auto-denial fallback is ever reached.<br/>2. <b>Empty + the opt-out below:</b> GTM loads for everybody, and the auto-denial checkbox becomes powerless too — the granted result wins before it is consulted.<br/>3. <b>Filled:</b> this table gates the normal CMP path (a visitor who actually decided), while the auto-denial path is governed by the Load GTM even under server-side auto-denial checkbox. Only in this state are the two an AND over two different visitor populations.<br/><br/><b>Accept it like this:</b> click Deny all, then read <code>aGTM.d.consent.gtmConsent</code> in the browser console — it must be false."
       },
       {
         "type": "CHECKBOX",
@@ -1895,13 +1895,28 @@ const botState = {verdict: null};
 // A dropped row is logged at `warn`, not `debug`: unlike the caller-driven URL
 // parameter caps, nobody but the tenant can produce this, and its consequence
 // is a consent gate that differs from the one in the form.
+//
+// The JOIN is logged too, and that line is the more important of the two. For a
+// configuration written before this fix, the join CHANGES what the gate
+// requires: it used to demand the last row, now it demands all of them. That is
+// the correct reading of the form and the direction is fail-closed, but a
+// tenant must not have to read a changelog to find out why GTM stopped loading
+// after an update. The line names the type and the resulting value, so the
+// answer is in the container log where the symptom is. `isUnique` on the column
+// only stops NEW duplicates — it cannot see an existing configuration, and it
+// cannot see two rows whose type comes from a variable.
 const addConsentCond = function(c, type, value) {
   if (typeof type !== 'string' || !type) return;
   if (typeof value !== 'string' || !value) {
     logToConsole('warn', '✗ Consent condition without a usable value, row ignored', type);
     return;
   }
-  c[type] = c[type] ? c[type] + ',' + value : value;
+  if (c[type]) {
+    c[type] = c[type] + ',' + value;
+    logToConsole('warn', '✗ Consent condition type listed more than once - the values are combined with AND, which is STRICTER than before v1.5. Merge them into a single comma-separated row:', type, '=', c[type]);
+    return;
+  }
+  c[type] = value;
 };
 
 // Declared BEFORE its callers on purpose. It used to sit at the end of the file,

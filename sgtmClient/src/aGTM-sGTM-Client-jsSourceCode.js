@@ -945,13 +945,28 @@ const botState = {verdict: null};
 // A dropped row is logged at `warn`, not `debug`: unlike the caller-driven URL
 // parameter caps, nobody but the tenant can produce this, and its consequence
 // is a consent gate that differs from the one in the form.
+//
+// The JOIN is logged too, and that line is the more important of the two. For a
+// configuration written before this fix, the join CHANGES what the gate
+// requires: it used to demand the last row, now it demands all of them. That is
+// the correct reading of the form and the direction is fail-closed, but a
+// tenant must not have to read a changelog to find out why GTM stopped loading
+// after an update. The line names the type and the resulting value, so the
+// answer is in the container log where the symptom is. `isUnique` on the column
+// only stops NEW duplicates — it cannot see an existing configuration, and it
+// cannot see two rows whose type comes from a variable.
 const addConsentCond = function(c, type, value) {
   if (typeof type !== 'string' || !type) return;
   if (typeof value !== 'string' || !value) {
     logToConsole('warn', '✗ Consent condition without a usable value, row ignored', type);
     return;
   }
-  c[type] = c[type] ? c[type] + ',' + value : value;
+  if (c[type]) {
+    c[type] = c[type] + ',' + value;
+    logToConsole('warn', '✗ Consent condition type listed more than once - the values are combined with AND, which is STRICTER than before v1.5. Merge them into a single comma-separated row:', type, '=', c[type]);
+    return;
+  }
+  c[type] = value;
 };
 
 // Declared BEFORE its callers on purpose. It used to sit at the end of the file,

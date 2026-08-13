@@ -94,7 +94,21 @@ Two halves, because either alone leaves a hole:
   container after this update, that second row was the requirement nobody was meeting.
 - **UI:** the *Type* column is `isUnique` now, so the ambiguity cannot be created in the
   first place. It cannot replace the runtime fix: the column accepts a **variable**, so two
-  rows can still resolve to the same type at request time without the UI ever seeing it.
+  rows can still resolve to the same type at request time without the UI ever seeing it —
+  and it never sees a configuration that already exists.
+
+That last point is why the join is **logged**, one `warn` line per request naming the type
+and the resulting value:
+
+```
+✗ Consent condition type listed more than once - the values are combined with AND,
+  which is STRICTER than before v1.5. Merge them into a single comma-separated row:
+  gtmServices = ga4,meta
+```
+
+Nobody should have to read a changelog to find out why GTM stopped loading after an update.
+The line sits in the container log, i.e. where the symptom is, and it disappears when the
+rows are merged into one.
 
 Cells that cannot carry a requirement are dropped instead of written, and the Client logs one
 `warn` line naming the type. An empty value would otherwise append a bare comma — `chelp()`
