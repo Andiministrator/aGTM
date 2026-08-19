@@ -278,8 +278,11 @@ whether **anything** tracking-related fired before the decision — vendor pixel
 outside aGTM leak just as happily. Walk the requests recorded **before** the consent
 moment and flag any that are a tracking hit: `google-analytics.com`/`analytics.google.com`
 (`/g/collect`, `/collect`), `googletagmanager.com/gtag/js`, `facebook.net`/`facebook.com/tr`,
-`bat.bing.com`, `analytics.tiktok.com`, `px.ads.linkedin.com`, `ct.pinterest.com`,
-`criteo`, `doubleclick.net`, plus your own sGTM endpoints (`/g/collect`, `/aEvents`).
+`bat.bing.com`, `c.bing.com` (ID Sync of Microsoft's Conversions API — Microsoft
+requires it client-side and at least once per session, so it shows up on sites that
+look purely server-side otherwise), `clarity.ms`, `analytics.tiktok.com`,
+`px.ads.linkedin.com`, `ct.pinterest.com`, `criteo`, `doubleclick.net`, plus your own
+sGTM endpoints (`/g/collect`, `/aEvents`).
 
 Three things decide whether that result means anything:
 

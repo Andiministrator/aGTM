@@ -25,7 +25,7 @@ ___INFO___
     "displayName": "aGTM",
     "thumbnail": "data:image/png;base64,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"
   },
-  "description": "Set the Google Consent Mode signals according to the aGTM consent.",
+  "description": "Set the Google (and optionally Microsoft) Consent Mode signals according to the aGTM consent.",
   "containerContexts": [
     "WEB"
   ]
@@ -279,7 +279,7 @@ ___TEMPLATE_PARAMETERS___
     "name": "ms_consent_mode",
     "checkboxText": "Fire Microsoft Consent Mode",
     "simpleValueType": true,
-    "help": "F.ire the (UET) signal for Microsoft Consent Mode"
+    "help": "Also send the consent state to Microsoft UET (ad_storage, ad_user_data, ad_personalization) and Microsoft Clarity (ad_Storage, analytics_Storage). Signals left at \"not set\" are NOT sent - and Microsoft has no unset state, so a signal it never receives counts as GRANTED. If you switch this on, set the advertising signals explicitly."
   },
   {
     "type": "CHECKBOX",
@@ -634,60 +634,75 @@ if (o.c.cm_update) {
 
 // Fire Microsoft Consent Mode
 // Microsoft is a separate consent channel with its own vocabulary, not a mirror
-// of Google's: UET enforces only ad_storage (it accepts ad_user_data and
-// ad_personalization but does not evaluate them, as of 2026-08) and knows no
-// analytics_storage at all, while Clarity's consentv2 carries both - with the
-// odd ad_Storage / analytics_Storage casing, which is Microsoft's spelling and
-// not a typo here.
+// of Google's - and a push to it is not free. Measured in the live
+// bat.bing.com/bat.js (2026-08-19): the FIRST consent push sets
+// uetConfig.consent.enabled = true, and from then on shouldEnforce() returns
+// false. That switches off two mechanisms UET runs by itself:
+//   - its own enforcement in the EEA, the UK and Switzerland, where UET's
+//     default is DENIED (elsewhere it is granted), and
+//   - preEnforce(), which reads the Google Consent Mode state out of
+//     window.google_tag_data.ics and subscribes to TCF about 1.5 s after load -
+//     i.e. it would pick up what the Google half of THIS tag just set.
+// Two rules follow, and they are the reason this branch looks the way it does.
 if (o.c.ms_consent_mode) {
-  // Forward only signals that are actually SET. o.d.cm deliberately omits every
-  // signal left at 'not_set' (see the skip in the loop above), so reading a key
-  // unconditionally would hand Microsoft {ad_storage: undefined}. Microsoft's
-  // delivered default for a signal it never receives is GRANTED, so a blank
-  // signal fails OPEN - the same direction an empty condition table failed in
-  // F-167. Nothing set means nothing is sent.
+  // Rule 1: only 'granted' and 'denied' count as configured. The signal SELECTs
+  // accept a GTM variable (macrosInSelect), so the value is whatever it
+  // resolved to at runtime - an empty string from an unset variable must not
+  // read as a state. In bat.js adStorageAllowed is computed as
+  // ('denied' !== ad_storage) starting from an initial TRUE, so ANY value that
+  // is not the literal 'denied' lands on granted.
+  o.f.ms_val = function (v) {
+    return (v === 'granted' || v === 'denied') ? v : '';
+  };
   o.d.ms = {};
   var msSignals = ['ad_storage', 'ad_user_data', 'ad_personalization'];
-  var msSet = 0;
   for (var mi=0; mi<msSignals.length; mi++) {
-    if (typeof o.d.cm[msSignals[mi]]=='string') {
-      o.d.ms[msSignals[mi]] = o.d.cm[msSignals[mi]];
-      msSet++;
-    }
+    var msv = o.f.ms_val(o.d.cm[msSignals[mi]]);
+    if (msv) o.d.ms[msSignals[mi]] = msv;
   }
-  if (msSet>0) {
+  // Rule 2: never push without ad_storage. It is the only signal UET evaluates
+  // (ad_user_data and ad_personalization do not appear in bat.js at all), so a
+  // payload without it would disable the enforcement above AND leave the
+  // visitor on granted - the worst of both. When ad_storage is not configured
+  // here, sending NOTHING is the fail-closed branch, not the fail-open one:
+  // UET then keeps its own default, which is denied and enforced in the
+  // EEA/UK/CH, and can still adopt the Google Consent Mode state.
+  if (o.d.ms.ad_storage) {
     const uetq = createQueue('uetq');
     if (o.c.cm_update) {
       uetq('consent', 'update', o.d.ms);
       if (debug) log('info','Microsoft UET Consent Update', JSON.parse(JSON.stringify(o.d.ms)));
     } else if (o.c.cm_update_after_default) {
-      // Mirror the Google branch instead of deriving the mode from cm_update
-      // alone: in 'Update after Default' UET used to receive a SINGLE default
-      // carrying the real consent, so the denied baseline the mode exists for
-      // never reached Microsoft at all. UET has no region parameter, so the
-      // baseline is global by nature - the region only ever scoped the Google
-      // default.
+      // A baseline is a baseline: all three denied, regardless of what the
+      // update will carry. Building it from the signals that happen to be set
+      // could leave ad_storage out of the very default the mode exists for.
+      // UET has no region parameter - the Microsoft baseline is global, only
+      // the Google default is region-scoped.
       o.d.msd = {};
-      for (var mj=0; mj<msSignals.length; mj++) {
-        if (typeof o.d.ms[msSignals[mj]]=='string') o.d.msd[msSignals[mj]] = 'denied';
-      }
+      for (var mj=0; mj<msSignals.length; mj++) o.d.msd[msSignals[mj]] = 'denied';
       uetq('consent', 'default', o.d.msd);
       uetq('consent', 'update', o.d.ms);
       if (debug) log('info','Microsoft UET Consent', 'Default', JSON.parse(JSON.stringify(o.d.msd)), 'Update', JSON.parse(JSON.stringify(o.d.ms)));
     } else {
+      // UET understands wait_for_update as well (bat.js caps it at 10000 ms).
+      // The Google branch has already computed it under exactly this condition;
+      // without passing it on, UET would fire hits carrying the default state
+      // during the window the integrator asked it to wait.
+      if (o.d.cm.wait_for_update) o.d.ms.wait_for_update = o.d.cm.wait_for_update;
       uetq('consent', 'default', o.d.ms);
       if (debug) log('info','Microsoft UET Consent Default', JSON.parse(JSON.stringify(o.d.ms)));
     }
   } else if (debug) {
-    log('info','Microsoft UET Consent skipped - no advertising signal is set');
+    log('info','Microsoft UET Consent skipped - ad_storage is not configured, so UET keeps its own default and its own enforcement');
   }
-  // Clarity has a single consentv2 call - no default/update modes - so it is
-  // sent once with whatever is set, under the same no-blank-signal rule.
-  o.d.clr = {};
-  var clrSet = 0;
-  if (typeof o.d.cm.ad_storage=='string') { o.d.clr.ad_Storage = o.d.cm.ad_storage; clrSet++; }
-  if (typeof o.d.cm.analytics_storage=='string') { o.d.clr.analytics_Storage = o.d.cm.analytics_storage; clrSet++; }
-  if (clrSet>0) {
+  // Clarity is all-or-nothing: Microsoft documents BOTH consentv2 fields as
+  // required. Sending only one would be a call missing a required field, and
+  // filling the other one in would deny a signal the integrator never
+  // configured - Clarity has its own project-level consent setting to fall back
+  // on. Note the ad_Storage / analytics_Storage casing is Microsoft's own.
+  var clrAd = o.f.ms_val(o.d.cm.ad_storage);
+  var clrAn = o.f.ms_val(o.d.cm.analytics_storage);
+  if (clrAd && clrAn) {
     const clarityFct = () => {
       const clarity = copyFromWindow('clarity');
       if (clarity) return clarity;
@@ -696,10 +711,11 @@ if (o.c.ms_consent_mode) {
       return copyFromWindow('clarity');
     };
     const clarity = clarityFct();
+    o.d.clr = { ad_Storage: clrAd, analytics_Storage: clrAn };
     clarity('consentv2', o.d.clr);
     if (debug) log('info','Microsoft Clarity Consent', JSON.parse(JSON.stringify(o.d.clr)));
   } else if (debug) {
-    log('info','Microsoft Clarity Consent skipped - neither ad_storage nor analytics_storage is set');
+    log('info','Microsoft Clarity Consent skipped - consentv2 needs both ad_Storage and analytics_Storage');
   }
 }
 
@@ -1529,6 +1545,192 @@ scenarios:
     assertThat(uetCalls[0][3].ad_personalization).isEqualTo('denied');
     assertThat(uetCalls[1][2]).isEqualTo('update');
     assertThat(uetCalls[1][3].ad_storage).isEqualTo('granted');
+- name: Update mode sends UET exactly one update and no analytics_storage
+  code: |-
+    // This branch was free to mutate: swapping the mode or leaking the whole
+    // o.d.cm into the payload kept every scenario green until this one existed.
+    let uetCalls = [];
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) {};
+      return { hasResponse: true };
+    });
+    mock('updateConsentState', function(o) {});
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      ms_consent_mode: true, cm_update: true,
+      ad_storage: 'granted', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'granted', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    assertThat(uetCalls.length).isEqualTo(1);
+    assertThat(uetCalls[0][2]).isEqualTo('update');
+    assertThat(uetCalls[0][3].ad_storage).isEqualTo('granted');
+    assertThat(uetCalls[0][3].analytics_storage).isUndefined();
+    assertThat(uetCalls[0][3].wait_for_update).isUndefined();
+- name: Without ad_storage nothing is pushed - a partial payload would disable UET's own enforcement
+  code: |-
+    // Measured in bat.js: the first push sets consent.enabled = true and turns
+    // shouldEnforce() off, while adStorageAllowed stays true because no
+    // ad_storage arrived. A payload of the two signals UET ignores would
+    // therefore switch off the EEA enforcement and leave the visitor granted.
+    let uetCalls = [];
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) {};
+      return { hasResponse: true };
+    });
+    mock('setDefaultConsentState', function(o) {});
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      ms_consent_mode: true,
+      ad_storage: 'not_set', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    assertThat(uetCalls.length).isEqualTo(0);
+- name: An empty string from a variable is not a consent state
+  code: |-
+    // The signal SELECTs accept a GTM variable, so the value is whatever it
+    // resolved to. In bat.js adStorageAllowed is ('denied' !== ad_storage), so
+    // an empty string would read as granted.
+    let uetCalls = [];
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) {};
+      return { hasResponse: true };
+    });
+    mock('setDefaultConsentState', function(o) {});
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      ms_consent_mode: true,
+      ad_storage: '', ad_user_data: 'granted', ad_personalization: 'granted',
+      analytics_storage: 'granted', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    assertThat(uetCalls.length).isEqualTo(0);
+- name: Clarity is all or nothing - consentv2 documents both fields as required
+  code: |-
+    let clarityCalls = [];
+    let uetCalls = [];
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) { clarityCalls.push([a, b]); };
+      return { hasResponse: true };
+    });
+    mock('setDefaultConsentState', function(o) {});
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      ms_consent_mode: true,
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'not_set', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    // UET still gets its push - ad_storage is configured.
+    assertThat(uetCalls.length).isEqualTo(1);
+    assertThat(uetCalls[0][3].ad_storage).isEqualTo('denied');
+    // Clarity does not, because analytics_Storage would be missing.
+    assertThat(clarityCalls.length).isEqualTo(0);
+- name: Wait for Consent Update is passed on to UET as well
+  code: |-
+    // bat.js reads wait_for_update and caps it at 10000 ms. Without passing it
+    // on, UET fires hits carrying the default state during the very window the
+    // integrator asked it to wait.
+    let uetCalls = [];
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) {};
+      return { hasResponse: true };
+    });
+    mock('setDefaultConsentState', function(o) {});
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      ms_consent_mode: true, cm_wait: '500',
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    assertThat(uetCalls.length).isEqualTo(1);
+    assertThat(uetCalls[0][2]).isEqualTo('default');
+    assertThat(uetCalls[0][3].wait_for_update).isEqualTo(500);
+- name: Clarity is created through the queue when the global does not exist yet
+  code: |-
+    let created = [];
+    let inWindow = [];
+    let clarityCalls = [];
+    let haveClarity = false;
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return haveClarity ? function(a, b) { clarityCalls.push([a, b]); } : undefined;
+      return { hasResponse: true };
+    });
+    mock('setInWindow', function(key, val) { inWindow.push(key); haveClarity = true; return true; });
+    mock('setDefaultConsentState', function(o) {});
+    mock('createQueue', function(name) { created.push(name); return function(a, b, c) {}; });
+    runCode({
+      ms_consent_mode: true,
+      ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted',
+      analytics_storage: 'granted', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    assertThat(inWindow).contains('clarity');
+    assertThat(created).contains('clarity.q');
+    assertThat(clarityCalls.length).isEqualTo(1);
+    assertThat(clarityCalls[0][0]).isEqualTo('consentv2');
+- name: A value that is neither granted nor denied is not a consent state
+  code: |-
+    // The empty-string case alone did not pin this down: a GTM variable can
+    // resolve to anything - 'yes', '1', a boolean. In bat.js adStorageAllowed
+    // is ('denied' !== ad_storage), so every one of those reads as granted.
+    let uetCalls = [];
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) {};
+      return { hasResponse: true };
+    });
+    mock('setDefaultConsentState', function(o) {});
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      ms_consent_mode: true,
+      ad_storage: 'yes', ad_user_data: 'granted', ad_personalization: 'granted',
+      analytics_storage: 'granted', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    assertThat(uetCalls.length).isEqualTo(0);
+- name: The denied baseline covers all three signals even when only one is configured
+  code: |-
+    // A baseline built from the signals that happen to be set is not a
+    // baseline. With only ad_storage configured, the other two must still be
+    // denied first - otherwise they ride on UET's own default.
+    let uetCalls = [];
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) {};
+      return { hasResponse: true };
+    });
+    mock('setDefaultConsentState', function(o) {});
+    mock('updateConsentState', function(o) {});
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      ms_consent_mode: true, cm_update_after_default: true,
+      ad_storage: 'granted', ad_user_data: 'not_set', ad_personalization: 'not_set',
+      analytics_storage: 'not_set', personalization_storage: 'not_set',
+      functionality_storage: 'not_set', security_storage: 'not_set'
+    });
+    assertThat(uetCalls.length).isEqualTo(2);
+    assertThat(uetCalls[0][2]).isEqualTo('default');
+    assertThat(uetCalls[0][3].ad_storage).isEqualTo('denied');
+    assertThat(uetCalls[0][3].ad_user_data).isEqualTo('denied');
+    assertThat(uetCalls[0][3].ad_personalization).isEqualTo('denied');
+    assertThat(uetCalls[1][2]).isEqualTo('update');
+    assertThat(uetCalls[1][3].ad_storage).isEqualTo('granted');
+    assertThat(uetCalls[1][3].ad_user_data).isUndefined();
 setup: ''
 
 
@@ -1546,25 +1748,35 @@ This template sets the Google (and Microsoft) Consent Mode signals for GTM.
 
 ## Changes in 1.5
 
-- Microsoft Consent Mode (`ms_consent_mode`) hardened and documented:
-  - A signal left at `not_set` is no longer forwarded. It used to be read
-    unconditionally, so UET and Clarity received `{ad_storage: undefined}`.
-    Microsoft's documented default for a signal it never receives is
-    **granted**, so a blank value failed OPEN. With no advertising signal set,
-    nothing is sent to UET at all.
-  - `ad_user_data` and `ad_personalization` are now sent alongside `ad_storage`.
-    UET accepts them (it enforces only `ad_storage` as of 2026-08). UET has no
-    `analytics_storage`, so that one still goes to Clarity only.
-  - "Update after Default" is honoured for UET too: an all-denied `default`
-    followed by the real state as an `update`. Previously the mode was derived
-    from `cm_update` alone, so UET got a single `default` carrying the real
-    consent and never saw the baseline. UET has no region parameter — the
-    Microsoft signals are always global.
-  - The option itself was undocumented until now; see the README.
-- Tests: three `___TESTS___` scenarios cover the Microsoft branch (no blank
-  signal, all three UET ad signals plus the Clarity pair, denied baseline before
-  the update).
-
+- Microsoft Consent Mode (`ms_consent_mode`) reworked and documented. Measured
+  against the live `bat.bing.com/bat.js` (2026-08-19), not inferred from the
+  Microsoft docs alone:
+  - **`ad_storage` now decides whether anything is sent at all.** It is the only
+    signal UET evaluates. The first consent push sets `uetConfig.consent.enabled`
+    before the payload is even inspected, which turns off both UET's own
+    EEA/UK/CH enforcement (where its default is DENIED) and `preEnforce()`,
+    which otherwise reads Google Consent Mode out of `window.google_tag_data.ics`
+    ~1.5 s after load. A payload without `ad_storage` would therefore disable
+    that machinery AND leave the visitor on granted. When `ad_storage` is not
+    configured, this tag sends nothing — the safer branch, not a blank one.
+  - Only the literal values `granted` and `denied` count as configured. The
+    signal fields accept a GTM variable; an empty or unexpected value used to be
+    forwarded, and `adStorageAllowed` is computed as `'denied' !== ad_storage`,
+    so anything else reads as granted.
+  - The "Update after Default" baseline covers all three signals unconditionally.
+    It used to be built from the signals that happened to be set, so `ad_storage`
+    could be missing from the very default the mode exists for. UET has no region
+    parameter, so that baseline is global.
+  - `cm_wait` is passed on as UET's `wait_for_update` (UET caps it at 10 000 ms).
+  - Clarity is all-or-nothing: Microsoft documents both `consentv2` fields as
+    required, so the call is made only when `ad_storage` and `analytics_storage`
+    are both configured.
+  - The option was undocumented until now; see the README, including a section on
+    when the checkbox is worth switching on at all.
+- Tests: nine `___TESTS___` scenarios cover the Microsoft branch (no push without
+  `ad_storage`, non-state values, all three signals, update mode, the complete
+  denied baseline, `wait_for_update`, Clarity all-or-nothing, and the Clarity
+  queue fallback).
 - Cleanup: removed two dead `require()`s that the F-42 permission sweep had missed —
   `createQueue('dataLayer')` (used only in a commented-out line, superseded by
   `aGTM.f.fire`) and `makeTableMap` (never used at all).

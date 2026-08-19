@@ -52,43 +52,62 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
-### Fixed — Consent Mode tag: the Microsoft signals could fail open, and the option was undocumented
+### Fixed — Consent Mode tag: the Microsoft branch could switch off UET's own consent enforcement
 
 The Consent Mode tag has always had a *Fire Microsoft Consent Mode*
 (`ms_consent_mode`) checkbox — off by default — that mirrors the consent state to
-Microsoft UET and Microsoft Clarity. Three things were wrong with it, and one of
-them points the same direction as the empty-condition gate above.
+Microsoft UET and Microsoft Clarity. It was undocumented, and reading the live
+`bat.bing.com/bat.js` turned up something the Microsoft documentation does not
+spell out.
 
-**A signal left at `not_set` was forwarded as a blank.** The Google half of the
-tag deliberately drops `not_set` signals; the Microsoft half read the same keys
-unconditionally afterwards and so pushed `{ad_storage: undefined}`. Microsoft's
-documented default for a signal it never receives is **granted** — a blank value
-therefore failed *open*, not closed. Signals that are not set are now left out,
-and when no advertising signal is set at all, nothing is sent to UET.
+**A consent push is not free.** The first push sets `uetConfig.consent.enabled`
+to `true` *before* the payload is inspected, and from then on UET's
+`shouldEnforce()` returns `false`. That disables two things UET does by itself:
+its consent enforcement in the EEA, the UK and Switzerland — where UET's default
+is **denied**, not granted — and `preEnforce()`, which about 1.5 s after load
+reads the Google Consent Mode state out of `window.google_tag_data.ics` and
+subscribes to TCF.
 
-**"Update after Default" never reached Microsoft.** The mode was derived from
-`cm_update` alone, so in that mode UET got a single `default` carrying the real
-consent and never saw the denied baseline the mode exists for. UET now receives
-the all-denied `default` followed by the real state as an `update`, mirroring
-the Google branch. UET has no region parameter, so `cm_regions` still scopes the
-Google default only.
+**So `ad_storage` now decides whether anything is sent at all.** It is the only
+signal UET evaluates (`ad_user_data` and `ad_personalization` do not occur in
+`bat.js`), and `adStorageAllowed` is computed as `'denied' !== ad_storage`
+starting from an initial `true`. A payload without `ad_storage` would therefore
+turn off the machinery above *and* leave the visitor on granted — the worst of
+both. When `ad_storage` is not configured, the tag sends nothing to UET, and that
+is the safer branch: UET keeps its own default and its own enforcement. It
+previously sent `{ad_storage: undefined}`, which switched the machinery off and
+resolved to granted.
 
-**`ad_user_data` and `ad_personalization` are now sent** alongside `ad_storage`.
-Microsoft accepts them; as of 2026-08 it enforces only `ad_storage`. UET has no
-`analytics_storage` at all, so that one continues to go to Clarity alone (whose
-`ad_Storage` / `analytics_Storage` casing is Microsoft's own spelling).
+**Only `granted` and `denied` count as a state.** The signal fields accept a GTM
+variable, so the value is whatever it resolved to; an empty or unexpected value
+used to be forwarded and — by the same `'denied' !== …` rule — read as granted.
+
+**The "Update after Default" baseline covers all three signals** unconditionally.
+It used to be built from the signals that happened to be set, so `ad_storage`
+could be missing from the very default the mode exists for. UET has no region
+parameter, so `cm_regions` keeps scoping the Google default only.
+
+**`cm_wait` is passed on** as UET's `wait_for_update` (UET caps it at 10 000 ms).
+Without it UET fired hits carrying the default state during the window the
+integrator asked it to wait. **Clarity is all-or-nothing** — Microsoft documents
+both `consentv2` fields as required, so the call happens only when `ad_storage`
+and `analytics_storage` are both configured.
 
 Documentation: `ms_consent_mode` was not mentioned anywhere in
-`README-gtm-tag-consent-mode.md` — it now has its own section covering the
-signal differences, what `cm_regions` / `cm_wait` do *not* do here, how to verify
-via UET's `asc` parameter, and a note on the server-side Conversions API, whose
-consent field (`adStorageConsent`, `"G"` / `"D"`) defaults to granted in the same
-way. Three `___TESTS___` scenarios cover the branch.
+`README-gtm-tag-consent-mode.md`. It now has its own section, including a
+deliberate *"do you actually need this checkbox?"* — on a site that already uses
+the Google half of this tag, leaving it off lets UET adopt the state by itself
+and keep its regional enforcement. The section also corrects two things: on the
+wire the `asc` parameter carries **`G`** / **`D`** (the UET Tag Helper only
+*displays* granted/denied), and `asc` is absent entirely when nothing was pushed,
+which looks the same as "not implemented". Nine `___TESTS___` scenarios cover the
+branch.
 
-The aGTM Inspector additionally recognises **`c.bing.com`** as a tracker now —
-the Conversions API's ID Sync pixel, which Microsoft requires to run client-side
-and at least once per session, and which the pre-consent leak detector could not
-see before.
+The aGTM Inspector additionally recognises **`c.bing.com`** as a tracker — the
+Conversions API's ID Sync pixel. Microsoft requires it to run client-side and
+recommends firing it at least once per session, so it appears on sites that
+otherwise look purely server-side, and the pre-consent leak detector could not
+see it before.
 
 ### Added — aGTM Inspector: the Diagnose tab names the empty-condition gate
 

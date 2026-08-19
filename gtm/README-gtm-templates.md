@@ -24,6 +24,7 @@ List of available **GTM Tag Templates***:
   Event Listener for Clicks in a page. Extremely customizable and provides much more information about the clicked object as the GTM-integrated click listener.
 - **[Consent Mode](tags/consent-mode/README-gtm-tag-consent-mode.md)**
   This is the aGTM Consent Mode Tag Template. It uses the Consent Information what aGTM provides and is therefore useable with the first GTM event (Consent Initialisation).
+  Optionally it also sets the Microsoft consent signals (UET and Clarity) from the same values — see the template README.
 - **[Copy Events](tags/copy-events/README-gtm-tag-copy-events.md)**
   If the user copies a text (e.g. EMail-Address, Phone Number, Product Name, ...), this Event Listener will send an dataLayer Event with information about the copied object.
 - **[DataLayer Repeat](tags/dl-repeat/README-gtm-tag-dl-repeat.md)**
