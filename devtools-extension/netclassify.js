@@ -98,6 +98,11 @@
     { re: /(^|\.)facebook\.com$/, vendor: "Meta Pixel" },
     { re: /(^|\.)analytics\.tiktok\.com$/, vendor: "TikTok" },
     { re: /(^|\.)bat\.bing\.com$/, vendor: "Microsoft UET" },
+    // ID Sync for Microsoft's Conversions API. Microsoft's own docs require it
+    // to run CLIENT-side (a server call cannot see the browser context it
+    // needs) and to fire at least once per session, so it is a third-party
+    // pixel on a site that may otherwise look purely server-side.
+    { re: /(^|\.)c\.bing\.com$/, vendor: "Microsoft UET (ID Sync)" },
     { re: /(^|\.)clarity\.ms$/, vendor: "Microsoft Clarity" },
     { re: /(^|\.)ads\.linkedin\.com$/, vendor: "LinkedIn" },
     { re: /(^|\.)snap\.licdn\.com$/, vendor: "LinkedIn" },

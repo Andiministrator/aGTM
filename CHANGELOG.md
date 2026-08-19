@@ -52,6 +52,44 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Fixed — Consent Mode tag: the Microsoft signals could fail open, and the option was undocumented
+
+The Consent Mode tag has always had a *Fire Microsoft Consent Mode*
+(`ms_consent_mode`) checkbox — off by default — that mirrors the consent state to
+Microsoft UET and Microsoft Clarity. Three things were wrong with it, and one of
+them points the same direction as the empty-condition gate above.
+
+**A signal left at `not_set` was forwarded as a blank.** The Google half of the
+tag deliberately drops `not_set` signals; the Microsoft half read the same keys
+unconditionally afterwards and so pushed `{ad_storage: undefined}`. Microsoft's
+documented default for a signal it never receives is **granted** — a blank value
+therefore failed *open*, not closed. Signals that are not set are now left out,
+and when no advertising signal is set at all, nothing is sent to UET.
+
+**"Update after Default" never reached Microsoft.** The mode was derived from
+`cm_update` alone, so in that mode UET got a single `default` carrying the real
+consent and never saw the denied baseline the mode exists for. UET now receives
+the all-denied `default` followed by the real state as an `update`, mirroring
+the Google branch. UET has no region parameter, so `cm_regions` still scopes the
+Google default only.
+
+**`ad_user_data` and `ad_personalization` are now sent** alongside `ad_storage`.
+Microsoft accepts them; as of 2026-08 it enforces only `ad_storage`. UET has no
+`analytics_storage` at all, so that one continues to go to Clarity alone (whose
+`ad_Storage` / `analytics_Storage` casing is Microsoft's own spelling).
+
+Documentation: `ms_consent_mode` was not mentioned anywhere in
+`README-gtm-tag-consent-mode.md` — it now has its own section covering the
+signal differences, what `cm_regions` / `cm_wait` do *not* do here, how to verify
+via UET's `asc` parameter, and a note on the server-side Conversions API, whose
+consent field (`adStorageConsent`, `"G"` / `"D"`) defaults to granted in the same
+way. Three `___TESTS___` scenarios cover the branch.
+
+The aGTM Inspector additionally recognises **`c.bing.com`** as a tracker now —
+the Conversions API's ID Sync pixel, which Microsoft requires to run client-side
+and at least once per session, and which the pre-consent leak detector could not
+see before.
+
 ### Added — aGTM Inspector: the Diagnose tab names the empty-condition gate
 
 The breaking change further down ("an empty consent-condition table no longer loads GTM")
