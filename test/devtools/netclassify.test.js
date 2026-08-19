@@ -68,6 +68,9 @@ describe("trackerInfo / trackingHit — pre-consent leak detection", () => {
     expect(trackerInfo("https://connect.facebook.net/en_US/fbevents.js").vendor).toContain("Meta");
     expect(trackerInfo("https://analytics.tiktok.com/i18n/pixel/events.js").vendor).toContain("TikTok");
     expect(trackerInfo("https://bat.bing.com/action/0").vendor).toContain("UET");
+    // ID-Sync-Pixel der Conversions API - laut Microsoft zwingend client-seitig
+    // und mindestens einmal pro Sitzung, also consent-pflichtig (F-201e).
+    expect(trackerInfo("https://c.bing.com/c.gif?Red3=BACID_123&VID=abc").vendor).toContain("ID Sync");
     expect(trackerInfo("https://www.googletagmanager.com/gtm.js")).toBeNull(); // Google handled by classify
     expect(trackerInfo("https://example.com/app.js")).toBeNull();
   });

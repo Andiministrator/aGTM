@@ -5,7 +5,7 @@
 The **aGTM Consent Mode Template** is designed to set Google Consent Mode signals according to the consent information provided by aGTM. This template is especially useful for ensuring that consent signals are accurately reflected in GTM from the first event (`Consent Initialization`).
 
 - **Version**: 1.5
-- **Last Updated**: 28.07.2026
+- **Last Updated**: 19.08.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
@@ -35,6 +35,7 @@ This template requires an existing **aGTM integration** within your GTM setup.
 ## Template Features
 
 - Sets Google Consent Mode signals based on aGTM consent values.
+- Optionally sets the **Microsoft** consent signals (UET and Clarity) from the same values.
 - Supports custom conditions for consent attributes.
 - Includes options for URL passthrough and ads data redaction.
 
@@ -79,6 +80,8 @@ Configure the consent attributes and their conditions. Each row in the table rep
 - **Grant consent by default outside the configured regions (`cm_grant_outside`)**: When specific regions are set, also emit a **global granted default** (Google's two-default pattern) so visitors **outside** those regions are granted by default instead of being left unset. Ideal when the consent banner is suppressed outside those regions and everything should be allowed there.
 - **URL Passthrough (`url_passthrough`)**: Pass through URL parameters for better ad tracking.
 - **Ads Data Redaction (`ads_data_redaction`)**: Redact ads data when `ad_storage` is denied.
+- **Fire Microsoft Consent Mode (`ms_consent_mode`)**: Also send the consent state to
+  Microsoft UET and Microsoft Clarity. Off by default — see the section below.
 
 > **How `cm_regions` interacts with "Update after Default":** Consent Mode's
 > `region` parameter is only valid on the **default** state, not on updates
@@ -104,6 +107,50 @@ Configure the consent attributes and their conditions. Each row in the table rep
 >   mainly covers the brief pre-update window. It does **not** override a visitor
 >   whose CMP actually reports denied. In other words, in this mode make sure your
 >   CMP auto-grants outside the regions — `cm_grant_outside` alone cannot force it.
+
+### Microsoft Consent Mode (`ms_consent_mode`)
+
+Off by default. When enabled, the tag additionally sends the **same** consent
+state to Microsoft — through Microsoft's own APIs, not Google's:
+
+| Channel | Call | Signals |
+|---|---|---|
+| Microsoft UET | `window.uetq.push('consent', 'default'\|'update', {…})` | `ad_storage`, `ad_user_data`, `ad_personalization` |
+| Microsoft Clarity | `clarity('consentv2', {…})` | `ad_Storage`, `analytics_Storage` |
+
+Microsoft is a separate channel with its own vocabulary, so a few things differ
+from the Google half of this tag:
+
+- **UET currently enforces only `ad_storage`.** `ad_user_data` and
+  `ad_personalization` are accepted and sent, but Microsoft does not evaluate
+  them (as of 2026-08). UET has **no** `analytics_storage` at all — it is a pure
+  advertising tag. Clarity, in turn, does have one, and its odd
+  `ad_Storage` / `analytics_Storage` casing is Microsoft's own spelling.
+- **A signal left at `not_set` is not sent.** This matters more than on the
+  Google side: Microsoft's documented default for a signal it never receives is
+  **granted**. Sending a blank value would therefore fail *open*. If every
+  advertising signal is `not_set`, the tag sends nothing to UET at all — and
+  says so in the debug log.
+- **`cm_regions` does not apply.** UET has no region parameter, so the Microsoft
+  signals are always global. Only the Google default is region-scoped.
+- **`cm_wait` does not apply** either — it is a Google Consent Mode parameter.
+- **"Update after Default" is honoured.** In that mode UET receives an
+  all-denied `default` first and the real state as an `update` immediately
+  after, mirroring the Google branch. Clarity's `consentv2` has no
+  default/update modes, so it is sent once with the real state.
+
+**Verifying it:** UET appends the parameter **`asc`** (`granted` / `denied`) to
+its hits against `bat.bing.com` — that is the Microsoft counterpart to Google's
+`gcs` / `gcd`. The aGTM Inspector's Netzwerk tab shows those requests, and
+Microsoft's own "UET Tag Helper" extension decodes them.
+
+> **Note on the Conversions API (CAPI):** this tag covers the *browser* side
+> only. Microsoft's server-side CAPI carries its consent in a different field
+> (`adStorageConsent`, `"G"` / `"D"`), and its documented default there is
+> **granted** as well — so a server-side CAPI tag that omits the field reports
+> consent nobody gave. If you run CAPI alongside UET, also mind the shared
+> `eventId` for deduplication and the fact that CAPI's ID Sync (`c.bing.com`)
+> is a **client-side** pixel and therefore consent-relevant.
 
 ### Consent Default Settings (`cm_defaults`)
 
