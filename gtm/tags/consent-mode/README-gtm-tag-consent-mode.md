@@ -110,47 +110,79 @@ Configure the consent attributes and their conditions. Each row in the table rep
 
 ### Microsoft Consent Mode (`ms_consent_mode`)
 
-Off by default. When enabled, the tag additionally sends the **same** consent
-state to Microsoft — through Microsoft's own APIs, not Google's:
+Off by default. When enabled, the tag additionally sends the consent state to
+Microsoft — through Microsoft's own APIs, not Google's:
 
 | Channel | Call | Signals |
 |---|---|---|
-| Microsoft UET | `window.uetq.push('consent', 'default'\|'update', {…})` | `ad_storage`, `ad_user_data`, `ad_personalization` |
+| Microsoft UET | `window.uetq.push('consent', 'default'\|'update', {…})` | `ad_storage`, `ad_user_data`, `ad_personalization` (+ `wait_for_update`) |
 | Microsoft Clarity | `clarity('consentv2', {…})` | `ad_Storage`, `analytics_Storage` |
 
-Microsoft is a separate channel with its own vocabulary, so a few things differ
-from the Google half of this tag:
+#### Do you actually need this checkbox?
 
-- **UET currently enforces only `ad_storage`.** `ad_user_data` and
-  `ad_personalization` are accepted and sent, but Microsoft does not evaluate
-  them (as of 2026-08). UET has **no** `analytics_storage` at all — it is a pure
-  advertising tag. Clarity, in turn, does have one, and its odd
-  `ad_Storage` / `analytics_Storage` casing is Microsoft's own spelling.
-- **A signal left at `not_set` is not sent.** This matters more than on the
-  Google side: Microsoft's documented default for a signal it never receives is
-  **granted**. Sending a blank value would therefore fail *open*. If every
-  advertising signal is `not_set`, the tag sends nothing to UET at all — and
-  says so in the debug log.
-- **`cm_regions` does not apply.** UET has no region parameter, so the Microsoft
-  signals are always global. Only the Google default is region-scoped.
-- **`cm_wait` does not apply** either — it is a Google Consent Mode parameter.
-- **"Update after Default" is honoured.** In that mode UET receives an
-  all-denied `default` first and the real state as an `update` immediately
-  after, mirroring the Google branch. Clarity's `consentv2` has no
-  default/update modes, so it is sent once with the real state.
+Often not, and it is worth deciding deliberately, because **any** consent push
+changes how UET behaves. Read from the live `bat.bing.com/bat.js` (2026-08-19):
 
-**Verifying it:** UET appends the parameter **`asc`** (`granted` / `denied`) to
-its hits against `bat.bing.com` — that is the Microsoft counterpart to Google's
-`gcs` / `gcd`. The aGTM Inspector's Netzwerk tab shows those requests, and
-Microsoft's own "UET Tag Helper" extension decodes them.
+- **UET enforces consent by itself in the EEA, the UK and Switzerland.** In
+  those regions its default is **denied**; elsewhere it is granted.
+- **UET can read Google Consent Mode on its own.** About 1.5 s after load,
+  `preEnforce()` looks at `window.google_tag_data.ics` — the very state the
+  Google half of *this* tag has just set — and also subscribes to TCF.
+- **The first consent push switches both of those off.** `uetConfig.consent.enabled`
+  is set to `true` before the payload is even inspected, and from then on UET's
+  `shouldEnforce()` returns `false`.
+
+So on a site that already uses the Google half of this tag, leaving the box
+**off** is a defensible setup: UET picks the state up by itself and keeps its own
+regional enforcement. Switch it on when you want the consent state to reach UET
+immediately and explicitly rather than after that delay — and then configure it
+properly, because you have taken over responsibility for a signal UET would
+otherwise have handled.
+
+#### What is sent, and when nothing is sent
+
+- **`ad_storage` decides whether anything is sent at all.** It is the only signal
+  UET evaluates — `ad_user_data` and `ad_personalization` do not appear in
+  `bat.js` at all. If `ad_storage` is left at `not_set` (or a variable in that
+  field resolves to something other than `granted`/`denied`), the tag sends
+  **nothing** to UET. That is deliberate and it is the *safer* branch: UET then
+  keeps its own default — denied and enforced in the EEA/UK/CH — instead of
+  being switched to "consent handled externally" while `ad_storage` silently
+  stays granted. A partial payload would be the worst of both.
+- `ad_user_data` and `ad_personalization` are sent when configured. Microsoft
+  accepts them but does not currently evaluate them.
+- **UET has no `analytics_storage`** — it is a pure advertising tag. That signal
+  goes to Clarity only.
+- **`cm_regions` does not apply.** UET has no region parameter (zero occurrences
+  in `bat.js`), so the Microsoft signals are always global. Only the Google
+  default is region-scoped.
+- **`cm_wait` does apply** and is passed on as UET's `wait_for_update` (UET caps
+  it at 10 000 ms). Without it UET would fire hits carrying the default state
+  during exactly the window you asked it to wait.
+- **"Update after Default" is honoured.** UET receives an all-denied `default`
+  covering all three signals, then the real state as an `update`. Clarity's
+  `consentv2` has no default/update modes and is sent once.
+- **Clarity is all-or-nothing.** Microsoft documents *both* `consentv2` fields as
+  required, so the call is made only when `ad_storage` **and**
+  `analytics_storage` are configured. Otherwise Clarity keeps its own
+  project-level consent setting.
+
+#### Verifying it
+
+UET appends **`asc`** to its hits against `bat.bing.com`: the value on the wire
+is **`G`** or **`D`** (the UET Tag Helper extension displays that as
+*granted* / *denied*). Note that `asc` is only present once a consent push has
+happened — if the tag deliberately sent nothing, the parameter is **absent**,
+which looks the same as "not implemented". The aGTM Inspector's Netzwerk tab
+shows these requests.
 
 > **Note on the Conversions API (CAPI):** this tag covers the *browser* side
 > only. Microsoft's server-side CAPI carries its consent in a different field
 > (`adStorageConsent`, `"G"` / `"D"`), and its documented default there is
-> **granted** as well — so a server-side CAPI tag that omits the field reports
-> consent nobody gave. If you run CAPI alongside UET, also mind the shared
-> `eventId` for deduplication and the fact that CAPI's ID Sync (`c.bing.com`)
-> is a **client-side** pixel and therefore consent-relevant.
+> **granted** — so a server-side CAPI tag that omits the field reports consent
+> nobody gave. If you run CAPI alongside UET, also mind the shared `eventId` for
+> deduplication, and that CAPI's ID Sync (`c.bing.com`) is a **client-side**
+> pixel and therefore consent-relevant.
 
 ### Consent Default Settings (`cm_defaults`)
 

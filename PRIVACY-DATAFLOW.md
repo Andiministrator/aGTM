@@ -62,6 +62,7 @@ fingerprint, no user-id cookie, no Sources API — none of it is in the library.
 | T1 | Copy-Events tag: the copied text | your dataLayer / GTM | tag not installed | after |
 | T2 | Pageview tag: test-result cookie | first-party, no request | tag not installed | after |
 | T3 | Pageview tag: device attributes | your dataLayer / GTM | tag not installed | after |
+| T4 | Consent Mode tag: the Microsoft consent signals | `bat.bing.com` (UET) · `clarity.ms` (Clarity) | tag not installed · `ms_consent_mode` **off** | **at the decision** ⁴ |
 | S1 | `GET /aGTM.js` (the request itself) | your sGTM host | — (this is the integration) | **before** |
 | S2 | Bot check | `botCheck` URL | **off** | **before** |
 | S3 | Session API read | `session_api_url` | **off** (empty) | **before** |
@@ -73,7 +74,7 @@ fingerprint, no user-id cookie, no Sources API — none of it is in the library.
 | S9 | Consent write | `session_api_url/…/consent` | follows S3 | **after** |
 
 ¹ Six documented exceptions — see §7.  ² Bypassable per event with `_noConsent`.
-³ The iframe mode grants consent to itself; see §7.
+³ The iframe mode grants consent to itself; see §7.  ⁴ The only template flow with a **third party** as recipient — see §4.
 
 **Not in the table, but list it in your ROPA anyway:** loading `aGTM.js` itself. In shape A
 that is a request to wherever you host it — your own origin, or a **third-party CDN** if you
@@ -209,7 +210,7 @@ through the same helper — see T2.
 These are **not** the library. They are optional Custom Templates from `gtm/` that you
 install in your own container, and they run under your container's consent configuration.
 [EVENTS.md](EVENTS.md) is the complete reference for every event and attribute; listed here
-are the three that collect something a privacy assessment has to name.
+are the four that collect — or forward — something a privacy assessment has to name.
 
 ### T1 — Copy-Events tag: the copied text
 
@@ -233,6 +234,41 @@ The same tag can add `f_browser`, `f_browser_version`, `f_os`, `f_device`,
 `window.screen`, plus a behavioural test (`mousemove`/`keydown`/`scroll`/`touchstart`) and a
 JS-execution-time bot test. Each attribute is opt-in on its own row — but together they are
 the classic passive device profile, so switch them on deliberately.
+
+### T4 — Consent Mode tag: the Microsoft consent signals
+
+`gtm/tags/consent-mode/` primarily writes Google Consent Mode through GTM's own
+`setDefaultConsentState` / `updateConsentState` APIs — which stay inside the container and
+have no recipient of their own. Its *Fire Microsoft Consent Mode* option
+(`ms_consent_mode`, **off** by default) is different: it is the only template flow that
+hands data to a **third party**.
+
+With the option on, the tag pushes the consent state into `window.uetq` (Microsoft UET) and
+calls `clarity('consentv2', …)` (Microsoft Clarity). Neither is a request this tag makes —
+but UET turns each consent push into a `navigator.sendBeacon` to `bat.bing.com`, so a
+recipient does see it, and in the *Update after Default* mode there are two such beacons
+instead of one. What travels is the consent state itself (`ad_storage`, `ad_user_data`,
+`ad_personalization`) plus whatever UET's own beacon carries; on subsequent UET hits the
+state appears as the `asc` parameter (`G` / `D`). The Clarity call may create a
+`window.clarity` shim if the Clarity script has not loaded yet.
+
+Timing: the tag typically runs on the *Consent Initialization* trigger, i.e. **before** the
+visitor decides — that is the point of a consent default. Nothing about the visitor is sent
+at that moment beyond the consent state itself.
+
+Two things are worth knowing for an assessment, both read from the live `bat.js`:
+
+- **UET enforces consent by itself in the EEA, the UK and Switzerland**, where its own
+  default is *denied*. Any consent push disables that enforcement, because UET then assumes
+  consent is being managed externally. Switching this option on therefore moves
+  responsibility for those visitors from Microsoft to your configuration.
+- For that reason the tag sends **nothing** to UET unless `ad_storage` is explicitly set to
+  `granted` or `denied`. A partial signal would disable the enforcement while leaving the
+  visitor on granted.
+
+`c.bing.com` — the ID Sync pixel of Microsoft's Conversions API — is **not** part of this
+tag. If you run CAPI, that pixel is a separate, client-side, consent-relevant flow you have
+to assess yourself; the aGTM Inspector flags it as a tracker.
 
 ### Not covered: `ext/`
 
