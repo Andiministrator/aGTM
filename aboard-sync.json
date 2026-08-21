@@ -2081,6 +2081,38 @@
                 "created": "2026-08-13"
               }
             ]
+          },
+          {
+            "id": "bd8f4a0b-01f3-4e30-8bab-76217c5f5985",
+            "columnId": "col-erledigt",
+            "status": "done",
+            "priority": "P2",
+            "owner": "Claude Opus",
+            "qa": true,
+            "critical": false,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": 3,
+            "title": "Consent-Mode-Tag: der Microsoft-Zweig (UET/Clarity) korrigiert - F-201..F-208",
+            "description": "Anlass war Andis Frage am 2026-08-19 zur Microsoft-UET-Conversions-API-Doku: \"sollten wir davon was ins Wissen einarbeiten, und ist unser Consent-Mode-Tag aktuell?\"\n\nERGEBNIS IN EINEM SATZ: Der Tag hatte einen undokumentierten Schalter \"Fire Microsoft Consent Mode\" (ms_consent_mode, Default AUS), dessen Zweig vier Fehler hatte - gefunden erst, als der Kritiker die ausgelieferte bat.bing.com/bat.js gelesen hat statt der Microsoft-Doku.\n\nDER ZENTRALE BEFUND (F-202, P1): Ein Consent-Push an UET ist nicht kostenlos. In bat.js wird uetConfig.consent.enabled=!0 per Komma-Operator gesetzt, BEVOR die Nutzlast geprueft wird, und shouldEnforce() liefert danach false. Damit schaltet JEDER Push zwei Dinge ab, die UET von sich aus tut: (a) die Consent-Durchsetzung in EEA/UK/CH, wo UETs eigener Default DENIED ist, und (b) preEnforce(), das ~1,5s nach Load Googles Consent Mode aus window.google_tag_data.ics liest - also den Zustand, den die Google-Haelfte DESSELBEN Tags gerade gesetzt hat. Die alte Schwelle lief ueber \"irgendeines der drei Signale\", konnte also eine Nutzlast OHNE ad_storage senden: Durchsetzung aus, adStorageAllowed bleibt auf Initialwert true, asc=G auf jedem Hit - bei einem Besucher, der alles abgelehnt hat.\n\nWAS GEAENDERT WURDE (Commit bc8cbec, davor c881cf6, beide auf dev):\n- Schwelle liegt jetzt auf ad_storage, dem einzigen Signal das UET auswertet (ad_user_data/ad_personalization kommen in bat.js NULL Mal vor). Ohne konfiguriertes ad_storage geht NICHTS an UET - das ist belegbar der sichere Zweig, weil Schweigen UETs Eigen-Durchsetzung anlaesst.\n- Nur die Literale granted/denied zaehlen als Zustand (die SELECTs erlauben macrosInSelect; adStorageAllowed = (denied !== ad_storage) ab Initialwert true, also liest JEDER andere Wert als granted).\n- Die \"Update after Default\"-Baseline deckt alle drei Signale unbedingt ab (vorher nur die zufaellig gesetzten - ad_storage konnte im Default fehlen, fuer den der Modus existiert).\n- cm_wait geht als UETs wait_for_update mit (bat.js deckelt auf 10000ms). Der README hatte behauptet, UET kenne den Parameter nicht - falsch.\n- Clarity ist alles-oder-nichts (beide consentv2-Felder sind laut Doku Pflicht).\n- asc traegt auf der Leitung G/D, nicht granted/denied (das ist die Anzeige des UET Tag Helpers).\n- \"Ohne Signal gilt granted\" hat eine Ausnahme fuer EEA/UK/CH - ausgerechnet die Jurisdiktion, um die es aGTM geht. Stand in vier Dateien unbedingt.\n\nKORREKTUR AN DER EIGENEN ARBEIT (F-203): Der erste Commit (c881cf6) verkaufte \"schickt jetzt nichts\" als Behebung eines Fail-open. Das war falsch: undefined und gar kein Push enden beide bei granted. Der Zweig war richtig, der Grund erfunden. Alle vier Texte umgeschrieben.\n\nTESTS: 3 -> 9 Microsoft-Szenarien (17 im Template gesamt). Alle sieben Schutzmassnahmen mutationsgeprueft - jede entfernt macht mindestens ein Szenario rot. bun test 1197 gruen, build.sh ohne Warnung.\n\nDOKU: CHANGELOG, ___NOTES___, Tag-README (inkl. Abschnitt \"brauchst du diesen Haken ueberhaupt?\"), gtm/README-gtm-templates.md, Feldhilfe (hatte den Tippfehler \"F.ire\"), ___INFO___-Beschreibung, .claude/skills/live-inspector/SKILL.md (Hostliste), knowledge/topics/microsoft-uet-consent-und-capi.md (NEU) und PRIVACY-DATAFLOW.md (neuer Abschnitt T4 - die Datei beanspruchte Vollstaendigkeit fuer gtm/ und kannte den einzigen Template-Fluss mit einem DRITTANBIETER als Empfaenger gar nicht).\n\nINSPECTOR: c.bing.com (ID-Sync-Pixel der Conversions API) in netclassify.js + Unit-Test + ZIP neu gepackt.\n\nOFFEN GEBLIEBEN: F-209 - siehe eigene Karte.",
+            "agentContext": "DATEIEN: gtm/tags/consent-mode/aGTM tag - Consent Mode.tpl (Microsoft-Block im ___SANDBOXED_JS_FOR_WEB_TEMPLATE___, 9 von 17 ___TESTS___-Szenarien, ___NOTES___, Feldhilfe in ___TEMPLATE_PARAMETERS___) | gtm/tags/consent-mode/README-gtm-tag-consent-mode.md | PRIVACY-DATAFLOW.md (T4) | devtools-extension/netclassify.js + test/devtools/netclassify.test.js | CHANGELOG.md | knowledge/topics/microsoft-uet-consent-und-capi.md\n\nCOMMITS: c881cf6 (erste Runde) und bc8cbec (nach QA+Kritiker) auf dev, beide gepusht.\n\nFINDINGS: F-201..F-208 in docs/findings-archiv.md (behoben), F-209 in docs/findings.md (offen).\n\nGOTCHA 1: Das Template ist ES6+ (GTM-Web-Sandbox), NICHT auf dem ES5-/build.sh-Pfad der Library. Sandbox-Restriktionen: kein delete-Operator (GTM stellt Object.delete bereit), kein setInterval, jeder globale Pfad muss in ___WEB_PERMISSIONS___ stehen. logToConsole ist hier auf die Umgebung debug beschraenkt.\n\nGOTCHA 2: Ein \" im ___TESTS___-Szenarionamen laesst den GANZEN Template-Import scheitern. Waechter: test/sgtm/tpl-test-names.test.js.\n\nGOTCHA 3: build.sh beruehrt dieses Template nicht, aber devtools-extension/ aendert die getrackte aGTM-Inspector.zip - nach jeder Extension-Aenderung bash scripts/pack-devtools-extension.sh laufen lassen (die Datei ist nicht ausfuehrbar, deshalb bash davor).\n\nHARNESS: tmp/gtm-template-harness/ (gitignored, mit eigener README) faehrt die ___TESTS___ lokal: node tplrun.mjs \"<pfad zur .tpl>\" und bash mutate.sh fuer die Mutationsprobe. GRENZE siehe F-209.\n\nLEHRE (auch als Memory verify-api-before-building): Die Doku des HERSTELLERS ist keine Autoritaet - das ausgelieferte Bundle ist es. bat.js per curl holen und greppen.",
+            "displayId": 85
+          },
+          {
+            "id": "442eb668-6e48-40eb-8c17-a6d5def6c465",
+            "columnId": "col-backlog",
+            "status": "todo",
+            "priority": "P2",
+            "owner": "",
+            "qa": false,
+            "critical": false,
+            "blocked": true,
+            "complexity": "klein",
+            "effort": 1,
+            "title": "F-209: Die 17 Template-Szenarien sind nie in der echten GTM-UI gelaufen (braucht Andi)",
+            "description": "BLOCKIERT: braucht GTM-UI-Zugang, den nur Andi hat.\n\nDie 17 ___TESTS___-Szenarien von \"aGTM tag - Consent Mode.tpl\" (9 davon neu fuer den Microsoft-Zweig) wurden nur mit einem WEGWERF-HARNESS gefahren: new Function, von Hand gestubbte require()-APIs, kein ___WEB_PERMISSIONS___-Check, keine Sandbox-Syntaxpruefung.\n\nWARUM DAS NICHT REICHT: Der Kritiker hat am echten gtm.js nachgewiesen, dass der Harness createQueue falsch abbildete - push(args) statt e.push.apply(e, args). Korrigiert, aber es zeigt die Klasse: ein Fehler in der GTM-TAUGLICHKEIT ist mit diesem Harness prinzipiell nicht findbar. Fuer das VERHALTEN ist \"gegen den echten Sandbox-Block gefahren und mutationsgeprueft\" zutreffend, fuer die GTM-Tauglichkeit nicht.\n\nBetrifft nicht nur diesen Tag - dasselbe gilt fuer jedes .tpl im Repo.\n\nZWEI WEGE, sie schliessen sich nicht aus:\n(1) Andi faehrt die 17 Szenarien einmal in der GTM-Template-UI durch (Tests-Tab). Das ist der einzige Beleg fuer Permissions und Sandbox-Syntax.\n(2) Den Harness zu einem echten test/gtm/-Harness ausbauen und in bun test haengen, inkl. Drift-Guard - das ist Karte #76 im v1.6-Backlog. Vorlage liegt fertig in tmp/gtm-template-harness/.\n\nBIS DAHIN: In jede Aussage ueber .tpl-Tests gehoert der Zusatz \"ausserhalb der GTM-UI\".",
+            "agentContext": "FINDING: F-209 in docs/findings.md (offen).\nHARNESS: tmp/gtm-template-harness/{tplrun.mjs,mutate.sh,README.md} - gitignored, ueberlebt aber den Neustart. Aufruf: node tmp/gtm-template-harness/tplrun.mjs \"gtm/tags/consent-mode/aGTM tag - Consent Mode.tpl\" (erwartet 17 gruen) und bash tmp/gtm-template-harness/mutate.sh (erwartet 7x mindestens 1 rot).\nVERWANDT: Karte #76 (v1.6) - GTM-Web-Template-Tests committen: Harness + Drift-Guard.\nMEMORY-BEZUG: fake-dom-swallows-listeners (Mutationstest ist das einzige ehrliche Mass - aber vorher belegen, dass die Mutation gegriffen hat).",
+            "displayId": 86
           }
         ]
       },
@@ -2348,7 +2380,14 @@
             "blocked": false,
             "agentContext": "Zielpfad z.B. test/gtm/iframe-tag.test.js. Der Harness lag im Session-Scratchpad (nach dem Reboot weg), ist aber aus dieser Beschreibung in Minuten neu gebaut. Beim Parsen beachten: das ___TESTS___-YAML ist ein Literal-Block (code: |-) mit 4 Leerzeichen Einrueckung.",
             "links": [],
-            "comments": [],
+            "comments": [
+              {
+                "id": "b021d438-6f8f-4bd6-b3f7-2da0d50e668d",
+                "author": "Claude Opus",
+                "created": "2026-08-19",
+                "text": "Vorlage liegt fertig: tmp/gtm-template-harness/ (gitignored) faehrt die ___TESTS___ eines .tpl lokal gegen den echten ___SANDBOXED_JS_FOR_WEB_TEMPLATE___-Block und bringt eine Mutationsprobe mit. Am Consent-Mode-Tag am 2026-08-19 benutzt: 17 Szenarien gruen, alle sieben Schutzmassnahmen mutationsgeprueft. ACHTUNG beim Ausbau: der erste Wurf bildete createQueue falsch ab (push(args) statt e.push.apply(e, args), gemessen im echten gtm.js) - korrigiert, aber es zeigt die Grenze: Permissions und Sandbox-Syntax kann dieser Harness prinzipiell nicht pruefen. Das ist als F-209 offen und haengt an dieser Karte."
+              }
+            ],
             "columnId": "col-backlog",
             "displayId": 76
           },
@@ -2484,7 +2523,7 @@
         ]
       }
     ],
-    "nextDisplayId": 85,
+    "nextDisplayId": 87,
     "attachments": [],
     "background": null,
     "templates": [],
