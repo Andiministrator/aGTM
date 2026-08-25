@@ -130,11 +130,13 @@ exactly rather than approximately:
   The library excludes those two explicitly, so accusing them would be a false positive.
   `iframeSupport` alone is not the exclusion — `aGTM.d.is_iframe` is now part of the
   reader snapshot so the second half is checked rather than assumed.
-- A library older than v1.5 → **fail** with the *opposite* explanation: there an empty
-  table is fail-**open**, so GTM loads even after "deny all".
-- `aGTM.d.version` unreadable → **warn** that says it cannot tell which of the two applies,
-  rather than picking one. An unserialisable `aGTM.c` (the F-56 sentinel) reads exactly
-  like "all three empty", so it degrades to N/A instead of making the accusation.
+- A library **without** the gate → **fail** with the *opposite* explanation: there an empty
+  table is fail-**open**, so GTM loads even after "deny all". Which of the two applies is
+  **probed, not derived from the version number** — see the fix below for why the number
+  cannot answer it.
+- Neither determinable → **warn** that says so, rather than picking one of the two opposite
+  behaviours. An unserialisable `aGTM.c` (the F-56 sentinel) reads exactly like "all three
+  empty", so it degrades to N/A instead of making the accusation.
 
 Also in this tab: `aGTM.d.gtmLoaded` renders the container-less lifecycle (`'no_gtm_id'`,
 added in "aGTM without a GTM container now runs its own lifecycle") as *"ohne Container
@@ -142,6 +144,30 @@ added in "aGTM without a GTM container now runs its own lifecycle") as *"ohne Co
 container ID nobody configured.
 
 The Inspector is off the ES5/`build.sh` path; `aGTM-Inspector.zip` was re-packed.
+
+### Fixed — aGTM Inspector: the consent-gate check asked the version number, and got the answer backwards
+
+The "Consent-Bedingung" check decided between its two opposite verdicts — *"fail-closed:
+GTM lädt nie"* vs. *"fail-**open**: GTM lädt für jeden, auch nach ‚Alle ablehnen'"* — by
+comparing `aGTM.d.version` against 1.5. **The number does not carry that distinction.**
+`aGTM.js` has reported `@version 1.5` since 2026-04-16; the fail-closed gate only landed on
+2026-08-13. For four months a shipped build calls itself "1.5" and behaves the opposite way,
+and v1.5 is still untagged while dev builds run live. For every such build the panel printed
+*"GTM lädt nie"* while GTM in fact **loads after a rejection** — the one direction that
+matters, reported as its opposite. `buildReportMarkdown()` copies the check's text verbatim,
+so the inverted sentence travelled into the shareable compliance report as well.
+
+It now **probes the library instead of asking its version**: `aGTM.f.config()` assigns
+`allowEmptyConsentConditions` through `aGTM.f.an()`, which always writes the property, so the
+key is present in `aGTM.c` from the fix onward and never before it. The check is tri-state —
+key present → gated; key absent **and** the `m1` config milestone logged → not gated; neither
+→ "not determinable", instead of guessing. It no longer consults the version number at all;
+the number is still shown, as context rather than as evidence.
+
+The general lesson, worth more than the fix: *a check is not measured by whether it runs, but
+by whether its result answers the question.* Where a number and a probe disagree, the probe
+wins. (Found by applying that rule to our own tooling after it surfaced in an external
+review.)
 
 ### Fixed — CMP OneTrust/CookiePro: GTM loaded while the banner was still open
 

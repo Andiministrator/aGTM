@@ -17,7 +17,11 @@ function okSnap() {
     init: true, gtmScripts: [{ id: "aGTM_tm_GTM-X" }], session_status: "synced",
     consent: { hasResponse: true, gtmConsent: true, services: "a,b", purposes: "1,2", vendors: "" },
     containers: [{ id: "GTM-X", url: "https://sgtm.fc-moto.com/gtm.js", hasLoaded: true, noConsent: false }],
-    config: { gtmServices: "Google Analytics,Google Ads" }
+    // config() has run (m1 logged) and the library carries the F-167 gate — both
+    // are what a current library looks like, and both are what the gate check
+    // probes for instead of the version number (F-212).
+    logMilestones: { config: 1000, consent: 1200, inject: 1300 },
+    config: { gtmServices: "Google Analytics,Google Ads", allowEmptyConsentConditions: false }
   };
 }
 
@@ -55,10 +59,14 @@ describe("healthChecks", () => {
   });
   // The empty-conditions gate (F-167). Mirrors aGTM.f.run_cc:
   //   noConditions && !noGate && !allowEmptyConsentConditions → gtmConsent=false.
-  test("all three condition fields empty on v1.5 → fail, names the way out", () => {
-    const s = okSnap(); s.config = {};
+  // F-212: which of the two opposite effects applies is PROBED (does aGTM.c carry
+  // allowEmptyConsentConditions?), never derived from aGTM.d.version — the number
+  // does not carry the distinction (see hasEmptyConditionsGate).
+  test("all three empty + library carries the gate → fail, names the way out", () => {
+    const s = okSnap(); s.config = { allowEmptyConsentConditions: false };
     const ch = byKey(healthChecks(s, [], [], true), "gate");
     expect(ch.status).toBe("fail");
+    expect(ch.detail).toContain("fail-closed");
     expect(ch.detail).toContain("allowEmptyConsentConditions");
   });
   test("empty conditions but allowEmptyConsentConditions:true → warn, not fail", () => {
@@ -77,17 +85,42 @@ describe("healthChecks", () => {
     const s = okSnap(); s.config = { iframeSupport: true }; s.isIframe = false;
     expect(byKey(healthChecks(s, [], [], true), "gate").status).toBe("fail");
   });
-  test("empty conditions on a pre-1.5 library → fail, but the opposite effect", () => {
+  test("empty conditions on a library without the gate → fail, opposite effect", () => {
+    // Key absent AND config() provably ran (m1) ⇒ this library predates the gate.
     const s = okSnap(); s.config = {}; s.version = "1.4.1";
     const ch = byKey(healthChecks(s, [], [], true), "gate");
     expect(ch.status).toBe("fail");
     expect(ch.detail).toContain("fail-OPEN");
   });
-  test("empty conditions with an unreadable version → warn, says it cannot tell", () => {
-    const s = okSnap(); s.config = {}; s.version = null;
+  test("F-212: a build calling itself 1.5 WITHOUT the gate is reported fail-OPEN", () => {
+    // The regression this check exists for: aGTM.js reported @version 1.5 from
+    // 2026-04-16, the fail-closed gate only landed 2026-08-13. A version gate said
+    // "GTM lädt nie" for these builds while GTM in fact loads after a rejection.
+    const s = okSnap(); s.config = {}; s.version = "1.5";
+    const ch = byKey(healthChecks(s, [], [], true), "gate");
+    expect(ch.status).toBe("fail");
+    expect(ch.detail).toContain("fail-OPEN");
+    expect(ch.detail).not.toContain("GTM lädt nie");
+  });
+  test("F-212: a pre-1.5 version string with the gate present is reported fail-closed", () => {
+    // The mirror case — the number must not override the probe in either direction.
+    const s = okSnap(); s.config = { allowEmptyConsentConditions: false }; s.version = "1.4.1";
+    const ch = byKey(healthChecks(s, [], [], true), "gate");
+    expect(ch.status).toBe("fail");
+    expect(ch.detail).toContain("fail-closed");
+  });
+  test("empty conditions, key absent and config() not provable → warn, says it cannot tell", () => {
+    const s = okSnap(); s.config = {}; s.version = null; s.logMilestones = {};
     const ch = byKey(healthChecks(s, [], [], true), "gate");
     expect(ch.status).toBe("warn");
-    expect(ch.detail).toContain("Library-Version");
+    expect(ch.detail).toContain("nicht feststellbar");
+    // It must not fall back on the number it just refused to trust.
+    expect(ch.detail).toContain("Versionsnummer beantwortet das nicht");
+  });
+  test("an unreadable version does NOT by itself make the gate undecidable", () => {
+    // Old behaviour warned here; the probe answers without any version at all.
+    const s = okSnap(); s.config = { allowEmptyConsentConditions: false }; s.version = null;
+    expect(byKey(healthChecks(s, [], [], true), "gate").status).toBe("fail");
   });
   test("an unserialisable aGTM.c must not be read as 'all empty' (F-56 sentinel)", () => {
     const s = okSnap(); s.config = { __unserializable: true };
