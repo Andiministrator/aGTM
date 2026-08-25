@@ -229,11 +229,40 @@ only suppresses a repeated bot/human test.
 
 ### T3 — Pageview tag: device attributes
 
-The same tag can add `f_browser`, `f_browser_version`, `f_os`, `f_device`,
-`f_screen_width/height`, `f_viewport_*`, `f_locale` and `f_dnt`, read from `navigator` and
-`window.screen`, plus a behavioural test (`mousemove`/`keydown`/`scroll`/`touchstart`) and a
-JS-execution-time bot test. Each attribute is opt-in on its own row — but together they are
-the classic passive device profile, so switch them on deliberately.
+**Separate the reading from the reporting — they are governed by different switches.**
+
+**Read unconditionally, as soon as the tag fires, with no switch at all:** `checkDeviceInfo()`
+and `getDims()` sit in the tag's main flow. They read `navigator.userAgent` and
+`navigator.userAgentData` (`brands`, `mobile`, `platform`), the screen size
+(`screen.width/height`, falling back to `window.outerWidth/outerHeight` — one bot heuristic
+treats ≤100×100 as "no monitor"), the viewport and document sizes (`innerWidth/innerHeight`,
+plus the body's `clientWidth/Height`, `offsetWidth/Height`, `scrollWidth/Height`), and they
+register a `resize` listener that re-reads those sizes. From that the tag derives device
+type, OS, browser and browser version, matching the UA against a list of known bot
+signatures. **None of this is opt-in** — installing the tag and letting it fire is the
+decision.
+
+**Reported into the event only per configured row:** the *Page View Attributes* table decides
+which of the results are written into the dataLayer event — `f_browser`,
+`f_browser_version`, `f_os`, `f_device`, `f_screen_width/height`, `f_viewport_*`, `f_locale`,
+`f_dnt`. Each row is opt-in; the shipped container template carries four (`device`, `browser`,
+`consent_mode`, `locale`). An empty table means nothing is *reported*, **not** that nothing is
+*read*.
+
+**Three further tests, each behind its own checkbox, all unchecked by default:** a behavioural
+test (`mousemove`/`keydown`/`scroll`/`touchstart` → fires its own `human_check` event on first
+interaction), a JS-execution-time bot test (writes the measured milliseconds into the pageview
+event and may mark the visitor `Bot (JS Time)`), and an ad-blocker test (DOM-local, no external
+request, fires its own event). The *Use Cookie to avoid multiple Tests* option caches "these
+three already ran" in the session cookie described under T2 — it governs those three tests
+only, never the unconditional reads above.
+
+Together the read values are the classic passive device profile, so install this tag
+deliberately. Independently of aGTM: this is a client-side read from the visitor's terminal
+equipment, which German supervisory authorities treat as covered by § 25 (1) TDDDG regardless
+of what happens to the value afterwards — server-side truncation comes too late to change it.
+This tag is **not** connected to the sGTM Client's server-side bot check (`aGTM.d.bot`): zero
+code references, same goal, independent mechanisms.
 
 ### T4 — Consent Mode tag: the Microsoft consent signals
 
