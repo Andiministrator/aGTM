@@ -440,19 +440,49 @@
   // looks exactly like `block` until a bot shows up, so a filter left switched
   // off after a rollout measurement would never be noticed again.
   /**
-   * "Is the library at least version maj.min?" — answered from aGTM.d.version,
-   * which is a display string ("1.5", "1.6-pre", "1.4.1"). Only the leading two
-   * numbers are compared; a suffix like "-pre" is ignored. Returns null when the
-   * string carries no parsable version, so the caller can say "not determinable"
-   * instead of assuming one of the two opposite behaviours.
+   * "Does THIS library have the empty-conditions gate (F-167)?" — answered by
+   * probing for the property itself, NOT by comparing aGTM.d.version (F-212).
+   *
+   * Why not the version: the number does not carry this distinction. aGTM.js has
+   * reported `@version 1.5` since 1b49506 (2026-04-16); the fail-closed gate only
+   * arrived with 4ac262f (2026-08-13). For four months a shipped build calls
+   * itself "1.5" and behaves the OPPOSITE way — and v1.5 is still untagged while
+   * dev builds run live. A version gate therefore prints "GTM lädt nie" for builds
+   * where GTM in fact loads after a rejection, i.e. it inverts the one direction
+   * that matters, and buildReportMarkdown() carries that sentence verbatim into a
+   * hand-off report.
+   *
+   * The probe: aGTM.f.config() assigns `allowEmptyConsentConditions` through
+   * aGTM.f.an() (aGTM.js:289), and an() ALWAYS writes the property
+   * (`target[prop] = source.hasOwnProperty(prop) ? source[prop] : defaultValue`,
+   * default false). So the key exists in aGTM.c from the fix onward and never
+   * before it. reader.js snapshots aGTM.c via JSON round-trip, which preserves
+   * `false` and drops absent keys — so presence is readable downstream.
+   *
+   * Tri-state, because absence alone is not proof: before config() has run the key
+   * is missing on a current library too. The milestone `m1`
+   * ("aGTM.f.config was successful set", aGTM.js:408) resolves that — but only in
+   * one direction: it is logged at the END of config(), so a timestamp proves
+   * config() ran, while a missing one may also mean the entry fell out of a
+   * truncated aGTM.l. Hence:
+   *   true  → key present            → gate exists (fail-closed)
+   *   false → key absent, config() provably ran → no gate (fail-open)
+   *   null  → key absent, config() not provable → not determinable
+   *
+   * Known blind spot: an integrator passing `allowEmptyConsentConditions: undefined`
+   * makes an() write undefined, which JSON drops — that reads as `false` here. The
+   * library treats undefined as falsy, i.e. gated, so the report would name the
+   * wrong direction. The verdict stays `fail` and the required action ("configure a
+   * condition") stays correct, and an explicit undefined for a boolean opt-out is
+   * not a realistic configuration.
    */
-  function atLeastVersion(v, maj, min) {
-    if (typeof v !== "string" && typeof v !== "number") return null;
-    var m = String(v).match(/^\s*(\d+)(?:\.(\d+))?/);
-    if (!m) return null;
-    var a = parseInt(m[1], 10), b = m[2] ? parseInt(m[2], 10) : 0;
-    if (a !== maj) return a > maj;
-    return b >= min;
+  function hasEmptyConditionsGate(snap) {
+    var cfg = (snap && snap.config) || null;
+    if (cfg && typeof cfg === "object" &&
+        typeof cfg.allowEmptyConsentConditions !== "undefined") return true;
+    var lm = (snap && snap.logMilestones) || {};
+    if (lm.config) return false;
+    return null;
   }
 
   /**
@@ -494,17 +524,20 @@
       return { key: "gate", label: label, status: "warn",
         detail: "Keine Bedingung konfiguriert, aber allowEmptyConsentConditions:true — GTM lädt für JEDEN, auch nach „Alle ablehnen\". Nur korrekt, wenn das die Absicht ist." };
     }
-    var v15 = atLeastVersion(snap.version, 1, 5);
-    if (v15 === true) {
+    // Which of the two opposite effects an empty table has is decided by PROBING
+    // the library, not by its version number (F-212 — see hasEmptyConditionsGate).
+    var gated = hasEmptyConditionsGate(snap);
+    var vSuffix = snap.version ? " (Library meldet v" + snap.version + ")" : "";
+    if (gated === true) {
       return { key: "gate", label: label, status: "fail",
-        detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer — seit v1.5 fail-closed: gtmConsent bleibt false, GTM lädt nie. Bedingung eintragen (im sGTM Client die Tabelle „Consent\") oder bewusst allowEmptyConsentConditions:true setzen." };
+        detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer — diese Library ist fail-closed: gtmConsent bleibt false, GTM lädt nie" + vSuffix + ". Bedingung eintragen (im sGTM Client die Tabelle „Consent\") oder bewusst allowEmptyConsentConditions:true setzen." };
     }
-    if (v15 === false) {
+    if (gated === false) {
       return { key: "gate", label: label, status: "fail",
-        detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer, und diese Library (v" + snap.version + ") ist älter als v1.5 — dort ist eine leere Bedingung fail-OPEN: GTM lädt für jeden, auch nach „Alle ablehnen\". Bedingung eintragen oder Library aktualisieren." };
+        detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer, und diese Library kennt die Option allowEmptyConsentConditions nicht" + vSuffix + " — dort ist eine leere Bedingung fail-OPEN: GTM lädt für jeden, auch nach „Alle ablehnen\". Bedingung eintragen oder Library aktualisieren." };
     }
     return { key: "gate", label: label, status: "warn",
-      detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer. Welche Wirkung das hat, hängt an der Library-Version (ab v1.5 lädt GTM nie, davor für jeden) — aGTM.d.version ist hier nicht auswertbar." };
+      detail: "gtmPurposes/gtmServices/gtmVendors sind ALLE leer. Welche der beiden gegensätzlichen Wirkungen das hat (GTM lädt nie / GTM lädt für jeden), ist hier nicht feststellbar: aGTM.c trägt allowEmptyConsentConditions nicht, und dass aGTM.f.config() gelaufen ist, lässt sich nicht belegen" + vSuffix + ". Die Versionsnummer beantwortet das nicht — Seite neu laden und erneut prüfen." };
   }
 
   function botCheckStatus(snap) {
