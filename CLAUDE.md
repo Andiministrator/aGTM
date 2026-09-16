@@ -35,10 +35,26 @@ aGTM/
 ├── configurator/        # Standalone visual config builder (GitHub Pages, linked from README)
 ├── aGTM-Inspector.zip   # Packaged aGTM Inspector (derived — see scripts/pack-devtools-extension.sh)
 ├── assets/              # Images, Excel event overview
-├── tmp/                 # Temporary files / backups (not production-relevant)
+├── test/                # bun test suite (see Running tests); test/setup.js + helpers.js
+├── scripts/             # Build helpers invoked by build.sh (see Build system overview)
+├── playground/          # Single-page manual test harness (index.html), tracked
+├── configurator/        # (see above) — served as GitHub Pages together with index.html + CNAME
+├── build.sh             # Build entry point · VERSION · package.json · bunfig.toml
+├── CHANGELOG.md         # Release history · ROADMAP.md · SESSION-REDESIGN.md
+├── README.md            # + README.de.md · README-for-Developers.md · README-for-Integrators.md
+├── LICENSE              # Apache 2.0 · package-lock.json
+├── aboard-sync.json     # Project board — deliberately versioned (public roadmap)
+├── tmp/                 # Temporary files / backups (not production-relevant), gitignored
 ├── .claude/skills/      # Claude Code skills (see below); only these are tracked under .claude/
 └── CLAUDE.md            # This file
 ```
+
+**This tree lists every tracked entry at the repository root.** That is deliberate: it makes the
+tree usable as a reference for the opposite question — *is this directory supposed to be here?* A
+root entry that is tracked but missing here is a documentation gap; a root entry that is neither
+tracked nor covered by `.gitignore` is worth a second look. (The gitignored-but-expected ones are
+`docs/`, `knowledge/`, `internal/`, `tmp/`, `CLAUDE.local.md`, `node_modules/` and the aBoard
+runtime state `aboard-sync.base*.json` / `aboard-sync.inbox/` / `aboard.html`.)
 
 ### Claude Code skills
 
