@@ -1579,7 +1579,7 @@ cost: +37 bytes (well within the size budget). No behaviour change.
   server `created` timestamp — with a clear caveat that the counters are a
   **page-load snapshot** (they don't advance during the page; only the age is live).
   The counters are read from `aGTM.d.session`, **falling back to `window.se_data`**
-  (some sites — e.g. fc-moto — currently expose them only there; a source note flags
+  (some sites currently expose them only there; a source note flags
   the fallback). When neither carries the known fields, the card lists the numeric
   fields that *do* exist in `aGTM.d.session`, so a differently-named payload is visible.
 
@@ -1718,7 +1718,7 @@ URL-query GET pixel **and** the XHR/POST body (`{"q":…}` / `{"e":…}`, used b
 reverse-proxied `…/ae` endpoint). The decoded event object is shown as its own collapsible
 "aEvents (entschlüsselt)" detail section, its event name appears under the type badge, and a
 preview surfaces the event + consent signal + custom params inline (badge `aEvents ✓`).
-Verified against the real `enc()` scheme (all padding cases + UTF-8) and a live fc-moto payload.
+Verified against the real `enc()` scheme (all padding cases + UTF-8) and a live payload.
 
 ### Added — aGTM Inspector: network filtering, property IDs, gzip-decoded previews
 
@@ -2166,7 +2166,7 @@ Three new tests cover the hardening (F.* race-safety, non-C-prefix defensive, `g
 - **Requires the aGTM library v1.5+.** The tag checks for `aGTM.f.dlrepeat` and logs a warning + does nothing if the library is older. Tag template permissions reduced to `aGTM.f.dlrepeat` (execute) + `aGTM.f.rReplace` (execute).
 - Idempotency unchanged in effect: at most one replay per page (`aGTM.d.dlrepeatDone`) + the `aGTMrepeated` loop-skip → no double `purchase`, no loop. Tag field help texts rewritten in plain language. Tag template version → 1.5.
 - **Opt-in error signal `aGTM_repeat_fallback`** (checkbox "Fire an error event if the wait-event(s) never arrive"): pushed **only** on the timeout-fallback path (wait-event never came → unenriched replay) **and only when at least one event was actually repeated** (`aGTMrepeatCount >= 1`), with `aGTMrepeatCount` + `aGTMrepeatSource`. Trigger a monitoring/alert tag on it. Nothing is emitted on a normal enriched replay, nor when there was nothing to replay. The event also carries **`aGTMrepeatMissing`** (comma-list of the gate event(s) still absent at the timeout — the culprit, e.g. `user_data`; a conditional gate whose discriminator never arrived reports that discriminator) and **`aGTMrepeatWaited`** (the give-up threshold in ms), so a monitor can see exactly *what* never arrived instead of just *that* a fallback happened.
-- **Conditional wait-events (`gateEvents` `?if=` syntax).** A wait-event can now be made conditional so it is only required for the visitors who actually receive it: `G?if=E[A]` requires `G` only when an event `E` with a non-empty attribute `A` exists, `G?if=E[A:V]` only when `E.A === V`, `G?if=E` only when an event `E` exists at all (empty = `null`/`undefined`/`""`; a token without `?if=` is always required, unchanged). The predicate reuses the `event[attr]`/`event[attr:value]` **parse** syntax of `consent_events` (note: the gate's bare `[A]` means non-empty, whereas `consent_events`' `[attr]` matches on mere presence; `[A:V]` is a strict string compare). A malformed predicate fails safe to unconditional (never silently drops the gate), and an as-yet-absent discriminator event makes the gate wait rather than replay unenriched. **Motivating production case (fc-moto):** gating site-wide on `user_data` (which only logged-in users receive) made *every guest on every page* run into the 1.5 s timeout and fire `aGTM_repeat_fallback` — ~7.6M "Repeater Error" exceptions / 28 days. With `aPageview, user_data?if=user[id]` guests replay in order immediately (no wait, no fallback), while logged-in visitors still wait for enrichment and the control event fires only on a genuine miss. Fully backward-compatible; only `aGTM.f.dlrepeat`'s gate evaluation changed.
+- **Conditional wait-events (`gateEvents` `?if=` syntax).** A wait-event can now be made conditional so it is only required for the visitors who actually receive it: `G?if=E[A]` requires `G` only when an event `E` with a non-empty attribute `A` exists, `G?if=E[A:V]` only when `E.A === V`, `G?if=E` only when an event `E` exists at all (empty = `null`/`undefined`/`""`; a token without `?if=` is always required, unchanged). The predicate reuses the `event[attr]`/`event[attr:value]` **parse** syntax of `consent_events` (note: the gate's bare `[A]` means non-empty, whereas `consent_events`' `[attr]` matches on mere presence; `[A:V]` is a strict string compare). A malformed predicate fails safe to unconditional (never silently drops the gate), and an as-yet-absent discriminator event makes the gate wait rather than replay unenriched. **Motivating production case (a live shop):** gating site-wide on `user_data` (which only logged-in users receive) made *every guest on every page* run into the 1.5 s timeout and fire `aGTM_repeat_fallback` — ~7.6M "Repeater Error" exceptions / 28 days. With `aPageview, user_data?if=user[id]` guests replay in order immediately (no wait, no fallback), while logged-in visitors still wait for enrichment and the control event fires only on a genuine miss. Fully backward-compatible; only `aGTM.f.dlrepeat`'s gate evaluation changed.
 
 ### GTM template "DL Repeat" — live dataLayer replay source (v1.4)
 
@@ -2174,7 +2174,7 @@ Three new tests cover the hardening (F.* race-safety, non-C-prefix defensive, `g
 
 ### GTM template "DL Repeat" — late-enrichment replay (v1.3)
 
-Feature requested by the GTM team (2026-06-24, driver: fc-moto), built on top
+Feature requested by the GTM team (2026-06-24), built on top
 of the v1.2 bug fixes:
 
 - **New "Replay source" option.** In addition to the pre-load buffer (`aGTM.d.f`, default, unchanged), the tag can now replay the **post-load event log** `aGTM.d.dl` — events fired *after* GTM/consent loaded. Use case: an enrichment event (e.g. `user_data` with hashed identifiers) arrives after `view_cart`/`purchase`; triggering this tag on the late event repeats the earlier events (marked `aGTMrepeated = true`) so Enhanced Conversions / Criteo etc. fire again with full data. Storage-free (RAM only).
@@ -2186,7 +2186,7 @@ of the v1.2 bug fixes:
 
 ### GTM template "DL Repeat" — bug fixes (v1.2)
 
-Bug review reported by the GTM team (2026-06-24, driver: fc-moto). All five
+Bug review reported by the GTM team (2026-06-24). All five
 confirmed against the source and fixed in `gtm/tags/dl-repeat/aGTM tag - DL Repeat.tpl`:
 
 - **maxEvents counted checked instead of repeated events** — `count++` ran at the top of the loop before all skip filters, so internal `gtm.*`, blacklisted, non-whitelisted and message events consumed the budget; in the worst case 0 events were repeated. Now counted only right before the event is actually fired.
@@ -2328,7 +2328,7 @@ Template audit findings on the three variable templates:
 - Improved Usercentrics v3 Consent Check
 - New CMP: Shopify Consent
 - Improved Click Listener
-- aGTM Configurator added (thanks to marco.brenn@inbiz.de)
+- aGTM Configurator added (contributed by a partner agency)
 
 ## Version 1.4 — *27.05.2025*
 - `sStrf` function improved

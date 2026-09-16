@@ -279,7 +279,7 @@ describe('aGTM.f.dlrepeat', () => {
 
   test('timeout fallback with NOTHING to replay (fired===0) fires NO aGTM_repeat_fallback', () => {
     // Nothing qualifies (empty source) -> no replay ran -> no missed enrichment
-    // to report. The error signal must stay silent (fc-moto noise fix): a guest /
+    // to report. The error signal must stay silent (live-shop noise fix): a guest /
     // non-conversion page where the gate event never arrives is the normal case.
     globalThis.aGTM.d.dl = [];
     const fired = captureFires();
@@ -302,7 +302,7 @@ describe('aGTM.f.dlrepeat', () => {
   // --- Conditional gate: "G?if=E[A]" / "G?if=E[A:V]" (v1.5) ------------------
 
   test('conditional gate: guest (user.id empty) does NOT require user_data -> gate-ready replay, no fallback', () => {
-    // fc-moto guest case: user_data never arrives, but it is only required when
+    // live-shop guest case: user_data never arrives, but it is only required when
     // user.id is non-empty. Guest -> user_data dropped from the gate -> the
     // replay runs in order right away, and it is NOT a timeout fallback.
     globalThis.aGTM.d.dl = [

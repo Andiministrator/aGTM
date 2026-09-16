@@ -239,7 +239,7 @@ The Client template's "Used CMP (Consent Tool)" SELECT field (in
 `___TEMPLATE_PARAMETERS___`) carries one **minified** `consent_check` function
 per CMP as its option `value`. This is the production copy the Client injects
 inline into `/aGTM.js` — so a CMP fix in `cmp/cc_<name>.js` only reaches Client
-users (fc-moto & co) once this embedded copy is regenerated. It used to drift
+users once this embedded copy is regenerated. It used to drift
 silently (a CMP fix landed in `cmp/*` but not here — F-52, the F-51 comma-strip
 was found un-synced in Usercentrics v2).
 

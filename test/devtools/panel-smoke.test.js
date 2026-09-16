@@ -130,12 +130,12 @@ afterAll(() => {
 
 function sampleSnap() {
   return {
-    loaded: true, version: "1.5", pageHost: "fc-moto.com", navStart: 900,
+    loaded: true, version: "1.5", pageHost: "example.com", navStart: 900,
     init: true, cmp: "", hasConsentCheck: true, consentEvents: "cmp_update",
     gdl: "dataLayer", gtmID: "GTM-XXX",
     consent: { hasResponse: true, gtmConsent: true, services: "a,b", purposes: "1,2", vendors: "" },
     session_status: "synced", consent_hash: "h1", last_consent_hash: "h1",
-    containers: [{ id: "GTM-XXX", noConsent: false, hasLoaded: true, url: "https://sgtm.fc-moto.com/gtm.js", env: "", inline: false, idParam: "" }],
+    containers: [{ id: "GTM-XXX", noConsent: false, hasLoaded: true, url: "https://sgtm.example.com/gtm.js", env: "", inline: false, idParam: "" }],
     gtmLoaded: ["GTM-XXX"], dataLayerLen: 4,
     dataLayerSample: [
       { event: "gtm.js" },
@@ -145,8 +145,8 @@ function sampleSnap() {
       { "0": "config", "1": "G-XXX" },
       { some: "internal_message" }
     ],
-    gtmScripts: [{ id: "aGTM_tm_GTM-XXX", host: "sgtm.fc-moto.com", inline: false }],
-    config: { cmp: "", gtm: { "GTM-XXX": {} }, gdl: "dataLayer", gtmServices: "Google Analytics", consent_store_url: "https://sgtm.fc-moto.com/aGTMconsent" },
+    gtmScripts: [{ id: "aGTM_tm_GTM-XXX", host: "sgtm.example.com", inline: false }],
+    config: { cmp: "", gtm: { "GTM-XXX": {} }, gdl: "dataLayer", gtmServices: "Google Analytics", consent_store_url: "https://sgtm.example.com/aGTMconsent" },
     dl: [{ event: "page_view", aGTMts: 111, page_title: "Home", value: 0 }, { aGTMts: 333, note: "internal" }],
     queue: [{ event: "add_to_cart", aGTMts: 222, value: 12.5, currency: "EUR" }],
     queueLen: 1,
@@ -374,9 +374,9 @@ describe("feedback fixes", () => {
       expect(got.value).toBe(99.9);
       expect(got["ä"]).toBe("täst");
     });
-    // POST-body transport: {"q":"…"} in the body (fc-moto /rp/tp/ae)
+    // POST-body transport: {"q":"…"} in the body (reverse-proxied /rp/tp/ae)
     const qBody = JSON.stringify({ q: enc(JSON.stringify(ev), 7) });
-    const fromBody = D("https://www.fc-moto.com/rp/tp/ae", qBody);
+    const fromBody = D("https://www.example.com/rp/tp/ae", qBody);
     expect(fromBody).not.toBeNull();
     expect(fromBody.event_name || fromBody.event).toBe("purchase");
     // {"e":"<json>"} plain body
@@ -747,7 +747,7 @@ describe("Diagnose tab", () => {
     const P = globalThis.__panel;
     P.setSnap(sampleSnap()); // navStart 900
     // a request long after navStart (window not covered) + no navigation witnessed
-    P.setNet([{ id: 1, url: "https://sgtm.fc-moto.com/aGTMconsent", host: "sgtm.fc-moto.com", method: "POST", status: 200, ts: 99000, time: 0, propId: "", evName: "", preConsent: false }]);
+    P.setNet([{ id: 1, url: "https://sgtm.example.com/aGTMconsent", host: "sgtm.example.com", method: "POST", status: 200, ts: 99000, time: 0, propId: "", evName: "", preConsent: false }]);
     P.setTab("diagnose"); P.render();
     const html = globalThis.document.getElementById("tab-diagnose")._html;
     expect(html).toContain("ci-na");                 // leaks check is N/A, not a false pass
@@ -758,7 +758,7 @@ describe("Diagnose tab", () => {
     const P = globalThis.__panel;
     P.setSnap(sampleSnap()); // navStart 900
     // earliest request within 1500ms of navStart → window observed; no leaks → pass
-    P.setNet([{ id: 1, url: "https://sgtm.fc-moto.com/aGTM.js", host: "sgtm.fc-moto.com", method: "GET", status: 200, ts: 1200, time: 0, propId: "", evName: "", preConsent: false }]);
+    P.setNet([{ id: 1, url: "https://sgtm.example.com/aGTM.js", host: "sgtm.example.com", method: "GET", status: 200, ts: 1200, time: 0, propId: "", evName: "", preConsent: false }]);
     P.setTab("diagnose"); P.render();
     const html = globalThis.document.getElementById("tab-diagnose")._html;
     expect(html).toContain("score-pass");
@@ -965,11 +965,11 @@ describe("Diagnose tab", () => {
     expect(html).toContain("Server-Stand vom Seitenaufruf"); // the mandatory snapshot caveat
     P.clearIds();
   });
-  test("Session & IDs: counters fall back to window.se_data when aGTM.d.session lacks them (fc-moto)", () => {
+  test("Session & IDs: counters fall back to window.se_data when aGTM.d.session lacks them (live shop)", () => {
     const P = globalThis.__panel;
     P.clearIds();
     const snap = sampleSnap();
-    // fc-moto shape: aGTM.d.session has ids/vct but NOT the counters; se_data carries them
+    // live-shop shape: aGTM.d.session has ids/vct but NOT the counters; se_data carries them
     snap.session = { source: "none", sid: "e49a", uid: "C.1.fcm", raw: { uid: "C.1.fcm", sid: "e49a", ret: true, vct: 49 } };
     snap.seData = { created: 1785059324, counter: 50, pvCount: 8, eventCount: 50, sessionCount: 56 };
     const html = renderTab("diagnose", snap);
@@ -983,7 +983,7 @@ describe("Diagnose tab", () => {
     const P = globalThis.__panel;
     P.clearIds();
     const snap = sampleSnap();
-    // fc-moto shape without se_data counters: only ids + vct in aGTM.d.session
+    // live-shop shape without se_data counters: only ids + vct in aGTM.d.session
     snap.session = { source: "none", sid: "s1", uid: "C.1", raw: { uid: "C.1", ret: true, vct: 49 } };
     snap.seData = {};
     const html = renderTab("diagnose", snap);
@@ -1773,7 +1773,7 @@ describe("Cookie reset — third-party CMP frame pass", () => {
   }
   const CMP = "https://cdn.consentmanager.net/delivery/cmp.php?id=45430";
   const RES = [
-    { url: "https://fc-moto.com/", type: "document" },
+    { url: "https://example.com/", type: "document" },
     { url: CMP, type: "document" },
     { url: "https://www.googletagmanager.com/gtm.js?id=GTM-X", type: "script" }
   ];
@@ -1908,7 +1908,7 @@ describe("Cookie reset — frame pass must never write unannounced", () => {
   }
   const CMP = "https://cdn.consentmanager.net/delivery/cmp.php?id=45430";
   const RES = [
-    { url: "https://fc-moto.com/", type: "document" },
+    { url: "https://example.com/", type: "document" },
     { url: CMP, type: "document" }
   ];
   function prime(patterns) {

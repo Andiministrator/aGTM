@@ -55,10 +55,10 @@ describe("F-60: over-broad top-level regex tightened", () => {
     expect(classify("https://www.google-analytics.com/mp/collect", s, "").key).toBe("ga-collect");
   });
   test("reverse-proxied gtm.js/collect within sGTM scope is still classified", () => {
-    const pageHost = "www.fc-moto.de";
-    const sc = scopeFor([{ url: "https://www.fc-moto.de/rp/tp/aGTM.js" }], null);
-    expect(classify("https://www.fc-moto.de/rp/tp/gtm.js?id=GTM-X", sc, pageHost).key).toBe("gtm.js");
-    expect(classify("https://www.fc-moto.de/rp/tp/g/collect?v=2", sc, pageHost).key).toBe("ga-collect");
+    const pageHost = "www.example.org";
+    const sc = scopeFor([{ url: "https://www.example.org/rp/tp/aGTM.js" }], null);
+    expect(classify("https://www.example.org/rp/tp/gtm.js?id=GTM-X", sc, pageHost).key).toBe("gtm.js");
+    expect(classify("https://www.example.org/rp/tp/g/collect?v=2", sc, pageHost).key).toBe("ga-collect");
   });
 });
 
@@ -89,25 +89,25 @@ describe("trackerInfo / trackingHit — pre-consent leak detection", () => {
 });
 
 describe("reverse-proxy same-host sGTM (aGTM.js under /rp/tp/ on the page host)", () => {
-  const pageHost = "www.fc-moto.de";
-  const entries = [{ url: "https://www.fc-moto.de/rp/tp/aGTM.js" }];
-  const cfg = { consent_store_url: "https://www.fc-moto.de/rp/tp/aGTMconsent", transport_url: "" };
+  const pageHost = "www.example.org";
+  const entries = [{ url: "https://www.example.org/rp/tp/aGTM.js" }];
+  const cfg = { consent_store_url: "https://www.example.org/rp/tp/aGTMconsent", transport_url: "" };
   const s = scopeFor(entries, cfg);
 
   test("aEvents endpoint under the learned prefix is classified as aEvents", () => {
-    expect(classify("https://www.fc-moto.de/rp/tp/ae?en=purchase", s, pageHost).key).toBe("aEvents");
+    expect(classify("https://www.example.org/rp/tp/ae?en=purchase", s, pageHost).key).toBe("aEvents");
   });
   test("Stape service-worker bootstrap under the prefix is classified as sGTM SW", () => {
-    expect(classify("https://www.fc-moto.de/rp/tp/_/service_worker/66u0/sw_iframe.html", s, pageHost).key).toBe("sGTM SW");
+    expect(classify("https://www.example.org/rp/tp/_/service_worker/66u0/sw_iframe.html", s, pageHost).key).toBe("sGTM SW");
   });
   test("other sGTM traffic under the prefix is generic sGTM", () => {
-    expect(classify("https://www.fc-moto.de/rp/tp/something", s, pageHost).key).toBe("sGTM");
+    expect(classify("https://www.example.org/rp/tp/something", s, pageHost).key).toBe("sGTM");
   });
   test("first-party image is NOT swept in", () => {
-    expect(classify("https://www.fc-moto.de/media/logo.png", s, pageHost)).toBeNull();
+    expect(classify("https://www.example.org/media/logo.png", s, pageHost)).toBeNull();
   });
   test("first-party page is NOT swept in", () => {
-    expect(classify("https://www.fc-moto.de/checkout", s, pageHost)).toBeNull();
+    expect(classify("https://www.example.org/checkout", s, pageHost)).toBeNull();
   });
 });
 

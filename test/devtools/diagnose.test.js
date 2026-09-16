@@ -13,10 +13,10 @@ function byKey(checks, key) { return checks.filter((c) => c.key === key)[0]; }
 // A healthy sGTM-Client snapshot (empty cmp + injected consent_check, GTM in DOM).
 function okSnap() {
   return {
-    pageHost: "fc-moto.com", version: "1.5", cmp: "", hasConsentCheck: true,
+    pageHost: "example.com", version: "1.5", cmp: "", hasConsentCheck: true,
     init: true, gtmScripts: [{ id: "aGTM_tm_GTM-X" }], session_status: "synced",
     consent: { hasResponse: true, gtmConsent: true, services: "a,b", purposes: "1,2", vendors: "" },
-    containers: [{ id: "GTM-X", url: "https://sgtm.fc-moto.com/gtm.js", hasLoaded: true, noConsent: false }],
+    containers: [{ id: "GTM-X", url: "https://sgtm.example.com/gtm.js", hasLoaded: true, noConsent: false }],
     // config() has run (m1 logged) and the library carries the F-167 gate — both
     // are what a current library looks like, and both are what the gate check
     // probes for instead of the version number (F-212).
@@ -217,7 +217,7 @@ describe("buildReportMarkdown / buildReportJSON", () => {
   test("markdown carries header, health table, timeline, leaks and traps", () => {
     const md = buildReportMarkdown(ctx());
     expect(md).toContain("# aGTM Compliance-Report");
-    expect(md).toContain("fc-moto.com");
+    expect(md).toContain("example.com");
     expect(md).toContain("**Gesamtstatus:** FAIL");
     expect(md).toContain("## Health-Check");
     expect(md).toContain("## Consent-Timeline");
@@ -227,7 +227,7 @@ describe("buildReportMarkdown / buildReportJSON", () => {
     expect(md).toContain("TikTok");
     expect(md).toContain("## Konfig-Fallen");
     expect(md).toContain("GTM-Container");
-    expect(md).toContain("sgtm.fc-moto.com");      // container host derived from url
+    expect(md).toContain("sgtm.example.com");      // container host derived from url
   });
   test("markdown timeline header says 'erstem Marker' when navStart is missing (F-2)", () => {
     const c = ctx();
@@ -245,7 +245,7 @@ describe("buildReportMarkdown / buildReportJSON", () => {
   test("JSON report is valid and structured", () => {
     const json = JSON.parse(buildReportJSON(ctx()));
     expect(json.report).toBe("aGTM-compliance");
-    expect(json.page).toBe("fc-moto.com");
+    expect(json.page).toBe("example.com");
     expect(json.overall).toBe("fail");
     expect(json.health.length).toBe(6);
     expect(json.consent.gtmConsent).toBe(true);
