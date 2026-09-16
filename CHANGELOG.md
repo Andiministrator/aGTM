@@ -2328,7 +2328,7 @@ Template audit findings on the three variable templates:
 - Improved Usercentrics v3 Consent Check
 - New CMP: Shopify Consent
 - Improved Click Listener
-- aGTM Configurator added (contributed by a partner agency)
+- aGTM Configurator added (thanks to Marco Brenn, InBiz)
 
 ## Version 1.4 — *27.05.2025*
 - `sStrf` function improved
