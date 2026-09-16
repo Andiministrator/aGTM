@@ -799,7 +799,7 @@ ___TEMPLATE_PARAMETERS___
             "type": "EQUALS"
           }
         ],
-        "help": "Base URL of the Sources API up to and including the path prefix WITHOUT the tenant and WITHOUT any query string. The tenant is appended at runtime (and the attribution query, if enabled). Example: <code>https://your-sources-host.example.com/tp/sources</code> &rarr; POST goes to <code>.../tp/sources/{tenant}</code>. Do NOT put the tenant or <code>?attribution=true</code> here — that produces a malformed URL (e.g. <code>.../tp/sources/fcm/?attribution=true/fcm</code>)."
+        "help": "Base URL of the Sources API up to and including the path prefix WITHOUT the tenant and WITHOUT any query string. The tenant is appended at runtime (and the attribution query, if enabled). Example: <code>https://your-sources-host.example.com/tp/sources</code> &rarr; POST goes to <code>.../tp/sources/{tenant}</code>. Do NOT put the tenant or <code>?attribution=true</code> here — that produces a malformed URL (e.g. <code>.../tp/sources/acme/?attribution=true/acme</code>)."
       },
       {
         "type": "CHECKBOX",

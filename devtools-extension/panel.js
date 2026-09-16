@@ -1119,7 +1119,7 @@ function renderSession() {
   }
   html += "</div>";
 
-  // Fallback / cross-check: external site session object (e.g. window.se_data on victors.de).
+  // Fallback / cross-check: external site session object (e.g. window.se_data on example.net).
   if (!isEmpty(s.seData)) {
     html += '<div class="card"><h2>Externe Session — window.se_data</h2>' +
       '<div class="muted" style="margin-bottom:8px">' +
@@ -1265,7 +1265,7 @@ var netSeq = 0;
 // library's 2s CMP poll (start_consent_poll → run_cc('update')) keeps pushing it
 // forward. Measuring against it means a request that fired 200 ms after the decision is
 // compared to a timestamp minutes later, so the reconcile can never fire and a
-// capture-time stamp sticks forever — the victors.de false positives on gtm.js/gtag.js
+// capture-time stamp sticks forever — the example.net false positives on gtm.js/gtag.js
 // (card #52). The Consent-Timeline was moved off consentTs for the same reason (F-71);
 // this path was missed then.
 //
@@ -1296,7 +1296,7 @@ function reqStartTs(e) {
 // Two poll intervals: the stamp is taken at capture time against a snapshot that can be
 // one poll stale, and the anchor itself only appears in the snapshot AFTER the consent
 // milestone was logged. Without this, every page load flashes the red banner for a
-// fraction of a second before the reconcile catches up (observed by Andi on victors.de).
+// fraction of a second before the reconcile catches up (observed by Andi on example.net).
 var LEAK_SETTLE_MS = 2 * POLL_MS;
 function nowTs() { try { return Date.now(); } catch (e) { return 0; } }
 

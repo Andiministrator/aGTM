@@ -343,7 +343,7 @@
       "var pats=" + J(pats) + ";" +
       // Matching: a plain fragment is a SUBSTRING match (unchanged), and `*` acts as a
       // wildcard so a pattern can be anchored — "__cmp*" = starts with, "*consent" = ends
-      // with, "__cmp*45430" = both ends fixed. Everything else in the pattern is escaped,
+      // with, "__cmp*12345" = both ends fixed. Everything else in the pattern is escaped,
       // so a dot in "_ga.foo" stays literal instead of matching any character.
       "function toRe(p){var e=p.replace(/[.+?^${}()|[\\]\\\\]/g,'\\\\$&').replace(/\\*/g,'[\\\\s\\\\S]*');" +
       "return new RegExp(p.indexOf('*')<0?e:('^'+e+'$'));}" +
@@ -364,7 +364,7 @@
       // cookies are cross-site cookies and carry exactly those attributes — and inside its
       // third-party frame Chrome REJECTS a document.cookie write that would default to
       // SameSite=Lax. Without the second variant the expiry never lands and the cookie
-      // survives (observed on victors.de: __cmpccu45430/__cmpconsent45430 on
+      // survives (observed on example.net: __cmpccu12345/__cmpconsent12345 on
       // .consentmanager.net stayed while that frame's localStorage was already cleared).
       // SameSite/Secure are not part of the cookie's identity, so the extra write is
       // harmless everywhere else — on http it is simply rejected, and the bare one applies.
@@ -630,7 +630,7 @@ function simDefaultGcm() {
 // substring test, so PREFIXES are the efficient form: "__cmp" covers Consentmanager's
 // whole family (__cmpconsent<id>, __cmpccu<id>, __cmpcvcx…), which the earlier entry
 // "cmpsettings" did NOT match — Consentmanager sites were silently unaffected by a
-// reset (found on victors.de, 2026-07-27).
+// reset (found on example.net, 2026-07-27).
 // `_tpf` is aGTM's own user-id cookie — the Client's default since v1.5 and the
 // name every real installation already used. `_TPU` was the default for part of
 // the v1.5 development and is still read and retired by the Client, so a
@@ -965,7 +965,7 @@ function buildSimScaffold() {
   var boxCookie = '<div class="card"><h2>Cookies zurücksetzen + neu laden</h2>' +
     '<div class="muted" style="margin-bottom:8px;font-size:11px">Löscht passende Cookies (Name enthält eines der Muster; über alle Domain-/Pfad-Varianten) für einen echten Erstbesuch-Test. <b>Leeres Feld = ALLE Cookies</b> (inkl. Login!) — mit „localStorage auch leeren“ dann auch der <b>komplette</b> localStorage. Ein bereits injiziertes GTM lässt sich nur so via Reload „vergessen“. Viele CMPs (Consentmanager, Usercentrics, Cookiebot …) halten eine <b>zweite Kopie</b> in ihrem eigenen iframe-Origin (Cookies auf <code>.consentmanager.net</code> + localStorage unter <code>cdn.consentmanager.net</code>) und stellen den Consent daraus nach dem Reload wieder her. Für die <b>Seite</b> ist die unerreichbar (Same-Origin-Policy) — <b>DevTools</b> darf dort hinein, deshalb löscht die Option „auch in CMP-Frames“ dieselben Muster zusätzlich in jedem fremden Frame der Seite. <b>Das trifft nicht nur die CMP</b>, sondern jeden eingebetteten Drittanbieter (Zahlung, SSO, Chat, Video) — die Muster entscheiden. Bei <b>leerem</b> Musterfeld bleibt der Frame-Durchgang deshalb bewusst aus: „alle Cookies“ gilt nur für die eigene Domain. <b>Grenze:</b> das erreicht nur Origins, die <b>gerade als Frame im Seitenbaum stehen</b>; speichert die CMP ohne offenen Frame, bleibt ihre Kopie liegen. Das Ergebnis unten sagt pro Frame, was wirklich gelöscht wurde — <b>steht dort nichts Gelöschtes, ist ein Inkognito-Fenster der verlässliche Weg</b> (Extension dort einmalig zulassen: chrome://extensions → Details → „Im Inkognitomodus zulassen").</div>' +
     '<input type="text" id="sim-cookie-pats" spellcheck="false" placeholder="Cookie-Namen-Muster, kommagetrennt (leer = alle)" value="' + esc(typeof st.cookiePats === "string" ? st.cookiePats : "") + '" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">' +
-    '<div class="muted" style="margin-top:4px;font-size:11px">Ein Muster trifft als <b>Teilstring</b> (<code>__cmp</code> trifft <code>__cmpccu45430</code>). <code>*</code> ist ein Platzhalter zum Verankern: <code>__cmp*</code> = beginnt mit, <code>*consent</code> = endet auf, <code>*</code> = alles.' +
+    '<div class="muted" style="margin-top:4px;font-size:11px">Ein Muster trifft als <b>Teilstring</b> (<code>__cmp</code> trifft <code>__cmpccu12345</code>). <code>*</code> ist ein Platzhalter zum Verankern: <code>__cmp*</code> = beginnt mit, <code>*consent</code> = endet auf, <code>*</code> = alles.' +
     (st.cookiePats !== SIM_COOKIE_DEFAULT ? ' <a href="#" id="sim-cookie-reset-pats" style="color:var(--accent)">Standardliste wiederherstellen</a>' : "") + "</div>" +
     '<div class="toolbar" style="margin-top:8px">' +
     simFlag("sim-cookie-ls", "localStorage auch leeren", st.cookieLS) +

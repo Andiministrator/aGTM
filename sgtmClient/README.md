@@ -441,7 +441,7 @@ If checked, the Client fires `POST /tp/sources/{tenant}` with `{user_id, page_lo
 
 #### Sources API URL
 
-Base URL of the Sources endpoint — the **bare base WITHOUT tenant and WITHOUT any query string** (e.g. `https://your-sources-host.example.com/tp/sources`). The tenant is appended at runtime (and the attribution query, if enabled), so the POST goes to `.../tp/sources/{tenant}`. Do **not** put the tenant or `?attribution=true` here — that produces a malformed URL like `.../tp/sources/fcm/?attribution=true/fcm` (double tenant → 404).
+Base URL of the Sources endpoint — the **bare base WITHOUT tenant and WITHOUT any query string** (e.g. `https://your-sources-host.example.com/tp/sources`). The tenant is appended at runtime (and the attribution query, if enabled), so the POST goes to `.../tp/sources/{tenant}`. Do **not** put the tenant or `?attribution=true` here — that produces a malformed URL like `.../tp/sources/acme/?attribution=true/acme` (double tenant → 404).
 
 #### Request attribution in Sources response
 

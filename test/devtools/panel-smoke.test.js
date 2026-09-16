@@ -158,7 +158,7 @@ function sampleSnap() {
       { id: "m9", timestamp: 5000, obj: { event: "page_view" } },
       { id: "e17", timestamp: 7000, obj: { __unserializable: true } }
     ],
-    session: { source: "it_webgains", sid: "s1", uid: "C.1.fcm", raw: { sid: "s1", uid: "C.1.fcm", ret: true, vct: 7, created: 1785059324, counter: 29, pvCount: 5, eventCount: 29, sessionCount: 56 } },
+    session: { source: "it_webgains", sid: "s1", uid: "C.1.acme", raw: { sid: "s1", uid: "C.1.acme", ret: true, vct: 7, created: 1785059324, counter: 29, pvCount: 5, eventCount: 29, sessionCount: 56 } },
     seData: { visitorId: "v-123", segments: ["a", "b"] },
     gcm: {
       ad_storage: { "default": false, update: true, implicit: null, region: "DE" },
@@ -970,7 +970,7 @@ describe("Diagnose tab", () => {
     P.clearIds();
     const snap = sampleSnap();
     // live-shop shape: aGTM.d.session has ids/vct but NOT the counters; se_data carries them
-    snap.session = { source: "none", sid: "e49a", uid: "C.1.fcm", raw: { uid: "C.1.fcm", sid: "e49a", ret: true, vct: 49 } };
+    snap.session = { source: "none", sid: "e49a", uid: "C.1.acme", raw: { uid: "C.1.acme", sid: "e49a", ret: true, vct: 49 } };
     snap.seData = { created: 1785059324, counter: 50, pvCount: 8, eventCount: 50, sessionCount: 56 };
     const html = renderTab("diagnose", snap);
     expect(html).toContain("#56");                    // sessionCount from se_data
@@ -1306,11 +1306,11 @@ describe("Simulation tab — effect panel + polled Ist-Zustand line", () => {
  *  Card #52 — pre-consent leak reconcile anchored on the consent MOMENT *
  * ==================================================================== */
 
-describe("Pre-consent leak reconcile (card #52 — victors.de false positives)", () => {
+describe("Pre-consent leak reconcile (card #52 — example.net false positives)", () => {
   // Reproduces the reported case: aGTM.js at t+0, then gtm.js/gtag.js ~1.2s later.
   // All three were stamped preConsent because the 700ms snapshot poll had not caught
   // up yet — but consent WAS already there (aGTM only injects GTM after gtmConsent).
-  function victorsSnap() {
+  function liveShopSnap() {
     const snap = sampleSnap();
     snap.logMilestones = { config: 1000, pending: 0, consent: 1400, inject: 1500 };
     snap.consentFirstTs = 1400;
@@ -1320,7 +1320,7 @@ describe("Pre-consent leak reconcile (card #52 — victors.de false positives)",
     return snap;
   }
   const gtmReqs = [
-    { id: 1, url: "https://rp.victors.de/gtm.js?id=victors", host: "rp.victors.de", method: "GET", status: 200, ts: 1600, time: 0, propId: "", evName: "", preConsent: true },
+    { id: 1, url: "https://rp.example.net/gtm.js?id=GTM-XYZ123", host: "rp.example.net", method: "GET", status: 200, ts: 1600, time: 0, propId: "", evName: "", preConsent: true },
     { id: 2, url: "https://www.googletagmanager.com/gtag/js?id=AW-123456789", host: "www.googletagmanager.com", method: "GET", status: 200, ts: 1750, time: 0, propId: "", evName: "", preConsent: true }
   ];
 
@@ -1328,7 +1328,7 @@ describe("Pre-consent leak reconcile (card #52 — victors.de false positives)",
 
   test("GTM loads that started AFTER the consent moment are no longer flagged", () => {
     const P = globalThis.__panel;
-    P.setSnap(victorsSnap());
+    P.setSnap(liveShopSnap());
     P.setNet(gtmReqs.slice());
     P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
     P.setTab("network"); P.render();
@@ -1343,14 +1343,14 @@ describe("Pre-consent leak reconcile (card #52 — victors.de false positives)",
     // Guards the fix itself: with the old anchor every request is compared against
     // t=90000, so nothing can ever reconcile. If someone reverts consentMomentTs to
     // snap.consentTs, the test above fails and this one documents why.
-    const snap = victorsSnap();
+    const snap = liveShopSnap();
     expect(snap.consentTs).toBeGreaterThan(gtmReqs[1].ts);      // the trap
     expect(snap.logMilestones.consent).toBeLessThan(gtmReqs[0].ts); // the correct anchor
   });
 
   test("a real leak BEFORE the consent moment is still reported", () => {
     const P = globalThis.__panel;
-    P.setSnap(victorsSnap());
+    P.setSnap(liveShopSnap());
     P.setNet([
       { id: 3, url: "https://connect.facebook.net/tr?id=1", host: "connect.facebook.net", method: "GET", status: 200, ts: 1100, time: 0, propId: "", evName: "", preConsent: true }
     ].concat(gtmReqs));
@@ -1366,7 +1366,7 @@ describe("Pre-consent leak reconcile (card #52 — victors.de false positives)",
     // Finished at 2200 (after the 1400 moment) but left at 900 — pre-consent.
     // Comparing e.ts alone would clear it; reqStartTs subtracts the HAR duration.
     const P = globalThis.__panel;
-    P.setSnap(victorsSnap());
+    P.setSnap(liveShopSnap());
     P.setNet([{ id: 4, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 2200, time: 1300, propId: "", evName: "", preConsent: true }]);
     P.netSet("netOnlyAGTM", false);
     P.setTab("network"); P.render();
@@ -1377,7 +1377,7 @@ describe("Pre-consent leak reconcile (card #52 — victors.de false positives)",
 
   test("the health score follows the same reconcile (no false red in a customer report)", () => {
     const P = globalThis.__panel;
-    P.setSnap(victorsSnap());
+    P.setSnap(liveShopSnap());
     P.setNet(gtmReqs.slice());
     P.setTab("diagnose"); P.render();
     const html = globalThis.document.getElementById("tab-diagnose")._html;
@@ -1386,7 +1386,7 @@ describe("Pre-consent leak reconcile (card #52 — victors.de false positives)",
 
   test("without any consent anchor the stamp stands (conservative, no silent all-clear)", () => {
     const P = globalThis.__panel;
-    const snap = victorsSnap();
+    const snap = liveShopSnap();
     snap.logMilestones = { config: 1000, pending: 0, consent: 0, inject: 0 };
     snap.consentFirstTs = 0;
     P.setSnap(snap);
@@ -1439,8 +1439,8 @@ describe("decodeParams — readable query-string values", () => {
     expect(r.doubled).toBe(1);
   });
   test("a URL inside a parameter becomes readable", () => {
-    const r = dp()({ dl: "https%3A%2F%2Fwww.victors.de%2Flayout%2Fjs%2Fmain.js%3F01" });
-    expect(r.map.dl).toBe("https://www.victors.de/layout/js/main.js?01");
+    const r = dp()({ dl: "https%3A%2F%2Fwww.example.net%2Flayout%2Fjs%2Fmain.js%3F01" });
+    expect(r.map.dl).toBe("https://www.example.net/layout/js/main.js?01");
   });
   test("non-string values and garbage input never throw", () => {
     expect(dp()({ n: 5, nil: null }).map).toEqual({ n: 5, nil: null });
@@ -1454,9 +1454,9 @@ describe("Query-String sub-section rendering", () => {
     const P = globalThis.__panel;
     P.setSnap(sampleSnap());
     P.setNet([{
-      id: 77, url: "https://rp.victors.de/g/collect?v=2", host: "rp.victors.de", method: "GET",
+      id: 77, url: "https://rp.example.net/g/collect?v=2", host: "rp.example.net", method: "GET",
       status: 200, ts: 5000, time: 0, propId: "G-X", evName: "exception", preConsent: false,
-      detail: { method: "GET", url: "https://rp.victors.de/g/collect?v=2", status: 200, queryString: qs }
+      detail: { method: "GET", url: "https://rp.example.net/g/collect?v=2", status: 200, queryString: qs }
     }]);
     P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
     P.setExpanded({ "n|77": true, "n|77|q": true });
@@ -1488,7 +1488,7 @@ describe("Query-String sub-section rendering", () => {
 
 describe("exceptionInfo — pull type/text out of the three carriers", () => {
   const ex = () => globalThis.__panel.exceptionInfo;
-  const GA4_URL = "https://rp.victors.de/g/collect?v=2&en=exception" +
+  const GA4_URL = "https://rp.example.net/g/collect?v=2&en=exception" +
     "&ep.type=JS%20Error&ep.text=Uncaught%20ReferenceError%3A%20Fancybox%20is%20not%20defined";
 
   test("GA4 GET: decodes ep.type / ep.text from the query string", () => {
@@ -1542,7 +1542,7 @@ describe("Exception preview rendering in the network list", () => {
     const P = globalThis.__panel;
     P.setSnap(sampleSnap());
     P.setNet([Object.assign({
-      id: 88, host: "rp.victors.de", method: "GET", status: 200, ts: 5000, time: 0,
+      id: 88, host: "rp.example.net", method: "GET", status: 200, ts: 5000, time: 0,
       propId: "G-X", preConsent: false, detail: {}
     }, entry)]);
     P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
@@ -1555,14 +1555,14 @@ describe("Exception preview rendering in the network list", () => {
   test("the decoded message is visible without expanding the row", () => {
     const html = listHtml({
       evName: "exception",
-      url: "https://rp.victors.de/g/collect?v=2&en=exception&ep.type=JS%20Error&ep.text=Uncaught%20ReferenceError%3A%20Fancybox%20is%20not%20defined"
+      url: "https://rp.example.net/g/collect?v=2&en=exception&ep.type=JS%20Error&ep.text=Uncaught%20ReferenceError%3A%20Fancybox%20is%20not%20defined"
     });
     expect(html).toContain("net-exc");
     expect(html).toContain("JS Error");
     expect(html).toContain("Uncaught ReferenceError: Fancybox is not defined");
   });
   test("a normal event renders no exception block", () => {
-    const html = listHtml({ evName: "page_view", url: "https://rp.victors.de/g/collect?v=2&en=page_view" });
+    const html = listHtml({ evName: "page_view", url: "https://rp.example.net/g/collect?v=2&en=page_view" });
     expect(html).not.toContain("net-exc");
   });
   test("a very long message is truncated in the list, full text kept in the tooltip", () => {
@@ -1583,7 +1583,7 @@ describe("Exception preview rendering in the network list", () => {
 describe("Leak banner does not flash on page load (settle window)", () => {
   // The stamp is taken at capture time; the consent anchor only appears in a LATER
   // snapshot. Without a grace period the banner shows red for a fraction of a second
-  // on every load before the reconcile catches up (Andi, victors.de).
+  // on every load before the reconcile catches up (Andi, example.net).
   function noAnchorSnap() {
     const snap = sampleSnap();
     snap.logMilestones = { config: 0, pending: 0, consent: 0, inject: 0 };
@@ -1771,7 +1771,7 @@ describe("Cookie reset — third-party CMP frame pass", () => {
     globalThis.__nodes["sim-cookie-pats"].value = P.simState().cookiePats;
     calls.length = 0;
   }
-  const CMP = "https://cdn.consentmanager.net/delivery/cmp.php?id=45430";
+  const CMP = "https://cdn.consentmanager.net/delivery/cmp.php?id=12345";
   const RES = [
     { url: "https://example.com/", type: "document" },
     { url: CMP, type: "document" },
@@ -1784,7 +1784,7 @@ describe("Cookie reset — third-party CMP frame pass", () => {
       var opts = typeof a === "function" ? null : a;
       var cb = typeof a === "function" ? a : b;
       calls.push({ code: code, frameURL: opts && opts.frameURL });
-      if (cb) cb({ ok: true, cleared: ["__cmpconsent45430"], clearedCount: 1, lsCleared: 2 }, null);
+      if (cb) cb({ ok: true, cleared: ["__cmpconsent12345"], clearedCount: 1, lsCleared: 2 }, null);
     };
     const P = globalThis.__panel;
     P.setSnap(sampleSnap()); P.setTab("sim"); P.render();
@@ -1821,7 +1821,7 @@ describe("Cookie reset — third-party CMP frame pass", () => {
     clickReset();
     P.updateSimLive();
     const html = globalThis.__nodes["sim-live"]._html;
-    expect(html).toContain("cdn.consentmanager.net:__cmpconsent45430");
+    expect(html).toContain("cdn.consentmanager.net:__cmpconsent12345");
     expect(html).toContain("1/1 erreicht");
   });
   test("a frame that refuses evaluation is named, not silently swallowed", () => {
@@ -1906,7 +1906,7 @@ describe("Cookie reset — frame pass must never write unannounced", () => {
     const ls = (node.__listeners && node.__listeners.click) || [];
     ls[ls.length - 1]({});
   }
-  const CMP = "https://cdn.consentmanager.net/delivery/cmp.php?id=45430";
+  const CMP = "https://cdn.consentmanager.net/delivery/cmp.php?id=12345";
   const RES = [
     { url: "https://example.com/", type: "document" },
     { url: CMP, type: "document" }
@@ -1927,7 +1927,7 @@ describe("Cookie reset — frame pass must never write unannounced", () => {
       var opts = typeof a === "function" ? null : a;
       var cb = typeof a === "function" ? a : b;
       calls.push({ code: code, frameURL: opts && opts.frameURL });
-      if (cb) cb({ ok: true, cleared: ["__cmpconsent45430"], clearedCount: 1, lsCleared: 2 }, null);
+      if (cb) cb({ ok: true, cleared: ["__cmpconsent12345"], clearedCount: 1, lsCleared: 2 }, null);
     };
     const P = globalThis.__panel;
     P.setSnap(sampleSnap()); P.setTab("sim"); P.render();
@@ -1964,7 +1964,7 @@ describe("Cookie reset — frame pass must never write unannounced", () => {
       var cb = typeof a === "function" ? a : b;
       calls.push({ code: code, frameURL: opts && opts.frameURL });
       if (!cb) return;
-      if (opts && opts.frameURL) cb({ ok: true, cleared: ["__cmpccu45430"], clearedCount: 1, lsCleared: 2 }, null);
+      if (opts && opts.frameURL) cb({ ok: true, cleared: ["__cmpccu12345"], clearedCount: 1, lsCleared: 2 }, null);
       else cb(null, { isError: true, value: "Uncaught SyntaxError" });
     };
     clickReset();
@@ -1972,7 +1972,7 @@ describe("Cookie reset — frame pass must never write unannounced", () => {
     P.updateSimLive();
     const html = globalThis.__nodes["sim-live"]._html;
     expect(html).toContain("Fehler");
-    expect(html).toContain("cdn.consentmanager.net:__cmpccu45430");
+    expect(html).toContain("cdn.consentmanager.net:__cmpccu12345");
   });
 
   test("an EMPTY pattern list stops at the page's own origin", () => {

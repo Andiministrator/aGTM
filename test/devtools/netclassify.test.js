@@ -29,7 +29,7 @@ describe("classify — standard patterns", () => {
     expect(classify("https://x.example.com/rp/tp/aGTM.js", s, "").key).toBe("aGTM.js");
   });
   test("/tp/sources", () => {
-    expect(classify("https://x.example.com/tp/sources/fcm", s, "").key).toBe("sources-api");
+    expect(classify("https://x.example.com/tp/sources/acme", s, "").key).toBe("sources-api");
   });
   test("GA collect", () => {
     expect(classify("https://region1.google-analytics.com/g/collect?v=2", s, "").cls).toBe("warn");
@@ -136,7 +136,7 @@ describe("P3 fix: foreign ?attribution= is not mislabelled", () => {
     expect(classify("https://analytics.other.com/track?attribution=true", s, "")).toBeNull();
   });
   test("real /tp/sources with attribution still classifies", () => {
-    expect(classify("https://x.example.com/tp/sources/fcm?attribution=true&method=last_touch", s, "").key).toBe("sources-api");
+    expect(classify("https://x.example.com/tp/sources/acme?attribution=true&method=last_touch", s, "").key).toBe("sources-api");
   });
 });
 

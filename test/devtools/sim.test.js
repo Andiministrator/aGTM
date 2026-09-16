@@ -915,7 +915,7 @@ describe("Cookie reset — pattern coverage for real CMPs", () => {
       var i = c.indexOf("="); if (i < 0) return;
       store[c.slice(0, i).replace(/^\s+/, "")] = c.slice(i + 1);
     });
-    var w = { location: { hostname: "www.victors.de", pathname: "/", reload: function () {} } };
+    var w = { location: { hostname: "www.example.net", pathname: "/", reload: function () {} } };
     w.document = {
       get cookie() {
         return Object.keys(store).map(function (k) { return k + "=" + store[k]; }).join("; ");
@@ -929,26 +929,26 @@ describe("Cookie reset — pattern coverage for real CMPs", () => {
     return w;
   }
 
-  test("the default patterns catch Consentmanager's __cmp family (the victors.de case)", () => {
-    // Real names from the report: __cmpccu45430 / __cmpconsent45430. The old list had
+  test("the default patterns catch Consentmanager's __cmp family (the example.net case)", () => {
+    // Real names from the report: __cmpccu12345 / __cmpconsent12345. The old list had
     // "cmpsettings", which does NOT substring-match either of them.
-    var w = jar("__cmpccu45430=a; __cmpconsent45430=b; _ga=keep; PHPSESSID=keep");
+    var w = jar("__cmpccu12345=a; __cmpconsent12345=b; _ga=keep; PHPSESSID=keep");
     var pats = splitTokens(SIM_COOKIE_DEFAULT);
     var res = run(buildCookieResetCode(pats, {}), w);
     expect(res.ok).toBe(true);
-    expect(res.cleared).toContain("__cmpccu45430");
-    expect(res.cleared).toContain("__cmpconsent45430");
+    expect(res.cleared).toContain("__cmpccu12345");
+    expect(res.cleared).toContain("__cmpconsent12345");
     expect(Object.keys(w.__store).sort()).toEqual(["PHPSESSID", "_ga"]);
   });
   test("a pattern list that matches nothing reports zero — not silent success", () => {
-    var w = jar("__cmpccu45430=a");
+    var w = jar("__cmpccu12345=a");
     var res = run(buildCookieResetCode(["does-not-exist"], {}), w);
     expect(res.ok).toBe(true);
     expect(res.clearedCount).toBe(0);        // the panel turns this into a warning
-    expect(Object.keys(w.__store)).toEqual(["__cmpccu45430"]);
+    expect(Object.keys(w.__store)).toEqual(["__cmpccu12345"]);
   });
   test("the old default list would have missed Consentmanager (regression guard)", () => {
-    var w = jar("__cmpccu45430=a; __cmpconsent45430=b");
+    var w = jar("__cmpccu12345=a; __cmpconsent12345=b");
     var old = "CookieConsent,OptanonConsent,OptanonAlertBoxClosed,borlabs-cookie,klaro,cookiefirst,cmpsettings,consentUUID,euconsent-v2,ucData,uc_settings,ccm_consent,_iub_cs,aGTM,agtm";
     var res = run(buildCookieResetCode(splitTokens(old), {}), w);
     expect(res.clearedCount).toBe(0);
@@ -962,7 +962,7 @@ describe("Cookie reset — wildcard patterns", () => {
       var i = c.indexOf("="); if (i < 0) return;
       store[c.slice(0, i).replace(/^\s+/, "")] = c.slice(i + 1);
     });
-    var w = { location: { hostname: "www.victors.de", pathname: "/", reload: function () {} } };
+    var w = { location: { hostname: "www.example.net", pathname: "/", reload: function () {} } };
     w.document = {
       get cookie() { return Object.keys(store).map(function (k) { return k + "=" + store[k]; }).join("; "); },
       set cookie(v) { var n = v.slice(0, v.indexOf("=")); if (/1970/.test(v)) delete store[n]; }
@@ -970,24 +970,24 @@ describe("Cookie reset — wildcard patterns", () => {
     w.__store = store;
     return w;
   }
-  var JAR = "__cmpccu45430=a; __cmpconsent45430=b; _ga=x; my_consent_flag=c; PHPSESSID=y";
+  var JAR = "__cmpccu12345=a; __cmpconsent12345=b; _ga=x; my_consent_flag=c; PHPSESSID=y";
   function cleared(pattern) {
     return run(buildCookieResetCode(splitTokens(pattern), {}), jar(JAR)).cleared.sort();
   }
 
   test("a plain fragment still matches as a substring (unchanged behaviour)", () => {
-    expect(cleared("__cmp")).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(cleared("__cmp")).toEqual(["__cmpccu12345", "__cmpconsent12345"]);
   });
   test("trailing * anchors the start", () => {
-    expect(cleared("__cmp*")).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(cleared("__cmp*")).toEqual(["__cmpccu12345", "__cmpconsent12345"]);
     expect(cleared("consent*")).toEqual([]);          // does NOT match my_consent_flag
   });
   test("leading * anchors the end", () => {
-    expect(cleared("*45430")).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(cleared("*12345")).toEqual(["__cmpccu12345", "__cmpconsent12345"]);
     expect(cleared("*flag")).toEqual(["my_consent_flag"]);
   });
   test("* in the middle fixes both ends", () => {
-    expect(cleared("__cmp*45430")).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(cleared("__cmp*12345")).toEqual(["__cmpccu12345", "__cmpconsent12345"]);
     expect(cleared("__cmp*nope")).toEqual([]);
   });
   test("a lone * matches everything, like an empty list", () => {
@@ -1003,7 +1003,7 @@ describe("Cookie reset — wildcard patterns", () => {
     var w = jar(JAR);
     var res = run(buildCookieResetCode(["__cmp", "["], {}), w);
     expect(res.ok).toBe(true);
-    expect(res.cleared).toContain("__cmpccu45430");
+    expect(res.cleared).toContain("__cmpccu12345");
   });
 });
 
@@ -1015,36 +1015,36 @@ describe("Cookie reset — wildcard patterns", () => {
 // resource host.
 describe("pickFrameDocs — which frames the reset additionally runs in", () => {
   const PAGE = [
-    { url: "https://www.victors.de/", type: "document" },
-    { url: "https://www.victors.de/js/main.js", type: "script" },
+    { url: "https://www.example.net/", type: "document" },
+    { url: "https://www.example.net/js/main.js", type: "script" },
     { url: "https://cdn.consentmanager.net/delivery/cmp.js", type: "script" },
-    { url: "https://cdn.consentmanager.net/delivery/cmp.php?id=45430", type: "document" },
+    { url: "https://cdn.consentmanager.net/delivery/cmp.php?id=12345", type: "document" },
     { url: "https://www.googletagmanager.com/gtm.js?id=GTM-X", type: "script" },
     { url: "https://fonts.gstatic.com/s/font.woff2", type: "font" }
   ];
 
   test("picks the CMP frame document, not its scripts and not other hosts", () => {
-    expect(pickFrameDocs(PAGE, "www.victors.de")).toEqual([
-      { url: "https://cdn.consentmanager.net/delivery/cmp.php?id=45430", host: "cdn.consentmanager.net" }
+    expect(pickFrameDocs(PAGE, "www.example.net")).toEqual([
+      { url: "https://cdn.consentmanager.net/delivery/cmp.php?id=12345", host: "cdn.consentmanager.net" }
     ]);
   });
   test("a script-only third party never becomes a candidate", () => {
     // This is the F-115 regression: gtm.js / font CDNs are resource origins, not frames.
-    const hosts = pickFrameDocs(PAGE, "www.victors.de").map((d) => d.host);
+    const hosts = pickFrameDocs(PAGE, "www.example.net").map((d) => d.host);
     expect(hosts).not.toContain("www.googletagmanager.com");
     expect(hosts).not.toContain("fonts.gstatic.com");
   });
   test("the page's own documents are skipped — the top-frame pass covers them", () => {
     const docs = pickFrameDocs([
-      { url: "https://victors.de/", type: "document" },
-      { url: "https://rp.victors.de/embed.html", type: "document" },
+      { url: "https://example.net/", type: "document" },
+      { url: "https://rp.example.net/embed.html", type: "document" },
       { url: "https://cdn.consentmanager.net/x.php", type: "document" }
-    ], "victors.de");
+    ], "example.net");
     expect(docs.map((d) => d.host)).toEqual(["cdn.consentmanager.net"]);
   });
   test("a host merely ENDING in the page host is not the page's own site", () => {
-    const docs = pickFrameDocs([{ url: "https://notvictors.de/x.html", type: "document" }], "victors.de");
-    expect(docs.map((d) => d.host)).toEqual(["notvictors.de"]);
+    const docs = pickFrameDocs([{ url: "https://notexample.net/x.html", type: "document" }], "example.net");
+    expect(docs.map((d) => d.host)).toEqual(["notexample.net"]);
   });
   test("non-http documents, junk and duplicates are dropped", () => {
     const docs = pickFrameDocs([
@@ -1055,14 +1055,14 @@ describe("pickFrameDocs — which frames the reset additionally runs in", () => 
       {},
       { url: "https://cdn.consentmanager.net/x.php", type: "document" },
       { url: "https://cdn.consentmanager.net/x.php", type: "document" }
-    ], "www.victors.de");
+    ], "www.example.net");
     expect(docs.length).toBe(1);
   });
   test("the candidate list is capped so one click cannot fan out unbounded", () => {
     const many = [];
     for (let i = 0; i < 30; i++) many.push({ url: "https://f" + i + ".example.com/x.html", type: "document" });
-    expect(pickFrameDocs(many, "victors.de").length).toBe(8);
-    expect(pickFrameDocs(many, "victors.de", 3).length).toBe(3);
+    expect(pickFrameDocs(many, "example.net").length).toBe(8);
+    expect(pickFrameDocs(many, "example.net", 3).length).toBe(3);
   });
   test("no resources / no page host → empty, never throws", () => {
     expect(pickFrameDocs(null, "")).toEqual([]);
@@ -1090,10 +1090,10 @@ describe("formatFramePass — the frame pass is always reported", () => {
   test("a successful pass names what went, per host", () => {
     const s = formatFramePass({
       discovered: true, checked: 2, reached: 1, ls: 3, fails: [],
-      cookies: ["cdn.consentmanager.net:__cmpconsent45430", "cdn.consentmanager.net:__cmpccu45430"]
+      cookies: ["cdn.consentmanager.net:__cmpconsent12345", "cdn.consentmanager.net:__cmpccu12345"]
     });
     expect(s).toContain("1/2 erreicht");
-    expect(s).toContain("__cmpconsent45430");
+    expect(s).toContain("__cmpconsent12345");
     expect(s).toContain("localStorage: 3");
     expect(s).not.toContain("Inkognito");   // it worked — no need to send the user away
   });
@@ -1103,8 +1103,8 @@ describe("formatFramePass — the frame pass is always reported", () => {
 // A CMP's cookies are cross-site cookies: SameSite=None; Secure. Inside its
 // third-party frame Chrome REJECTS a document.cookie write that would default to
 // SameSite=Lax — so an expiry written bare never lands and the cookie survives, which
-// is exactly what happened on victors.de (localStorage gone, __cmpccu45430 and
-// __cmpconsent45430 on .consentmanager.net still there).
+// is exactly what happened on example.net (localStorage gone, __cmpccu12345 and
+// __cmpconsent12345 on .consentmanager.net still there).
 describe("buildCookieResetCode — third-party cookie attributes and verification", () => {
   // Cookie jar of a CROSS-SITE frame: a write is only accepted when it carries
   // SameSite=None (Chrome's rule), mirroring the CMP frame.
@@ -1130,12 +1130,12 @@ describe("buildCookieResetCode — third-party cookie attributes and verificatio
     w.__store = store;
     return w;
   }
-  const CMP = "__cmpccu45430=a; __cmpconsent45430=b; other=keep";
+  const CMP = "__cmpccu12345=a; __cmpconsent12345=b; other=keep";
 
   test("the CMP's cross-site cookies are actually removed", () => {
     const w = crossSiteJar(CMP);
     const res = run(buildCookieResetCode(["__cmp"], {}), w);
-    expect(res.cleared.sort()).toEqual(["__cmpccu45430", "__cmpconsent45430"]);
+    expect(res.cleared.sort()).toEqual(["__cmpccu12345", "__cmpconsent12345"]);
     expect(res.failed).toEqual([]);
     expect(Object.keys(w.__store)).toEqual(["other"]);
   });
@@ -1148,10 +1148,10 @@ describe("buildCookieResetCode — third-party cookie attributes and verificatio
   test("what could NOT be deleted is reported as such, never as cleared", () => {
     // HttpOnly-ish: visible in this fake jar but not removable from JS. The point is the
     // report — a deletion that did not happen must not be announced as one.
-    const w = crossSiteJar(CMP, { httpOnly: "__cmpconsent45430" });
+    const w = crossSiteJar(CMP, { httpOnly: "__cmpconsent12345" });
     const res = run(buildCookieResetCode(["__cmp"], {}), w);
-    expect(res.cleared).toEqual(["__cmpccu45430"]);
-    expect(res.failed).toEqual(["__cmpconsent45430"]);
+    expect(res.cleared).toEqual(["__cmpccu12345"]);
+    expect(res.failed).toEqual(["__cmpconsent12345"]);
     expect(res.clearedCount).toBe(1);
   });
   test("nothing matching → nothing claimed, nothing blamed", () => {
@@ -1165,9 +1165,9 @@ describe("formatFramePass — cookies that survived the frame pass", () => {
   test("a surviving cookie is named and sends the user to incognito", () => {
     const s = formatFramePass({
       discovered: true, checked: 1, reached: 1, cookies: [], ls: 2, fails: [],
-      stuck: ["cdn.consentmanager.net:__cmpconsent45430"]
+      stuck: ["cdn.consentmanager.net:__cmpconsent12345"]
     });
-    expect(s).toContain("__cmpconsent45430");
+    expect(s).toContain("__cmpconsent12345");
     expect(s).toContain("Inkognito");
   });
   test("a clean pass stays quiet about survivors", () => {
@@ -1191,17 +1191,17 @@ describe("sameSite — page host vs. frame host", () => {
       .toHaveLength(1);                                            // the frame survives the filter
   });
   test("equal and sub-domain in both directions ARE the same site", () => {
-    expect(sameSite("victors.de", "victors.de")).toBe(true);
-    expect(sameSite("rp.victors.de", "victors.de")).toBe(true);
-    expect(sameSite("victors.de", "rp.victors.de")).toBe(true);
+    expect(sameSite("example.net", "example.net")).toBe(true);
+    expect(sameSite("rp.example.net", "example.net")).toBe(true);
+    expect(sameSite("example.net", "rp.example.net")).toBe(true);
   });
   test("a suffix that is not on a label boundary is a different site", () => {
-    expect(sameSite("notvictors.de", "victors.de")).toBe(false);
-    expect(sameSite("victors.de.evil.com", "victors.de")).toBe(false);
+    expect(sameSite("notexample.net", "example.net")).toBe(false);
+    expect(sameSite("example.net.evil.com", "example.net")).toBe(false);
   });
   test("empty input is never the same site", () => {
-    expect(sameSite("", "victors.de")).toBe(false);
-    expect(sameSite("victors.de", "")).toBe(false);
+    expect(sameSite("", "example.net")).toBe(false);
+    expect(sameSite("example.net", "")).toBe(false);
   });
 });
 
@@ -1336,7 +1336,7 @@ describe("SIM_COOKIE_DEFAULT — coverage of what aGTM's own adapters actually r
   });
 
   test("the common CMP cookies are covered", () => {
-    ["__cmpconsent45430", "__cmpccu45430", "CookieConsent", "OptanonConsent",
+    ["__cmpconsent12345", "__cmpccu12345", "CookieConsent", "OptanonConsent",
      "OptanonAlertBoxClosed", "mtm_consent", "_tracking_consent", "cmpsettings",
      "consentUUID", "euconsent-v2", "ccm_consent", "_iub_cs", "didomi_token"]
       .forEach((n) => expect([n, hit(n)]).toEqual([n, true]));

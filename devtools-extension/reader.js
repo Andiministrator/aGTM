@@ -116,7 +116,7 @@
     // keeps one non-serialisable push from failing the whole snapshot.
     var dataLayerSample = hasDL ? tail(dlArr, 150).map(safeObj) : [];
 
-    // Optional external session object (e.g. victors.de exposes window.se_data). Used
+    // Optional external session object (e.g. example.net exposes window.se_data). Used
     // as a Session-tab fallback / cross-check when aGTM.d.session is empty. Read-only.
     var seData = (typeof w.se_data !== "undefined") ? safeObj(w.se_data) : null;
 
