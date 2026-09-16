@@ -769,7 +769,7 @@ const botCheckUrl = data.botCheck || '';
 // blacklists known-bad keys and passes the rest through. Reason: this payload
 // is readable by every script on the page, so a field the filter service adds
 // later must be opted in by a code change rather than leaking on the next API
-// deploy. api4filter response contract (2026-07-14, kaiser@tracking-garden.com):
+// deploy. api4filter response contract (2026-07-14, service README):
 //   {"isBot":false,"score":0,"band":"clean","signals":[],"primarySignal":null}
 //   signals[] = {type, category, score, confirmed?, detail{…}}
 // `isBot` is the sole block trigger (definitive signals only) and `band==="bot"`

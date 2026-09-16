@@ -374,7 +374,7 @@ describe("feedback fixes", () => {
       expect(got.value).toBe(99.9);
       expect(got["ä"]).toBe("täst");
     });
-    // POST-body transport: {"q":"…"} in the body (live-shop /rp/tp/ae)
+    // POST-body transport: {"q":"…"} in the body (reverse-proxied /rp/tp/ae)
     const qBody = JSON.stringify({ q: enc(JSON.stringify(ev), 7) });
     const fromBody = D("https://www.example.com/rp/tp/ae", qBody);
     expect(fromBody).not.toBeNull();
@@ -965,7 +965,7 @@ describe("Diagnose tab", () => {
     expect(html).toContain("Server-Stand vom Seitenaufruf"); // the mandatory snapshot caveat
     P.clearIds();
   });
-  test("Session & IDs: counters fall back to window.se_data when aGTM.d.session lacks them (live-shop)", () => {
+  test("Session & IDs: counters fall back to window.se_data when aGTM.d.session lacks them (live shop)", () => {
     const P = globalThis.__panel;
     P.clearIds();
     const snap = sampleSnap();
