@@ -152,6 +152,22 @@ A standard minifier strips all comments, so both are removed automatically. **No
 
 If an uncommented `aGTM.f.init();` ever appears at the end of `aGTM.js` (e.g. left in from local testing), the build script will warn and abort.
 
+### A build always dirties `aGTM.js` — so "clean after build" proves nothing
+
+`scripts/inject-version.js` rewrites the `@lastupdate` header with **today's date** (line 42–45), unconditionally. So **every build on a new day produces a diff in `aGTM.js`, even when nothing changed**:
+
+```
+-  * @lastupdate 19.08.2026 by Andi Petzoldt <andi@petzoldt.net>
++  * @lastupdate 16.09.2026 by Andi Petzoldt <andi@petzoldt.net>
+```
+
+Two consequences, both of which have bitten:
+
+- **Running `./build.sh` as a *verification* step contaminates the very file whose unchangedness you wanted to show.** A report that claims "`git status` clean" *after* a build either reverted silently or got lucky with the ordering — say which.
+- **Decide the date stamp deliberately.** Commit it when the library actually changed; `git checkout -- aGTM.js` when the build was only a check. A stray `@lastupdate` bump claims an edit that never happened.
+
+⚠️ Related blind spot: this repo has **`core.fileMode = false`**, so `git status` is also blind to permission changes (they matter after a restore — see `knowledge/topics/bergung-und-negativbefunde.md`). Measure independently: `git ls-files -s` against `test -x`.
+
 ### Build setup (first time)
 
 Requires Bun. On Arch/CachyOS:
