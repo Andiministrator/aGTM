@@ -1321,7 +1321,7 @@ describe("Pre-consent leak reconcile (card #52 — victors.de false positives)",
   }
   const gtmReqs = [
     { id: 1, url: "https://rp.victors.de/gtm.js?id=victors", host: "rp.victors.de", method: "GET", status: 200, ts: 1600, time: 0, propId: "", evName: "", preConsent: true },
-    { id: 2, url: "https://www.googletagmanager.com/gtag/js?id=AW-17009335996", host: "www.googletagmanager.com", method: "GET", status: 200, ts: 1750, time: 0, propId: "", evName: "", preConsent: true }
+    { id: 2, url: "https://www.googletagmanager.com/gtag/js?id=AW-123456789", host: "www.googletagmanager.com", method: "GET", status: 200, ts: 1750, time: 0, propId: "", evName: "", preConsent: true }
   ];
 
   afterAll(() => { globalThis.__panel.setNet([]); globalThis.__panel.setSnap(sampleSnap()); });
@@ -1416,8 +1416,8 @@ describe("decodeParams — readable query-string values", () => {
     expect(r.map["ep.cmp_vendorIDs"]).toBe(",50,39,511,");
   });
   test("values without a percent sign are passed through untouched", () => {
-    const r = dp()({ tid: "G-BJE5WBVXFY", en: "exception", v: "2" });
-    expect(r.map).toEqual({ tid: "G-BJE5WBVXFY", en: "exception", v: "2" });
+    const r = dp()({ tid: "G-TEST123456", en: "exception", v: "2" });
+    expect(r.map).toEqual({ tid: "G-TEST123456", en: "exception", v: "2" });
     expect(r.decoded).toBe(0);
   });
   test("a malformed sequence keeps the raw value instead of throwing", () => {
