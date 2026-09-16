@@ -2173,6 +2173,23 @@
               }
             ],
             "displayId": 87
+          },
+          {
+            "id": "52f9e325-32fb-4575-934e-391e874a1d90",
+            "columnId": "col-schreiben",
+            "title": "Projektverzeichnis + docs/knowledge nach der Bergung inhaltlich pruefen",
+            "description": "Andis Auftrag beim Chat-Wechsel am 2026-09-16, woertlich: \"der naechste chat soll das projektverzeichnis pruefen und inhaltlich auch doku/knowledge - ob alles da ist wo es hingehoert, ob es auffaelligkeiten gibts usw.\"\n\nANLASS: Der Bestand ist nach dem Datenverlust vom 31.08.2026 WIEDERHERGESTELLT, nicht original. Die Sitzung vom 15./16.09. hat ihn gegen die Rettungsplatte geprueft und repariert - das Ergebnis ist belegt, aber es ist eine Reparatur, kein Beweis, dass alles stimmt.\n\nVOLLSTAENDIGER AUFTRAG MIT SOLL-STAENDEN UND FALLEN: docs/uebergabe-projektpruefung-2026-09-16.md - dort steht, was zu pruefen ist (getrackt / gitignoriert / inhaltlich / Auffaelligkeiten), welche Soll-Zahlen gelten und welche vier Schadensklassen in diesem Projekt real eingetreten sind.\n\nDER WICHTIGSTE SATZ, damit der Fehler der letzten Sitzung sich nicht wiederholt: Was ein Remote traegt, braucht keine Bergung. Die Liste der .gitignore-Regeln ist die Liste der Dateien, fuer die du einen Soll-Stand brauchst. Jene Sitzung legte die Beweislast auf die 261 getrackten Dateien - also genau die Klasse, die GitHub ohnehin sichert. ALLE echten Verluste lagen in der gitignorierten.",
+            "agentContext": "SOLL-STAENDE (Stand 16.09. nach Bereinigung): docs/ = 14 Dateien (ADRs nur 0001/0002/0004/0005/0006/0012!) | knowledge/ = README + sources-visited + spurensicherung + sources/ (3) + topics/ (20) | internal/api/ = 4 | tmp/bergung-2026-09-15/ = nur LIESMICH.md + MANIFEST | Projektgedaechtnis = 53 (52 + MEMORY.md) | bun test = 1200 gruen | dev = origin/dev.\n\nGEGENPROBE, DIE TRAEGT: nicht \"ist die Datei da\", sondern interne Links aufloesen. Die Fremdfassung von docs/glossar.md verwies auf adr/0002-sprache-deutsch.md - diese ADR gibt es bei uns nicht, DAS war der Verraeter. ADR-Namensraum: aGTM-eigene ADRs sind ausschliesslich 0001-0012; alles darueber ist tracking-Fremdmaterial.\n\nZWEI STOLPERSTEINE: (1) bash build.sh schreibt @lastupdate mit dem Tagesdatum - nach jedem Build ist der Baum unsauber, das ist KEIN Befund (steht in CLAUDE.md). (2) core.fileMode=false - git status ist blind fuer Dateirechte; unabhaengig messen via git ls-files -s gegen test -x (am 16.09.: 0 Abweichungen).\n\nDREI MEMORY-DATEIEN SIND REKONSTRUKTIONEN, nicht Bergungen (in MEMORY.md mit Recycling-Zeichen markiert): evlstn-passive-throttle, inspector-expansion-2026-07, repo-openness-posture. Aus Quelltext/Git-Historie abgelesen, nicht erinnert - fachlich widersprechen und korrigieren ist ausdruecklich erwuenscht.\n\nOFFEN: F-212 (P2, bat.js im Stand 19.08. fehlt; Wayback-Weg in der Memory-Datei offener-wayback-versuch-batjs), F-211 (P2, die drei Rekonstruktionen).\n\nZEITKRITISCH: Der volle Nachweis liegt in ~/projects/BERGUNG-FREIGABE/freigaben/aGTM.md - AUSSERHALB des Projekts und ausserhalb von Git. Das Verzeichnis verschwindet mit der Bergungsaktion. Wer dort etwas braucht, liest es JETZT.",
+            "status": "doing",
+            "priority": "P2",
+            "owner": "Claude",
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "complexity": "mittel",
+            "effort": 3,
+            "comments": [],
+            "displayId": 88
           }
         ]
       },
@@ -2583,7 +2600,7 @@
         ]
       }
     ],
-    "nextDisplayId": 88,
+    "nextDisplayId": 89,
     "attachments": [],
     "background": null,
     "templates": [],
