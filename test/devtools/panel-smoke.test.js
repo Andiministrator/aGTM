@@ -1310,7 +1310,7 @@ describe("Pre-consent leak reconcile (card #52 — example.net false positives)"
   // Reproduces the reported case: aGTM.js at t+0, then gtm.js/gtag.js ~1.2s later.
   // All three were stamped preConsent because the 700ms snapshot poll had not caught
   // up yet — but consent WAS already there (aGTM only injects GTM after gtmConsent).
-  function liveShopSnap() {
+  function leakReconcileSnap() {
     const snap = sampleSnap();
     snap.logMilestones = { config: 1000, pending: 0, consent: 1400, inject: 1500 };
     snap.consentFirstTs = 1400;
@@ -1328,7 +1328,7 @@ describe("Pre-consent leak reconcile (card #52 — example.net false positives)"
 
   test("GTM loads that started AFTER the consent moment are no longer flagged", () => {
     const P = globalThis.__panel;
-    P.setSnap(liveShopSnap());
+    P.setSnap(leakReconcileSnap());
     P.setNet(gtmReqs.slice());
     P.netSet("netOnlyAGTM", false); P.netSet("netSearch", ""); P.netSet("netHidden", {});
     P.setTab("network"); P.render();
@@ -1343,14 +1343,14 @@ describe("Pre-consent leak reconcile (card #52 — example.net false positives)"
     // Guards the fix itself: with the old anchor every request is compared against
     // t=90000, so nothing can ever reconcile. If someone reverts consentMomentTs to
     // snap.consentTs, the test above fails and this one documents why.
-    const snap = liveShopSnap();
+    const snap = leakReconcileSnap();
     expect(snap.consentTs).toBeGreaterThan(gtmReqs[1].ts);      // the trap
     expect(snap.logMilestones.consent).toBeLessThan(gtmReqs[0].ts); // the correct anchor
   });
 
   test("a real leak BEFORE the consent moment is still reported", () => {
     const P = globalThis.__panel;
-    P.setSnap(liveShopSnap());
+    P.setSnap(leakReconcileSnap());
     P.setNet([
       { id: 3, url: "https://connect.facebook.net/tr?id=1", host: "connect.facebook.net", method: "GET", status: 200, ts: 1100, time: 0, propId: "", evName: "", preConsent: true }
     ].concat(gtmReqs));
@@ -1366,7 +1366,7 @@ describe("Pre-consent leak reconcile (card #52 — example.net false positives)"
     // Finished at 2200 (after the 1400 moment) but left at 900 — pre-consent.
     // Comparing e.ts alone would clear it; reqStartTs subtracts the HAR duration.
     const P = globalThis.__panel;
-    P.setSnap(liveShopSnap());
+    P.setSnap(leakReconcileSnap());
     P.setNet([{ id: 4, url: "https://analytics.tiktok.com/i/x", host: "analytics.tiktok.com", method: "GET", status: 200, ts: 2200, time: 1300, propId: "", evName: "", preConsent: true }]);
     P.netSet("netOnlyAGTM", false);
     P.setTab("network"); P.render();
@@ -1377,7 +1377,7 @@ describe("Pre-consent leak reconcile (card #52 — example.net false positives)"
 
   test("the health score follows the same reconcile (no false red in a customer report)", () => {
     const P = globalThis.__panel;
-    P.setSnap(liveShopSnap());
+    P.setSnap(leakReconcileSnap());
     P.setNet(gtmReqs.slice());
     P.setTab("diagnose"); P.render();
     const html = globalThis.document.getElementById("tab-diagnose")._html;
@@ -1386,7 +1386,7 @@ describe("Pre-consent leak reconcile (card #52 — example.net false positives)"
 
   test("without any consent anchor the stamp stands (conservative, no silent all-clear)", () => {
     const P = globalThis.__panel;
-    const snap = liveShopSnap();
+    const snap = leakReconcileSnap();
     snap.logMilestones = { config: 1000, pending: 0, consent: 0, inject: 0 };
     snap.consentFirstTs = 0;
     P.setSnap(snap);
