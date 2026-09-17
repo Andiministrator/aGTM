@@ -205,7 +205,7 @@ Tests live in `test/`. Browser globals are set up via `test/setup.js` (loaded au
 
 | File | Role |
 |---|---|
-| `VERSION` | Single source of truth for the version number. Change this, run `./build.sh`. Convention: `1.6-pre` on `dev`, `1.6` before release merge. |
+| `VERSION` | Single source of truth for the version number. Change this, run `./build.sh`. Convention: `1.6-pre` on `dev`, `1.6` before release merge. 🛑 **The convention applies only AFTER the `v1.5` tag.** While v1.5 is untagged, `VERSION` stays `1.5`: bumping it and running the build rewrites `aGTM.js`, `package.json`, `manifest.json` **and the base64 blob embedded in `sgtmClient/template.tpl`** — in the middle of a running live test. |
 | `build.sh` | Orchestrates the full build: inject version → safety check → minify → base64 → update sGTM template |
 | `scripts/inject-version.js` | Reads `VERSION`, writes `@version` + `aGTM.d.version` in `aGTM.js`, updates `@lastupdate`, updates `package.json`, and writes `devtools-extension/manifest.json` (Chrome-manifest version — pre-release suffix stripped, e.g. `1.6-pre`→`1.6`; the aGTM Inspector version is coupled to the library version) |
 | `scripts/check-init.js` | Strips comments from `aGTM.js` and checks for an accidental uncommented `aGTM.f.init()` call |
