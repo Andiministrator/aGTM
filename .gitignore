@@ -67,6 +67,10 @@ knowledge/
 aboard.html
 aboard.template.html
 aboard-sync.base.json
+# Temporary handover payload (2026-09-18): a copy of the aBoard tooling that
+# travels with the project directory to the successor. aBoard is Apache 2.0 but
+# it is NOT part of this repository — remove after the handover.
+uebergabe-aBoard/
 aboard-sync.base.*.json
 aboard-sync.inbox/
 aboard-sync.chat-tail.*
