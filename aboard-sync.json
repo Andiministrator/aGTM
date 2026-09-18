@@ -114,7 +114,14 @@
               }
             ],
             "displayId": 1,
-            "columnId": "col-schreiben"
+            "columnId": "col-schreiben",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-workspace-export-refresh",
@@ -153,7 +160,15 @@
                 "created": "2026-07-28",
                 "text": "BLOCKER PRAEZISIERT + ZWISCHENLOESUNG GESETZT (2026-07-28).\n\nREIHENFOLGE (Andi): Shop-A ist die Testumgebung — dort wird alles zuerst live gefahren und verifiziert, und NUR dort ist der aktuelle Stand. Der Vorlage-Container wird nachgezogen, wenn Shop-A durch ist. Diese Karte wartet also nicht auf eine technische Abhaengigkeit, sondern auf das Ende der Live-Erprobung. Vorher neu zu exportieren waere sinnlos, weil der Vorlage-Container selbst noch der alte Stand ist.\n\nWELCHER CONTAINER: GTM-NQLZMF8J -aGTM Template [Vorlage]- (Account 4408403760) — NICHT Shop-As Container. Verifiziert, dass der Export sauber ist: GA4-ID ist der Platzhalter G-XXXXXXXX, keine Spur von Shop-A/Kunde-D/einem sGTM-Host. Gehoert so ins oeffentliche Repo.\n\nGEMESSENES DELTA (Export vom 2025-07-04 vs. Repo-Stand 2026-07-28):\n  Consent Mode 1.1 -> 1.5 | DL Repeat 1.1 -> 1.5 | Click 1.0 -> 1.4 | Pageview 1.0 -> 1.2\n  Copy/Form/Scroll/Timer/iFrame je 1.0 -> 1.1\n  var - Consent Check und var - Consent Info FEHLEN im Export komplett\n  Eingebettete Library: Tag -0__aGTM_v1.4.1_Code__0-, 23.650 Zeichen vs. aktuell 35.969 (v1.5)\n\nTO-DO beim Refresh: (1) die 10 Custom Templates im Vorlage-Container durch die aktuellen .tpl aus gtm/tags + gtm/variables ersetzen, (2) die zwei fehlenden Variablen-Templates neu anlegen, (3) den Library-HTML-Tag durch aGTM.min.js ersetzen + umbenennen, (4) Admin -> Container exportieren -> JSON, (5) gtm/aGTM-GTM-Workspace-Template-18.json ersetzen. Danach pruefe ich den Export gegen den Repo-Stand (Versionen, eingebettete Library, keine Kundendaten).\n\nZWISCHENLOESUNG UMGESETZT: Der Export war im Repo NIRGENDS verlinkt — man findet die 413-KB-Datei nur beim Stoebern und importiert sie ahnungslos. gtm/README-gtm-templates.md hat jetzt einen Abschnitt, der ihn als historischen Snapshot vom Juli 2025 kennzeichnet, den Fail-Open-Unterschied beim Consent-Mode-Tag benennt und auf den Einzel-Import der .tpl-Dateien verweist. Damit ist die Aussenwirkung entschaerft, bis der Refresh kommt."
               }
-            ]
+            ],
+            "links": [],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v15-konfigurator-inbiz",
@@ -184,7 +199,14 @@
                 "text": "ZWEI BEFUNDE aus der Doku-Runde (2026-07-27):\n\n(1) FEATURE-GAP GEFUNDEN: Das Konfigurator-CHANGELOG listet unter \"Unterstuetzte Features\" die Zeile \"ckServices/ckPurposes/ckVendors - sGTM Consent Parameter\". Diese Optionen wurden am 2026-06-22 per OE-2 ERSATZLOS ENTFERNT, weil sie end-to-end tot waren: die Library hat den ck-Parameter nie erzeugt und der server-seitige GTM Client v1.4 las ihn zwar, nutzte den Wert aber nirgends. Der Konfigurator generiert also potenziell Config-Optionen, die es nicht mehr gibt - das gehoert in die Rueckmeldung an Marco. (Randnotiz: auf Kunde-D traegt die gtm.js-URL live ein ck=2, die aktuelle Library erzeugt das nachweislich nicht - dort laeuft also eine aeltere Version oder eine Custom-Integration.)\n\n(2) SPRACHREGEL UMGESETZT (Andi-Entscheidung 2026-07-27: knowledge deutsch, offizielle aGTM-Doku/README englisch): configurator/README-v2_1_3.md und CHANGELOG-v2_1_3.md waren deutsch, obwohl oeffentlich im Repo und aus README.md verlinkt. Beide ins Englische uebersetzt (Commit c00fd82) - rein sprachlich, inhaltlich NICHTS geaendert (auch die ck-Zeile steht unveraendert drin, das ist Marcos Produktdoku). Kuenftige Lieferungen von Marco brauchen englische Doku, sonst driftet es wieder."
               }
             ],
-            "displayId": 43
+            "displayId": 43,
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "50332043-ff00-492c-a8eb-14ba238e7584",
@@ -201,7 +223,14 @@
             "links": [],
             "agentContext": "Code fertig in dev. Relevant: sgtmClient/template.tpl (botCheckMode SELECT block|mark, botCheckExpose CHECKBOX, logging-Permission environments=all) + sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (byte-identisch halten!). Browserseitig aGTM.d.bot (aGTM.js objinit + config()). Inspector: devtools-extension botsummary/diagnose. Tests: test/sgtm/botcheck.test.js, serve-paths.test.js, sandbox-lint.test.js, test/bot_preset.test.js, test/devtools/botsummary.test.js. Findings F-127..F-135. Hier ist NICHTS zu programmieren, bis die Messung vorliegt - die Karte ist eine Entscheidungs-, keine Bau-Karte.",
             "displayId": 61,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "96a89a7c-bb16-4647-a1da-15b61b92b32b",
@@ -244,7 +273,14 @@
                 "created": "2026-08-10",
                 "text": "Bezug aus der Datenschutz-Auskunft (Karte #71): Die Datenschutz-Session fuehrt diesen Punkt bei sich als P0, mit der Einordnung, dass ein ohne Einwilligung gesetztes _TPU den Speichertatbestand des Paragraf 25 Abs. 1 TDDDG erfuellt - ein Cookie-Scan zeigt es in zwei Minuten. Der Rollout ist damit nicht nur Hygiene, sondern Compliance.\n\nDAZU NEU UND SCHWERWIEGEND: F-165. hasRequiredConsent() ist default-permissiv (jsSourceCode.js:101-106) - ohne gesetztes consent_service/purpose/vendor liefert sie IMMER true, und diese drei Felder sind bei cookie_mode=always (dem Default) nicht einmal sichtbar. Meldet die CMP beim Ablehnen noch eine essenzielle Kategorie, folgt: Promote -> _TPU mit C.*, 365 Tage, NACH EINER ABLEHNUNG.\n\nVor dem Rollout messen: CMP ablehnen, dann _TPU pruefen - in DevTools unter Application/Cookies, NICHT per JS. Das Cookie ist httpOnly, ein JS-basierter Cookie-Scanner sieht es nie und spricht es faelschlich frei."
               }
-            ]
+            ],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "ad9fb77d-1747-45c6-a5f1-ded061cc74d8",
@@ -281,7 +317,14 @@
                 "text": "Nachtrag 11.08.2026 zur Datenschutz-Runde. Kunde-B wechselt auf v1.5, damit greift F-172 dort real. Beim Pruefen der Zielkonfiguration (Tabelle gefuellt + auto_deny AN) ist F-174 aufgefallen — es korrigiert meine eigene Empfehlung:\n\nGemessene Matrix bei Auto-Denial-Preset:\n  Tabelle GEFUELLT + auto_deny AN  -> gtmConsent=true,  GTM laedt\n  Tabelle GEFUELLT + auto_deny AUS -> gtmConsent=false, kein Load\n  Tabelle LEER     + auto_deny AN  -> gtmConsent=true,  GTM laedt\n  Tabelle LEER     + auto_deny AUS -> gtmConsent=true,  GTM laedt (F-172)\n\nEine gefuellte Bedingungstabelle schliesst den Auto-Denial-Pfad also NICHT: scheitert die chelp-Kette, faellt gtmConsent auf `blocked` zurueck (aGTM.js:588-591), und die Auto-Denial setzt blocked=autoDenyLoadGtm. Tabelle und Schalter sind eine UND-Verknuepfung, keine Alternativen — die Tabelle gated den normalen CMP-Pfad (echte Ablehnung), der Schalter den Auto-Denial-Pfad (kein gespeicherter Consent). Zwei verschiedene Besucherpopulationen.\n\nZusatzbefund: hat die Auto-Denial GTM einmal geladen, ist das im Seitenaufruf irreversibel — eine spaetere echte Ablehnung setzt gtmConsent=false, aber aGTM.d.init bleibt true, der Container bleibt im DOM.\n\nAusserdem: fuer den Zielzustand \"laden, aber keine einwilligungspflichtigen Tags feuern\" ist der Schalter der falsche Hebel (AUS = GTM laedt gar nicht = Diagnose-Tags tot). Das gehoert in den Container: Haekchen AN lassen, Tags einzeln gegen `aGTMconsent` gaten.\n\nKein Code angefasst — F-172/F-174 bewegen ein live laufendes Gate, Andis Weiche. 1081 Tests gruen.",
                 "created": "2026-08-11"
               }
-            ]
+            ],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "961aee35-a679-4d50-9e0b-c6c60551d3e1",
@@ -298,7 +341,14 @@
             "links": [],
             "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js: continueAfterSession, der Zweig 'Delete cookie if consent required but not granted' direkt vor dem neuen F.*-Cleanup. cookieAllowed wird ein paar Zeilen darueber gebildet. Byte-Identitaet zu template.tpl beachten - build.sh synct nur den base64-Blob, jede Logikaenderung muss identisch in beide Dateien. Test-Einstieg: test/sgtm/cookie-uid.test.js + der geteilte Harness test/sgtm/client-harness.js (zeichnet setCookie auf). Sandbox-Fallen: kein try/catch, kein Array.isArray, kein parseInt, kein 'k' in obj, keine Forward-Refs auf const-Function-Expressions. Findings F-154; Kontext F-153/F-155, verwandt F-156.",
             "displayId": 65,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "abdc5d81-3946-42c4-a71f-e5193d918c50",
@@ -323,7 +373,14 @@
                 "text": "SYMPTOM + ZEITPUNKT von Andi (2026-08-04): es kamen exception-Events, die den Repeater als error type nannten; nicht mehr nachstellbar. Seit gestern (03.08.) Nachmittag, als der NEU ERSTELLTE sGTM-Client live ging - danach wieder die alte Version live genommen, Symptom weg.\n\nDAMIT IST DIE LEITHYPOTHESE DER KARTE WIDERLEGT. Der Ausloeser war nicht der Import vom 28./29.07., sondern der Client von gestern. Und der ausgelieferte Library-Blob war dabei BIT-IDENTISCH: git diff e6fafc8..f390d55 zeigt fuer aGTM.min.js und aGTM.base64 gar keinen Eintrag, an aGTM.js aendert sich nur der @lastupdate-Kommentar, den der Minifier ohnehin entfernt. Das DL-Repeat-Tag wurde seit dem 25.07. nicht angefasst. Library und Tag scheiden als Ursache aus - es bleibt, was der Client DRUMHERUM anders macht.\n\nWAS SICH ZWISCHEN ALTEM UND NEUEM CLIENT TATSAECHLICH AENDERTE (vollstaendig, aus dem Diff):\n(a) Der eingebettete Borlabs-v2-consent_check (e64ec82: gab nie true zurueck, GTM lud deshalb nie). Mit dem Fix laedt GTM dort erstmals - Tags, die vorher nie liefen, laufen dann zum ersten Mal, das DL-Repeat-Tag eingeschlossen.\n(b) Die Cookie-Fixes 3a3f52c/f390d55: kein F.*-Wert mehr im Cookie, Alt-F.* wird geloescht. Folge fuer die Auslieferung: wo bisher ueber den geteilten Fingerprint ein cfg.session.consent mitkam, faellt der weg - die Library setzt dann kein preset_with_consent mehr und injiziert GTM NICHT mehr synchron im config()-Tick, sondern erst nach der echten CMP-Entscheidung. Das verschiebt die Zeitachse, auf der das Gate/der Replay arbeitet.\n(c) Neuer Header Cache-Control: private, no-store. (d) Neue CMP-Option ppcm. Am ausgelieferten Config-Objekt c selbst aendert sich nichts.\n\nCODE-BEFUND (Kandidat, NICHT belegt): in doReplay ist die Klon-Zeile JSON.parse(aGTM.f.sStrf(arr[i])) als einzige nicht in try/catch gefasst - anders als in fire(), das genau diesen Aufruf absichert und im Fehlerfall ein exception-Event mit errtype \"aGTM Fire Error (JSON.parse) (Event: <name>)\" erzeugt. Ein solcher errtype nennt woertlich das Event, was zu Andis Formulierung passt. Ob dieser Pfad hier gegriffen hat, ist offen.\n\nWAS DIE SACHE ENTSCHEIDET, OHNE NACHSTELLEN ZU MUESSEN: die exception-Events wurden in den dataLayer gefeuert, sind also dort angekommen, wo sie weitergereicht wurden (GA4 / aEvents). errmsg und errtype im Wortlaut aus den Daten von gestern Nachmittag beantworten die Frage direkt. Zweitens: welcher Tenant/welche CMP - bei Borlabs v2 ist (a) der Weg, sonst (b).",
                 "created": "2026-08-04"
               }
-            ]
+            ],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "d9708f16-9a2f-430f-8d3a-96ce02acf417",
@@ -415,7 +472,15 @@
                 "text": "DATENSCHUTZ-SESSION 25.08.2026: Cookie-Auskunft geliefert, dabei zwei neue Findings (F-210, F-211).\n\nGEFRAGT WAR: die exakten Namen der zwei Sitzungs-Cookies ohne Messfunktion (Widerspruch + Diagnose) fuer Abschnitt 5.4 eines DSB-Dokuments.\n\nGELIEFERT, am Code belegt: aGTMoptout und aGTMdebug. Beide Namen sind String-Literale, NICHT konfigurierbar (die Library hat genau sechs Cookie-Zugriffsstellen, alle mit einem dieser beiden Literale). Attribute Secure; SameSite=Lax; path=/, Wert 1 bzw. 0, kein expires/max-age also echtes Sitzungs-Cookie. aGTMoptout entsteht nur bei ?aGTMoptout=<wert>, aGTMdebug nur bei gtm_debug-Parameter, bestehendem Cookie oder Referrer tagassistant.google.com. Ungefragt mitgeliefert: das dritte Cookie ohne Messfunktion, _tr_Test_Result aus dem Pageview-Tag (konfigurierbarer Name, seit v1.1).\n\nGEGENPRUEFUNG 1.4.x (der Mandant faehrt einen aelteren Stand): Namen, Attribute, Lebensdauer, die 0-Nuance und die Cookie-MENGE sind von v1.4 bis 1.5 identisch. Gemessen am dekodierten base64-Blob aus tmp/aGTM v1.4.3pre.tpl (genau drei .sc(-Aufrufe, 0 Treffer fuer expires/max-age) plus den Quelltextstaenden v1.4/v1.4.1/081b3df. Das Dokument braucht nur eine Fassung.\n\nDER EIGENTLICHE FUND WAR EIN ANDERER — F-211: 1.4.3pre ist eine CLIENT-Version, die ausgelieferte Library meldet 1.4.2. Das externe Dokument wies Pruefer seit v1.0 an, ueber den x-agtm-version-Header die ausgelieferte Fassung zu bestimmen und darueber die Aussagen zum Consent-Gate nachzupruefen — der Header traegt aber die Client-Nummer, waehrend die Gate-Mechanik in der Library sitzt. Anleitung ausfuehrbar, Ergebnis falsch, durch Nachmachen nicht zu entlarven. Das Dokument fuehrt jetzt beide Zaehler mit Fundort getrennt.\n\nF-210 (Nebenbefund): der Kommentar Clear the cookie by setting an empty value neben aGTM.js:896 sagt das Gegenteil dessen, was die Zeile tut — sie schreibt aGTMoptout=0. Verhalten ist korrekt, nur der Kommentar ist falsch, und zwar seit mindestens v1.4. Relevant, weil Pruefer genau diese Zeile lesen.\n\nBEIDES NICHT UMGESETZT, mit Absicht: F-210 zieht min.js + base64 + Template-Blob nach, F-211 aendert die Client-Antwort und braucht einen Re-Import. Beides Release-Artefakte waehrend des Release-Holds. Wartet auf Andis Entscheidung.",
                 "created": "2026-08-25"
               }
-            ]
+            ],
+            "links": [],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "title": "aGTM Inspector laeuft nicht mehr - Ursache finden, dann erweitern/aktualisieren",
@@ -461,7 +526,15 @@
                 "text": "F-212 BEHOBEN (25.08.2026, Commit baff181 auf dev). Andi hat den Fix freigegeben; er ist DRIN, bevor die Extension neu geladen wird - das war der Punkt.\n\nWAS GEAENDERT WURDE: hasEmptyConditionsGate(snap) ersetzt atLeastVersion(). Tri-State statt Versionsvergleich:\n  - Key allowEmptyConsentConditions in aGTM.c vorhanden  -> gated (fail-closed)\n  - Key fehlt UND m1-Meilenstein geloggt (config() lief)  -> nicht gated (fail-open)\n  - sonst -> nicht feststellbar, warn, und der Text sagt ausdruecklich, dass die Versionsnummer das nicht beantwortet\natLeastVersion() ist ersatzlos raus (kein weiterer Aufrufer). Die Versionsnummer wird weiter ANGEZEIGT, entscheidet aber nichts mehr.\n\nWARUM DIE PROBE TRAEGT: aGTM.f.config() weist allowEmptyConsentConditions ueber aGTM.f.an() zu, und an() setzt die Property IMMER (Default false). Der Key existiert also ab dem F-167-Fix immer und davor nie. reader.js snapshotted aGTM.c per JSON-Roundtrip - false bleibt erhalten, fehlende Keys fehlen. Der m1-Meilenstein traegt nur in EINE Richtung (Zeitstempel beweist, dass config() lief; ein fehlender kann auch heissen, der Eintrag ist aus einem gekappten aGTM.l gefallen) - deshalb Tri-State und nicht Boolean.\n\nVERIFIKATION:\n  - Mutationstest: Probe testweise gegen das alte Versions-Gate getauscht -> es fallen GENAU die drei Tests, die den Defekt beschreiben. Danach zurueckgebaut, per git diff belegt.\n  - 490 Devtools-Tests gruen (+4 neue), 1200 Tests gesamt gruen.\n  - node --check sauber.\n  - aGTM-Inspector.zip neu gepackt: sha256 d948999e03d7bd4262e48eb2f84e9077c9dad7c6f23856dff9e91fddddeccc49, zwei Laeufe byte-identisch, enthaelt die Probe und kein atLeastVersion mehr.\n\nMITGEZOGEN (sonst waere die eigene frische Doku zur Falschaussage geworden): der Added-Eintrag im CHANGELOG beschrieb die alte Versions-Logik - zwei Bullets korrigiert, eigener Fixed-Eintrag ergaenzt, devtools-extension/README.md nachgezogen. CLAUDE.md fuehrt die Stelle nicht.\n\nOFFEN AUF DIESER KARTE: nur noch Andis Chrome-Neustart + Entpackte Erweiterung laden aus /home/andi/projects/aGTM/devtools-extension (der flatpak-override steht bereits). Danach qa:true + Erledigt.",
                 "created": "2026-08-25"
               }
-            ]
+            ],
+            "links": [],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "442eb668-6e48-40eb-8c17-a6d5def6c465",
@@ -477,7 +550,15 @@
             "title": "F-209: Die 17 Template-Szenarien sind nie in der echten GTM-UI gelaufen (braucht Andi)",
             "description": "BLOCKIERT: braucht GTM-UI-Zugang, den nur Andi hat.\n\nDie 17 ___TESTS___-Szenarien von \"aGTM tag - Consent Mode.tpl\" (9 davon neu fuer den Microsoft-Zweig) wurden nur mit einem WEGWERF-HARNESS gefahren: new Function, von Hand gestubbte require()-APIs, kein ___WEB_PERMISSIONS___-Check, keine Sandbox-Syntaxpruefung.\n\nWARUM DAS NICHT REICHT: Der Kritiker hat am echten gtm.js nachgewiesen, dass der Harness createQueue falsch abbildete - push(args) statt e.push.apply(e, args). Korrigiert, aber es zeigt die Klasse: ein Fehler in der GTM-TAUGLICHKEIT ist mit diesem Harness prinzipiell nicht findbar. Fuer das VERHALTEN ist \"gegen den echten Sandbox-Block gefahren und mutationsgeprueft\" zutreffend, fuer die GTM-Tauglichkeit nicht.\n\nBetrifft nicht nur diesen Tag - dasselbe gilt fuer jedes .tpl im Repo.\n\nZWEI WEGE, sie schliessen sich nicht aus:\n(1) Andi faehrt die 17 Szenarien einmal in der GTM-Template-UI durch (Tests-Tab). Das ist der einzige Beleg fuer Permissions und Sandbox-Syntax.\n(2) Den Harness zu einem echten test/gtm/-Harness ausbauen und in bun test haengen, inkl. Drift-Guard - das ist Karte #76 im v1.6-Backlog. Vorlage liegt fertig in tmp/gtm-template-harness/.\n\nBIS DAHIN: In jede Aussage ueber .tpl-Tests gehoert der Zusatz \"ausserhalb der GTM-UI\".",
             "agentContext": "FINDING: F-209 in docs/findings.md (offen).\nHARNESS: tmp/gtm-template-harness/{tplrun.mjs,mutate.sh,README.md} - gitignored, ueberlebt aber den Neustart. Aufruf: node tmp/gtm-template-harness/tplrun.mjs \"gtm/tags/consent-mode/aGTM tag - Consent Mode.tpl\" (erwartet 17 gruen) und bash tmp/gtm-template-harness/mutate.sh (erwartet 7x mindestens 1 rot).\nVERWANDT: Karte #76 (v1.6) - GTM-Web-Template-Tests committen: Harness + Drift-Guard.\nMEMORY-BEZUG: fake-dom-swallows-listeners (Mutationstest ist das einzige ehrliche Mass - aber vorher belegen, dass die Mutation gegriffen hat).",
-            "displayId": 86
+            "displayId": 86,
+            "links": [],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "e120cb1e-c691-4871-9b6f-dd76ba69f97a",
@@ -492,9 +573,18 @@
             "critical": false,
             "blocked": false,
             "comments": [],
-            "displayId": 89
+            "displayId": 89,
+            "links": [],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           }
-        ]
+        ],
+        "archived": false
       },
       {
         "id": "sprint-v16",
@@ -517,7 +607,14 @@
             "links": [],
             "comments": [],
             "displayId": 3,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-cmp",
@@ -535,7 +632,14 @@
             "links": [],
             "comments": [],
             "displayId": 4,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-standalone",
@@ -560,7 +664,14 @@
               }
             ],
             "displayId": 5,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-encryption",
@@ -578,7 +689,14 @@
             "links": [],
             "comments": [],
             "displayId": 6,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-knowledgebase",
@@ -596,7 +714,14 @@
             "links": [],
             "comments": [],
             "displayId": 7,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-spa-sources",
@@ -614,7 +739,14 @@
             "links": [],
             "comments": [],
             "displayId": 8,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "003982e3-0cfe-4af7-b817-679da97da964",
@@ -626,7 +758,15 @@
             "created": "2026-07-23",
             "description": "Die aGTM-Inspector-DevTools-Extension (devtools-extension/, MVP in v1.5, bisher nur „load unpacked“) im Chrome Web Store veroeffentlichen, damit Tracking-Implementierer sie per Ein-Klick installieren koennen. Umfasst: Store-Developer-Account, Listing (Name/Beschreibung/Kategorie), Screenshots + ggf. Promo-Bilder, Datenschutzerklaerung (auch wenn keine Daten erhoben werden — read-only, keine Permissions), Einreichung + Review-Handling. Danach: Auto-Update-Fluss statt manuellem Reload. Voraussetzung erfuellt: Manifest ohne permissions/host_permissions (minimale Review-Flaeche).",
             "agentContext": "PFADE: devtools-extension/ (manifest.json MV3, KEINE permissions -> geringe Review-Reibung; README.md hat Feature-/Datei-Uebersicht). GOTCHAS: (1) Web-Store-Review + MV-Churn = laufende Kosten (jedes Update wird geprueft; Google erzwingt periodisch API-Migrationen) — bewusst als spaeterer Schritt nach MVP gewaehlt. (2) Store verlangt oft Datenschutzerklaerung + Permission-Begruendung; hier trivial, da read-only + 0 Permissions (nur devtools-inhaerente APIs inspectedWindow.eval/devtools.network). (3) Extension-Version ist an aGTM-VERSION gekoppelt (scripts/inject-version.js) — Store-Versionen muessen monoton steigen, passt. (4) Icons liegen (aGTM-Marken-Icon 16/48/128). ENTSCHEIDUNG offen: unter welchem Developer-Account/Publisher. Kein Code-Change noetig, primaer Listing-/Prozess-Arbeit.",
-            "displayId": 46
+            "displayId": 46,
+            "links": [],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "ea2ef521-ed2d-4e36-85f0-6381eceb40e1",
@@ -639,7 +779,15 @@
             "complexity": "klein",
             "effort": "S",
             "agentContext": "sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js (sd.vct = r.counter, sd.ret = sd.vct > 0, und der Auto-Denial-Zweig der daran haengt). README-for-Integrators.md §5, README-for-Developers.md Session-Tabelle, devtools-extension/panel.js metric(\"counter\",\"vct\"). Findings F-128/F-129.",
-            "displayId": 57
+            "displayId": 57,
+            "links": [],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "3b84069b-96b2-4c96-8cfa-f606210a9087",
@@ -652,7 +800,15 @@
             "complexity": "mittel",
             "effort": "M",
             "agentContext": "aGTM.js: aGTM.f.start_consent_poll (~L756, steigt in der ersten Zeile aus, wenn aGTM.c.consent_store_url leer ist) - aGTM.f.consent_listener (~L730) startet den Poll erst nach erfolgreichem call_cc - aGTM.f.run_cc (~L537) ist snapshot/restore-geschuetzt, der Poll ist also gefahrlos wiederholbar. Doku-Sync bei Verhaltensaenderung PFLICHT (Core-Funktion): Call-Graph in CLAUDE.md (GTM injection & consent) + README-for-Developers.md, dazu die Config-Tabellen zu consent_poll_ms/consent_store_url in CLAUDE.md und README.md. Kunden-Workaround-Snippet: cmp/README-cmp.md, Abschnitt PP Consent Manager. Herkunft: Kritiker-Befund K6 der ppcm-Doppelpruefung, Kontext in Karte #58 und docs/findings.md F-136..F-141.",
-            "displayId": 59
+            "displayId": 59,
+            "links": [],
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-consent-preflight",
@@ -670,7 +826,14 @@
             "links": [],
             "comments": [],
             "columnId": "col-backlog",
-            "displayId": 69
+            "displayId": 69,
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-fp-daystamp-hash",
@@ -688,7 +851,14 @@
             "links": [],
             "comments": [],
             "columnId": "col-backlog",
-            "displayId": 72
+            "displayId": 72,
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-iframe-rethink",
@@ -706,7 +876,14 @@
             "links": [],
             "comments": [],
             "columnId": "col-backlog",
-            "displayId": 73
+            "displayId": 73,
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-iframe-dlparams-decision",
@@ -722,7 +899,14 @@
             "links": [],
             "comments": [],
             "columnId": "col-backlog",
-            "displayId": 75
+            "displayId": 75,
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-iframe-tag-harness",
@@ -745,7 +929,14 @@
               }
             ],
             "columnId": "col-backlog",
-            "displayId": 76
+            "displayId": 76,
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-iframe-esource-asymmetrie",
@@ -761,7 +952,14 @@
             "links": [],
             "comments": [],
             "columnId": "col-backlog",
-            "displayId": 77
+            "displayId": 77,
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-preconsent-queue-cap",
@@ -777,7 +975,14 @@
             "links": [],
             "comments": [],
             "columnId": "col-backlog",
-            "displayId": 78
+            "displayId": 78,
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v16-f156-option-b",
@@ -795,9 +1000,17 @@
             "links": [],
             "comments": [],
             "displayId": 81,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           }
-        ]
+        ],
+        "archived": false
       },
       {
         "id": "__backlog__",
@@ -820,7 +1033,14 @@
             "links": [],
             "comments": [],
             "displayId": 9,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v20-standalone-full",
@@ -838,7 +1058,14 @@
             "links": [],
             "comments": [],
             "displayId": 10,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v20-breaking-consolidation",
@@ -856,7 +1083,14 @@
             "links": [],
             "comments": [],
             "displayId": 11,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           },
           {
             "id": "agtm-v20-sgtm-preview",
@@ -874,9 +1108,17 @@
             "links": [],
             "comments": [],
             "displayId": 12,
-            "columnId": "col-backlog"
+            "columnId": "col-backlog",
+            "attachments": [],
+            "archived": false,
+            "activity": [],
+            "assignees": [],
+            "project_id": null,
+            "coverAttachmentId": null,
+            "recurrence": null
           }
-        ]
+        ],
+        "archived": false
       }
     ],
     "nextDisplayId": 90,
