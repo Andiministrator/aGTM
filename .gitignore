@@ -67,8 +67,6 @@ knowledge/
 aboard.html
 aboard.template.html
 aboard-sync.base.json
-# Local copy of the aBoard tooling (Apache 2.0). Not part of this repository.
-aboard-tooling-local/
 aboard-sync.base.*.json
 aboard-sync.inbox/
 aboard-sync.chat-tail.*
