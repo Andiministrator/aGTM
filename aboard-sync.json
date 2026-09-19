@@ -1368,17 +1368,24 @@
           },
           {
             "id": "agtm-fund-datenbank-entscheidung",
-            "columnId": "col-backlog",
-            "status": "offen",
+            "columnId": "col-erledigt",
+            "status": "erledigt",
             "owner": "",
-            "qa": false,
-            "blocked": true,
+            "qa": true,
+            "blocked": false,
             "critical": false,
             "priority": "mittel",
             "complexity": "klein",
             "effort": "S",
             "links": [],
-            "comments": [],
+            "comments": [
+              {
+                "id": "3022a2e1-30ca-4792-83c9-9ca1252e8369",
+                "author": "Claude Opus",
+                "created": "2026-09-19",
+                "text": "ENTSCHIEDEN 2026-09-19 (von Andi delegiert): verworfen. Die Kopie ist geloescht, das Verzeichnis entfernt.\n\nDIE MESSUNG, DIE ES ENTSCHIEDEN HAT - sie war vorher nie gemacht worden: Der Eigentuemer-Baum enthaelt eine versionierte SQL-Datei, die DIESELBE Tabelle befuellt. Sie ist zwei Monate NEUER als die geborgene Datenbank, hat eine Spalte MEHR und einen Datensatz mehr. Der zugehoerige Commit heisst woertlich \"update seed_containers with tg_managed flag\". Die geborgene Fassung ist damit ein aelterer Teilstand dessen, was mit Remote versioniert vorliegt - keine Rettung, sondern ein Rueckschritt.\n\nDazu kommt: Das Projekt kann ohne sein OAuth-Token ohnehin nicht laufen, und das ist in keiner Quelle mehr auffindbar.\n\nWARUM VERWERFEN UND NICHT BEHALTEN: Es sind personenbezogene Kundendaten. Eine Kopie, die nichts traegt, was nicht anderswo besser vorliegt, ist kein Backup, sondern eine zusaetzliche Stelle, an der die Daten liegen. Nach einem Datenverlust ist \"mehr Kopien\" ein Reflex - bei Kundendaten ist er falsch herum.\n\nWAS NICHT ANGETASTET WURDE: Das Original im Bergungsbaum (Pruefsumme vor dem Loeschen gegen die Kopie verglichen, identisch) und die Rettungsplatte. Die Entscheidung ist also umkehrbar, solange die Bergung existiert. Geloescht wurde ausschliesslich die Kopie, die diese Sitzung selbst angelegt hatte.\n\nKEIN LOESCHBLOCKER fuer die Bergungsaktion - das war schon vorher so und bleibt."
+              }
+            ],
             "attachments": [],
             "archived": false,
             "assignees": [],
