@@ -57,13 +57,15 @@ internal/
 # Decision records, findings, QA checklists, glossary, open decisions and the
 # curated knowledge base are the project's internal working protocol — same
 # "intern = Deutsch" class as CLAUDE.local.md. Kept local, not published.
-# (aboard-sync.json at the repo root stays versioned on purpose — public roadmap.)
 docs/
 knowledge/
 
 # ── aBoard (ADR-0049 / ADR-0067) ────────────────────────────
-# aboard-sync.json IS versioned on purpose (public project roadmap).
-# Everything below is local runtime/build state and stays out of git.
+# The board is a working log, not a roadmap: cards carry internal context that
+# does not belong in a public repo. The public roadmap is ROADMAP.md.
+# aboard-sync.json was tracked until 2026-09-25; its last tracked state is in
+# the history. Everything below is local runtime/build state.
+aboard-sync.json
 aboard.html
 aboard.template.html
 aboard-sync.base.json

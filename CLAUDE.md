@@ -43,7 +43,6 @@ aGTM/
 ├── CHANGELOG.md         # Release history · ROADMAP.md · SESSION-REDESIGN.md
 ├── README.md            # + README.de.md · README-for-Developers.md · README-for-Integrators.md
 ├── LICENSE              # Apache 2.0 · package-lock.json
-├── aboard-sync.json     # Project board — deliberately versioned (public roadmap)
 ├── tmp/                 # Temporary files / backups (not production-relevant), gitignored
 ├── .claude/skills/      # Claude Code skills (see below); only these are tracked under .claude/
 └── CLAUDE.md            # This file
@@ -54,7 +53,7 @@ tree usable as a reference for the opposite question — *is this directory supp
 root entry that is tracked but missing here is a documentation gap; a root entry that is neither
 tracked nor covered by `.gitignore` is worth a second look. (The gitignored-but-expected ones are
 `docs/`, `knowledge/`, `internal/`, `tmp/`, `CLAUDE.local.md`, `node_modules/` and the aBoard
-runtime state `aboard-sync.base*.json` / `aboard-sync.inbox/` / `aboard.html` / `attachments/` — card attachments, which can carry customer material.)
+runtime state `aboard-sync.json` / `aboard-sync.base*.json` / `aboard-sync.inbox/` / `aboard.html`, plus the card attachments in `attachments/`. The board is a working log and stays local; the public roadmap is `ROADMAP.md`.)
 
 ### Claude Code skills
 
@@ -290,6 +289,8 @@ All minification uses **terser** with these flags:
 **Tag naming:** `v` prefix + semantic version, e.g. `v1.0`, `v1.2.1`, `v1.5`. Matches the version in `aGTM.js` and the changelog in `README.md`.
 
 There are no feature branches or hotfix branches by convention — the project is maintained by a single author.
+
+**Maintainer-local files are expendable to git.** Everything gitignored (see the list below the tree) exists only on the maintainer's disk, and `git clean -x`/`-X` or `git stash --all` removes all of it — don't use them here. The local board file `aboard-sync.json` is also tracked in older `dev` commits (up to 2026-09-25): checking one of those out overwrites it, switching back deletes it — use a separate worktree for that. `main` and the release tags never tracked it.
 
 ---
 
