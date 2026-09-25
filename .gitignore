@@ -71,3 +71,8 @@ aboard-sync.base.*.json
 aboard-sync.inbox/
 aboard-sync.chat-tail.*
 aboard.html.bak-*
+
+# ── Board attachments ───────────────────────────────────────
+# Files attached to aBoard cards (drafts, customer material). Their names and
+# contents can carry customer data, and this repo is public — never track them.
+attachments/

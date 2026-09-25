@@ -210,6 +210,35 @@ Use the following value for the `cmp` Parameter:
 
 - clickskeks
 
+### Complianz (WordPress)
+
+Consent check for the WordPress plugin Complianz (*complianz-gdpr*, https://complianz.io/).
+Written against its banner script v7.5.5 and checked against a live installation.
+
+Use the following value for the `cmp` Parameter:
+
+- complianz
+
+Granted categories go into `aGTM.d.consent.purposes` — Complianz uses the fixed names
+`functional` (always granted), `preferences`, `statistics` and `marketing` — so configure
+e.g. `gtmPurposes: "statistics"`. Services with an explicit per-service consent go into
+`aGTM.d.consent.services`.
+
+**When is there a decision?** Complianz has no API for that. Note that its
+`cmplz_has_consent()` needs a category: called without one it reads a cookie that never
+exists and is `false` for every visitor, even after "accept all". The check therefore uses
+the banner status instead (`cmplz_get_banner_status() === "dismissed"`, cookie
+`cmplz_banner-status`), which Complianz writes on every answer — accept, deny, save, and
+closing the banner via X, which counts as deny. Under the consent types `optout` and
+`other` no answer is required (Complianz itself treats a missing cookie as consent there),
+so the check does not wait for one.
+
+**Consent changes** are reported by Complianz only as DOM events on `document`, not via the
+dataLayer. On its first call the check registers one listener on `cmplz_fire_categories`
+and `cmplz_banner_status`: before GTM is injected it calls `aGTM.f.call_cc()` (no wait for
+the 500 ms init poll), afterwards `aGTM.f.run_cc('update')`. No `consent_events` setup is
+needed.
+
 ### Consentmanager
 
 Use the following value for the `cmp` Parameter:

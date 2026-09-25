@@ -78,6 +78,12 @@
       need: [{ g: "Clickskeks", t: "object" }, { g: "Clickskeks.getCurrentAllowedConfig", t: "function" }]
     },
     {
+      key: "complianz", label: "Complianz", adapter: "cc_complianz", confidence: "strong",
+      // `complianz` alone is a plain settings object the WordPress plugin prints inline; the
+      // banner-script function the adapter reads the decision from is the discriminator.
+      need: [{ g: "complianz", t: "object" }, { g: "cmplz_get_banner_status", t: "function" }]
+    },
+    {
       // `medium`, not `strong`: __cmp is the standard global of IAB TCF v1.1, not a
       // consentmanager exclusive — the same argument that put cc_sourcepoint (only
       // probes __tcfapi) into UNDETECTABLE. TCF v1 is effectively dead, so the practical
