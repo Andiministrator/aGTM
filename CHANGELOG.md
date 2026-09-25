@@ -857,6 +857,33 @@ three tests red.
 > consent matches your `gtmPurposes`/`gtmServices` requirement". For sGTM Client setups
 > it takes effect with the next client re-import.
 
+### Added — CMP: Complianz (WordPress), `cmp: "complianz"`
+
+New consent check `cmp/cc_complianz.js` for the WordPress plugin Complianz
+(*complianz-gdpr*), written against its banner script v7.5.5. Granted categories go into
+`aGTM.d.consent.purposes` (`functional`, `preferences`, `statistics`, `marketing`),
+services with an explicit per-service consent into `.services`. Available in the sGTM
+Client's "Used CMP" list and recognised by the aGTM Inspector.
+
+The obvious gate — `cmplz_has_consent()` — does not answer "was there a decision?": the
+function takes a category and, called without one, reads the cookie `cmplz_undefined`,
+which never exists. Under opt-in it is therefore `false` for every visitor, and GTM would
+never load. The check uses the banner status instead (`cmplz_banner-status` =
+`dismissed`), which Complianz writes on every answer; closing the banner via X counts as
+deny. Under the `optout`/`other` consent types no answer is required, mirroring
+Complianz's own reading of a missing cookie.
+
+Complianz reports changes only as DOM events, so the check registers one listener
+(`cmplz_fire_categories`, `cmplz_banner_status`) on its first call: a first decision
+injects GTM immediately via `call_cc()`, later changes run `run_cc('update')` — no
+`consent_events` configuration and no dependency on the `consent_store_url`-gated poll.
+
+`test/cmp/complianz.test.js` covers 13 cases against fixtures that reproduce the
+plugin's cookie semantics, including the draft defect, the GTM gate opening and closing
+through the real `aGTM.f.run_cc()`, and the listener before and after init. Checked on a
+live installation without a decision (returns `false`, listener fires); a live
+accept/deny run is still outstanding.
+
 ### Added — CMP: PP Consent Manager (PixelPoint), `cmp: "ppcm"`
 
 New consent check `cmp/cc_ppcm.js` for the PixelPoint Consent Manager

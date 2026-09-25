@@ -112,7 +112,7 @@ aGTM.f.config({
 aGTM.f.init();
 ```
 
-**Alle unterstützten CMPs** (25+): Borlabs 2/3, CCM19, Clickskeks, Consentmanager, Cookiebot, Cookiefirst, JTL Consent, JTL EU Cookie, Klaro, Magento CC Cookie, Matomo, OneTrust/CookiePro, Orestbida CookieConsent, Perspective Funnel, Secure Privacy, Shopify Consent, Shopware 5/6, Shopware Acris, Sourcepoint, Tramino, Usercentrics v2/v3 und weitere. Vollständige Liste: [cmp/README-cmp.md](cmp/README-cmp.md)
+**Alle unterstützten CMPs** (25+): Borlabs 2/3, CCM19, Clickskeks, Complianz, Consentmanager, Cookiebot, Cookiefirst, JTL Consent, JTL EU Cookie, Klaro, Magento CC Cookie, Matomo, OneTrust/CookiePro, Orestbida CookieConsent, Perspective Funnel, Secure Privacy, Shopify Consent, Shopware 5/6, Shopware Acris, Sourcepoint, Tramino, Usercentrics v2/v3 und weitere. Vollständige Liste: [cmp/README-cmp.md](cmp/README-cmp.md)
 
 ---
 

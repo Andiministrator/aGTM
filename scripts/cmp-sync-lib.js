@@ -37,6 +37,7 @@ export const CMP_MAP = {
   'Shopware 5 Cookie':                   'cc_shopware5_cookie',
   'Shopware 6 Cookie':                   'cc_shopware6_cookie',
   'PP Consent Manager (PixelPoint)':     'cc_ppcm',
+  'Complianz':                           'cc_complianz',
 };
 
 // The embedded value starts at the consent_check assignment — the min.js
