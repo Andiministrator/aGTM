@@ -213,7 +213,7 @@ Use the following value for the `cmp` Parameter:
 ### Complianz (WordPress)
 
 Consent check for the WordPress plugin Complianz (*complianz-gdpr*, https://complianz.io/).
-Written against its banner script v7.5.5 and checked against a live installation.
+Written against its banner script v7.5.5 and confirmed on a live opt-in installation.
 
 Use the following value for the `cmp` Parameter:
 
@@ -227,17 +227,29 @@ e.g. `gtmPurposes: "statistics"`. Services with an explicit per-service consent 
 **When is there a decision?** Complianz has no API for that. Note that its
 `cmplz_has_consent()` needs a category: called without one it reads a cookie that never
 exists and is `false` for every visitor, even after "accept all". The check therefore uses
-the banner status instead (`cmplz_get_banner_status() === "dismissed"`, cookie
-`cmplz_banner-status`), which Complianz writes on every answer — accept, deny, save, and
-closing the banner via X, which counts as deny. Under the consent types `optout` and
-`other` no answer is required (Complianz itself treats a missing cookie as consent there),
-so the check does not wait for one.
+the banner status (`cmplz_get_banner_status() === "dismissed"`, cookie
+`cmplz_banner-status`), which Complianz writes on every banner answer — accept, deny, save,
+and closing the banner via X. Under opt-in, X grants nothing but `functional`.
+
+Under the consent types `optout` and `other` no answer is required — Complianz itself
+treats a missing category cookie as consent there, and so does this check (closing the
+banner via X therefore keeps everything granted). With GeoIP the consent type is only known
+after Complianz's region request has answered; until `window.wp_consent_type` is set the
+check keeps waiting, so a default consent type can never open the gate early.
+
+**No banner, no decision:** where Complianz shows no banner — banner disabled in the
+plugin, no banner configured for the visitor's consent type, speed-test user agents
+(Lighthouse, GTmetrix, Pingdom) — the banner status is never set and, under opt-in, GTM
+stays off (fail-closed). Consent given only through a content
+placeholder or the developer event `cmplz_consent_action` does not set the banner status
+either and is not treated as a decision.
 
 **Consent changes** are reported by Complianz only as DOM events on `document`, not via the
-dataLayer. On its first call the check registers one listener on `cmplz_fire_categories`
-and `cmplz_banner_status`: before GTM is injected it calls `aGTM.f.call_cc()` (no wait for
-the 500 ms init poll), afterwards `aGTM.f.run_cc('update')`. No `consent_events` setup is
-needed.
+dataLayer. As soon as Complianz is present the check registers one listener on
+`cmplz_fire_categories` and `cmplz_banner_status`. The two events of one decision are
+bundled into a single run on the final state; a first decision runs `aGTM.f.call_cc()` (no
+wait for the 500 ms init poll), every later one `aGTM.f.run_cc('update')` — including
+"deny, then accept on the same page". No `consent_events` setup is needed.
 
 ### Consentmanager
 

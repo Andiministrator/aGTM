@@ -863,26 +863,35 @@ New consent check `cmp/cc_complianz.js` for the WordPress plugin Complianz
 (*complianz-gdpr*), written against its banner script v7.5.5. Granted categories go into
 `aGTM.d.consent.purposes` (`functional`, `preferences`, `statistics`, `marketing`),
 services with an explicit per-service consent into `.services`. Available in the sGTM
-Client's "Used CMP" list and recognised by the aGTM Inspector.
+Client's "Used CMP" list, in the configurator and recognised by the aGTM Inspector.
 
 The obvious gate — `cmplz_has_consent()` — does not answer "was there a decision?": the
 function takes a category and, called without one, reads the cookie `cmplz_undefined`,
 which never exists. Under opt-in it is therefore `false` for every visitor, and GTM would
 never load. The check uses the banner status instead (`cmplz_banner-status` =
-`dismissed`), which Complianz writes on every answer; closing the banner via X counts as
-deny. Under the `optout`/`other` consent types no answer is required, mirroring
-Complianz's own reading of a missing cookie.
+`dismissed`), which Complianz writes on every banner answer. Under the `optout`/`other`
+consent types no answer is required, mirroring Complianz's own reading of a missing
+cookie — but only once Complianz has resolved the consent type: with GeoIP it arrives
+asynchronously, and until `window.wp_consent_type` exists the check keeps waiting, so an
+inline `optout` default can never open the gate for an opt-in visitor.
 
-Complianz reports changes only as DOM events, so the check registers one listener
-(`cmplz_fire_categories`, `cmplz_banner_status`) on its first call: a first decision
-injects GTM immediately via `call_cc()`, later changes run `run_cc('update')` — no
-`consent_events` configuration and no dependency on the `consent_store_url`-gated poll.
+Complianz reports changes only as DOM events, so the check registers one listener as soon
+as Complianz is present. It bundles the two events of one decision into a single run on
+the final state (one consent-store POST, and the deny button sets the banner status
+*before* the cookies), and branches on whether a decision was recorded — a first
+decision runs `call_cc()` and starts the consent poll, any later one `run_cc('update')`.
+That also covers "deny, then accept on the same page", which a branch on "GTM loaded"
+would miss. No `consent_events` configuration is needed.
 
-`test/cmp/complianz.test.js` covers 13 cases against fixtures that reproduce the
-plugin's cookie semantics, including the draft defect, the GTM gate opening and closing
-through the real `aGTM.f.run_cc()`, and the listener before and after init. Checked on a
-live installation without a decision (returns `false`, listener fires); a live
-accept/deny run is still outstanding.
+No decision is ever recorded where Complianz shows no banner — banner disabled in the
+plugin, no banner configured for the visitor's consent type, speed-test user agents
+(Lighthouse, GTmetrix, Pingdom) — so under opt-in GTM stays off there (fail-closed).
+
+`test/cmp/complianz.test.js` covers 19 cases, 10 of them through the real
+`call_cc()`/`run_cc()`/`inject()` and replaying the plugin's own order of cookie writes and
+events. Mutation-checked: restoring the v1.0 listener, dropping the event bundling or the
+GeoIP wait each turns tests red. Confirmed working on a live opt-in installation without
+GeoIP (operator test, 2026-09-25).
 
 ### Added — CMP: PP Consent Manager (PixelPoint), `cmp: "ppcm"`
 
