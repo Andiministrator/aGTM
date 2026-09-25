@@ -658,6 +658,71 @@
             "recurrence": null,
             "assignees": [],
             "project_id": null
+          },
+          {
+            "id": "217d2fa3-d8ac-4d39-b958-86ad52f30899",
+            "displayId": 99,
+            "title": "Neuer CMP-Adapter: Complianz (cc_complianz)",
+            "description": "## Ziel\nNeuer `consent_check` für **Complianz** – das WordPress-Plugin *complianz-gdpr* (complianz.io). Bestätigt auf der Kundenseite: **v7.5.5**, Consent-Typ `optin`, Kategorien Statistiken + Marketing.\n\n## Ursache im Entwurf\n`cmplz_has_consent()` erwartet eine **Kategorie** (`\"marketing\"`, `\"statistics\"` …). Ohne Argument liest die Funktion das Cookie `cmplz_undefined` – das gibt es nie, also ist das Ergebnis im Opt-in **immer false**. Live auf der Seite gemessen und im Quelltext (complianz.js Z. 1566) belegt.\n\n## Lösung (Anhang `cc_complianz.js` / `.min.js`)\n- **Liegt eine Entscheidung vor?** → `cmplz_get_banner_status() === \"dismissed\"` (Cookie `cmplz_banner-status`). Complianz setzt es bei *jeder* Antwort: akzeptieren, ablehnen, speichern, X-Schließen. Bei `optout`/`other` ist keine Antwort nötig – so wertet es Complianz selbst.\n- **Was ist erlaubt?** → `cmplz_accepted_categories()` → `purposes` (`functional` ist immer dabei). Einwilligungen pro Dienst → `services`.\n- **Wann?** → Complianz meldet sich nur über DOM-Events auf `document`, nicht über den dataLayer. Der erste Aufruf registriert deshalb einmalig einen Listener auf `cmplz_fire_categories` + `cmplz_banner_status`: vor dem Init → `call_cc()` (kein Warten auf den 500-ms-Poll), danach → `run_cc(\"update\")`.\n\n## QA (2026-09-25)\n- 11 Tests grün (`tmp/complianz/cc_complianz.test.js`, gegen die echte Library): kein CMP, keine Entscheidung, alle akzeptiert, alle abgelehnt, X geschlossen, teilweise, Opt-out, GTM-Gate öffnet/schließt, Listener vor/nach dem Init, Listener nur einmal registriert.\n- ES5-Parse ok, terser `--ecma 5` → 2.120 B.\n- Live auf der Kundenseite, ohne Klick: ohne Entscheidung `false`, Listener aktiv, das Event löst den Check aus.\n- **Offen:** Live-Durchlauf mit echtem Akzeptieren/Ablehnen, wenn aGTM auf der Seite läuft.\n\n## Im Repo (2026-09-25)\n- `cmp/cc_complianz.js` + `.min.js`, Tests `test/cmp/complianz.test.js` (13 Fälle)\n- sGTM-Client: Option **„Complianz“** in „Used CMP“ + `CMP_MAP`, Code per `build.sh` eingebettet\n- Inspector: Signatur in `cmpdetect.js` (`complianz` + `cmplz_get_banner_status`), ZIP neu gepackt\n- Doku: `cmp/README-cmp.md`, CHANGELOG, CMP-Listen in CLAUDE.md / README.de.md\n- `attachments/` in `.gitignore`; der Entwurf heißt jetzt `entwurf_complianz.txt` (kein Kundenname auf dem öffentlichen Board)\n- Volle Suite: 1226 Tests grün, Build ohne Warnung\n\n## Offen\n- Live-Test mit echtem Akzeptieren/Ablehnen, sobald aGTM auf der Kundenseite läuft\n- sGTM-Client-Re-Import, damit die Option dort auftaucht\n\n> Testseite: eine Kundenseite, Adresse bewusst nicht hier (öffentliche Roadmap, F-218) – steht im Chat vom 2026-09-25.",
+            "status": "offen",
+            "priority": "mittel",
+            "labels": [],
+            "milestone": null,
+            "session": null,
+            "comments": [],
+            "qa": false,
+            "critical": false,
+            "blocked": false,
+            "owner": "Claude Opus",
+            "assignees": [],
+            "project_id": null,
+            "complexity": "mittel",
+            "effort": 2,
+            "agentContext": "Skill cmp-integration. ES5 only. Neu: cmp/cc_complianz.js + ./build.sh (min.js). Wenn es im sGTM-Client angeboten wird: SELECT-Option im Template + CMP_MAP-Eintrag in scripts/cmp-sync-lib.js, sonst schlägt build.sh fehl. Inspector: Signatur in devtools-extension/cmpdetect.js oder Eintrag in UNDETECTABLE (Drift-Guard test/devtools/cmpdetect.test.js). CMP-Liste in CLAUDE.md/README ergänzen, CHANGELOG. Live-Prüfung über den live-inspector (Chrome-Extension). Kein Kundenname in getrackten Dateien.",
+            "links": [],
+            "attachments": [
+              {
+                "id": "e9196052-b203-4283-9829-417d446dc913",
+                "filename": "entwurf_complianz.txt",
+                "mime": "text/plain",
+                "size": 2167,
+                "created": "2026-09-25"
+              },
+              {
+                "id": "0a55c060-ac7b-4c09-800f-8751dae1c1ca",
+                "filename": "cc_complianz.js",
+                "mime": "text/javascript",
+                "size": 5256,
+                "created": "2026-09-25"
+              },
+              {
+                "id": "d63b8984-216d-4cf3-aaba-974174e35531",
+                "filename": "cc_complianz.min.js",
+                "mime": "text/javascript",
+                "size": 2120,
+                "created": "2026-09-25"
+              }
+            ],
+            "coverAttachmentId": null,
+            "dueDate": null,
+            "startDate": null,
+            "recurrence": null,
+            "archived": false,
+            "activity": [
+              {
+                "id": "80fe31b2-c68a-4f4d-9a1d-69ac79a160d6",
+                "author": "Andi",
+                "action": "field-updated",
+                "field": "effort",
+                "from": "M",
+                "to": "",
+                "timestamp": "2026-09-25T10:32:57.669Z"
+              }
+            ],
+            "columnId": "col-qa",
+            "created": "2026-09-25",
+            "updated": "2026-09-25",
+            "kind": "card"
           }
         ],
         "archived": false
@@ -1401,7 +1466,7 @@
         "archived": false
       }
     ],
-    "nextDisplayId": 99,
+    "nextDisplayId": 100,
     "attachments": [],
     "background": null,
     "templates": [],
