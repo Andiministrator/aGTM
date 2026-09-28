@@ -454,7 +454,8 @@ whose withdrawal the Session API had on record (F-154).
 Only the `/aGTMconsent` POST writes a decision into that record, and it deletes the cookie
 itself. The GET path now covers what the POST cannot: *Delete Cookie if Consent is denied*
 switched on after the withdrawal, a changed consent requirement, a POST whose `Set-Cookie`
-never reached the browser (navigation abort), or another writer to the Session API. (A
+never reached the browser (plausibly an aborted navigation — not observed), or another
+writer to the Session API. (A
 cross-origin consent POST does not arrive at all — F-160, open.)
 
 It deletes (under every name the Client reads, like the POST handler) only on **positive
@@ -469,8 +470,12 @@ checkbox off. Cookie modes *Always* and *Never* are unaffected.
 **Know this before changing the consent requirement:** the requirement is re-checked
 against the recorded consent on every request, so a new or mistyped requirement deletes
 the cookies of every returning visitor whose record does not meet it. Each such delete is
-logged as a `warn` line (requirement and recorded strings, no uid), because in healthy
-operation the POST handler has already done the delete and this path stays quiet.
+logged as a `warn` line (requirement and recorded strings, no uid — though a request log
+can still tie it to a visitor), because in healthy operation the POST handler has already
+done the delete and this path stays quiet. Two limits: with the delete checkbox **off**, the
+same change stops the refresh for those visitors **without** a log line, so their cookies
+run out silently; and a cookie the delete cannot reach (another domain or path, e.g. after a
+`cookie_domain` change) repeats the `warn` on every request until it expires.
 
 `test/sgtm/cookie-withdrawal.test.js` pins both sides. Five guards are caught by mutation;
 three further terms (`sessionRead.ok`, `hasResponse`, the cookie itself) are implied by the

@@ -704,7 +704,7 @@ ___TEMPLATE_PARAMETERS___
         "name": "cookie_delete",
         "checkboxText": "Delete Cookie if Consent is denied",
         "simpleValueType": true,
-        "help": "Delete the user ID cookie when Cookie Mode is \u003ccode\u003eConsent Required\u003c/code\u003e and the visitor withdrew the required consent. The consent POST deletes it when the withdrawal arrives. The next \u003ccode\u003e/aGTM.js\u003c/code\u003e request also deletes it when the Session API has the withdrawal on record \u2014 for the cases the POST cannot cover, e.g. this checkbox switched on later, or a changed consent requirement. On that path only such evidence deletes: no record, a Session API outage or the Client\u2019s own auto-denial leave the cookie alone. \u003cb\u003eChanging the consent requirement\u003c/b\u003e therefore deletes the cookies of everyone whose recorded consent does not meet the new one \u2014 logged as a warning. With a withdrawal on record the cookie is no longer refreshed, even with this checkbox off.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eNot governed by this checkbox:\u003c/b\u003e a leftover fingerprint-shaped (\u003ccode\u003eF.*\u003c/code\u003e) cookie written by an aGTM version before this one is always cleared, in every cookie mode except \u003cb\u003eNever\u003c/b\u003e. That is a correction of the Client’s own past defect rather than a consent decision — such a value must not sit in a browser at all. It is kept only when the Session API did not answer (an outage is not evidence that no consent exists) or when a promote for it is still worth retrying.",
+        "help": "Delete the user ID cookie when Cookie Mode is \u003ccode\u003eConsent Required\u003c/code\u003e and the visitor withdrew the required consent. The consent POST deletes it when the withdrawal arrives. The next \u003ccode\u003e/aGTM.js\u003c/code\u003e request also deletes it when the Session API has the withdrawal on record \u2014 for the cases the POST cannot cover, e.g. this checkbox switched on later, or a changed consent requirement. On that path only such evidence deletes: no record, a Session API outage or the Client\u2019s own auto-denial leave the cookie alone. \u003cb\u003eChanging the consent requirement\u003c/b\u003e therefore deletes the cookies of everyone whose recorded consent does not meet the new one \u2014 logged as a warning. With a withdrawal on record the cookie is no longer refreshed, even with this checkbox off \u2014 that case is not logged, so a requirement change with the checkbox off lets these cookies run out silently.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eNot governed by this checkbox:\u003c/b\u003e a leftover fingerprint-shaped (\u003ccode\u003eF.*\u003c/code\u003e) cookie written by an aGTM version before this one is always cleared, in every cookie mode except \u003cb\u003eNever\u003c/b\u003e. That is a correction of the Client’s own past defect rather than a consent decision — such a value must not sit in a browser at all. It is kept only when the Session API did not answer (an outage is not evidence that no consent exists) or when a promote for it is still worth retrying.",
         "enablingConditions": [
           {
             "paramName": "cookie_mode",
@@ -2289,8 +2289,10 @@ const afterBotCheck = function(isBot) {
     // a decision into the record, and it deletes the cookie itself — so this
     // branch covers what that handler cannot: cookie_delete switched on after
     // the withdrawal, a changed consent requirement, a POST whose Set-Cookie
-    // never reached the browser (navigation abort), or another writer to the
-    // Session API. (A cross-origin consent POST does not arrive at all — F-160.)
+    // never reached the browser (plausibly a navigation that aborted the
+    // request after the record was written — not observed), or another writer
+    // to the Session API. (A cross-origin consent POST does not arrive at all —
+    // F-160.)
     // Stricter than the POST handler, which deletes on any !granted: only
     // POSITIVE evidence counts here — an authoritative answer, a real CMP
     // decision (hasResponse, not the auto-denial block, an explicit signal)
@@ -2323,7 +2325,12 @@ const afterBotCheck = function(isBot) {
       // mistyped consent requirement makes it fire for EVERY consenting
       // returning visitor, which would otherwise drop their ids silently. The
       // uid is left out on purpose; the requirement and the recorded strings
-      // are what a tenant needs to spot a mismatch.
+      // are what a tenant needs to spot a mismatch. Two limits, both accepted:
+      // with cookie_delete off, the refresh stops for the same visitors WITHOUT
+      // a log line (logging there would fire on every request); and a cookie
+      // this delete cannot reach (another domain or path, e.g. after a
+      // cookie_domain change) repeats this line on every request until it
+      // expires — the refresh is stopped, so it does expire.
       if (sessionConsentRevoked && data.cookie_delete) {
         deleteUidCookies({domain: CFG.cookieDomain, path: '/', sameSite: 'none', httpOnly: true, secure: true, 'max-age': 0});
         logToConsole('warn', '✓ User ID cookie deleted: the recorded consent does not grant the required one', {required: {service: CFG.consentService, purpose: CFG.consentPurpose, vendor: CFG.consentVendor}, recorded: {services: sessionConsent.services || '', purposes: sessionConsent.purposes || '', vendors: sessionConsent.vendors || ''}});

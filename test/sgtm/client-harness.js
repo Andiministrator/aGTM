@@ -122,7 +122,9 @@ export function runClient(opts = {}) {
     // Objects are serialised, not joined: `join(' ')` turned every structured
     // argument into "[object Object]", so no test could see what a log line
     // actually carries — e.g. that a warn names the requirement but not the uid.
-    logToConsole: (...a) => { state.logs.push(a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ')); },
+    // A value JSON cannot serialise (a cycle) falls back to String() — the
+    // real logToConsole never throws, so the stub must not either.
+    logToConsole: (...a) => { state.logs.push(a.map((x) => { if (typeof x === 'string') return x; try { return JSON.stringify(x); } catch (e) { return String(x); } }).join(' ')); },
     // Sandbox contract: undefined instead of throwing.
     JSON: { parse: (s) => { try { return JSON.parse(s); } catch (e) { return undefined; } }, stringify: JSON.stringify },
     Math: Math,
