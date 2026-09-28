@@ -474,8 +474,9 @@ logged as a `warn` line (requirement and recorded strings, no uid — though a r
 can still tie it to a visitor), because in healthy operation the POST handler has already
 done the delete and this path stays quiet. Two limits: with the delete checkbox **off**, the
 same change stops the refresh for those visitors **without** a log line, so their cookies
-run out silently; and a cookie the delete cannot reach (another domain or path, e.g. after a
-`cookie_domain` change) repeats the `warn` on every request until it expires.
+run out silently; and a cookie the delete cannot reach (another domain, or another path that
+still covers the `/aGTM.js` request, e.g. after a `cookie_domain` change) repeats the `warn`
+on every request while the withdrawal stays on record, until it expires.
 
 `test/sgtm/cookie-withdrawal.test.js` pins both sides. Five guards are caught by mutation;
 three further terms (`sessionRead.ok`, `hasResponse`, the cookie itself) are implied by the
