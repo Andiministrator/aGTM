@@ -1328,10 +1328,30 @@ const afterBotCheck = function(isBot) {
     const sessionHasExplicitSignal = !!sessionConsent && !!((sessionConsent.services || '') || (sessionConsent.purposes || '') || (sessionConsent.vendors || ''));
     const sessionConsentGranted = !!sessionConsent && sessionConsent.hasResponse === true && !sessionIsAutoDenial && sessionHasExplicitSignal && hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
     const shouldLazyPromote = sessionConsentGranted && isFingerprintUid(existingCookie) && CFG.sessionApiUrl && CFG.tenantID && CFG.cookieMode !== 'never';
+    // A withdrawal the Session API has on record (F-154). Under
+    // cookieMode='consent' the cookie's mere presence used to count as the
+    // consent, so a recorded withdrawal never reached the cookie on this path;
+    // it was even refreshed on every request. Only the /aGTMconsent POST writes
+    // a decision into the record, and it deletes the cookie itself — so this
+    // branch covers what that handler cannot: cookie_delete switched on after
+    // the withdrawal, a changed consent requirement, a POST whose Set-Cookie
+    // never reached the browser (navigation abort), or another writer to the
+    // Session API. (A cross-origin consent POST does not arrive at all — F-160.)
+    // Stricter than the POST handler, which deletes on any !granted: only
+    // POSITIVE evidence counts here — an authoritative answer, a real CMP
+    // decision (hasResponse, not the auto-denial block, an explicit signal)
+    // that does not grant the required consent. No record, an outage or an
+    // auto-denial say nothing about this visitor and leave the cookie alone —
+    // deleting on ignorance would drop the ids of real visitors whose consent
+    // simply is not on file. With no consent requirement configured,
+    // hasRequiredConsent() is true and this never fires. Three of the terms
+    // (sessionRead.ok, hasResponse, existingCookie) are already implied by the
+    // pass-through filter further down and kept as defence in depth.
+    const sessionConsentRevoked = CFG.cookieMode === 'consent' && !!existingCookie && sessionRead.ok && !!sessionConsent && sessionConsent.hasResponse === true && !sessionIsAutoDenial && sessionHasExplicitSignal && !hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
 
     const continueAfterSession = function() {
       let cookieAllowed = (CFG.cookieMode === 'always') ||
-                         (CFG.cookieMode === 'consent' && !!existingCookie);
+                         (CFG.cookieMode === 'consent' && !!existingCookie && !sessionConsentRevoked);
       if (CFG.cookieMode === 'consent' && !cookieAllowed && sessionData.consent) {
         const c = sessionData.consent;
         if (hasRequiredConsent(c.services || '', c.purposes || '', c.vendors || '')) {
@@ -1339,9 +1359,20 @@ const afterBotCheck = function(isBot) {
         }
       }
 
-      // Delete cookie if consent required but not granted
-      if (!cookieAllowed && data.cookie_delete && existingCookie && CFG.cookieMode === 'consent') {
-        writeCookie('', 0);
+      // Delete the cookie when the recorded consent was withdrawn (F-154).
+      // The former condition here could never be true: under 'consent',
+      // cookieAllowed WAS !!existingCookie, so "cookie present and not
+      // allowed" was a contradiction. Name-spanning like the POST handler —
+      // an id read from a legacy name would otherwise come straight back.
+      // Logged at warn, not debug: in healthy operation the POST handler has
+      // already deleted the cookie, so this firing is an anomaly — and a
+      // mistyped consent requirement makes it fire for EVERY consenting
+      // returning visitor, which would otherwise drop their ids silently. The
+      // uid is left out on purpose; the requirement and the recorded strings
+      // are what a tenant needs to spot a mismatch.
+      if (sessionConsentRevoked && data.cookie_delete) {
+        deleteUidCookies({domain: CFG.cookieDomain, path: '/', sameSite: 'none', httpOnly: true, secure: true, 'max-age': 0});
+        logToConsole('warn', '✓ User ID cookie deleted: the recorded consent does not grant the required one', {required: {service: CFG.consentService, purpose: CFG.consentPurpose, vendor: CFG.consentVendor}, recorded: {services: sessionConsent.services || '', purposes: sessionConsent.purposes || '', vendors: sessionConsent.vendors || ''}});
       }
       // An F.* value must never sit in the user-ID cookie. The fingerprint is
       // derived from IP + UA + client hints + ASN/geo, so it is NOT

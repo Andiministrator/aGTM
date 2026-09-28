@@ -119,7 +119,10 @@ export function runClient(opts = {}) {
     makeInteger: (v) => parseInt(v, 10) || 0,
     makeNumber: (v) => Number(v) || 0,
     makeString: (v) => String(v),
-    logToConsole: (...a) => { state.logs.push(a.join(' ')); },
+    // Objects are serialised, not joined: `join(' ')` turned every structured
+    // argument into "[object Object]", so no test could see what a log line
+    // actually carries — e.g. that a warn names the requirement but not the uid.
+    logToConsole: (...a) => { state.logs.push(a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ')); },
     // Sandbox contract: undefined instead of throwing.
     JSON: { parse: (s) => { try { return JSON.parse(s); } catch (e) { return undefined; } }, stringify: JSON.stringify },
     Math: Math,
