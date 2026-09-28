@@ -384,6 +384,11 @@ is not optional.
   produced a consent signal carries no cookie **even under `cookie_mode: always`**: that
   mode means "set the cookie regardless of consent", not "freeze a shared server-side
   fingerprint in the browser". `cookie_mode: never` writes nothing.
+- **Deletion on withdrawal** (only `cookie_mode: consent` with `cookie_delete`): the consent
+  POST deletes the cookie when a withdrawal arrives; since F-154 `/aGTM.js` also deletes it
+  when the Session API has a withdrawal on record. No record or an outage deletes nothing,
+  and a cross-origin consent POST does not arrive at all (F-160). Under `always` a
+  withdrawal does **not** remove the cookie.
 - **Caveat worth testing yourself.** In the delivered default (`cookie_mode: always`) there
   is **no configurable consent requirement for minting the cookie at all**: the check
   returns "granted" when none of *Consent Service / Purpose / Vendor* is set, and the

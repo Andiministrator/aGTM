@@ -48,6 +48,11 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   behaviour. Keys with a leading `_` are dropped as a rule, so do not use `_` prefixes for
   your own payload fields.
 - sGTM Client only: the "URL Parameters" column starts working (see below).
+- sGTM Client, *Cookie Mode: Consent Required*: a withdrawal the Session API has on record
+  now deletes the user-id cookie on `/aGTM.js` too (with *Delete Cookie if Consent is
+  denied*), and stops refreshing it either way. Before, only the consent POST could.
+  **Changing the consent requirement** thereby deletes the cookie of every returning
+  visitor whose recorded consent does not meet the new one (logged as `warn`).
 
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
@@ -438,6 +443,38 @@ the visitor from one preset that loads GTM to another.
 **What remains open:** consent is still *persisted* under the shared fingerprint key when
 no cookie exists, so the shared record can still be written. Closing that is a separate
 step, deliberately not bundled here.
+
+### Fixed — sGTM Client: a withdrawal on record did not reach the user-id cookie on `/aGTM.js`
+
+With *Cookie Mode: Consent Required*, the `/aGTM.js` path treated the cookie's mere
+presence as the consent. Its delete branch asked for "cookie present **and** not allowed"
+and could never fire, and the cookie was refreshed on every request — even for a visitor
+whose withdrawal the Session API had on record (F-154).
+
+Only the `/aGTMconsent` POST writes a decision into that record, and it deletes the cookie
+itself. The GET path now covers what the POST cannot: *Delete Cookie if Consent is denied*
+switched on after the withdrawal, a changed consent requirement, a POST whose `Set-Cookie`
+never reached the browser (navigation abort), or another writer to the Session API. (A
+cross-origin consent POST does not arrive at all — F-160, open.)
+
+It deletes (under every name the Client reads, like the POST handler) only on **positive
+evidence**: an authoritative answer carrying a real CMP decision — not the auto-denial
+block, with an explicit services/purposes/vendors signal — that does not grant the required
+consent. That is stricter than the POST handler, which deletes on any non-grant. No record,
+a Session API outage, the Client's own auto-denial, a decision without any signal, and
+every tenant without a configured consent requirement leave the cookie alone. With a
+withdrawal on record the cookie is no longer refreshed either, even with the delete
+checkbox off. Cookie modes *Always* and *Never* are unaffected.
+
+**Know this before changing the consent requirement:** the requirement is re-checked
+against the recorded consent on every request, so a new or mistyped requirement deletes
+the cookies of every returning visitor whose record does not meet it. Each such delete is
+logged as a `warn` line (requirement and recorded strings, no uid), because in healthy
+operation the POST handler has already done the delete and this path stays quiet.
+
+`test/sgtm/cookie-withdrawal.test.js` pins both sides. Five guards are caught by mutation;
+three further terms (`sessionRead.ok`, `hasResponse`, the cookie itself) are implied by the
+pass-through filter and kept as defence in depth, so no test can distinguish them.
 
 ### Documentation — four settings promised something the code does not do
 
