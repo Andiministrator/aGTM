@@ -1374,9 +1374,10 @@ const afterBotCheck = function(isBot) {
       // are what a tenant needs to spot a mismatch. Two limits, both accepted:
       // with cookie_delete off, the refresh stops for the same visitors WITHOUT
       // a log line (logging there would fire on every request); and a cookie
-      // this delete cannot reach (another domain or path, e.g. after a
-      // cookie_domain change) repeats this line on every request until it
-      // expires — the refresh is stopped, so it does expire.
+      // this delete cannot reach (another domain, or another path that still
+      // covers the /aGTM.js request, e.g. after a cookie_domain change)
+      // repeats this line on every request while the withdrawal stays on
+      // record, until it expires — the refresh is stopped, so it does expire.
       if (sessionConsentRevoked && data.cookie_delete) {
         deleteUidCookies({domain: CFG.cookieDomain, path: '/', sameSite: 'none', httpOnly: true, secure: true, 'max-age': 0});
         logToConsole('warn', '✓ User ID cookie deleted: the recorded consent does not grant the required one', {required: {service: CFG.consentService, purpose: CFG.consentPurpose, vendor: CFG.consentVendor}, recorded: {services: sessionConsent.services || '', purposes: sessionConsent.purposes || '', vendors: sessionConsent.vendors || ''}});
