@@ -57,6 +57,15 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Fixed — sGTM Client: the template did not import ("Variable "body" already exists")
+
+GTM runs a template's test `setup` and each scenario in one scope. Since the setup block
+declared its own `let body` (2026-08-05), three consent-store scenarios that still declared
+`let body` themselves made the whole import fail with `Variable "body" already exists`. The
+scenarios now reuse the setup variable. Server logic is unchanged. A new guard,
+`test/sgtm/tpl-test-scope.test.js`, catches such a redeclaration in any template, tracked or
+not, before it reaches a container.
+
 ### Fixed — Consent Mode tag: the Microsoft branch could switch off UET's own consent enforcement
 
 The Consent Mode tag has always had a *Fire Microsoft Consent Mode*

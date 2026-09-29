@@ -2939,7 +2939,7 @@ scenarios:
 - name: POST consent route plain with payload uid - 200 ok and echoed uid
   code: |
     const mockData = baseData();
-    let body = '';
+    body = '';
     mockPost('/aGTMconsent', JSON.stringify({uid: 'C.1$cl_test$123456.789', consent: {hasResponse: true, services: ',Google,'}}));
     mock('setResponseBody', function(b) { body = b; });
     runCode(mockData);
@@ -2952,7 +2952,7 @@ scenarios:
 - name: POST consent route falls back to cookie uid when payload omits it - 200
   code: |
     const mockData = baseData();
-    let body = '';
+    body = '';
     mockPost('/aGTMconsent', JSON.stringify({consent: {hasResponse: true, services: ',Google,'}}));
     mock('getCookieValues', function() { return ['C.1$cl_test$555000.111']; });
     mock('setResponseBody', function(b) { body = b; });
@@ -2963,7 +2963,7 @@ scenarios:
 - name: POST consent route encrypted payload - 501 server-side decrypt unsupported
   code: |
     const mockData = baseData();
-    let body = '';
+    body = '';
     mockPost('/aGTMconsent', JSON.stringify({q: 'ENCRYPTED_BLOB'}));
     mock('setResponseBody', function(b) { body = b; });
     runCode(mockData);
