@@ -128,7 +128,7 @@ Setup: `consent_store_url` set (auto via sGTM Client checkbox, or manual config)
 | 9.1 | First visit, no preset, user accepts CMP | One POST to `<sgtm-host>/<prefix>/aGTMconsent` with `{uid, sid, consent:{...}}`, status 200 → `session_status === 'synced'`, `consent_hash` non-empty |
 | 9.2 | Second visit, preset matches CMP | No POST — `session_status === 'confirmed'` |
 | 9.3 | Second visit, user changes consent in CMP | Poll catches change ≤ `consent_poll_ms`, one POST with new consent, `session_status === 'synced'` |
-| 9.4 | Server returns 404/500 | `consent_hash` unchanged, retry on next poll tick (every `consent_poll_ms`) |
+| 9.4 | Server returns 404/500 | `consent_hash` unchanged, retry on next poll tick (every `consent_poll_ms`) — at most 3 POSTs for this consent state, then one `e_consent_store_gave_up` in `aGTM.l` and silence. Via the sGTM Client a 404 for a `C.*` uid is healed server-side first (session GET + one rewrite) |
 | 9.5 | `consent_store_enc: true` + `session_salt: 42` | POST body shape `{"q":"..."}` (obfuscated), not `{"e":{...}}` |
 | 9.6 | `consent_poll_ms: 0` | No poll timer (`aGTM.d.timer.consent_poll === undefined`); `aGTM.f.run_cc('update')` from CMP callback still triggers POST |
 | 9.7 | URL via reverse-proxy (`/rp/tp/aGTM.js`) | `aGTM.c.consent_store_url === 'https://<host>/rp/tp/aGTMconsent'` (built browser-side from `currentScript.src`) |

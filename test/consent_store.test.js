@@ -280,7 +280,23 @@ describe('aGTM.f.run_cc() — consent diff/store', () => {
       expect(aGTM.d.session_status).toBe('synced');
     });
 
-    test('a success after a failure still syncs within the budget', () => {
+    test('xsend that sends nothing still spends the budget and says so once', () => {
+    resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
+    setupRunCc();
+    aGTM.f.consent_check = grant(',svc1,');
+    const orig = aGTM.f.xsend;
+    let calls = 0;
+    aGTM.f.xsend = function() { calls++; return null; };
+    try {
+      for (let i = 0; i < 6; i++) aGTM.f.run_cc('update');
+    } finally {
+      aGTM.f.xsend = orig;
+    }
+    expect(calls).toBe(3);
+    expect(aGTM.l.filter((e) => JSON.stringify(e).indexOf('e_consent_store_gave_up') >= 0).length).toBe(1);
+  });
+
+  test('a success after a failure still syncs within the budget', () => {
       resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
       setupRunCc();
       aGTM.f.consent_check = grant(',svc1,');

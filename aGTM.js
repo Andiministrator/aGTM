@@ -487,6 +487,9 @@ aGTM.f.load_cc = function (cmp, callback) {
  * (given_cons empty/falsy), it returns FALSE — a configured requirement that
  * received no matching consent is not satisfied (fail-closed, F-49). No
  * requirement (need_cons empty/falsy) means "nothing to satisfy" → true.
+ * Empty entries (",x,", "x,,y") are skipped, so a requirement written in
+ * consent-string form still works; one made of separators only (",") is a
+ * misconfiguration and returns FALSE rather than "nothing to satisfy".
  * @property {function} aGTM.f.chelp
  * @param {string} need_cons - a string with the purposes/vendors that need consent (comma-separated)
  * @param {string} given_cons - a string with the purposes/vendors that were granted (comma-separated and with a comma at the beginning and at the end)
@@ -701,6 +704,9 @@ aGTM.f.run_cc = function (action) {
       var salt = (typeof aGTM.c.session_salt === 'number' && aGTM.c.session_salt >= 1) ? aGTM.c.session_salt : 0;
       aGTM.f.log('m_consent_store_post', {url: aGTM.c.consent_store_url, hash: newHash});
       var xhr = aGTM.f.xsend(aGTM.c.consent_store_url, consentPayload, encrypt, salt);
+      // No request left the browser (xsend logged e_xsend): the attempt still
+      // counts, and the last one must still say that the budget is spent.
+      if (!xhr && st.n >= 3) aGTM.f.log('e_consent_store_gave_up', {hash: newHash});
       if (xhr) {
         st.busy = true;
         // onreadystatechange-gated hash update: leave hash unchanged on

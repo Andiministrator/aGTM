@@ -309,7 +309,8 @@ nothing and is *not* reported as a tightening.
 **Values are normalised, not concatenated** — every token trimmed, blanks and repetitions
 dropped. That is what makes the merge safe rather than dangerous: a raw join would have
 turned a single typed trailing comma (`ga4,` plus `meta`) into `ga4,,meta`, and the consent
-check then requires an **empty** token, which no consent string contains. The gate would have
+check at that time required an **empty** token, which no consent string contains (since the
+`,x,` fix further up, the library skips empty entries itself; the normalisation stays). The gate would have
 been shut for 100% of visitors on a site where that same configuration worked before — a
 total measurement outage caused by the fix itself, on the next template re-import. A
 blank-only cell (`"   "`) was the same failure without needing the comma.
@@ -493,7 +494,12 @@ Empty pieces are now skipped. A requirement made of separators only (`','`) stay
 **closed** — it is a misconfiguration, not "nothing required". The sGTM Client already
 normalised its consent table; that normalisation stays as defence in depth and for its
 "adds nothing" report. Library releases before this fix keep the old behaviour: write the
-requirement without the surrounding commas there.
+requirement without the surrounding commas there. ⚠️ On **1.4.x** that alone is not enough:
+those releases also treat an **empty** consent string as "no data" and let any requirement
+pass (fixed in 1.5 as the fail-closed consent check above), so a consent check that reports
+"declined" as an empty string loads GTM after *reject all* once the commas are gone. Update to
+1.5, or have the consent check report a declined state as a non-empty value that matches no
+requirement.
 
 ### Fixed — a consent decision the Session API refused was lost without a trace
 
@@ -504,11 +510,13 @@ regardless. That also switched off the library's own retry: it keeps `consent_ha
 non-2xx and tries again, but it never saw one, set `session_status = 'synced'` and stopped.
 The server-side copy of the decision was missing until the visitor's next page view.
 
-- **Client:** a `404` from the consent write means the session window ran out between page
-  load and decision (a banner or tab left open). For a cookie-bound `C.*` uid the Client now
+- **Client:** a `404` from the consent write means there is no active session under that uid —
+  typically the session window ran out between page load and decision (a banner or tab left
+  open), but also a session pointer or object that expired altogether. For a cookie-bound `C.*` uid the Client now
   reads the session with the same `GET` the `/aGTM.js` path uses and writes **exactly once**
-  more. api4sgtm answers the consent write with `404` once 30 minutes have passed since the
-  last session read (the write itself does not extend the session), and a read outside that
+  more. As stated by the api4sgtm maintainer: the consent write answers `404` when the session
+  pointer or object is missing or 30 minutes have passed since the last session read (the write
+  itself does not extend the session), and a read outside that
   window starts a new session with `counter` 0 — so the rewrite lands. A fingerprint `F.*` uid is not healed: it is a shared key (F-156). Any status that is
   still not 2xx is logged at `warn` (stage and status, no uid) and passed on to the browser;
   a transport error becomes `502`. The response body's `ok` follows the status.
@@ -516,7 +524,8 @@ The server-side copy of the decision was missing until the visitor's next page v
   poll would have re-POSTed on every tick for as long as the server refused, about 1800
   requests an hour from one open tab. The retry is now capped at **3 POSTs per consent
   state**, none for the same state while one is in flight (`aGTM.d.consent_store_try`); a
-  new decision starts a fresh budget. Giving up is logged once (`e_consent_store_gave_up`).
+  new decision starts a fresh budget. Giving up is logged once (`e_consent_store_gave_up`),
+  also when the attempts never left the browser (`xsend` returned nothing).
 - **aGTM Inspector:** the Simulation tab's consent-store button clears that budget too, or
   it would have gone quiet after three clicks.
 
@@ -2426,7 +2435,7 @@ Template audit findings on the three variable templates:
 - Docs: `README.md` build instructions updated from npm to Bun
 - Docs: `README-for-Developers.md` release flow now references `CHANGELOG.md` (not `README.md`)
 - Docs: `README.de.md` added — German quickstart for GTM developers
-- Docs: removed the legacy `ck` URL-parameter section (`ckServices`/`ckVendors`/`ckPurposes`, `ck=0|1|2`) from `README.md` — it documented a never-implemented feature superseded by the v1.5 POST transport + consent-store (`/aGTMconsent`); was end-to-end dead (library never appended it, sGTM Client read but never used it). See `docs/open-decisions.md` OE-2.
+- Docs: removed the legacy `ck` URL-parameter section (`ckServices`/`ckVendors`/`ckPurposes`, `ck=0|1|2`) from `README.md` — it documented a feature superseded by the v1.5 POST transport + consent-store (`/aGTMconsent`). *(Corrected 2026-09-29: the 1.4.x library DID append `&ck=1|2` to the gtm.js URL; the v1.5 library dropped it in `271ac23`, so the section was dead only for 1.5.)* See `docs/open-decisions.md` OE-2.
 - CMP `consent_check` short-circuit (`if (action == 'init' && hasResponse) return true;`) is now load-bearing for the preset-with-consent fast path; new test `cmp_short_circuit.test.js` enforces the pattern across all `cmp/cc_*.js` files
 - Foundation for standalone aGTM usage without webGTM
 - New CMPs: JTL Consent, JTL EU Cookie
