@@ -110,11 +110,15 @@ describe('consent condition table → config', () => {
     expect(aGTM.f.chelp(c.gtmServices, ',meta,')).toBe(false);
   });
 
-  // The reason empty cells are dropped rather than appended: a bare comma makes
-  // chelp() require an empty token, and no consent string contains one — the
-  // gate would close for a visitor who granted everything.
-  test('an appended empty value would close the gate for everybody', () => {
-    expect(aGTM.f.chelp('ga4,', ',ga4,meta,')).toBe(false);
+  // Empty cells are dropped rather than appended. Up to v1.5 a bare comma made
+  // chelp() require an empty token that no consent string contains, closing the
+  // gate for everybody. chelp() now skips empty tokens itself (a requirement in
+  // consent-string form, ",x,", was seen live and blocked GTM silently), so the
+  // Client's normalisation is defence in depth plus the "adds nothing" report —
+  // and the library must now read the appended form as the requirement it is.
+  test('an appended empty value no longer closes the gate', () => {
+    expect(aGTM.f.chelp('ga4,', ',ga4,meta,')).toBe(true);
+    expect(aGTM.f.chelp('ga4,', ',meta,')).toBe(false);
   });
 });
 
@@ -154,10 +158,13 @@ describe('consent condition table — rows that carry no requirement', () => {
     expect(aGTM.f.chelp(c.gtmServices, ',ga4,meta,')).toBe(true);
   });
 
-  test('the unnormalised form really would have closed the gate', () => {
-    // Guards the reasoning above, not the code: if chelp ever started tolerating
-    // an empty token, the normalisation would silently lose its purpose.
-    expect(aGTM.f.chelp('ga4,,meta', ',ga4,meta,')).toBe(false);
+  test('the unnormalised form is read as its non-empty entries', () => {
+    // Used to guard the reasoning that the normalisation was load-bearing:
+    // chelp() closed on the empty token. It now tolerates it on purpose, so the
+    // normalisation keeps its reporting role but no longer decides the gate.
+    // Both entries are still required.
+    expect(aGTM.f.chelp('ga4,,meta', ',ga4,meta,')).toBe(true);
+    expect(aGTM.f.chelp('ga4,,meta', ',ga4,')).toBe(false);
   });
 
   test('a blank-only cell is not a requirement nobody can meet', () => {
