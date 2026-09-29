@@ -42,6 +42,7 @@ window.AGTM_LOGMAP = {
   m_consent_store_synced:   { type: "msg", msg: "Consent store POST confirmed by the server (2xx)" },
   m_uid_promoted:           { type: "msg", msg: "Server promoted the user ID (F.* fingerprint to C.* cookie), adopted" },
   e_consent_store:          { type: "err", msg: "Consent store POST failed (non-2xx response)" },
+  e_consent_store_gave_up:  { type: "err", msg: "Consent store POST gave up after 3 attempts for this consent state" },
   e_consent_store_parse:    { type: "err", msg: "Consent store response could not be parsed as JSON" },
   e_xsend:                  { type: "err", msg: "aGTM.f.xsend Error, request could not be sent" }
 };

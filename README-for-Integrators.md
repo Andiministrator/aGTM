@@ -386,7 +386,10 @@ At the end of **every** successful `run_cc()` (both `init` and `update`):
 2. If `consent_store_url` is set **and** `new_hash !== aGTM.d.consent_hash` → POST
    `{ uid, sid, consent: <without gtmConsent/blocked/empty> }` to `consent_store_url`. On 2xx:
    `consent_hash = new_hash`, `session_status = 'synced'`. On non-2xx: hash unchanged → retried on the
-   next tick.
+   next tick — **at most 3 POSTs in total per consent state**, and none for the same state while one
+   is still in flight. `/aGTMconsent` answers with the Session API's real status (not a constant 200)
+   and logs a refused write at `warn`. For a cookie-bound `C.*` uid a `404` "no active session" is
+   healed server-side (session GET — which starts a new session — plus one rewrite).
 3. If the hash matches: `session_status = 'confirmed'` (no POST).
 
 The `aGTM_consent_update` dataLayer event + `consent_callback` are gated on `last_consent_hash`, so a

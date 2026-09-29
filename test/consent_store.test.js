@@ -221,4 +221,77 @@ describe('aGTM.f.run_cc() — consent diff/store', () => {
     expect(body.e.consent.vendors).toBe(',v1,');
     expect(body.e.consent.feedback).toBe('CMP accepted');
   });
+
+  // F-236: the retry above had no budget. Once the sGTM Client stopped
+  // answering every consent POST with 200, a refusal that cannot heal within
+  // the page ("no active session") would have been re-POSTed on every 2 s
+  // poll tick for as long as the tab stayed open.
+  describe('retry budget (F-236)', () => {
+    const grant = (svc) => function() {
+      aGTM.d.consent.hasResponse = true;
+      aGTM.d.consent.services = svc;
+      aGTM.d.consent.purposes = '';
+      aGTM.d.consent.vendors = '';
+      return true;
+    };
+
+    test('at most 3 POSTs for one consent state, then silence', () => {
+      resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
+      setupRunCc();
+      aGTM.f.consent_check = grant(',svc1,');
+      for (let i = 0; i < 10; i++) {
+        aGTM.f.run_cc('update');
+        const open = consentXHRs().filter((x) => x.readyState !== 4);
+        open.forEach((x) => x.respond(404, { ok: false }));
+      }
+      expect(consentXHRs().length).toBe(3);
+      expect(aGTM.l.filter((e) => e && (e.m === 'e_consent_store_gave_up' || e.msg === 'e_consent_store_gave_up' || JSON.stringify(e).indexOf('e_consent_store_gave_up') >= 0)).length).toBe(1);
+      expect(aGTM.d.consent_hash).toBe('');
+      expect(aGTM.d.session_status).not.toBe('synced');
+      expect(aGTM.d.session_status).not.toBe('confirmed');
+    });
+
+    test('no second POST while the first is still in flight', () => {
+      resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
+      setupRunCc();
+      aGTM.f.consent_check = grant(',svc1,');
+      aGTM.f.run_cc('update');
+      aGTM.f.run_cc('update');
+      aGTM.f.run_cc('update');
+      expect(consentXHRs().length).toBe(1);
+      consentXHRs()[0].respond(503, '');
+      aGTM.f.run_cc('update');
+      expect(consentXHRs().length).toBe(2);
+    });
+
+    test('a new decision gets a fresh budget', () => {
+      resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
+      setupRunCc();
+      aGTM.f.consent_check = grant(',svc1,');
+      for (let i = 0; i < 5; i++) {
+        aGTM.f.run_cc('update');
+        consentXHRs().filter((x) => x.readyState !== 4).forEach((x) => x.respond(404, {}));
+      }
+      expect(consentXHRs().length).toBe(3);
+      aGTM.f.consent_check = grant(',svc2,');
+      aGTM.f.run_cc('update');
+      expect(consentXHRs().length).toBe(4);
+      consentXHRs()[3].respond(200, { ok: true });
+      expect(aGTM.d.session_status).toBe('synced');
+    });
+
+    test('a success after a failure still syncs within the budget', () => {
+      resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
+      setupRunCc();
+      aGTM.f.consent_check = grant(',svc1,');
+      aGTM.f.run_cc('update');
+      consentXHRs()[0].respond(404, {});
+      aGTM.f.run_cc('update');
+      consentXHRs()[1].respond(200, { ok: true });
+      expect(aGTM.d.session_status).toBe('synced');
+      aGTM.f.run_cc('update');
+      expect(consentXHRs().length).toBe(2);
+      expect(aGTM.d.session_status).toBe('confirmed');
+    });
+  });
 });

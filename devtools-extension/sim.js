@@ -420,7 +420,9 @@
 
   // (4) Consent-store POST test — deliberately exercise the /aGTMconsent path. Installs
   // the `sel` stub, then blanks aGTM.d.consent_hash so run_cc('update')'s end-of-success
-  // diff is GUARANTEED to differ from the stored hash → the real aGTM.f.xsend() POST to
+  // diff is GUARANTEED to differ from the stored hash — and clears the retry budget
+  // aGTM.d.consent_store_try (F-236), which would otherwise silence the button after three
+  // clicks on the same state → the real aGTM.f.xsend() POST to
   // consent_store_url fires (with its genuine onreadystatechange handler). No POST is
   // synthesised here — the library does it. Reports the URL (and errors out cleanly when
   // no consent_store_url is configured, since then there is nothing to hit).
@@ -429,7 +431,7 @@
     var body =
       "if(!A.c||!A.c.consent_store_url)return{ok:false,error:'consent_store_url ist nicht konfiguriert - kein /aGTMconsent-Endpunkt gesetzt.'};" +
       stubBody(sel) +
-      "A.d.consent_hash='';" +
+      "A.d.consent_hash='';A.d.consent_store_try=null;" +
       "A.f.run_cc('update');";
     return wrap(body, "consentStoreUrl:(A.c&&A.c.consent_store_url)||'',");
   }

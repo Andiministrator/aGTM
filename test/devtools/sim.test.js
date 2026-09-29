@@ -636,6 +636,12 @@ describe("buildConsentStoreTestCode — force the /aGTMconsent POST via run_cc",
     expect(w.__posts.length).toBe(1);
     expect(w.__posts[0].url).toBe("https://sgtm.example.com/aGTMconsent");
   });
+  test("clears the F-236 retry budget, or the button goes quiet after three clicks", () => {
+    var w = fakeStoreAGTM("https://sgtm.example.com/aGTMconsent");
+    w.aGTM.d.consent_store_try = { hash: ",GA,", n: 3, busy: false };
+    run(buildConsentStoreTestCode({ services: ["GA"] }), w);
+    expect(w.aGTM.d.consent_store_try).toBeNull();
+  });
   test("errors cleanly when no consent_store_url is configured (no POST)", () => {
     var w = fakeStoreAGTM("");
     var res = run(buildConsentStoreTestCode({ services: ["GA"] }), w);
