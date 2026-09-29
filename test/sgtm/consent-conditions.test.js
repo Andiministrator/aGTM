@@ -110,7 +110,7 @@ describe('consent condition table → config', () => {
     expect(aGTM.f.chelp(c.gtmServices, ',meta,')).toBe(false);
   });
 
-  // Empty cells are dropped rather than appended. Up to v1.5 a bare comma made
+  // Empty cells are dropped rather than appended. Before the `,x,` fix a bare comma made
   // chelp() require an empty token that no consent string contains, closing the
   // gate for everybody. chelp() now skips empty tokens itself (a requirement in
   // consent-string form, ",x,", was seen live and blocked GTM silently), so the
@@ -145,10 +145,11 @@ describe('consent condition table — rows that carry no requirement', () => {
 
   // THE REGRESSION THE JOIN WOULD HAVE CAUSED (critic P1). A trailing comma is
   // the likeliest typo in a column whose own help text says "comma-separated".
-  // Raw concatenation turned 'ga4,' + 'meta' into 'ga4,,meta', and chelp() then
-  // requires an EMPTY token — it searches for ",," in the granted string, which
-  // no consent string contains. The gate would have been shut for 100% of
-  // visitors on a site where the very same configuration worked before.
+  // Raw concatenation turned 'ga4,' + 'meta' into 'ga4,,meta', and chelp() at the
+  // time required an EMPTY token — it searched for ",," in the granted string,
+  // which no consent string contains. The gate would have been shut for 100% of
+  // visitors on a site where the very same configuration worked before. (chelp()
+  // now skips empty tokens itself; the normalisation still keeps the value clean.)
   test('a trailing comma in a cell does not produce an unsatisfiable requirement', () => {
     const c = cfgFor([
       { consent_type: 'gtmServices', consent_value: 'ga4,' },

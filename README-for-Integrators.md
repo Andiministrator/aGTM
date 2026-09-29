@@ -85,6 +85,7 @@ authoritative shape** an integrator can rely on.
 | `aGTM.d.consent` | object | CMP `consent_check` / preset | Current consent state. `.gtmConsent` gates GTM injection. See [§6](#6-consent-data--reading-and-setting). |
 | `aGTM.d.consent_hash` | string | `run_cc()` | Serialized consent at the **last successful** consent-store POST (diff gate). |
 | `aGTM.d.last_consent_hash` | string | `run_cc()` | Serialized consent from the **previous** `run_cc()` (event/callback gate). |
+| `aGTM.d.consent_store_try` | object | `run_cc()` | Retry budget of the consent-store POST: `{hash, n, busy}` — 3 POSTs per consent state, none in parallel for the same state. |
 | `aGTM.d.attribution` | object | `config()` via `resolveAttribution` | Keyed-by-method attribution (`{}` if none). See [§7](#7-sources--attribution). |
 | `aGTM.d.bot` | object | `config()` from `cfg.bot` | Bot-check verdict from the sGTM Client (`{}` if the check is off). See [§5b](#5b-bot-check-verdict). |
 | `aGTM.d.f` | array | `fire()` / `inject()` | Queue of events fired **before** consent; replayed as `hastyEvents`. |
@@ -386,10 +387,11 @@ At the end of **every** successful `run_cc()` (both `init` and `update`):
 2. If `consent_store_url` is set **and** `new_hash !== aGTM.d.consent_hash` → POST
    `{ uid, sid, consent: <without gtmConsent/blocked/empty> }` to `consent_store_url`. On 2xx:
    `consent_hash = new_hash`, `session_status = 'synced'`. On non-2xx: hash unchanged → retried on the
-   next tick — **at most 3 POSTs in total per consent state**, and none for the same state while one
-   is still in flight. `/aGTMconsent` answers with the Session API's real status (not a constant 200)
+   next tick — **3 POSTs per consent state at most** (a return to an earlier state re-arms it), and
+   none for the same state while one is still in flight; giving up is logged once as
+   `e_consent_store_gave_up`. `/aGTMconsent` answers with the Session API's real status (not a constant 200)
    and logs a refused write at `warn`. For a cookie-bound `C.*` uid a `404` "no active session" is
-   healed server-side (session GET — which starts a new session — plus one rewrite).
+   healed server-side (session GET — which, per the api4sgtm maintainer, starts a new session — plus one rewrite).
 3. If the hash matches: `session_status = 'confirmed'` (no POST).
 
 The `aGTM_consent_update` dataLayer event + `consent_callback` are gated on `last_consent_hash`, so a
@@ -640,7 +642,10 @@ Handler responsibilities (the parts the **library** observes or depends on):
 
 - Persist the consent however your session store works (the payload uses **full-replace** semantics —
   same blacklist as the diff hash, so the record can be replaced wholesale).
-- Respond `{ ok: true }` (or `204`). If your backend re-issues the user ID, you may return
+- Respond `{ ok: true }` (or `204`) on success, and a **non-2xx** status when the consent was not
+  stored: only then does the library keep its diff hash and retry (3 POSTs per consent state at
+  most). A backend that answers 2xx on failure switches that retry off — which is exactly what
+  the sGTM Client did before v1.5 (F-236). If your backend re-issues the user ID, you may return
   `{ ok:true, uid:"…" }`; the library adopts a returned `uid` into `aGTM.d.session.uid` **only when it
   starts with literal `C.`** (an upgrade marker — the library never downgrades an already-upgraded ID
   to an echoed fallback).
