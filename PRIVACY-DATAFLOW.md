@@ -432,6 +432,15 @@ Both are consequences of a consent decision arriving at `POST /aGTMconsent` (row
   Only when consent was actually granted with an explicit signal.
 - **S9 consent write** — `POST {session_api_url}/{tenant}/{uid}/consent` persists the
   consent block into the session record (full-replace) when S8 did not already do it.
+  If the Session API answers `404` ("no active session" — the session window ran out
+  between page load and decision) and the uid is a cookie-bound `C.*`, the Client first reads
+  `GET {session_api_url}/{tenant}/{uid}` — the same request as S3 — and writes once more
+  (F-236). Same recipient, same identifier, no new consent data. But it is **not** free of
+  effect: the Session API answers that write with `404` only when more than 30 minutes have
+  passed since the last session read, and a read outside that window starts a new session
+  record (`counter` 0, with its timestamps) — and
+  it does so after an **accept and after a deny** alike — the branch does not depend on the
+  decision. A fingerprint `F.*` uid is never healed this way.
 
 ---
 

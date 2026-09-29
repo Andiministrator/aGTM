@@ -457,7 +457,10 @@ aGTM.f.call_cc()             — called by timer, manually, or sync from config(
   │                                              just ran F→C promote — see SESSION-
   │                                              REDESIGN.md §7b)
   │                                  on non-2xx → leave hash; next run_cc retries
-  │         elif (consent_store_url):
+  │            budget (F-236): at most 3 POSTs per hash, none for the same
+  │            hash while one is in flight (aGTM.d.consent_store_try) — a refusal that
+  │            cannot heal in the page must not be re-POSTed every poll tick
+  │         elif (consent_store_url && hash unchanged):
   │            session_status = 'confirmed'   — server already had this state
   │
   ├─ clearInterval(consent timer)
@@ -516,6 +519,7 @@ aGTM.f.inject()
 | `aGTM.d.dl` | Internal copy of all events passed through `fire()` |
 | `aGTM.d.consent` | Current consent state written by `consent_check`; `.gtmConsent` controls GTM injection |
 | `aGTM.d.consent_hash` | Phase 3: stable serialization of `aGTM.d.consent` (blacklist of `gtmConsent`/`blocked`) at the **last successful consent-store POST**. Used to gate the diff/POST in `run_cc()` and to support retry on 5xx (advances only on 2xx). |
+| `aGTM.d.consent_store_try` | Retry budget of the consent-store POST (F-236): `{hash, n, busy}`. At most 3 POSTs per consent hash, none for the same hash while one is in flight (single slot: A→B→A re-arms A); a new hash starts a fresh budget. Exhaustion is logged once as `e_consent_store_gave_up`. Without it the 2 s poll re-POSTed on every tick for as long as the server refused. |
 | `aGTM.d.last_consent_hash` | State-change hash, advanced on **every** `run_cc()` regardless of POST success. Used to gate `sendnaus(aGTM_consent_update)` + `consent_callback` so the periodic CMP poll does not flood when the consent state is stable. |
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
 | `aGTM.d.noCondLogged` | Guards the `m_consent_no_conditions` log entry to one per page load — `run_cc('update')` also runs on the consent poll, and `aGTM.f.log` neither dedupes nor caps |
@@ -551,7 +555,7 @@ aGTM.f.inject()
 
 **Consent diff/store** (in `aGTM.f.run_cc()`, end of success path — runs on **both** `'init'` and `'update'`):
 - `new_hash = aGTM.f.consent_serialize(aGTM.d.consent)` — blacklist serialization (excludes `gtmConsent`/`blocked` and empty/null values).
-- If `consent_store_url` is set AND `new_hash !== aGTM.d.consent_hash` → POST `{uid, sid, consent: <without gtmConsent/blocked/empty>}` to `consent_store_url` via `aGTM.f.xsend()`. On 2xx response (`xhr.onreadystatechange` gate): update `aGTM.d.consent_hash = new_hash`, set `session_status = 'synced'`. On non-2xx: leave the hash unchanged so the next `run_cc()` retries.
+- If `consent_store_url` is set AND `new_hash !== aGTM.d.consent_hash` → POST `{uid, sid, consent: <without gtmConsent/blocked/empty>}` to `consent_store_url` via `aGTM.f.xsend()`. On 2xx response (`xhr.onreadystatechange` gate): update `aGTM.d.consent_hash = new_hash`, set `session_status = 'synced'`. On non-2xx: leave the hash unchanged so the next `run_cc()` retries — at most 3 POSTs per hash, none for the same hash while one is in flight (`aGTM.d.consent_store_try`, F-236). The sGTM Client passes the Session API's status through (it used to answer a constant 200, which silently disabled this retry). For a cookie-bound `C.*` uid it heals a 404 "no active session" itself: it reads the session with the same GET as `/aGTM.js` and writes exactly once more — outside the 30-min window (measured from the last session GET; the consent write does not extend it) that read starts a new session with `counter` 0, per the api4sgtm maintainer (2026-09-29). An `F.*` fingerprint uid is never healed (shared key, F-156). A remaining non-2xx is logged at `warn`, outside debug.
 - If hash matches: `session_status = 'confirmed'` (server already had this state, no POST).
 - The init path runs the same diff/POST so first-visit CMP decisions (no preset, hash starts as `""`) and returning-visit reconciliations (preset hash matches CMP) both flow through one code path. Payload skips empty/null values to stay symmetric with the hash; the server is expected to use full-replace semantics on the consent record.
 

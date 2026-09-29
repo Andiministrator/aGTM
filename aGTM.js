@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 19.08.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 29.09.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -658,7 +658,17 @@ aGTM.f.run_cc = function (action) {
   // POST, hashChanged becomes false on the retry tick (state stable since
   // last run_cc) but the diff vs consent_hash still triggers the retry POST.
   if (aGTM.c.consent_store_url) {
-    if (newHash !== aGTM.d.consent_hash) {
+    // Retry budget per consent state (F-236): at most 3 POSTs for one hash,
+    // and no second one for the same hash while one is in flight (a single
+    // slot: switching A→B→A re-arms A). Without it the 2 s poll
+    // re-POSTs on every tick for as long as the server refuses — and a
+    // refusal such as "no active session" does not heal within the page, so
+    // a tab left open sent ~1800 requests an hour, all of them failing.
+    // A new decision (new hash) gets a fresh budget.
+    var st = aGTM.d.consent_store_try;
+    if (!st || st.hash !== newHash) st = aGTM.d.consent_store_try = {hash: newHash, n: 0, busy: false};
+    if (newHash !== aGTM.d.consent_hash && !st.busy && st.n < 3) {
+      st.n++;
       // Build payload: uid + sid (when available) + consent block (without
       // client-derived fields, matching the hash's blacklist).
       var consentPayload = {};
@@ -682,10 +692,12 @@ aGTM.f.run_cc = function (action) {
       aGTM.f.log('m_consent_store_post', {url: aGTM.c.consent_store_url, hash: newHash});
       var xhr = aGTM.f.xsend(aGTM.c.consent_store_url, consentPayload, encrypt, salt);
       if (xhr) {
+        st.busy = true;
         // onreadystatechange-gated hash update: leave hash unchanged on
         // non-2xx so the next run_cc retries within the same page load.
         xhr.onreadystatechange = function() {
           if (xhr.readyState !== 4) return;
+          st.busy = false;
           if (xhr.status >= 200 && xhr.status < 300) {
             aGTM.d.consent_hash = newHash;
             aGTM.d.session_status = 'synced';
@@ -716,11 +728,12 @@ aGTM.f.run_cc = function (action) {
               }
             }
           } else {
-            aGTM.f.log('e_consent_store', {status: xhr.status});
+            aGTM.f.log('e_consent_store', {status: xhr.status, attempt: st.n});
+            if (st.n >= 3) aGTM.f.log('e_consent_store_gave_up', {hash: newHash});
           }
         };
       }
-    } else {
+    } else if (newHash === aGTM.d.consent_hash) {
       aGTM.d.session_status = 'confirmed';
     }
   }

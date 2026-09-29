@@ -482,6 +482,37 @@ on every request while the withdrawal stays on record, until it expires.
 three further terms (`sessionRead.ok`, `hasResponse`, the cookie itself) are implied by the
 pass-through filter and kept as defence in depth, so no test can distinguish them.
 
+### Fixed — a consent decision the Session API refused was lost without a trace
+
+Measured in production over 7 days: about 2.8 % of the consent writes behind
+`POST /aGTMconsent` were answered `404 "no active session"`. The sGTM Client ignored the
+status — it logged nothing outside debug mode and answered the browser `200 {ok:true}`
+regardless. That also switched off the library's own retry: it keeps `consent_hash` on a
+non-2xx and tries again, but it never saw one, set `session_status = 'synced'` and stopped.
+The server-side copy of the decision was missing until the visitor's next page view.
+
+- **Client:** a `404` from the consent write means the session window ran out between page
+  load and decision (a banner or tab left open). For a cookie-bound `C.*` uid the Client now
+  reads the session with the same `GET` the `/aGTM.js` path uses and writes **exactly once**
+  more. api4sgtm answers the consent write with `404` once 30 minutes have passed since the
+  last session read (the write itself does not extend the session), and a read outside that
+  window starts a new session with `counter` 0 — so the rewrite lands. A fingerprint `F.*` uid is not healed: it is a shared key (F-156). Any status that is
+  still not 2xx is logged at `warn` (stage and status, no uid) and passed on to the browser;
+  a transport error becomes `502`. The response body's `ok` follows the status.
+- **Library:** passing the status on re-enabled a retry that had no limit — the 2 s consent
+  poll would have re-POSTed on every tick for as long as the server refused, about 1800
+  requests an hour from one open tab. The retry is now capped at **3 POSTs per consent
+  state**, none for the same state while one is in flight (`aGTM.d.consent_store_try`); a
+  new decision starts a fresh budget. Giving up is logged once (`e_consent_store_gave_up`).
+- **aGTM Inspector:** the Simulation tab's consent-store button clears that budget too, or
+  it would have gone quiet after three clicks.
+
+Side effect worth knowing: a consent decision (accept **or** deny) in a tab whose session
+has expired now opens a new session record, without a page view behind it. The request is the same one `/aGTM.js`
+already sends (`PRIVACY-DATAFLOW.md`, S3/S9). Takes effect with the next Client re-import.
+`test/sgtm/consent-persist.test.js` and the retry-budget block in
+`test/consent_store.test.js` pin both halves; each guard is caught by mutation.
+
 ### Documentation — four settings promised something the code does not do
 
 No behaviour changes here, no bytes added to the library: `aGTM.min.js` is byte-identical
