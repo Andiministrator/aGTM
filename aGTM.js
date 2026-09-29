@@ -501,9 +501,19 @@ aGTM.f.chelp = function (need_cons, given_cons) {
     // required purpose/service/vendor against an all-denied category ("") was
     // wrongly treated as granted → GTM loaded without the required consent.
     if (!given_cons) return false;
+    // Empty tokens are skipped: a requirement written in the consent-string
+    // form (",analytics_storage,") used to split into "" tokens, each checked
+    // as ",," and never found — GTM stayed blocked for every visitor, silently.
+    // A requirement made of separators only is a misconfiguration and stays
+    // closed rather than reading as "nothing required".
+    var n = 0;
     need_cons.split(",").forEach(function (consent) {
-      if (given_cons.indexOf("," + consent.trim() + ",") < 0) c = false;
+      consent = consent.trim();
+      if (!consent) return;
+      n++;
+      if (given_cons.indexOf("," + consent + ",") < 0) c = false;
     });
+    if (!n) return false;
   }
   return c;
 };

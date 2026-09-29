@@ -52,6 +52,24 @@ describe('aGTM.f.chelp()', () => {
     expect(aGTM.f.chelp('  Google Analytics ,  Google Remarketing ',
       ',Google Analytics,Google Remarketing,')).toBe(true);
   });
+
+  test('a requirement in consent-string form (",x,") is read as x', () => {
+    // Seen live: gtmPurposes ",analytics_storage," with analytics_storage
+    // granted. The empty tokens were checked as ",," and never found, so GTM
+    // stayed blocked for every visitor and nothing said why.
+    const granted = ',ad_storage,analytics_storage,functionality_storage,';
+    expect(aGTM.f.chelp(',analytics_storage,', granted)).toBe(true);
+    expect(aGTM.f.chelp('analytics_storage,,ad_storage', granted)).toBe(true);
+    // Still a real requirement: a missing entry fails, an empty grant fails.
+    expect(aGTM.f.chelp(',analytics_storage,', ',ad_storage,')).toBe(false);
+    expect(aGTM.f.chelp(',analytics_storage,', '')).toBe(false);
+  });
+
+  test('a requirement made of separators only stays closed', () => {
+    // Skipping empty tokens must not turn "," into "nothing required".
+    expect(aGTM.f.chelp(',', ',analytics_storage,')).toBe(false);
+    expect(aGTM.f.chelp(' , ,', ',analytics_storage,')).toBe(false);
+  });
 });
 
 // ── aGTM.f.evalCons (per-type object evaluation, consent-mode) ────────────────

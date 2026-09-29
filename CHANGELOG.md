@@ -482,6 +482,19 @@ on every request while the withdrawal stays on record, until it expires.
 three further terms (`sessionRead.ok`, `hasResponse`, the cookie itself) are implied by the
 pass-through filter and kept as defence in depth, so no test can distinguish them.
 
+### Fixed — a consent requirement written as `,x,` blocked GTM for everybody
+
+`aGTM.f.chelp()` split a requirement on commas and checked every piece, including the
+empty ones. A requirement typed in the same form as a consent string —
+`gtmPurposes: ',analytics_storage,'` — therefore also demanded `,,`, which no consent
+string contains: GTM never loaded, for any visitor, and nothing in `aGTM.l` said why
+(seen live with a pre-1.5 sGTM Client, which passes the consent table through verbatim, while the CMP had reported `analytics_storage` granted).
+Empty pieces are now skipped. A requirement made of separators only (`','`) stays
+**closed** — it is a misconfiguration, not "nothing required". The sGTM Client already
+normalised its consent table; that normalisation stays as defence in depth and for its
+"adds nothing" report. Library releases before this fix keep the old behaviour: write the
+requirement without the surrounding commas there.
+
 ### Fixed — a consent decision the Session API refused was lost without a trace
 
 Measured in production over 7 days: about 2.8 % of the consent writes behind
