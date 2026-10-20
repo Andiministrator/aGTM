@@ -428,6 +428,9 @@ What it governs:
   The page must send at least its origin as `Referer` (the browser default does); with
   `Referrer-Policy: no-referrer`, load the script with `crossorigin="use-credentials"` so the
   browser sends an `Origin` instead. Enter internationalised hosts in Punycode (`xn--…`).
+  **You will see it when this applies:** such a response carries the header
+  `x-agtm-preset: withheld-cross-site`, and the page's browser console shows a warning starting
+  with `[aGTM] Served WITHOUT session data`.
 - **Consent writes**: a cross-site consent POST from a page that is not allowed is refused with
   403. The library cannot read the answer of any non-allowed origin, so it never reaches
   `synced` there.

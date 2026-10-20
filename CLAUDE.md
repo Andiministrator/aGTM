@@ -690,7 +690,10 @@ its Content-Type.
 in its own window. So the GET handler computes `foreignEmbed` right after the path gate:
 `Sec-Fetch-Site: cross-site`, the page's `Referer` host not allowed (`hostAllowed`) and no
 allowed `Origin` either (a listed page without Referer loads with `crossorigin=use-credentials`).
-Only the Referer **host** is ever logged, and only under `debug`.
+Only the Referer **host** is ever logged, and only under `debug`. The integrator sees it
+anyway: the served script starts with a `console.warn("[aGTM] Served WITHOUT session
+data …")` and the response carries `x-agtm-preset: withheld-cross-site` — otherwise a
+missing `cors_origins` looks like a first-time visitor forever.
 `afterBotCheck` then calls `buildAndSend(null)` before any uid resolution — no Session API,
 no cookie, no Sources POST (closes F-239, `?c=` attribution injection), no `c.bot`, no
 consent-store URL builder. Consequence: an sGTM on a different registrable domain than the

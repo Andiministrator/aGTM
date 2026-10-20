@@ -66,7 +66,9 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   what is lost is the preset. The page is recognised by its `Referer` (the browser default
   sends at least the origin); a page with `Referrer-Policy: no-referrer` must load the script
   with `crossorigin="use-credentials"` instead, so that the browser sends an `Origin`.
-  Enter hosts in Punycode (`xn--…`), as browsers send them. Same-domain setups (the cookie
+  Enter hosts in Punycode (`xn--…`), as browsers send them. Such a page shows a console
+  warning `[aGTM] Served WITHOUT session data`, and the response carries
+  `x-agtm-preset: withheld-cross-site`. Same-domain setups (the cookie
   domain and its subdomains) need nothing. Reason: the Client used to hand every visitor's uid, sid and stored consent
   to any page that asked — by `fetch()` (it echoed every `Origin`) and by `<script src>`
   (F-189).
