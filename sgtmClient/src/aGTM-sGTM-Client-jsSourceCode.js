@@ -378,6 +378,7 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
     if (CFG.debug) logToConsole('debug', '✗ Consent POST refused: cross-site origin not allowed', getRequestHeader('origin'));
     setResponseStatus(403);
     setResponseHeader('Vary', 'Origin');
+    setResponseHeader('Cache-Control', 'no-store');
     setResponseHeader('x-agtm-version', aGTMversion);
     returnResponse();
     return;

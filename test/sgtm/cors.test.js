@@ -297,5 +297,6 @@ describe('allow-list hardening (critic K6/K7)', () => {
     const r = post({}, { origin: 'https://evil.test', host: 'rp.example.com', 'Sec-Fetch-Site': 'Cross-Site' });
     expect(r.status).toBe(403);
     expect(r.headers.Vary).toBe('Origin');
+    expect(r.headers['Cache-Control']).toBe('no-store');
   });
 });

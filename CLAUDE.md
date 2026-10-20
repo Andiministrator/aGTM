@@ -704,7 +704,9 @@ site needs the site's hosts in `cors_origins`, or its visitors get no preset.
 before F-238 any site could store a consent decision in the visitor's name. The POST
 handler therefore refuses with 403, before reading the body, when
 `Sec-Fetch-Site: cross-site` arrives from an origin the allow-list does not name.
-`same-site` / `same-origin` and a missing header (older browsers, server-to-server) pass —
+The guard depends on the proxy in front of the Client passing `Sec-Fetch-Site` through — a
+proxy that strips `Sec-*` headers makes it silently ineffective (check with a cross-site
+request through the real proxy). `same-site` / `same-origin` and a missing header (older browsers, server-to-server) pass —
 refusing them would break real visitors, and the gap they leave is the pre-existing one.
 Not covered and tracked: a server-side caller that knows a uid can still write a consent for
 it — the handler takes the uid from the body (F-240); `auto` on a hosting platform's shared

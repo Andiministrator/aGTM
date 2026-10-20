@@ -653,7 +653,8 @@ For your endpoint that means:
 - **Refuse cross-site writes**: CORS only governs reading. A foreign page can still deliver this POST
   (`mode: 'no-cors'`), with the visitor's cookie if it is `SameSite=None`. The sGTM Client answers a
   request marked `Sec-Fetch-Site: cross-site` from an origin outside its allow-list with `403` before
-  reading the body (F-238); do the same.
+  reading the body (F-238); do the same. This only works if every proxy in front of the endpoint
+  passes `Sec-Fetch-Site` through — test it with a cross-site request through the real proxy.
 
 Handler responsibilities (the parts the **library** observes or depends on):
 
