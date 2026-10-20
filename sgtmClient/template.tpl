@@ -3198,6 +3198,9 @@ scenarios:
   code: |
     const mockData = baseData();
     mockData.cookie_mode = 'consent';
+    // Since F-165 an EMPTY requirement grants nothing, so the grant needs a
+    // requirement that the payload actually meets.
+    mockData.consent_service = 'Google';
     let ckName = '', ckVal = '';
     mockPost('/aGTMconsent', JSON.stringify({uid: 'C.1$cl_test$123.456', consent: {hasResponse: true, services: ',Google,'}}));
     // Capture name + value so a cookie written with the wrong/empty value fails.
@@ -3219,6 +3222,28 @@ scenarios:
     runCode(mockData);
     assertApi('setResponseStatus').wasCalledWith(200);
     assertApi('setCookie').wasNotCalled();
+
+- name: POST consent route with an empty cookie requirement writes no cookie and says so in a header
+  code: |
+    const mockData = baseData();
+    mockData.cookie_mode = 'always';
+    // F-165: no Consent Service/Purpose/Vendor and no deliberate opt-out. The
+    // essential-only answer of a CMP after deny all must not mint a user id.
+    mockPost('/aGTMconsent', JSON.stringify({uid: 'F$1$cl_test$abc.20261020', consent: {hasResponse: true, services: ',Google Tag Manager,Cookie Consent Manager,'}}));
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertApi('setCookie').wasNotCalled();
+    assertApi('setResponseHeader').wasCalledWith('x-agtm-uid-cookie', 'no-consent-requirement');
+
+- name: POST consent route with an empty requirement and the deliberate opt-out mints the user id
+  code: |
+    const mockData = baseData();
+    mockData.cookie_mode = 'always';
+    mockData.cookie_without_condition = true;
+    mockPost('/aGTMconsent', JSON.stringify({uid: 'F$1$cl_test$abc.20261020', consent: {hasResponse: true, services: ',Google Tag Manager,'}}));
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertApi('setCookie').wasCalled();
 
 - name: URL Parameters env - the three GTM environment parameters are appended
   code: |
