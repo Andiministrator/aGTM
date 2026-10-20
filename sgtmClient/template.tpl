@@ -740,10 +740,10 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "TEXT",
         "name": "cors_origins",
-        "displayName": "Additional CORS Origins",
+        "displayName": "Additional CORS Origins (required if this sGTM runs on another domain than your website)",
         "simpleValueType": true,
         "defaultValue": "",
-        "help": "Comma-separated hosts (e.g. shop.example.net) whose pages may read this Client's responses with cookies. Needed only for sites outside the Cookie Domain: https pages on the Cookie Domain and its subdomains are allowed automatically, and with Cookie Domain 'auto' every https page that shares the registrable domain of this sGTM host (rp.example.com allows www.example.com). A page anywhere else gets no CORS header, its consent POSTs are refused, and if it embeds aGTM.js from another site it is served the library without session data. List your site's hosts here if this sGTM runs on a different domain than your site (Punycode for internationalised names; a page with Referrer-Policy no-referrer must load aGTM.js with crossorigin=use-credentials)."
+        "help": "<strong>Fill this in if your website is NOT on the same domain as this sGTM host</strong> (e.g. sGTM on a hosting platform's default host, site on www.shop.de) - otherwise its visitors get no user id and no stored consent, and the browser console shows an [aGTM] warning. Comma-separated hosts (e.g. shop.example.net) whose pages may read this Client's responses with cookies. Needed only for sites outside the Cookie Domain: https pages on the Cookie Domain and its subdomains are allowed automatically, and with Cookie Domain 'auto' every https page that shares the registrable domain of this sGTM host (rp.example.com allows www.example.com). A page anywhere else gets no CORS header, its consent POSTs are refused, and if it embeds aGTM.js from another site it is served the library without session data. List your site's hosts here if this sGTM runs on a different domain than your site (Punycode for internationalised names; a page with Referrer-Policy no-referrer must load aGTM.js with crossorigin=use-credentials)."
       },
       {
         "type": "TEXT",
@@ -2382,7 +2382,12 @@ const buildAndSend = function(sessionData) {
   // Leading "\n" inside the IIFE protects against trailing line comments
   // in user code; trailing ";\n" closes any open expression cleanly.
   const preInit = (CFG.preInitEnabled && CFG.preInitCode) ? 'try{(function(){\n' + CFG.preInitCode + '\n;})();}catch(e){if(typeof console!=="undefined"&&console.error)console.error("[aGTM preInit]",e);}\n' : '';
-  const jsCode = preInit + agtm + cmp + config + 'aGTM.f.init();';
+  // A withheld preset must be visible to whoever integrates the page - otherwise
+  // "the sGTM runs on another domain and nobody filled out Additional CORS Origins"
+  // looks exactly like a first-time visitor, forever. Says nothing about the
+  // visitor, so it is safe to print on any page.
+  const foreignNotice = foreignEmbed ? 'if(typeof console!=="undefined"&&console.warn)console.warn("[aGTM] Served WITHOUT session data (no user id, no stored consent): this page is on another site than the sGTM host and is missing from the sGTM Client field Additional CORS Origins. If this is your own site, add its host there.");\n' : '';
+  const jsCode = preInit + foreignNotice + agtm + cmp + config + 'aGTM.f.init();';
 
   setResponseStatus(200);
   setCorsHeaders();
@@ -2397,6 +2402,8 @@ const buildAndSend = function(sessionData) {
   // the response itself can answer. Set on every /aGTM.js path incl. the 403s —
   // a blocked visitor is the case where you most want to know what blocked them.
   setResponseHeader('x-agtm-version', aGTMversion);
+  // Same notice for whoever reads the network panel rather than the console.
+  if (foreignEmbed) setResponseHeader('x-agtm-preset', 'withheld-cross-site');
   // This body is per-visitor: it inlines cfg.session with uid, sid and — for a
   // returning visitor — their recorded consent, while the URL
   // (/aGTM.js?id=GTM-XXX&c=<page>) is identical for everyone. A shared cache

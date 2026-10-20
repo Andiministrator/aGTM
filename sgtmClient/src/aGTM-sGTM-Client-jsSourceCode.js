@@ -1420,7 +1420,12 @@ const buildAndSend = function(sessionData) {
   // Leading "\n" inside the IIFE protects against trailing line comments
   // in user code; trailing ";\n" closes any open expression cleanly.
   const preInit = (CFG.preInitEnabled && CFG.preInitCode) ? 'try{(function(){\n' + CFG.preInitCode + '\n;})();}catch(e){if(typeof console!=="undefined"&&console.error)console.error("[aGTM preInit]",e);}\n' : '';
-  const jsCode = preInit + agtm + cmp + config + 'aGTM.f.init();';
+  // A withheld preset must be visible to whoever integrates the page - otherwise
+  // "the sGTM runs on another domain and nobody filled out Additional CORS Origins"
+  // looks exactly like a first-time visitor, forever. Says nothing about the
+  // visitor, so it is safe to print on any page.
+  const foreignNotice = foreignEmbed ? 'if(typeof console!=="undefined"&&console.warn)console.warn("[aGTM] Served WITHOUT session data (no user id, no stored consent): this page is on another site than the sGTM host and is missing from the sGTM Client field Additional CORS Origins. If this is your own site, add its host there.");\n' : '';
+  const jsCode = preInit + foreignNotice + agtm + cmp + config + 'aGTM.f.init();';
 
   setResponseStatus(200);
   setCorsHeaders();
@@ -1435,6 +1440,8 @@ const buildAndSend = function(sessionData) {
   // the response itself can answer. Set on every /aGTM.js path incl. the 403s —
   // a blocked visitor is the case where you most want to know what blocked them.
   setResponseHeader('x-agtm-version', aGTMversion);
+  // Same notice for whoever reads the network panel rather than the console.
+  if (foreignEmbed) setResponseHeader('x-agtm-preset', 'withheld-cross-site');
   // This body is per-visitor: it inlines cfg.session with uid, sid and — for a
   // returning visitor — their recorded consent, while the URL
   // (/aGTM.js?id=GTM-XXX&c=<page>) is identical for everyone. A shared cache

@@ -201,6 +201,9 @@ describe('foreign <script src> embed gets no personal data (F-189 via XSSI, F-23
     expect(r.body).not.toContain('/aGTMconsent');
     expect(calls).toEqual([]);
     expect(r.cookies).toEqual([]);
+    // ...and says so, to whoever integrates the page
+    expect(r.headers['x-agtm-preset']).toBe('withheld-cross-site');
+    expect(r.body).toContain('[aGTM] Served WITHOUT session data');
   });
 
   test('cross-site without any Referer (no-referrer policy): treated as foreign', () => {
@@ -226,6 +229,8 @@ describe('foreign <script src> embed gets no personal data (F-189 via XSSI, F-23
   test('same-site (www. embedding rp.): full session, consent store wired', () => {
     const r = embed({ 'sec-fetch-site': 'same-site', referer: 'https://www.example.com/' });
     expect(r.body).toContain('SID-SECRET');
+    expect(r.headers['x-agtm-preset']).toBeUndefined();
+    expect(r.body).not.toContain('Served WITHOUT session data');
     expect(r.body).toContain('/aGTMconsent');
   });
 
