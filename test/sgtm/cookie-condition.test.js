@@ -64,37 +64,41 @@ describe('empty requirement: no cookie after "deny all" (the live case)', () => 
     expect(written(r)).toEqual([]);
   });
 
-  test('the refusal is logged at warn, naming the checkbox exactly — not silent', () => {
+  test('the refusal is visible as a response header — not silent', () => {
     const r = post({ cookie_mode: 'always' }, ESSENTIAL_ONLY);
-    const w = warns(r).filter((l) => l.indexOf('no consent requirement configured') > -1);
-    expect(w.length).toBe(1);
-    // The exact checkbox label from the template, so the log cannot drift from the UI.
-    expect(w[0]).toContain('"Create the user ID cookie without a consent requirement"');
-    expect(w[0]).not.toContain(F_COOKIE);
+    expect(r.headers['x-agtm-uid-cookie']).toBe('no-consent-requirement');
   });
 
-  test('warned once per container instance, not once per page view', () => {
-    // A visitor without a C.* gets no consent preset, so the library re-POSTs
-    // the same decision on every page view. One shared storage = one instance.
-    const storage = new Map();
-    const lines = [1, 2, 3].map(() => warns(post({ cookie_mode: 'always' }, ESSENTIAL_ONLY, { storage: storage }))
-      .filter((l) => l.indexOf('no consent requirement configured') > -1).length);
-    expect(lines).toEqual([1, 0, 0]);
+  test('no warn line at all — at this traffic a per-page-view line is too much', () => {
+    // A visitor without a C.* gets no consent preset, so the library re-POSTs the
+    // same decision on every page view; a once-per-instance flag would need
+    // templateDataStorage, which is deliberately not used.
+    const r = post({ cookie_mode: 'always' }, ESSENTIAL_ONLY);
+    expect(r.logs.filter((l) => l.indexOf('no consent requirement') > -1)).toEqual([]);
   });
 
-  test('no warn under cookie_mode=never — there is no cookie to miss', () => {
+  test('with debug on, the log names the checkbox exactly and no uid', () => {
+    const r = post({ cookie_mode: 'always', debug: true }, ESSENTIAL_ONLY);
+    const d = r.logs.filter((l) => l.indexOf('no consent requirement configured') > -1);
+    expect(d.length).toBe(1);
+    expect(d[0].indexOf('debug')).toBe(0);
+    expect(d[0]).toContain('"Create the user ID cookie without a consent requirement"');
+    expect(d[0]).not.toContain(F_COOKIE);
+  });
+
+  test('no header under cookie_mode=never — there is no cookie to miss', () => {
     const r = post({ cookie_mode: 'never' }, ESSENTIAL_ONLY);
-    expect(warns(r).filter((l) => l.indexOf('no consent requirement') > -1)).toEqual([]);
+    expect(r.headers['x-agtm-uid-cookie']).toBeUndefined();
   });
 
-  test('no warn for a visitor who already has a stable id', () => {
+  test('no header for a visitor who already has a stable id', () => {
     const r = runClient({
       data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'always', tenant_id: 't' },
       path: '/aGTMconsent',
       method: 'POST',
       reqBody: JSON.stringify({ uid: C_COOKIE, sid: 's1', consent: { hasResponse: true, services: ESSENTIAL_ONLY } })
     });
-    expect(warns(r).filter((l) => l.indexOf('no consent requirement') > -1)).toEqual([]);
+    expect(r.headers['x-agtm-uid-cookie']).toBeUndefined();
   });
 });
 
@@ -107,7 +111,7 @@ describe('a configured requirement decides as before', () => {
   test('requirement not met (essential only) → no cookie, no warn about a missing requirement', () => {
     const r = post({ cookie_mode: 'always', consent_service: 'Google Analytics' }, ESSENTIAL_ONLY);
     expect(written(r)).toEqual([]);
-    expect(warns(r).filter((l) => l.indexOf('no consent requirement') > -1)).toEqual([]);
+    expect(r.headers['x-agtm-uid-cookie']).toBeUndefined();
   });
 
   for (const field of ['consent_purpose', 'consent_vendor']) {
@@ -128,7 +132,7 @@ describe('the deliberate opt-out: cookie_without_condition', () => {
   test('ticked → any consent signal creates the cookie (the old behaviour, now a choice)', () => {
     const r = post({ cookie_mode: 'always', cookie_without_condition: true }, ESSENTIAL_ONLY);
     expect(written(r)).toEqual([C_EXPECTED]);
-    expect(warns(r).filter((l) => l.indexOf('no consent requirement') > -1)).toEqual([]);
+    expect(r.headers['x-agtm-uid-cookie']).toBeUndefined();
   });
 
   test('still needs an explicit signal — an empty payload creates nothing', () => {

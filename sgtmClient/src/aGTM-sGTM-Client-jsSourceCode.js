@@ -39,7 +39,6 @@ const generateRandom = require('generateRandom');
 const getTimestampMillis = require('getTimestampMillis');
 const Math = require('Math');
 const computeEffectiveTldPlusOne = require('computeEffectiveTldPlusOne');
-const templateDataStorage = require('templateDataStorage');
 
 // Template config
 const CFG = {
@@ -457,16 +456,17 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   // payload would otherwise be considered "granted" and trigger promote.
   const hasExplicitSignal = !!(cpServices || cpPurposes || cpVendors);
   if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes, granted: granted, explicit: hasExplicitSignal});
-  // Say so when the missing requirement is what stopped the cookie (F-165).
-  // warn, not debug: otherwise a tenant upgrading with empty fields sees the
-  // user-ID cookie stop for new visitors and finds no trace of why. ONCE per
-  // container instance, not per request: a visitor who never gets a C.* gets
-  // no consent preset either, so the library re-POSTs the same decision on
-  // every page view — a per-request warn would be one line per page view for
-  // every visitor who answered the CMP (critic, 2026-10-20).
-  if (consentConditionMissing && !CFG.cookieNoCondition && hasExplicitSignal && isFingerprintUid(cpUid) && CFG.cookieMode !== 'never' && templateDataStorage.getItemCopy('aGTM_warned_no_cookie_condition') !== true) {
-    templateDataStorage.setItemCopy('aGTM_warned_no_cookie_condition', true);
-    logToConsole('warn', '✗ User ID cookie not created: no consent requirement configured (Consent Service/Purpose/Vendor are empty). Fill one in, or tick "Create the user ID cookie without a consent requirement". Logged once per container instance.');
+  // Say so when the missing requirement is what stopped the cookie (F-165) —
+  // without log volume. A visitor who never gets a C.* gets no consent preset
+  // either, so the library re-POSTs the same decision on every page view: a
+  // warn line here would be one per page view for every visitor who answered
+  // the CMP. A once-per-instance flag would need templateDataStorage, which is
+  // deliberately not used (Andi, 2026-10-20: server-side storage at this
+  // traffic). So: a response header, visible in the browser's network tab
+  // (same pattern as x-agtm-preset), plus a debug line.
+  if (consentConditionMissing && !CFG.cookieNoCondition && hasExplicitSignal && isFingerprintUid(cpUid) && CFG.cookieMode !== 'never') {
+    setResponseHeader('x-agtm-uid-cookie', 'no-consent-requirement');
+    if (CFG.debug) logToConsole('debug', '✗ User ID cookie not created: no consent requirement configured (Consent Service/Purpose/Vendor are empty). Fill one in, or tick "Create the user ID cookie without a consent requirement".');
   }
 
   // F→C promote applicability: when the visitor still carries an F.*

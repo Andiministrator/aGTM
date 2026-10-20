@@ -33,8 +33,8 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   every mode except *Never*; fill in one (typically your analytics service). To keep the
   old behaviour on purpose, tick *Create the user ID cookie without a consent
   requirement*. Existing cookies are neither deleted nor stopped by this — an empty
-  requirement is a configuration gap, not a withdrawal. The container log warns once
-  per container instance when the gap blocks a cookie (F-165).
+  requirement is a configuration gap, not a withdrawal. When the gap blocks a cookie,
+  the consent POST answers with `x-agtm-uid-cookie: no-consent-requirement` (F-165).
   **Ids already minted after a rejection** by the old default are still refreshed on
   every request (under `always` there is no deletion path at all). To remove them: fill
   in the requirement, switch *Cookie Mode* to *Consent Required* and tick *Delete Cookie
