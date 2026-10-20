@@ -660,6 +660,20 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
   dropped** — for `asn_reputation` it carries tenant-wide aggregates about *other* visitors
   (`asn`, `asnOrg`, `uniqueIps`, `requests`, `consecutiveWindows`).
 
+### User-ID cookie consent requirement (sGTM Client only, F-165)
+
+`hasRequiredConsent()` grants the `C.*` mint (POST promote / local mint, lazy promote on GET,
+`consent`-mode refresh) only against *Consent Service / Purpose / Vendor*. All three empty
+(`consentConditionMissing`) grants **nothing** unless the checkbox `cookie_without_condition` is
+ticked; the fields are visible in every `cookie_mode` except `never`. An empty requirement is a
+configuration gap, not a withdrawal: it never deletes (the `cookie_delete` branch and
+`sessionConsentRevoked` both exclude it). When it blocks a mint on the consent POST, the answer
+carries `x-agtm-uid-cookie: no-consent-requirement` plus a `debug` line — deliberately no `warn` (a
+visitor without a `C.*` gets no preset and re-POSTs on every page view) and no `templateDataStorage`
+(server-side storage at this traffic). Tests: `test/sgtm/cookie-condition.test.js` + two
+`___TESTS___` scenarios. **`bun test` does not run `___TESTS___`** — after changing Client behaviour,
+grep `^- name:` for scenarios that assume the old behaviour.
+
 ### CORS and the cross-site write guard (sGTM Client only)
 
 `setCorsHeaders()` runs on every answer that a page may need to read: `/aGTM.js` (200) and

@@ -394,7 +394,7 @@ is not optional.
 - **Consent requirement for minting (F-165, since this build).** The `C.*` cookie id is
   only created when the consent grants the requirement in *Consent Service / Purpose /
   Vendor* (visible in every mode except `never`). With all three **empty — the delivered
-  default — no cookie is created at all**, in every mode, and the container log warns.
+  default — no cookie is created at all**, in every mode; the consent POST then answers with the header `x-agtm-uid-cookie: no-consent-requirement` (a log line only with *debug* on).
   Before this build an empty requirement counted as "granted", and a CMP that still
   reports essential services after "deny all" (CCM19 does: six of them) minted a
   365-day cookie despite the rejection. Governing field for the old behaviour:

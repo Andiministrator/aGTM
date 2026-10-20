@@ -102,13 +102,20 @@ describe('empty requirement: no cookie after "deny all" (the live case)', () => 
   });
 });
 
+describe('the header only where a cookie could have been created', () => {
+  test('no header for the auto-denial sentinel', () => {
+    const r = post({ cookie_mode: 'always' }, ',aGTMconsent,');
+    expect(r.headers['x-agtm-uid-cookie']).toBeUndefined();
+  });
+});
+
 describe('a configured requirement decides as before', () => {
   test('requirement met → C.* minted', () => {
     const r = post({ cookie_mode: 'always', consent_service: 'Google Analytics' }, WITH_ANALYTICS);
     expect(written(r)).toEqual([C_EXPECTED]);
   });
 
-  test('requirement not met (essential only) → no cookie, no warn about a missing requirement', () => {
+  test('requirement not met (essential only) → no cookie, no missing-requirement header', () => {
     const r = post({ cookie_mode: 'always', consent_service: 'Google Analytics' }, ESSENTIAL_ONLY);
     expect(written(r)).toEqual([]);
     expect(r.headers['x-agtm-uid-cookie']).toBeUndefined();

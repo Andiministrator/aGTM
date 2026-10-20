@@ -86,10 +86,10 @@ The sGTM Client reads the `c` parameter (Base64-encoded JSON with current URL an
 - Set the GTM ID to match the one from your embed code.
 - Save and publish the client.
 
-### 4. Before going live — three checks
+### 4. Three checks — two before publishing, one right after
 
-1. **Consent requirement for the user-ID cookie:** fill in *Consent Service* (usually your CMP's analytics service). Left empty, no user-ID cookie is created.
-2. **Site on another domain than the sGTM host?** Put its hosts into *Additional CORS Origins*. Same registrable domain (`www.` / `rp.`) needs nothing.
+1. **Consent requirement for the user-ID cookie:** fill in *Consent Service* (usually your CMP's analytics service), exactly as it appears in `aGTM.d.consent.services` (case-sensitive). Left empty, no user-ID cookie is created.
+2. **Site on another domain than the sGTM host?** Put its hosts into *Additional CORS Origins*. Same registrable domain (`www.` / `rp.`) needs nothing (with *Cookie Domain* left on `auto`).
 3. **Does your proxy pass `Sec-Fetch-Site` through?** After publishing, run (with a browser user agent — some CDNs block curl's default):
    `curl -s -o /dev/null -D - -A '<browser UA>' -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: cors' -H 'Origin: https://evil.example' -H 'Referer: https://evil.example/' 'https://<sgtm-host>/aGTM.js?id=<GTM-ID>'`
    Expected: `x-agtm-preset: withheld-cross-site`. Without that header the cross-site protection is silently off — fix the proxy.
@@ -467,7 +467,7 @@ An empty requirement is treated as a configuration gap, **not** as a withdrawal:
 
 #### Create the user ID cookie without a consent requirement
 
-Deliberate opt-out of the rule above: with this ticked and all three fields empty, any non-empty consent answer creates the cookie (the pre-1.5 behaviour). Use it only if your legal basis for the cookie is not consent. It cannot weaken a requirement that is filled in, and only a real checkbox `true` switches it on.
+Deliberate opt-out of the rule above: with this ticked and all three fields empty, any non-empty consent answer creates the cookie (the behaviour of v1.5 builds before F-165). Use it only if your legal basis for the cookie is not consent. It cannot weaken a requirement that is filled in, and only a real checkbox `true` switches it on.
 
 #### Debug Suffix
 

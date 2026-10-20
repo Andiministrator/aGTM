@@ -46,7 +46,18 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   the rule's default group state for those visitors, with the feedback
   `No banner shown (OneTrust geolocation rule)`. In an opt-out / notice-only region
   that is usually *every* group — check the rule if that is not what you want. Only a
-  real boolean `false` counts (F-198).
+  real boolean `false` counts (F-198). Not yet verified in a live no-banner region: if
+  OneTrust has not filled its consent payload before any interaction there, the adapter
+  keeps waiting as before.
+- **Consent Mode tag: changes on the page need a second instance.** An instance on
+  *Consent Initialization* runs once per page load, so a decision changed on the same
+  page — a revocation included — reached Consent Mode only on the next page load
+  (measured live: `analytics_storage` stayed granted after "revoke all"). Add a second
+  instance with *Use it as Consent Update (instead of Default)* on the Custom Event
+  `aGTM_consent_update` with the same mapping, and switch off the CMP's own Consent Mode
+  push if it has one. See `gtm/tags/consent-mode/README-gtm-tag-consent-mode.md` (F-242).
+  The workspace export `gtm/aGTM-GTM-Workspace-Template-18.json` still carries only the
+  page-load instance.
 - **sGTM Client: a visitor without a user-id cookie no longer receives a consent preset.**
   Without a cookie the session is keyed on a server-side fingerprint that is not
   per-visitor, so the stored consent of a stranger could be handed to them. Those visitors

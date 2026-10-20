@@ -1441,7 +1441,7 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   // deliberately not used (Andi, 2026-10-20: server-side storage at this
   // traffic). So: a response header, visible in the browser's network tab
   // (same pattern as x-agtm-preset), plus a debug line.
-  if (consentConditionMissing && !CFG.cookieNoCondition && hasExplicitSignal && isFingerprintUid(cpUid) && CFG.cookieMode !== 'never') {
+  if (consentConditionMissing && !CFG.cookieNoCondition && hasExplicitSignal && !isAutoDenialSentinel && isFingerprintUid(cpUid) && CFG.cookieMode !== 'never') {
     setResponseHeader('x-agtm-uid-cookie', 'no-consent-requirement');
     if (CFG.debug) logToConsole('debug', '✗ User ID cookie not created: no consent requirement configured (Consent Service/Purpose/Vendor are empty). Fill one in, or tick "Create the user ID cookie without a consent requirement".');
   }

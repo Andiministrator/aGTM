@@ -667,6 +667,10 @@ Handler responsibilities (the parts the **library** observes or depends on):
   `{ ok:true, uid:"…" }`; the library adopts a returned `uid` into `aGTM.d.session.uid` **only when it
   starts with literal `C.`** (an upgrade marker — the library never downgrades an already-upgraded ID
   to an echoed fallback).
+  The sGTM Client mints a `C.*` only when the consent grants its configured cookie requirement
+  (*Consent Service / Purpose / Vendor*). With all three empty it mints nothing and answers with
+  `x-agtm-uid-cookie: no-consent-requirement` — if `aGTM.d.session.uid` never turns `C.*` after a
+  consent, check that header first (F-165).
 - **Obfuscated bodies** (`{"q":"…"}`, i.e. `consent_store_enc:true`) require a symmetric server-side
   decoder. It is not part of v1.5 — the reference handler responds `501` and stores nothing, so the
   option silently disables consent persistence. Keep `consent_store_enc` off until full-stack
