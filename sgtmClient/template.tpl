@@ -1360,6 +1360,13 @@ going live: one row per type, several values comma-separated in that row, no
 leading or trailing comma, and name a service the CMP does **not** treat as
 technically necessary. Then test live: "deny all" → no request to `gtm.js`.
 
+**Known limitation (unchanged from 1.4.3, not fixed here):** a consent change on
+the same page reaches aGTM only at the next page view. The field *Consent Events*
+has no effect in the 1.4.x library (the key is never read into the config), events
+a CMP pushes to the dataLayer itself never pass through `aGTM.f.fire()`, and an
+update would not clear a previous grant (CCM19 only writes a non-empty grant).
+Fixing that needs the v1.5 consent handling, so it stays out of 1.4.x.
+
 Build: terser 5.51.2 (`--ecma 5 --keep-fnames --compress --mangle`); the 1.4.3
 blob was built with an older terser, so the bytes differ beyond the two fixes —
 compared after normalising, only `version`, `allowEmptyConsentConditions`,
