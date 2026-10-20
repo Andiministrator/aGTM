@@ -156,7 +156,7 @@ aGTM.f.consent_serialize = function(c) {
 new_hash = consent_serialize(aGTM.d.consent)
 // F-236: retry budget — at most 3 POSTs per hash, none for the same hash in flight
 if (consent_store_url && new_hash !== aGTM.d.consent_hash && budget(new_hash)) {
-  xhr = xsend(consent_store_url, payload, enc, salt)
+  xhr = xsend(consent_store_url, payload, enc, salt, true)  // cred: text/plain + withCredentials (F-160)
   // Hash is updated ONLY on successful POST — see "Failure handling" below
   xhr.onload = function() {
     if (xhr.status >= 200 && xhr.status < 300) {

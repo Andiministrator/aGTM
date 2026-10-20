@@ -300,3 +300,56 @@ describe('allow-list hardening (critic K6/K7)', () => {
     expect(r.headers['Cache-Control']).toBe('no-store');
   });
 });
+
+describe('final-round hardening (QA/critic, session 2026-10-20)', () => {
+  const API = 'https://api.example/tp/session';
+  const foreign = (data, extra) => runClient({
+    data: { ...BASE, session_api_url: API, tenant_id: 't', ...(data || {}) },
+    headers: { host: 'rp.example.com', 'sec-fetch-site': 'cross-site', referer: 'https://evil.test/' },
+    ...(extra || {})
+  });
+
+  test('the withheld-preset notice is wrapped and the body still parses', () => {
+    const r = foreign();
+    expect(r.body).toContain('try{if(typeof console');
+    expect(() => new Function(r.body)).not.toThrow();
+  });
+
+  test('a foreign embed does not run the bot check (no IP/UA to the filter, no block side channel)', () => {
+    const calls = [];
+    const r = foreign({ botCheckEnabled: true, botCheck: 'https://filter.example/tp/filter/t', botCheckMode: 'block' },
+      { http: (url) => { calls.push(url); return { statusCode: 403, body: '{"isBot":true}' }; } });
+    expect(calls.filter((u) => u.indexOf('filter.example') >= 0)).toEqual([]);
+    expect(r.status).toBe(200);
+  });
+
+  test('cors_origins entries that can never match are reported once per /aGTM.js request', () => {
+    const r = js({ cors_origins: '*.example.net, .example.org, ok.example.com' }, {});
+    const w = r.logs.filter((l) => l.indexOf('Additional CORS Origins') >= 0);
+    expect(w.length).toBe(1);
+    expect(w[0]).toContain('*.example.net');
+    expect(w[0]).toContain('.example.org');
+    expect(w[0]).not.toContain('ok.example.com');
+  });
+
+  test('carriage return and no-break space inside a cors_origins entry are dropped', () => {
+    expect(js({ cors_origins: 'a.example.net,b.exam\rple.net' }, { origin: 'https://b.example.net' }).headers[ACAO]).toBe('https://b.example.net');
+    expect(js({ cors_origins: 'a.example.net, c.example.net' }, { origin: 'https://c.example.net' }).headers[ACAO]).toBe('https://c.example.net');
+  });
+
+  test('an IPv6 literal origin is refused', () => {
+    expect(js({ cookie_domain: 'example.com' }, { origin: 'https://[::1]' }).headers[ACAO]).toBeUndefined();
+  });
+
+  test('host comparison is case-insensitive (explicit cookie domain)', () => {
+    const r = runClient({ data: { ...BASE, cookie_domain: 'example.com', session_api_url: API, tenant_id: 't' },
+      headers: { 'sec-fetch-site': 'cross-site', referer: 'https://WWW.EXAMPLE.COM/' },
+      http: () => ({ statusCode: 200, body: JSON.stringify({ sessionId: 'SID-SECRET' }) }) });
+    expect(r.body).toContain('SID-SECRET');
+  });
+
+  test('explicit cookie domain with the suffix list down: only the domain itself is allowed (fail closed)', () => {
+    expect(js({ cookie_domain: 'example.com' }, { origin: 'https://example.com' }, { pslDown: true }).headers[ACAO]).toBe('https://example.com');
+    expect(js({ cookie_domain: 'example.com' }, { origin: 'https://www.example.com' }, { pslDown: true }).headers[ACAO]).toBeUndefined();
+  });
+});

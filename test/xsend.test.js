@@ -65,6 +65,16 @@ describe('aGTM.f.xsend()', () => {
     expect(JSON.parse(MockXHR.last._body)).toEqual({ e: { a: 1 } });
   });
 
+  test('the _post transport does not send credentials', () => {
+    resetAGTM({ transport_url: 'https://collect.example.net/e' });
+    aGTM.d.consent = { gtmConsent: true, hasResponse: true };
+    aGTM.f.fire({ event: 'x', _post: true, _noConsent: true });
+    const xhr = MockXHR.last;
+    expect(xhr).toBeDefined();
+    expect(xhr.withCredentials).not.toBe(true);
+    expect(xhr._headers['Content-Type']).toBe('application/json');
+  });
+
   test('only a literal true switches the mode', () => {
     aGTM.f.xsend('http://example.com/collect', {}, false, 0, 'yes');
     expect(MockXHR.last.withCredentials).not.toBe(true);

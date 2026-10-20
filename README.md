@@ -510,6 +510,8 @@ Numeric salt used to obfuscate the consent-store POST payload (when `consent_sto
 POST endpoint that aGTM sends consent diffs to (Phase 3 of the v1.5 redesign). The sGTM Client handler manages the user-ID cookie AND persists the consent into the Session API record so the next library load returns it via `cfg.session.consent`. When the library is served by the sGTM Client, this URL is built **browser-side** at config time from `document.currentScript.src` + the fixed path `/aGTMconsent` — works under any reverse-proxy prefix transparently. Standalone integrators set this manually. Empty string disables the diff/store mechanism.
 
 - Type: string
+- Own endpoint (no sGTM Client): it receives `text/plain` with credentials and must answer with
+  exact-origin CORS — see [README-for-Integrators](README-for-Integrators.md) §"The consent-store endpoint".
 - Example: `'https://sgtm.example.com/aGTMconsent'`
 - Default: `''`
 

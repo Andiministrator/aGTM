@@ -663,7 +663,8 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
 ### CORS and the cross-site write guard (sGTM Client only)
 
 `setCorsHeaders()` runs on every answer that a page may need to read: `/aGTM.js` (200) and
-`/aGTMconsent` (200 path `finishConsentPost`, 501 path). It always sends `Vary: Origin` and
+`/aGTMconsent` (every status `finishConsentPost` passes through — 200, 404, 502 … — and the 501
+path; not the cross-site 403). It always sends `Vary: Origin` and
 sends `Access-Control-Allow-Origin: <origin>` + `Allow-Credentials: true` **only** for an
 allowed origin (F-189 — it used to echo any origin, so every site could `fetch()` the
 per-visitor body with uid, sid and stored consent):
@@ -674,10 +675,15 @@ per-visitor body with uid, sid and stored consent):
 - or the host is `cookie_domain` or a subdomain of it;
 - or, with `cookie_domain: 'auto'` (the delivered default), the same **eTLD+1** as the
   request host — resolved like `setCookie`'s `auto`: `Forwarded host=`, then
-  `X-Forwarded-Host`, then `Host`. Via `computeEffectiveTldPlusOne`, so
-  `a.github.io` never vouches for `b.github.io`. Fails closed: an empty eTLD+1 never
-  matches, and without the public-suffix list the API returns its argument, so two
-  siblings compare unequal. `'auto'` cannot mean "no CORS" — that would leave F-160
+  `X-Forwarded-Host`, then `Host`. Via `computeEffectiveTldPlusOne`, so `a.example.co.uk`
+  and `b.example.co.uk` are siblings while two `.co.uk` sites are not. Whether the API also
+  honours the PSL's *private* section (`github.io`, `*.run.app`) is not documented — unverified.
+  Fails closed: an empty eTLD+1 never matches, and without the public-suffix list the API
+  returns its argument, so two siblings compare unequal. An explicit `cookie_domain` also
+  requires host and domain to share an eTLD+1 — with the list down only the domain host
+  itself passes. **Consequence of a suffix-list outage:** subdomain pages get no ACAO; their
+  consent POST still arrives and is stored (`same-site` passes the guard), but the library sees
+  status 0, never reaches `synced` and adopts a promoted uid only on the next page view. `'auto'` cannot mean "no CORS" — that would leave F-160
   broken for exactly the default configuration.
 
 The library side (F-160): the consent POST goes `withCredentials` + `text/plain`
@@ -691,12 +697,14 @@ in its own window. So the GET handler computes `foreignEmbed` right after the pa
 `Sec-Fetch-Site: cross-site`, the page's `Referer` host not allowed (`hostAllowed`) and no
 allowed `Origin` either (a listed page without Referer loads with `crossorigin=use-credentials`).
 Only the Referer **host** is ever logged, and only under `debug`. The integrator sees it
-anyway: the served script starts with a `console.warn("[aGTM] Served WITHOUT session
-data …")` and the response carries `x-agtm-preset: withheld-cross-site` — otherwise a
+anyway: the served script (after any pre-init code) runs a `try`-wrapped `console.warn("[aGTM]
+Served WITHOUT session data …")` and the response carries `x-agtm-preset: withheld-cross-site` — otherwise a
 missing `cors_origins` looks like a first-time visitor forever.
 `afterBotCheck` then calls `buildAndSend(null)` before any uid resolution — no Session API,
 no cookie, no Sources POST (closes F-239, `?c=` attribution injection), no `c.bot`, no
-consent-store URL builder. Consequence: an sGTM on a different registrable domain than the
+consent-store URL builder — and the bot check itself is skipped (no IP/UA to the filter on a
+foreign page's behalf, no bot yes/no via the script's onload/onerror). `cors_origins` entries
+starting with `.`/`*` or without a dot are logged once per `/aGTM.js` request at `warn`. Consequence: an sGTM on a different registrable domain than the
 site needs the site's hosts in `cors_origins`, or its visitors get no preset.
 
 **CORS governs reading, not sending** (F-238). A foreign page can still deliver the POST
@@ -710,7 +718,8 @@ request through the real proxy). `same-site` / `same-origin` and a missing heade
 refusing them would break real visitors, and the gap they leave is the pre-existing one.
 Not covered and tracked: a server-side caller that knows a uid can still write a consent for
 it — the handler takes the uid from the body (F-240); `auto` on a hosting platform's shared
-domain trusts every other tenant's subdomain (F-241); a proxy that rewrites `Host` without
+domain trusts every other tenant's subdomain as `same-site`, for reading AND writing, and
+*Cookie Domain* does not fix it — only a custom domain does (F-241); a proxy that rewrites `Host` without
 passing the public host on defeats `auto` (debug log `✗ CORS: origin not allowed` names
 both hosts). The new code avoids `String.prototype.trim` (see `trimCond`) and uses
 `split(' ').join('')`. `test/sgtm/cors.test.js` covers the matrix.

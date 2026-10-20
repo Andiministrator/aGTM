@@ -426,7 +426,7 @@ What it governs:
   stored consent, no Sources write, no consent store. GTM still loads through the CMP flow.
   **So if your sGTM runs on a domain other than your site's, list your site's hosts here.**
   The page must send at least its origin as `Referer` (the browser default does); with
-  `Referrer-Policy: no-referrer`, load the script with `crossorigin="use-credentials"` so the
+  `Referrer-Policy: no-referrer` or `same-origin`, load the script with `crossorigin="use-credentials"` so the
   browser sends an `Origin` instead. Enter internationalised hosts in Punycode (`xn--…`).
   **You will see it when this applies:** such a response carries the header
   `x-agtm-preset: withheld-cross-site`, and the page's browser console shows a warning starting
@@ -439,8 +439,11 @@ Each host you list can read the per-visitor body (uid, session id, stored consen
 sites you operate. With *Cookie Domain* `auto`, the Client derives the sGTM host from
 `Forwarded` / `X-Forwarded-Host` / `Host`, in that order; a proxy that rewrites `Host` to its
 upstream without passing the public one on breaks that derivation — set *Cookie Domain*
-explicitly then. On a hosting platform's shared domain (`<you>.<platform>.io`), `auto` would
-trust every other customer's subdomain of it; set *Cookie Domain* to your own full host.
+explicitly then. **On a hosting platform's shared domain** (`<you>.<platform>.io`, where the
+platform is not its own public suffix), every other customer of that platform is `same-site`
+to you: they can read uid, session id and stored consent via `<script src>` and write
+consents. *Cookie Domain* only narrows CORS and cannot prevent that — use a custom domain of
+your own (F-241). An entry starting with `.` or `*` never matches and is logged as a warning.
 
 #### Fingerprint Allowed
 

@@ -61,7 +61,7 @@ const CFG = {
   // a scheme or path written along is ignored, so "https://shop.example.net/"
   // means shop.example.net. Spaces are dropped by split/join rather than trim():
   // see trimCond below for why this file does not rely on String.prototype.trim.
-  corsOrigins: makeString(data.cors_origins || '').split('\n').join(',').split(',').map(function(h) { const x = h.split(' ').join('').split('\t').join('').split('\r').join('').toLowerCase(); const i = x.indexOf('://'); return (i >= 0 ? x.substring(i + 3) : x).split('/')[0].split(':')[0]; }).filter(function(h) { return !!h; }),
+  corsOrigins: makeString(data.cors_origins || '').split('\n').join(',').split(',').map(function(h) { const x = h.split(' ').join('').split('\u00a0').join('').split('\t').join('').split('\r').join('').toLowerCase(); const i = x.indexOf('://'); return (i >= 0 ? x.substring(i + 3) : x).split('/')[0].split(':')[0]; }).filter(function(h) { return !!h; }),
   fingerprintAllowed: data.fingerprint_allowed !== false,
   sgtmHost: data.sgtm_host || '',
   debugSuffix: data.debug_suffix || '',
@@ -280,8 +280,11 @@ const rmethod = getRequestMethod();
 // cookie_domain 'auto' is the delivered default, so it cannot mean "no CORS":
 // that would leave the consent store broken for exactly the setups F-160 is
 // about. 'auto' resolves the same way setCookie resolves it - the eTLD+1 of the
-// request host - and the origin must share it. Public-suffix aware, so
-// a.github.io never vouches for b.github.io. Fails closed: when the public
+// request host - and the origin must share it. Public-suffix aware for ICANN
+// suffixes (two .co.uk sites are not siblings); whether the API also honours
+// the list's private section (github.io, run.app) is undocumented, and a
+// platform domain missing from the list is shared by all its tenants (F-241).
+// Fails closed: when the public
 // suffix list is unavailable the API returns its argument unchanged, two
 // different subdomains then compare unequal, and no header is sent.
 const hostOf = function(v) {
@@ -646,6 +649,12 @@ const foreignEmbed = makeString(getRequestHeader('sec-fetch-site') || '').toLowe
 // Only the host: a Referer can carry a full page URL with personal data in its
 // query, and any foreign page can trigger this line.
 if (foreignEmbed && CFG.debug) logToConsole('debug', '✗ Cross-site embed from a page not on the allow-list - serving without session data', httpsHost(getRequestHeader('referer')));
+
+// cors_origins takes exact hosts. A wildcard or leading-dot entry looks like it
+// should cover subdomains and silently covers nothing - say so, once per /aGTM.js request
+// (tenant configuration, so `warn`, not caller-driven).
+const corsOriginsNeverMatch = CFG.corsOrigins.filter(function(h) { return h.charAt(0) === '.' || h.charAt(0) === '*' || h.indexOf('.') < 0; });
+if (corsOriginsNeverMatch.length > 0) logToConsole('warn', '\u2717 Additional CORS Origins: entries that never match (exact hosts only, no wildcard or leading dot): ' + corsOriginsNeverMatch.join(','));
 
 // Decode ?c= → {u: pageUrl, r: referrer}
 const queryParameters = getRequestQueryParameters();
@@ -1425,7 +1434,9 @@ const buildAndSend = function(sessionData) {
   // "the sGTM runs on another domain and nobody filled out Additional CORS Origins"
   // looks exactly like a first-time visitor, forever. Says nothing about the
   // visitor, so it is safe to print on any page.
-  const foreignNotice = foreignEmbed ? 'if(typeof console!=="undefined"&&console.warn)console.warn("[aGTM] Served WITHOUT session data (no user id, no stored consent): this page is on another site than the sGTM host and is missing from the sGTM Client field Additional CORS Origins. If this is your own site, add its host there.");\n' : '';
+  // Wrapped: a page that replaced console.warn with something that throws must
+  // not lose the library over a notice.
+  const foreignNotice = foreignEmbed ? 'try{if(typeof console!=="undefined"&&console.warn)console.warn("[aGTM] Served WITHOUT session data (no user id, no stored consent): this page is on another site than the sGTM host, and it is either missing from the sGTM Client field Additional CORS Origins or sent no Referer (Referrer-Policy no-referrer or same-origin). If this is your own site, add its host there, and load aGTM.js with crossorigin=use-credentials if it sends no Referer.");}catch(e){}\n' : '';
   const jsCode = preInit + foreignNotice + agtm + cmp + config + 'aGTM.f.init();';
 
   setResponseStatus(200);
@@ -1779,7 +1790,11 @@ const afterBotCheck = function(isBot) {
 // rollout step that is supposed to be safe.
 const botNoIpBlocks = CFG.botCheckMode === 'block';
 
-if (botCheckEnabled && botCheckUrl) {
+// A foreign embed is not checked: it is served nothing personal anyway, and
+// running the check would send this visitor's IP and user agent to the filter
+// service on behalf of a page that is not ours - and, in block mode, hand that
+// page a bot yes/no through the script's onload/onerror.
+if (botCheckEnabled && botCheckUrl && !foreignEmbed) {
   if (!clientIP && botNoIpBlocks) {
     logToConsole('error', '\u2717 Bot check enabled but no client IP');
     setResponseStatus(403);

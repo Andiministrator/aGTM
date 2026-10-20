@@ -134,7 +134,9 @@ anything else happens. In shape B it is row S1, and it carries considerably more
   one successfully stored.
 - **Sent:** POST `{"e":{uid, sid, consent:{…}}}`. The consent block is what the CMP adapter
   reported (purposes / services / vendors / `consent_id` / `feedback` …) minus the
-  client-derived `gtmConsent`/`blocked` and minus empty values.
+  client-derived `gtmConsent`/`blocked` and minus empty values. Sent as `text/plain` **with
+  credentials**, so the user-id cookie travels along even when the sGTM host is a sibling
+  subdomain of the page (F-160).
 - **Recipient:** `aGTM.c.consent_store_url`. In shape B the library **derives** it in the
   browser from `document.currentScript.src` + `/aGTMconsent`, so it always points at the
   same host that served the library (this is what makes reverse-proxy setups work).
@@ -418,12 +420,20 @@ Two properties of that response belong in an assessment:
     *Cookie Domain* `auto`: origins sharing the sGTM host's registrable domain) and to the
     hosts in *Additional CORS Origins*.
   - A request the browser marks `cross-site` from a page outside that list is served the
-    library **without** session data, bot verdict or consent store.
+    library **without** session data, bot verdict or consent store, and the bot check is not
+    run for it (no IP or user agent goes to the filter service on its behalf).
   - **Limits:** every subdomain of the allowed domain is trusted, including one run by a
     third party (a shop or landing-page service on `shop.example.com`) — the same trust a
     domain-wide cookie already implies. Browsers that do not send `Sec-Fetch-Site` (roughly
-    Safari before 16.4) are served as before. An installation on an older Client still has
-    the full exposure — check the `x-agtm-version` header of its answer.
+    Safari before 16.4) are served as before. **A Client on a hosting platform's shared
+    domain** (`<you>.<platform>.io`, where the platform is not its own public suffix) trusts
+    every other customer of that platform as `same-site`: they can read uid, sid and stored
+    consent via `<script src>` and write consents. *Cookie Domain* does not fix that — only a
+    custom domain of your own does (F-241). An installation on an older Client still has the
+    full exposure. The version header does not tell (both say 1.5 until the release) — probe
+    instead: `curl -sI -H 'Origin: https://example.org' 'https://<sgtm-host>/aGTM.js?id=GTM-XXXXXX'`.
+    An old Client echoes `https://example.org` in `Access-Control-Allow-Origin`; a fixed one
+    answers `Vary: Origin` without it.
 - **Who may write a consent.** A consent POST marked `cross-site` from an origin outside the
   list is refused (F-238), so a foreign page can no longer store a decision through the
   visitor's browser. **Not covered:** a caller without a browser that knows a visitor's uid
