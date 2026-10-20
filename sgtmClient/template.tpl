@@ -3270,6 +3270,51 @@ scenarios:
     runCode(mockData);
     assertApi('setResponseStatus').wasNotCalled();
     assertApi('returnResponse').wasNotCalled();
+
+- name: CORS - a sibling subdomain under cookie_domain auto gets the allowance (real eTLD+1 API)
+  code: |
+    const mockData = baseData();
+    mockPost('/aGTMconsent', JSON.stringify({e: {uid: 'C.1$cl_test$123456.789', consent: {hasResponse: true, services: ',Google,'}}}));
+    const hdr = {origin: 'https://www.example.com', host: 'rp.example.com', 'sec-fetch-site': 'same-site'};
+    mock('getRequestHeader', function(h) { return hdr[h.toLowerCase()] || ''; });
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertApi('setResponseHeader').wasCalledWith('Vary', 'Origin');
+    assertApi('setResponseHeader').wasCalledWith('Access-Control-Allow-Origin', 'https://www.example.com');
+    assertApi('setResponseHeader').wasCalledWith('Access-Control-Allow-Credentials', 'true');
+
+- name: CORS - a foreign origin gets no allowance on the library answer
+  code: |
+    const mockData = baseData();
+    mockGet({id: 'GTM-XYZ123'}, '/aGTM.js', '203.0.113.9');
+    const hdr = {origin: 'https://evil.example', host: 'rp.example.com', 'sec-fetch-site': 'cross-site', referer: 'https://evil.example/'};
+    mock('getRequestHeader', function(h) { return hdr[h.toLowerCase()] || ''; });
+    runCode(mockData);
+    assertApi('setResponseHeader').wasCalledWith('Vary', 'Origin');
+    assertApi('setResponseHeader').wasNotCalledWith('Access-Control-Allow-Origin', 'https://evil.example');
+
+- name: Cross-site consent POST from a foreign origin - 403 before the body is read
+  code: |
+    const mockData = baseData();
+    mockPost('/aGTMconsent', JSON.stringify({e: {consent: {hasResponse: true, services: ',Google,'}}}));
+    const hdr = {origin: 'https://evil.example', host: 'rp.example.com', 'sec-fetch-site': 'cross-site'};
+    mock('getRequestHeader', function(h) { return hdr[h.toLowerCase()] || ''; });
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(403);
+    assertApi('setResponseHeader').wasCalledWith('Cache-Control', 'no-store');
+    assertApi('getRequestBody').wasNotCalled();
+
+- name: Foreign embed - library served without session data, with notice and header
+  code: |
+    const mockData = baseData();
+    mockGet({id: 'GTM-XYZ123'}, '/aGTM.js', '203.0.113.9');
+    const hdr = {host: 'rp.example.com', 'sec-fetch-site': 'cross-site', referer: 'https://evil.example/page'};
+    mock('getRequestHeader', function(h) { return hdr[h.toLowerCase()] || ''; });
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertApi('setResponseHeader').wasCalledWith('x-agtm-preset', 'withheld-cross-site');
+    assertThat(body).contains('Served WITHOUT session data');
+    assertThat(body).doesNotContain('/aGTMconsent');
 setup: |-
   // ── Test helpers (shared, re-run before every scenario) ────────────────────
   // Server sandbox: JSON is not a global — require it for the POST-body mocks.
