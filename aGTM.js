@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.4.2
- * @lastupdate 01.09.2025 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.4.3
+ * @lastupdate 20.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -30,7 +30,7 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
   var props = [
-    [aGTM.d, "version", "1.4.2"],
+    [aGTM.d, "version", "1.4.3"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
@@ -175,6 +175,7 @@ aGTM.f.config = function (cfg) {
   aGTM.f.an(aGTM.c, "gtmPurposes", cfg, ""); // The purpose(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Functional'
   aGTM.f.an(aGTM.c, "gtmServices", cfg, ""); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
   aGTM.f.an(aGTM.c, "gtmVendors", cfg, ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
+  aGTM.f.an(aGTM.c, "allowEmptyConsentConditions", cfg, false); // Load GTM even though gtmPurposes/gtmServices/gtmVendors are ALL empty, i.e. run no consent gate at all. Default false = fail-closed: with no requirement configured, GTM is not loaded (F-167). Only set this if you deliberately want no gate; it does not weaken a gate you did configure.
   aGTM.f.an(aGTM.c, "gtmAttr", cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
   aGTM.f.an(aGTM.c, "ckPurposes", cfg, ""); // The purpose(s) that must be agreed to set a cookie (comma-separated), e.g. 'Functional'
   aGTM.f.an(aGTM.c, "ckServices", cfg, ""); // The services(s) that must be agreed to set a cookie (comma-separated), e.g. 'TP User ID Cookie'
@@ -277,15 +278,26 @@ aGTM.f.load_cc = function (cmp, callback) {
 };*/
 
 /**
- * Helper fuction for the consent function
+ * Helper fuction for the consent function.
+ * Returns true only if EVERY required entry in need_cons is present in the
+ * comma-wrapped given_cons. If a requirement is set but nothing was granted
+ * (given_cons empty/falsy), it returns FALSE — a configured requirement that
+ * received no matching consent is not satisfied (fail-closed, F-49). No
+ * requirement (need_cons empty/falsy) means "nothing to satisfy" → true.
  * @property {function} aGTM.f.chelp
  * @param {string} need_cons - a string with the purposes/vendors that need consent (comma-separated)
- * @param {string} given_cons - a string with the purposes/vendors that need consent (comma-separated and with a comma at the beginning and at the end)
+ * @param {string} given_cons - a string with the purposes/vendors that were granted (comma-separated and with a comma at the beginning and at the end)
+ * @returns {boolean} - true if all required entries are granted (or nothing is required), false otherwise
  * Usage: aGTM.f.chelp('Google Analytics, Google Remarketing', 'Google Analytics');
  */
 aGTM.f.chelp = function (need_cons, given_cons) {
   var c = true;
-  if (need_cons && given_cons) {
+  if (need_cons) {
+    // A requirement exists: nothing granted → not satisfied (fail-closed).
+    // Previously the whole block was skipped when given_cons was empty, so a
+    // required purpose/service/vendor against an all-denied category ("") was
+    // wrongly treated as granted → GTM loaded without the required consent.
+    if (!given_cons) return false;
     need_cons.split(",").forEach(function (consent) {
       if (given_cons.indexOf("," + consent.trim() + ",") < 0) c = false;
     });
@@ -347,7 +359,31 @@ aGTM.f.run_cc = function (action) {
   }
   // Set GTM consent status
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
-  if (
+  // No consent condition configured at all. Each chelp() call answers "nothing
+  // required → satisfied", so the chain below would be true for everybody and
+  // GTM would load even after the visitor clicked "deny all" — the sGTM Client
+  // ships its condition table empty, so that was the default behaviour rather
+  // than an edge case (F-167). An empty requirement is treated as "no decision
+  // has been expressed that could justify loading", i.e. fail-closed; an
+  // integrator who deliberately wants no gate says so with
+  // allowEmptyConsentConditions.
+  //
+  // `cmp: 'none'` and the iframe mode are excluded explicitly, not by accident
+  // of control flow: both set gtmConsent directly in init(), but run_cc stays
+  // reachable afterwards through consent_events. Flipping gtmConsent to false
+  // there would leave GTM loaded while every later event queues into aGTM.d.f
+  // and is never delivered (F-180).
+  var noGate = aGTM.c.cmp === 'none' || (aGTM.c.iframeSupport && aGTM.d.is_iframe);
+  var noConditions = !aGTM.c.gtmPurposes && !aGTM.c.gtmServices && !aGTM.c.gtmVendors;
+  if (noConditions && !noGate && !aGTM.c.allowEmptyConsentConditions) {
+    aGTM.d.consent.gtmConsent = false;
+    // Logged once per page load: run_cc('update') can run repeatedly, and
+    // aGTM.f.log neither dedupes nor caps.
+    if (!aGTM.d.noCondLogged) {
+      aGTM.d.noCondLogged = true;
+      aGTM.f.log("m_consent_no_conditions", null);
+    }
+  } else if (
     aGTM.f.chelp(aGTM.c.gtmPurposes, aGTM.d.consent.purposes) &&
     aGTM.f.chelp(aGTM.c.gtmServices, aGTM.d.consent.services) &&
     aGTM.f.chelp(aGTM.c.gtmVendors, aGTM.d.consent.vendors)
