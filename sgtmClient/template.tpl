@@ -342,8 +342,8 @@ ___TEMPLATE_PARAMETERS___
           }
         ],
         "newRowButtonText": "Add Consent Check",
-        "notSetText": "Add at least one consition, otherwise no consent check will run.",
-        "help": "Setup the Consent Conditions. Add at least one consition, otherwise no consent check will run."
+        "notSetText": "Add at least one condition. Without one, GTM is not loaded (since 1.4.4).",
+        "help": "Setup the Consent Conditions. Add at least one condition. Without one, GTM is not loaded (since 1.4.4). Use one row per type; several values go comma-separated into that row (a second row of the same type replaces the first)."
       },
       {
         "type": "GROUP",
@@ -1337,16 +1337,33 @@ nothing else:
   against an **empty** granted list counted as satisfied. CMPs that report a fully
   denied category as an empty string (CCM19, Cookiebot, Usercentrics) therefore
   loaded GTM after "deny all" whenever a condition was configured. A condition
-  against an empty grant is now **not** satisfied. The same check feeds the `ck`
-  parameter of the GTM URL, so `ck=2` is no longer sent for an empty grant either.
+  against an empty grant is now **not** satisfied.
+- **The same check feeds the `ck` parameter** of the GTM URL (*Cookie Consent
+  Conditions*). `ck=2` is no longer sent for an empty grant. Note what that means
+  for **noConsent** containers: their URL is built before any CMP answer, so
+  1.4.3 sent them `ck=2` always — also before a decision and after "deny all" —
+  and 1.4.4 sends them `ck=1` always, also for visitors who accept. Containers
+  behind the consent gate still get `ck=2` when the cookie condition is granted.
+  Check whether anything server-side relies on `ck=2` from a noConsent container.
 - **F-167:** with the condition table **empty** — the delivered default — every
   visitor counted as consenting and GTM loaded for everybody, also after "deny
   all". An empty table is now fail-closed: **GTM does not load until a condition
-  is configured.** Whoever deliberately wants no gate sets
-  `allowEmptyConsentConditions: true` (library config; default off).
+  is configured.** The library option `allowEmptyConsentConditions: true`
+  (standalone use; default off) restores the old behaviour — **this Client has no
+  field for it**.
 
-⚠️ **Behaviour change on import:** a container without any consent condition stops
-loading GTM. Configure at least one condition before going live.
+⚠️ **Behaviour change on import:** without any row in *Consent Check Conditions*
+(the table applies to the whole Client, not per container), no consent-gated
+container loads, and events sent through aGTM no longer reach **noConsent**
+containers either — they stay queued. Configure at least one condition before
+going live: one row per type, several values comma-separated in that row, no
+leading or trailing comma, and name a service the CMP does **not** treat as
+technically necessary. Then test live: "deny all" → no request to `gtm.js`.
+
+Build: terser 5.51.2 (`--ecma 5 --keep-fnames --compress --mangle`); the 1.4.3
+blob was built with an older terser, so the bytes differ beyond the two fixes —
+compared after normalising, only `version`, `allowEmptyConsentConditions`,
+`chelp` and `run_cc` change.
 
 ## What is new in 1.4.3
 

@@ -385,6 +385,15 @@ The vendor(s) that must be agreed to in order to activate the GTM (comma-separat
 - Example: `'Google Inc'`
 - Default: `''`
 
+If `gtmPurposes`, `gtmServices` and `gtmVendors` are **all** empty, GTM is not loaded (fail-closed, since library 1.4.3). A configured condition against an empty grant is not satisfied either.
+
+### allowEmptyConsentConditions
+
+Load GTM even though `gtmPurposes`, `gtmServices` and `gtmVendors` are all empty, i.e. run no consent gate at all (`cmp: 'none'` and the iframe mode are unaffected). It does not weaken a condition that is configured. Since library 1.4.3.
+
+- Type: boolean
+- Default: `false`
+
 ### consent_events
 
 string with consent events (comma-separated) for updating the consent

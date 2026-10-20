@@ -170,7 +170,11 @@ describe('F-167 — empty consent conditions are fail-closed', () => {
     expect(aGTM.d.consent.gtmConsent).toBe(true);
 
     aGTM.f.consent_check = function () { aGTM.d.consent.hasResponse = true; return true; };
-    aGTM.f.fire({ event: 'cmpUpdate' });
+    // 1.4.x: config() does not read consent_events, so fire({event:'cmpUpdate'})
+    // would never reach run_cc and the test would pass without the guard (the
+    // 1.4.x critic showed that by mutation). Call run_cc directly instead — the
+    // guard must hold for any caller that reaches it.
+    aGTM.f.run_cc('update');
     expect(aGTM.d.consent.gtmConsent).toBe(true);
 
     var before = aGTM.d.f.length;

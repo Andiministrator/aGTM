@@ -158,7 +158,7 @@ In case you have a special consent tool, you could create an own consent_check f
 
 #### Consent Check Conditions
 
-Setup the Consent Conditions. Add at least one consition, otherwise no consent check will run.
+Setup the Consent Conditions. Add at least one condition. Without one, GTM is not loaded (since 1.4.4). Use one row per type; several values go comma-separated into that row (a second row of the same type replaces the first).
 Depending, which CMP you have selected, it will provide the given Consent for Purposes, Services and/or Vendors.
 Now you could say, that the GTM should only fire, if the user has given consent for the Category "Statistics".
 And (in addition) the user has given consent for the special service "Google Tag Manager"
