@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: OneTrust CookiePro
- * @version 1.2
- * @lastupdate 13.08.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.3
+ * @lastupdate 20.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @compatibility aGTM 1.4.x and 1.5.x — this file touches only aGTM.d.consent and the
  *   (typeof-guarded) aGTM.f.log, both of which exist unchanged in either line.
  * @author Andi Petzoldt <andi@petzoldt.net>
@@ -94,8 +94,23 @@ aGTM.f.consent_check = function (action) {
     if (boxRaw===true || boxRaw===false) boxClosed = boxRaw;
   }
 
+  // Is a banner shown to this visitor at all? (F-198)
+  //
+  // `ShowAlertNotice` is set per OneTrust geolocation rule. A rule may show NO
+  // banner — and then, unless every group is "always active"/"inactive
+  // landingpage" (soft opt-in, where the SDK writes OptanonAlertBoxClosed
+  // itself), nothing ever writes that cookie: IsAlertBoxClosed() stays false for
+  // the whole visit and the branch below would keep aGTM waiting forever, GTM
+  // never loading, without any error. For such a visitor the configured group
+  // state IS the final answer — there is nothing left to wait for — so it is
+  // reported like a decision. Only a REAL boolean `false` counts (same reasoning
+  // as for IsAlertBoxClosed); anything else keeps the waiting behaviour.
+  var noBanner = (obj.ShowAlertNotice===false);
+
   var interaction = false;
   if (boxClosed===true) {
+    interaction = true;
+  } else if (boxClosed===false && noBanner) {
     interaction = true;
   } else if (boxClosed===false) {
     // The visitor has not answered. Nothing below may run.
@@ -154,7 +169,8 @@ aGTM.f.consent_check = function (action) {
   aGTM.d.consent.purposes = ',' + purpose_names.join(',') + ',';
 
   // Build Feedback
-  if (aGTM.d.consent.interaction_type) { aGTM.d.consent.feedback = aGTM.d.consent.interaction_type; }
+  if (boxClosed===false && noBanner) { aGTM.d.consent.feedback = 'No banner shown (OneTrust geolocation rule)'; }
+  else if (aGTM.d.consent.interaction_type) { aGTM.d.consent.feedback = aGTM.d.consent.interaction_type; }
   else if (cats_total==cats_essential_count) { aGTM.d.consent.feedback = 'No OptIn Categories available'; }
   else if (cats_count==cats_total) { aGTM.d.consent.feedback = 'Consent full accepted'; }
   else if (cats_count==cats_essential_count) { aGTM.d.consent.feedback = 'Consent declined'; }

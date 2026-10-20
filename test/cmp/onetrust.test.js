@@ -26,7 +26,7 @@ function domainData(opts) {
     Id: pid,
     TransactionType: id === 'C0001' ? 'NO_CHOICE' : (granted.indexOf(id) >= 0 ? 'CONFIRMED' : 'OPT_OUT')
   });
-  return {
+  const d = {
     ConsentModel: { Name: o.consentModel || 'opt-in' },
     Groups: [
       { OptanonGroupId: 'C0001', GroupName: 'Strictly Necessary Cookies', PurposeId: PID_ESSENTIAL },
@@ -41,6 +41,10 @@ function domainData(opts) {
       }
     }
   };
+  // ShowAlertNotice is set per geolocation rule (F-198). Absent unless a test
+  // sets it, so every older test keeps the shape it was written against.
+  if ('showAlertNotice' in o) d.ShowAlertNotice = o.showAlertNotice;
+  return d;
 }
 
 /**
@@ -205,6 +209,50 @@ describe('OneTrust: setups without IsAlertBoxClosed keep their old behaviour', (
 
   test('no API, no signal at all → still waits', () => {
     const r = check({ boxClosed: undefined, interaction: 0 });
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('OneTrust: a region without a banner must not wait forever (F-198)', () => {
+  // A geolocation rule with ShowAlertNotice:false shows no banner. Outside soft
+  // opt-in nothing ever writes OptanonAlertBoxClosed, so IsAlertBoxClosed() stays
+  // false for the whole visit — before the fix aGTM polled forever and GTM never
+  // loaded, silently. The configured group state is the final answer there.
+  test('no banner + box never closed → reports the configured state', () => {
+    const r = check({ boxClosed: false, showAlertNotice: false, interaction: 0, granted: ['C0001'] });
+    expect(r.ok).toBe(true);
+    expect(r.consent.hasResponse).toBe(true);
+    expect(r.consent.purposes).toBe(',Strictly Necessary Cookies,');
+    expect(r.consent.feedback).toBe('No banner shown (OneTrust geolocation rule)');
+  });
+
+  test('no banner reports only what is actually on — it grants nothing extra', () => {
+    const r = check({ boxClosed: false, showAlertNotice: false, granted: ['C0001', 'C0002'] });
+    expect(r.ok).toBe(true);
+    expect(r.consent.purposes).toBe(',Strictly Necessary Cookies,Performance Cookies,');
+  });
+
+  test('banner shown + box not closed → still waits (the F-195 guard is intact)', () => {
+    const r = check({ boxClosed: false, showAlertNotice: true, interaction: 1 });
+    expect(r.ok).toBe(false);
+    expect(r.consent.hasResponse).toBeFalsy();
+  });
+
+  for (const bad of ['false', 0, null, '', undefined]) {
+    test(`ShowAlertNotice ${JSON.stringify(bad)} is not "no banner" — still waits`, () => {
+      const r = check({ boxClosed: false, showAlertNotice: bad, interaction: 1 });
+      expect(r.ok).toBe(false);
+    });
+  }
+
+  test('no banner + box closed → the ordinary decision path and its feedback', () => {
+    const r = check({ boxClosed: true, showAlertNotice: false, granted: ['C0001'] });
+    expect(r.ok).toBe(true);
+    expect(r.consent.feedback).toBe('Consent declined');
+  });
+
+  test('no banner does not change the legacy path (no IsAlertBoxClosed API)', () => {
+    const r = check({ boxClosed: undefined, showAlertNotice: false, interaction: 0 });
     expect(r.ok).toBe(false);
   });
 });

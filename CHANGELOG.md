@@ -24,6 +24,29 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   most likely reason for "GTM stopped loading after the update". The fix is one row in the
   table; to deliberately run without a gate, set `allowEmptyConsentConditions: true`
   (Client: *Load GTM without any consent gate*).
+- **Breaking (sGTM Client): no user-ID cookie without a consent requirement.** With
+  *Consent Service*, *Purpose* and *Vendor* all empty — the delivered default — the
+  Client used to create the 365-day user-ID cookie on **any** consent answer, including
+  "deny all": most CMPs still report their essential services then (measured on CCM19:
+  six "technically necessary" services after "only necessary → save"). An empty
+  requirement now grants nothing, in every cookie mode. The three fields are visible in
+  every mode except *Never*; fill in one (typically your analytics service). To keep the
+  old behaviour on purpose, tick *Create the user ID cookie without a consent
+  requirement*. Existing cookies are neither deleted nor stopped by this — an empty
+  requirement is a configuration gap, not a withdrawal. The container log warns once
+  per container instance when the gap blocks a cookie (F-165).
+  **Ids already minted after a rejection** by the old default are still refreshed on
+  every request (under `always` there is no deletion path at all). To remove them: fill
+  in the requirement, switch *Cookie Mode* to *Consent Required* and tick *Delete Cookie
+  if Consent is denied* — `/aGTM.js` then deletes the cookie of every visitor whose
+  recorded consent does not meet the requirement. Alternatively change *Cookie Name*.
+- **OneTrust: a region without a banner no longer blocks GTM.** Where a OneTrust
+  geolocation rule shows no banner (`ShowAlertNotice: false`), nothing records a
+  decision outside soft opt-in, and the adapter waited for one forever. It now reports
+  the rule's default group state for those visitors, with the feedback
+  `No banner shown (OneTrust geolocation rule)`. In an opt-out / notice-only region
+  that is usually *every* group — check the rule if that is not what you want. Only a
+  real boolean `false` counts (F-198).
 - **sGTM Client: a visitor without a user-id cookie no longer receives a consent preset.**
   Without a cookie the session is keyed on a server-side fingerprint that is not
   per-visitor, so the stored consent of a stranger could be handed to them. Those visitors
@@ -288,13 +311,13 @@ CookiePro trait; do not read them as "some setups keep the old behaviour", becau
 those builds the fallback is unreachable. Only a real boolean counts as an answer, and a
 throwing SDK method cannot escape the check.
 
-**One case to check before rolling this out.** OneTrust can be configured to show no
-banner at all in a region (`ShowAlertNotice: false`, a geolocation rule). Where that
-happens and the setup is not soft opt-in, nothing writes that cookie, so
-`IsAlertBoxClosed()` stays `false` for the whole visit and **GTM never loads for those
-visitors** — silently, where before it would have loaded. Whether aGTM should treat
-"OneTrust asks nothing" as a decision is an open question (finding F-198); see
-`cmp/README-cmp.md` for how to check your own tenant.
+**A region without a banner (resolved later in this release, F-198).** OneTrust can be
+configured to show no banner at all in a region (`ShowAlertNotice: false`, a geolocation
+rule). Where that happens and the setup is not soft opt-in, nothing writes that cookie,
+so `IsAlertBoxClosed()` stayed `false` for the whole visit and GTM never loaded for those
+visitors. The adapter (v1.3) now treats "OneTrust shows this visitor no banner" as the
+final answer and reports the configured category state — see the upgrade notes above
+and `cmp/README-cmp.md`.
 
 Note what this does **not** change: with the condition table naming the non-selectable
 category, GTM still loads after a rejection. That is a legitimate setup — "load

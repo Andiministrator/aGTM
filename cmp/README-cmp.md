@@ -312,15 +312,23 @@ on screen"*. The cookie is written when the visitor closes the banner or the
 preference centre, in soft opt-in mode, or through the SDK's own
 `SetAlertBoxClosed()`.
 
-> **Check this before you roll the adapter out.** OneTrust can be configured to show
-> **no banner at all** in a region (`ShowAlertNotice: false`, a geolocation rule).
-> Where that happens and the setup is not soft opt-in, nothing ever writes that
-> cookie — `IsAlertBoxClosed()` stays `false` for the whole visit, and aGTM will
-> keep waiting, so **GTM never loads for those visitors, silently**. Before the
-> change they would have loaded. Verify in the browser console of an affected
-> region: `Optanon.GetDomainData().ShowAlertNotice` and `OneTrust.IsAlertBoxClosed()`.
-> If you need GTM to load where OneTrust asks nothing, say so — this is a
-> deliberate open decision, not an oversight (finding F-198).
+> **Regions without a banner (adapter v1.3, finding F-198).** OneTrust can be
+> configured to show **no banner at all** in a region (`ShowAlertNotice: false`, a
+> geolocation rule). Outside soft opt-in nothing then ever writes that cookie, so
+> `IsAlertBoxClosed()` stays `false` for the whole visit. Up to v1.2 aGTM kept
+> waiting and **GTM never loaded for those visitors, silently**. Since v1.3 a real
+> boolean `ShowAlertNotice: false` counts as the final answer: the adapter reports
+> exactly the **default state of that rule's groups**, with the feedback
+> `No banner shown (OneTrust geolocation rule)`. ⚠️ That is not "essential only": a
+> no-banner rule is usually set up for opt-out / notice-only regions, where the groups
+> default to *active* — the SDK then reports them as granted (`CONFIRMED`), and GTM
+> loads with full consent. That is OneTrust's configuration speaking, not aGTM's
+> choice; check the rule's group defaults if this surprises you. Whether GTM loads
+> still depends on your condition table. Not yet verified live: that
+> `ConsentIntegrationData.consentPayload` is already populated before any interaction
+> in such a region — if it is not, the adapter keeps waiting as before. Check a tenant without backend access by reading its public rule
+> set: `https://cdn.cookielaw.org/consent/<domainId>/<domainId>.json` (`RuleSet`) and
+> `…/<domainId>/<ruleId>/<lang>.json` (`DomainData.ShowAlertNotice`).
 
 `OneTrust` and `Optanon` are the same object on every SDK build checked
 (`window.OneTrust = window.Optanon = …`), and `IsAlertBoxClosed` is created in the

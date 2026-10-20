@@ -98,7 +98,7 @@ describe('legacy F.* cookies are cleaned up, but not at the cost of an identity'
 
   test('F.* cookie with consent is promoted to C.*, and not deleted on the way', () => {
     const r = runClient({
-      data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', ...SESSION },
+      data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', consent_service: 'analytics', ...SESSION },
       cookies: [F_COOKIE],
       http: http({ sessionId: 's1', counter: 5, consent: CONSENT_OK }, { statusCode: 200, body: '{"ok":true}' })
     });
@@ -114,7 +114,7 @@ describe('legacy F.* cookies are cleaned up, but not at the cost of an identity'
     // fingerprint in the browser indefinitely — the very state this cleanup
     // exists to end.
     const r = runClient({
-      data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', ...SESSION },
+      data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', consent_service: 'analytics', ...SESSION },
       cookies: [F_COOKIE],
       http: http({ sessionId: 's1', counter: 5, consent: CONSENT_OK }, { statusCode: 404, body: 'no session' })
     });
@@ -129,7 +129,7 @@ describe('legacy F.* cookies are cleaned up, but not at the cost of an identity'
     // turn an API outage into tenant-wide identity loss and contradicts the
     // documented fallback ("the F.* uid is preserved").
     const r = runClient({
-      data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', ...SESSION },
+      data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', consent_service: 'analytics', ...SESSION },
       cookies: [F_COOKIE],
       http: http({ sessionId: 's1', counter: 5, consent: CONSENT_OK }, { statusCode: 500, body: 'boom' })
     });

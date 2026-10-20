@@ -152,7 +152,14 @@ export function runClient(opts = {}) {
     // Client uses it to enumerate the request's query parameters.
     Object: { keys: Object.keys, values: Object.values, entries: Object.entries, freeze: Object.freeze },
     encodeUriComponent: encodeURIComponent,
-    decodeUriComponent: decodeURIComponent
+    decodeUriComponent: decodeURIComponent,
+    // Per container instance in the real sandbox. Here per run unless a test
+    // hands in its own Map via `opts.storage` to model several requests
+    // hitting the same instance.
+    templateDataStorage: (() => {
+      const m = opts.storage || new Map();
+      return { getItemCopy: (k) => (m.has(k) ? m.get(k) : null), setItemCopy: (k, v) => { m.set(k, v); }, removeItem: (k) => { m.delete(k); } };
+    })()
   };
 
   const requireStub = (name) => {

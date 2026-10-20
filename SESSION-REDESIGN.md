@@ -316,7 +316,7 @@ The new `C.*` user ID is generated as **`C.1{lim}{tenant}{lim}{rand12}.{ms}`** w
 When the browser POSTs a consent diff to `/aGTMconsent` and:
 - the carried `uid` starts with `F{lim}1{lim}`, AND
 - `granted = hasRequiredConsent(...)` returns true, AND
-- the payload carries an **explicit signal** (at least one of `services` / `purposes` / `vendors` is non-empty — guards against empty/corrupt POSTs that `hasRequiredConsent` would otherwise treat as granted when no `consent_service` is configured), AND
+- the payload carries an **explicit signal** (at least one of `services` / `purposes` / `vendors` is non-empty — guards against empty/corrupt POSTs that `hasRequiredConsent` would otherwise treat as granted when no requirement is configured and *Create the user ID cookie without a consent requirement* is ticked — without that checkbox an empty requirement grants nothing since F-165), AND
 - `services !== ',aGTMconsent,'` (the server-side auto-denial sentinel — a real CMP never emits this value), AND
 - `cookieMode !== 'never'` (otherwise `C.*` could not be persisted)
 

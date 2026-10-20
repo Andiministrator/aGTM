@@ -391,14 +391,18 @@ is not optional.
   when the Session API has a withdrawal on record. No record or an outage deletes nothing,
   and before this build a cross-origin consent POST did not arrive at all (F-160). Under `always` a
   withdrawal does **not** remove the cookie.
-- **Caveat worth testing yourself.** In the delivered default (`cookie_mode: always`) there
-  is **no configurable consent requirement for minting the cookie at all**: the check
-  returns "granted" when none of *Consent Service / Purpose / Vendor* is set, and the
-  template only shows those three fields when `cookie_mode` is `consent`. The only remaining
-  barrier is that the CMP reported *something* non-empty. So a CMP that still reports an
-  essential category after "deny all" can mint a 365-day `C.*` cookie despite the rejection.
-  Open finding F-165 — the acceptance test is in §9, and it has to be run against the
-  **current** Client build.
+- **Consent requirement for minting (F-165, since this build).** The `C.*` cookie id is
+  only created when the consent grants the requirement in *Consent Service / Purpose /
+  Vendor* (visible in every mode except `never`). With all three **empty — the delivered
+  default — no cookie is created at all**, in every mode, and the container log warns.
+  Before this build an empty requirement counted as "granted", and a CMP that still
+  reports essential services after "deny all" (CCM19 does: six of them) minted a
+  365-day cookie despite the rejection. Governing field for the old behaviour:
+  *Create the user ID cookie without a consent requirement* (default off). An empty
+  requirement never deletes an existing cookie — it is a configuration gap, not a
+  withdrawal; ids minted after a rejection under the old default keep being refreshed
+  until removed (requirement + `consent` mode + `cookie_delete`, see the CHANGELOG).
+  Acceptance test: §9.
 
 ### S6 — what the response body hands out
 
@@ -600,6 +604,10 @@ A reliable shape test is `aGTM.c.consent_store_url` together with `aGTM.d.sessio
    Cookies**. It is `httpOnly`, so `document.cookie` and the console will **not** show it —
    a scan that only looks there reports "no cookie" for a cookie that exists. If it is there
    and its value starts with `C.`, a stable id was minted despite the rejection: report it.
+   The same answer without DevTools: `aGTM.d.session.uid` must **not** start with `C.`
+   after the rejection — the library adopts the `C.*` from the consent POST answer when
+   one is minted (with the fingerprint switched off the uid is simply empty). This only means something in a **fresh** profile: a `C.*` from an earlier visit
+   is legitimately still there.
 
 **Which sGTM Client version is answering** (Client and library are versioned separately —
 ask both):

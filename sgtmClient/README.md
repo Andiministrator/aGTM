@@ -329,7 +329,7 @@ The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session managemen
 4. **Consent passthrough**: if the response carries a valid `consent` object (`hasResponse: true`), it is forwarded into `cfg.session.consent` for aGTM to consume.
 5. **Server-side auto-denial**: if no consent is on file but the user is returning (`counter > 0`), the Client constructs a denial-consent block (`hasResponse: true`, `services: ',aGTMconsent,'`, `gtmConsent: <auto_deny_load_gtm>`) and embeds it in `cfg.session.consent`. This replaces the old client-side `session_apply_denial()`.
 6. **Lazy F→C user-ID promotion**: if the existing cookie still carries an `F.*` fingerprint AND the Session API has a real (non-auto-denial) consent, the Client calls `POST /tp/session/{tenant}/{F-uid}/promote` with a freshly-generated `C.1{lim}{tenant}{lim}{rand12}.{ms}` (where `{lim}` is the configured `fip_limiter`, recommended `.`; the literal `C.` two-character prefix is mandated by api4sgtm) to atomically migrate the session pointer + consent record. `sessionData.uid` becomes the new `C.*` for downstream calls (cookie write, sources POST, JS payload). One-shot per visitor.
-7. Sets the user-ID cookie via `Set-Cookie` — but only ever with a minted `C.*` value, and only if the resulting consent state grants the required services (or if `cookie_mode: always`). A visitor still on a fingerprint uid receives no cookie; theirs is minted at the moment they consent. An `F.*` cookie left over from an earlier v1.5 deploy is cleared here — unless the Session API failed to answer (an outage is not evidence that no consent exists) or a promote for it is still worth retrying. Under `cookie_mode: consent` with `cookie_delete`, a withdrawal the Session API has on record deletes the cookie here as well (only on that positive evidence — no record or an outage leaves it alone).
+7. Sets the user-ID cookie via `Set-Cookie` — but only ever with a minted `C.*` value, and only if the resulting consent state grants the required services (or if `cookie_mode: always`, which refreshes an existing `C.*`; minting one always needs the consent requirement, see *Consent Service / Purpose / Vendor*). A visitor still on a fingerprint uid receives no cookie; theirs is minted at the moment they consent. An `F.*` cookie left over from an earlier v1.5 deploy is cleared here — unless the Session API failed to answer (an outage is not evidence that no consent exists) or a promote for it is still worth retrying. Under `cookie_mode: consent` with `cookie_delete`, a withdrawal the Session API has on record deletes the cookie here as well (only on that positive evidence — no record or an outage leaves it alone).
 8. Answers with `Cache-Control: private, no-store`. The body inlines this visitor's `cfg.session` (uid, sid, and for a returning visitor their recorded consent) while the URL is identical for every visitor, so a shared cache must never store it.
 9. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript. The `consent_store_url` is auto-built from the request host + the fixed path `/aGTMconsent` — the integrator only flips a checkbox to enable/disable the route.
 
@@ -451,7 +451,15 @@ If checked, a fingerprint-based user ID `F{lim}1{lim}{tenant}{lim}{hash}.{date}`
 
 #### Consent Service / Purpose / Vendor
 
-The consent condition required to consider consent "granted" in `cookie_mode: consent`. Mirrors the GTM Container Setup consent check logic.
+The consent requirement for the user-ID cookie: the service, purpose or vendor that must be granted before the Client creates the stable `C.*` cookie id (promote or local mint) — in every cookie mode except `never`, where the fields are hidden. Mirrors the GTM Container Setup consent check logic.
+
+**Fill in at least one.** With all three empty, **no user-ID cookie is created** (since v1.5, F-165). Without a requirement the Client cannot tell a rejection from an approval: most CMPs still report their essential services after "deny all" (CCM19, measured: six "technically necessary" services), and the old default turned exactly that into a 365-day cookie. When the empty requirement blocks a cookie, the container log warns — once per container instance, because the same visitor re-sends the decision on every page view.
+
+An empty requirement is treated as a configuration gap, **not** as a withdrawal: cookies that already exist are neither deleted nor stopped by it. To remove ids that the old default minted after a rejection, fill in the requirement, switch to `cookie_mode: consent` and tick *Delete Cookie if Consent is denied* (or change the cookie name).
+
+#### Create the user ID cookie without a consent requirement
+
+Deliberate opt-out of the rule above: with this ticked and all three fields empty, any non-empty consent answer creates the cookie (the pre-1.5 behaviour). Use it only if your legal basis for the cookie is not consent. It cannot weaken a requirement that is filled in, and only a real checkbox `true` switches it on.
 
 #### Debug Suffix
 

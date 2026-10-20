@@ -39,6 +39,7 @@ const generateRandom = require('generateRandom');
 const getTimestampMillis = require('getTimestampMillis');
 const Math = require('Math');
 const computeEffectiveTldPlusOne = require('computeEffectiveTldPlusOne');
+const templateDataStorage = require('templateDataStorage');
 
 // Template config
 const CFG = {
@@ -53,6 +54,10 @@ const CFG = {
   consentService: data.consent_service || '',
   consentPurpose: data.consent_purpose || '',
   consentVendor: data.consent_vendor || '',
+  // Deliberate opt-out of the F-165 gate: create the user-ID cookie on ANY
+  // consent signal although no service/purpose/vendor is required. Only the
+  // literal boolean true switches it on.
+  cookieNoCondition: data.cookie_without_condition === true,
   cookieName: data.cookie_name || '_tpf',
   cookieLifetimeDays: makeNumber(data.cookie_lifetime || 365),
   cookieDomain: data.cookie_domain || 'auto',
@@ -105,8 +110,15 @@ const CFG = {
 const inConsentStr = function(str, val) {
   return !!(val && str && str.indexOf(',' + val + ',') >= 0);
 };
+// No consent requirement configured at all (F-165). This used to mean "every
+// consent signal grants the cookie" — including the essential-only answer most
+// CMPs report after "deny all" (measured on CCM19: six "technically necessary"
+// services), so a tenant who left the fields empty minted a one-year user-ID
+// cookie after a REJECTION. An empty requirement is a blank, not a decision:
+// it now grants nothing unless `cookie_without_condition` says otherwise.
+const consentConditionMissing = !CFG.consentService && !CFG.consentPurpose && !CFG.consentVendor;
 const hasRequiredConsent = function(services, purposes, vendors) {
-  if (!CFG.consentService && !CFG.consentPurpose && !CFG.consentVendor) return true;
+  if (consentConditionMissing) return CFG.cookieNoCondition;
   return inConsentStr(services, CFG.consentService) ||
          inConsentStr(purposes, CFG.consentPurpose) ||
          inConsentStr(vendors, CFG.consentVendor);
@@ -440,11 +452,22 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   const isAutoDenialSentinel = cpServices === ',aGTMconsent,';
   // Explicit consent signal: at least one of services/purposes/vendors must
   // be non-empty. Without this, hasRequiredConsent() returns true on empty
-  // input when no consent_service is configured (line ~95, default-permissive
-  // for tenants that don't use the consent gate) — and a corrupt or empty
-  // POST payload would otherwise be considered "granted" and trigger promote.
+  // input when no requirement is configured AND cookie_without_condition is
+  // ticked (the deliberate opt-out of F-165) — and a corrupt or empty POST
+  // payload would otherwise be considered "granted" and trigger promote.
   const hasExplicitSignal = !!(cpServices || cpPurposes || cpVendors);
   if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes, granted: granted, explicit: hasExplicitSignal});
+  // Say so when the missing requirement is what stopped the cookie (F-165).
+  // warn, not debug: otherwise a tenant upgrading with empty fields sees the
+  // user-ID cookie stop for new visitors and finds no trace of why. ONCE per
+  // container instance, not per request: a visitor who never gets a C.* gets
+  // no consent preset either, so the library re-POSTs the same decision on
+  // every page view — a per-request warn would be one line per page view for
+  // every visitor who answered the CMP (critic, 2026-10-20).
+  if (consentConditionMissing && !CFG.cookieNoCondition && hasExplicitSignal && isFingerprintUid(cpUid) && CFG.cookieMode !== 'never' && templateDataStorage.getItemCopy('aGTM_warned_no_cookie_condition') !== true) {
+    templateDataStorage.setItemCopy('aGTM_warned_no_cookie_condition', true);
+    logToConsole('warn', '✗ User ID cookie not created: no consent requirement configured (Consent Service/Purpose/Vendor are empty). Fill one in, or tick "Create the user ID cookie without a consent requirement". Logged once per container instance.');
+  }
 
   // F→C promote applicability: when the visitor still carries an F.*
   // fingerprint UID and the CMP just granted consent (with an explicit
@@ -492,7 +515,11 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
           if (maxAge > 0) cookieOpts['max-age'] = maxAge;
           setCookie(CFG.cookieName, finalUid, cookieOpts, true);
           if (CFG.debug) logToConsole('debug', '✓ User ID cookie set (consent granted)', finalUid);
-        } else if (!granted && data.cookie_delete) {
+        } else if (!granted && !consentConditionMissing && data.cookie_delete) {
+          // `!consentConditionMissing`: an EMPTY requirement is a configuration
+          // gap, not a withdrawal. Without this, upgrading a 'consent'-mode
+          // tag whose fields were left empty would delete the cookie of every
+          // visitor on their next consent POST (F-165).
           cookieOpts['max-age'] = 0;
           deleteUidCookies(cookieOpts);
           if (CFG.debug) logToConsole('debug', '✓ User ID cookie deleted (consent withdrawn)');
@@ -1562,11 +1589,13 @@ const afterBotCheck = function(isBot) {
     // that does not grant the required consent. No record, an outage or an
     // auto-denial say nothing about this visitor and leave the cookie alone —
     // deleting on ignorance would drop the ids of real visitors whose consent
-    // simply is not on file. With no consent requirement configured,
-    // hasRequiredConsent() is true and this never fires. Three of the terms
+    // simply is not on file. With no consent requirement configured this never
+    // fires: `!consentConditionMissing` below excludes it (F-165). Three of the terms
     // (sessionRead.ok, hasResponse, existingCookie) are already implied by the
     // pass-through filter further down and kept as defence in depth.
-    const sessionConsentRevoked = CFG.cookieMode === 'consent' && !!existingCookie && sessionRead.ok && !!sessionConsent && sessionConsent.hasResponse === true && !sessionIsAutoDenial && sessionHasExplicitSignal && !hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
+    // `!consentConditionMissing` for the same reason as in the POST handler: an
+    // empty requirement is not evidence of a withdrawal (F-165).
+    const sessionConsentRevoked = CFG.cookieMode === 'consent' && !consentConditionMissing && !!existingCookie && sessionRead.ok && !!sessionConsent && sessionConsent.hasResponse === true && !sessionIsAutoDenial && sessionHasExplicitSignal && !hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
 
     const continueAfterSession = function() {
       let cookieAllowed = (CFG.cookieMode === 'always') ||

@@ -220,7 +220,7 @@ ___TEMPLATE_PARAMETERS___
             "displayValue": "Matomo Consent Check"
           },
           {
-            "value": "aGTM.f.consent_check\u003dfunction(t){if(\"string\"!\u003dtypeof t||\"init\"!\u003dt\u0026\u0026\"update\"!\u003dt)return\"function\"\u003d\u003dtypeof aGTM.f.log\u0026\u0026aGTM.f.log(\"e10\",{action:t}),!1;if(aGTM.d.consent\u003daGTM.d.consent||{},\"init\"\u003d\u003dt\u0026\u0026aGTM.d.consent.hasResponse)return!0;if(\"object\"!\u003dtypeof Optanon||\"function\"!\u003dtypeof Optanon.GetDomainData)return!1;var n\u003dOptanon.GetDomainData();if(\"object\"!\u003dtypeof n.ConsentIntegrationData||\"object\"!\u003dtypeof n.ConsentIntegrationData.consentPayload||\"object\"!\u003dtypeof n.ConsentIntegrationData.consentPayload.customPayload||\"object\"!\u003dtypeof n.ConsentIntegrationData.consentPayload.purposes||\"object\"!\u003dtypeof n.ConsentModel||\"string\"!\u003dtypeof n.ConsentModel.Name)return!1;var e\u003dn.ConsentIntegrationData.consentPayload;if(\"number\"!\u003dtypeof e.customPayload.Interaction)return!1;if(\"object\"!\u003dtypeof e.dsDataElements||\"string\"!\u003dtypeof e.dsDataElements.Country)return!1;aGTM.d.consent.interactions\u003de.customPayload.Interaction;var o\u003dnull,a\u003dnull;if(\"undefined\"!\u003dtypeof OneTrust\u0026\u0026OneTrust\u0026\u0026\"function\"\u003d\u003dtypeof OneTrust.IsAlertBoxClosed?a\u003dOneTrust:\"function\"\u003d\u003dtypeof Optanon.IsAlertBoxClosed\u0026\u0026(a\u003dOptanon),a){var s\u003dnull;try{s\u003da.IsAlertBoxClosed()}catch(t){s\u003dnull}!0!\u003d\u003ds\u0026\u0026!1!\u003d\u003ds||(o\u003ds)}var r\u003d!1;if(!0\u003d\u003d\u003do)r\u003d!0;else{if(!1\u003d\u003d\u003do)return!1;\"string\"\u003d\u003dtypeof e.dsDataElements.InteractionType\u0026\u0026e.dsDataElements.InteractionType\u0026\u0026(r\u003d!0),\"opt-in\"\u003d\u003dn.ConsentModel.Name\u0026\u0026\"number\"\u003d\u003dtypeof e.customPayload.Interaction\u0026\u0026e.customPayload.Interaction\u003e0\u0026\u0026(r\u003d!0)}if(!r)return!1;aGTM.d.consent.consent_model\u003dn.ConsentModel.Name,\"string\"\u003d\u003dtypeof n.cctId\u0026\u0026(aGTM.d.consent.consent_id\u003dn.cctId),\"object\"\u003d\u003dtypeof e.dsDataElements\u0026\u0026\"string\"\u003d\u003dtypeof e.dsDataElements.InteractionType\u0026\u0026(aGTM.d.consent.interaction_type\u003de.dsDataElements.InteractionType),\"object\"\u003d\u003dtypeof e.dsDataElements\u0026\u0026\"string\"\u003d\u003dtypeof e.dsDataElements.Country\u0026\u0026(aGTM.d.consent.country\u003de.dsDataElements.Country);for(var p\u003d{},c\u003d0,i\u003d{},d\u003d0,u\u003d0,f\u003d{},l\u003d0;l\u003ce.purposes.length;l++)f[e.purposes[l].Id]\u003de.purposes[l].TransactionType;for(l\u003d0;l\u003cn.Groups.length;l++)\"string\"\u003d\u003dtypeof f[n.Groups[l].PurposeId]\u0026\u0026(\"NO_CHOICE\"\u003d\u003df[n.Groups[l].PurposeId]\u0026\u0026(i[n.Groups[l].OptanonGroupId]\u003dn.Groups[l].GroupName.replace(/[^\\w\\d _-]+/g,\"\"),d++),\"NO_CHOICE\"!\u003df[n.Groups[l].PurposeId]\u0026\u0026\"CONFIRMED\"!\u003df[n.Groups[l].PurposeId]||(p[n.Groups[l].OptanonGroupId]\u003dn.Groups[l].GroupName.replace(/[^\\w\\d _-]+/g,\"\"),c++),u++);var y\u003d[],G\u003d[];for(k in p)y.push(k),G.push(p[k]);return aGTM.d.consent.purposeIDs\u003d\",\"+y.join(\",\")+\",\",aGTM.d.consent.purposes\u003d\",\"+G.join(\",\")+\",\",aGTM.d.consent.interaction_type?aGTM.d.consent.feedback\u003daGTM.d.consent.interaction_type:aGTM.d.consent.feedback\u003du\u003d\u003dd?\"No OptIn Categories available\":c\u003d\u003du?\"Consent full accepted\":c\u003d\u003dd?\"Consent declined\":c\u003cu?\"Consent partially accepted\":\"Consent given\",aGTM.d.consent.hasResponse\u003d!0,\"function\"\u003d\u003dtypeof aGTM.f.log\u0026\u0026aGTM.f.log(\"m2\",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};",
+            "value": "aGTM.f.consent_check\u003dfunction(n){if(\"string\"!\u003dtypeof n||\"init\"!\u003dn\u0026\u0026\"update\"!\u003dn)return\"function\"\u003d\u003dtypeof aGTM.f.log\u0026\u0026aGTM.f.log(\"e10\",{action:n}),!1;if(aGTM.d.consent\u003daGTM.d.consent||{},\"init\"\u003d\u003dn\u0026\u0026aGTM.d.consent.hasResponse)return!0;if(\"object\"!\u003dtypeof Optanon||\"function\"!\u003dtypeof Optanon.GetDomainData)return!1;var t\u003dOptanon.GetDomainData();if(\"object\"!\u003dtypeof t.ConsentIntegrationData||\"object\"!\u003dtypeof t.ConsentIntegrationData.consentPayload||\"object\"!\u003dtypeof t.ConsentIntegrationData.consentPayload.customPayload||\"object\"!\u003dtypeof t.ConsentIntegrationData.consentPayload.purposes||\"object\"!\u003dtypeof t.ConsentModel||\"string\"!\u003dtypeof t.ConsentModel.Name)return!1;var e\u003dt.ConsentIntegrationData.consentPayload;if(\"number\"!\u003dtypeof e.customPayload.Interaction)return!1;if(\"object\"!\u003dtypeof e.dsDataElements||\"string\"!\u003dtypeof e.dsDataElements.Country)return!1;aGTM.d.consent.interactions\u003de.customPayload.Interaction;var o\u003dnull,a\u003dnull;if(\"undefined\"!\u003dtypeof OneTrust\u0026\u0026OneTrust\u0026\u0026\"function\"\u003d\u003dtypeof OneTrust.IsAlertBoxClosed?a\u003dOneTrust:\"function\"\u003d\u003dtypeof Optanon.IsAlertBoxClosed\u0026\u0026(a\u003dOptanon),a){var s\u003dnull;try{s\u003da.IsAlertBoxClosed()}catch(n){s\u003dnull}!0!\u003d\u003ds\u0026\u0026!1!\u003d\u003ds||(o\u003ds)}var r\u003d!1\u003d\u003d\u003dt.ShowAlertNotice,p\u003d!1;if(!0\u003d\u003d\u003do)p\u003d!0;else if(!1\u003d\u003d\u003do\u0026\u0026r)p\u003d!0;else{if(!1\u003d\u003d\u003do)return!1;\"string\"\u003d\u003dtypeof e.dsDataElements.InteractionType\u0026\u0026e.dsDataElements.InteractionType\u0026\u0026(p\u003d!0),\"opt-in\"\u003d\u003dt.ConsentModel.Name\u0026\u0026\"number\"\u003d\u003dtypeof e.customPayload.Interaction\u0026\u0026e.customPayload.Interaction\u003e0\u0026\u0026(p\u003d!0)}if(!p)return!1;aGTM.d.consent.consent_model\u003dt.ConsentModel.Name,\"string\"\u003d\u003dtypeof t.cctId\u0026\u0026(aGTM.d.consent.consent_id\u003dt.cctId),\"object\"\u003d\u003dtypeof e.dsDataElements\u0026\u0026\"string\"\u003d\u003dtypeof e.dsDataElements.InteractionType\u0026\u0026(aGTM.d.consent.interaction_type\u003de.dsDataElements.InteractionType),\"object\"\u003d\u003dtypeof e.dsDataElements\u0026\u0026\"string\"\u003d\u003dtypeof e.dsDataElements.Country\u0026\u0026(aGTM.d.consent.country\u003de.dsDataElements.Country);for(var c\u003d{},i\u003d0,d\u003d{},u\u003d0,f\u003d0,l\u003d{},y\u003d0;y\u003ce.purposes.length;y++)l[e.purposes[y].Id]\u003de.purposes[y].TransactionType;for(y\u003d0;y\u003ct.Groups.length;y++)\"string\"\u003d\u003dtypeof l[t.Groups[y].PurposeId]\u0026\u0026(\"NO_CHOICE\"\u003d\u003dl[t.Groups[y].PurposeId]\u0026\u0026(d[t.Groups[y].OptanonGroupId]\u003dt.Groups[y].GroupName.replace(/[^\\w\\d _-]+/g,\"\"),u++),\"NO_CHOICE\"!\u003dl[t.Groups[y].PurposeId]\u0026\u0026\"CONFIRMED\"!\u003dl[t.Groups[y].PurposeId]||(c[t.Groups[y].OptanonGroupId]\u003dt.Groups[y].GroupName.replace(/[^\\w\\d _-]+/g,\"\"),i++),f++);var G\u003d[],T\u003d[];for(k in c)G.push(k),T.push(c[k]);return aGTM.d.consent.purposeIDs\u003d\",\"+G.join(\",\")+\",\",aGTM.d.consent.purposes\u003d\",\"+T.join(\",\")+\",\",!1\u003d\u003d\u003do\u0026\u0026r?aGTM.d.consent.feedback\u003d\"No banner shown (OneTrust geolocation rule)\":aGTM.d.consent.interaction_type?aGTM.d.consent.feedback\u003daGTM.d.consent.interaction_type:aGTM.d.consent.feedback\u003df\u003d\u003du?\"No OptIn Categories available\":i\u003d\u003df?\"Consent full accepted\":i\u003d\u003du?\"Consent declined\":i\u003cf?\"Consent partially accepted\":\"Consent given\",aGTM.d.consent.hasResponse\u003d!0,\"function\"\u003d\u003dtypeof aGTM.f.log\u0026\u0026aGTM.f.log(\"m2\",JSON.parse(JSON.stringify(aGTM.d.consent))),!0};",
             "displayValue": "OneTrust CookiePro"
           },
           {
@@ -652,7 +652,7 @@ ___TEMPLATE_PARAMETERS___
         ],
         "simpleValueType": true,
         "defaultValue": "always",
-        "help": "When to set the server-side user ID cookie. \u003cb\u003eThe value is always a minted \u003ccode\u003eC.*\u003c/code\u003e id, never the server-side fingerprint\u003c/b\u003e — that one is derived from IP, user agent, client hints and ASN/geo, so visitors behind the same NAT running the same browser share it.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eAlways\u003c/b\u003e — the cookie is written on every request once a \u003ccode\u003eC.*\u003c/code\u003e id exists. It does \u003cb\u003enot\u003c/b\u003e create one beforehand: the id is minted at the moment the visitor consents (via \u003ccode\u003e/promote\u003c/code\u003e with a Session API, locally without one). A visitor who never answers the CMP therefore carries no cookie in this mode either.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eNever\u003c/b\u003e — no \u003ccode\u003eSet-Cookie\u003c/code\u003e header is ever sent, not even to delete one.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eConsent Required\u003c/b\u003e — written only when the consent state grants the required services, or when a cookie is already present."
+        "help": "When to set the server-side user ID cookie. \u003cb\u003eThe value is always a minted \u003ccode\u003eC.*\u003c/code\u003e id, never the server-side fingerprint\u003c/b\u003e — that one is derived from IP, user agent, client hints and ASN/geo, so visitors behind the same NAT running the same browser share it.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eAlways\u003c/b\u003e — the cookie is written on every request once a \u003ccode\u003eC.*\u003c/code\u003e id exists. It does \u003cb\u003enot\u003c/b\u003e create one beforehand: the id is minted at the moment the visitor grants the consent requirement below (via \u003ccode\u003e/promote\u003c/code\u003e with a Session API, locally without one). \u003cb\u003eWith no requirement filled in, no id is minted\u003c/b\u003e unless you tick \u003ci\u003eCreate the user ID cookie without a consent requirement\u003c/i\u003e. A visitor who never answers the CMP therefore carries no cookie in this mode either.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eNever\u003c/b\u003e — no \u003ccode\u003eSet-Cookie\u003c/code\u003e header is ever sent, not even to delete one.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eConsent Required\u003c/b\u003e — written only when the consent state grants the required services, or when a cookie is already present."
       },
       {
         "type": "TEXT",
@@ -663,11 +663,11 @@ ___TEMPLATE_PARAMETERS___
         "enablingConditions": [
           {
             "paramName": "cookie_mode",
-            "paramValue": "consent",
-            "type": "EQUALS"
+            "paramValue": "never",
+            "type": "NOT_EQUALS"
           }
         ],
-        "help": "Service name required in aGTM.d.consent.services to allow cookie"
+        "help": "Service name that must be granted (in aGTM.d.consent.services) before the user ID cookie is created, e.g. the analytics service of your CMP. <b>Fill in at least one of Service, Purpose or Vendor</b> — with all three empty no user ID cookie is created at all, unless you tick the checkbox below. Most CMPs still report the essential services after \"deny all\", so an empty requirement would otherwise treat a rejection as consent."
       },
       {
         "type": "TEXT",
@@ -678,11 +678,11 @@ ___TEMPLATE_PARAMETERS___
         "enablingConditions": [
           {
             "paramName": "cookie_mode",
-            "paramValue": "consent",
-            "type": "EQUALS"
+            "paramValue": "never",
+            "type": "NOT_EQUALS"
           }
         ],
-        "help": "Purpose name required in aGTM.d.consent.purposes to allow cookie"
+        "help": "Purpose name that must be granted (in aGTM.d.consent.purposes) before the user ID cookie is created. See Consent Service: at least one of the three fields is needed."
       },
       {
         "type": "TEXT",
@@ -693,11 +693,26 @@ ___TEMPLATE_PARAMETERS___
         "enablingConditions": [
           {
             "paramName": "cookie_mode",
-            "paramValue": "consent",
-            "type": "EQUALS"
+            "paramValue": "never",
+            "type": "NOT_EQUALS"
           }
         ],
-        "help": "Vendor name required in aGTM.d.consent.vendors to allow cookie"
+        "help": "Vendor name that must be granted (in aGTM.d.consent.vendors) before the user ID cookie is created. See Consent Service: at least one of the three fields is needed."
+      },
+      {
+        "type": "CHECKBOX",
+        "name": "cookie_without_condition",
+        "checkboxText": "Create the user ID cookie without a consent requirement",
+        "simpleValueType": true,
+        "defaultValue": false,
+        "enablingConditions": [
+          {
+            "paramName": "cookie_mode",
+            "paramValue": "never",
+            "type": "NOT_EQUALS"
+          }
+        ],
+        "help": "Only for a deliberate decision. When Consent Service, Purpose and Vendor are all empty, the user ID cookie is normally <b>not</b> created (since v1.5): the Client cannot tell a rejection from an approval without a requirement, because most CMPs still report the essential services after \"deny all\". Tick this if you want the cookie on <i>any</i> consent answer anyway — e.g. because your legal basis for it is not consent. The container log then shows no warning. It has no effect while one of the three fields resolves to a non-empty value. The container log warns once per container instance when an empty requirement blocks a cookie."
       },
       {
         "type": "CHECKBOX",
@@ -1001,6 +1016,7 @@ const generateRandom = require('generateRandom');
 const getTimestampMillis = require('getTimestampMillis');
 const Math = require('Math');
 const computeEffectiveTldPlusOne = require('computeEffectiveTldPlusOne');
+const templateDataStorage = require('templateDataStorage');
 
 // Template config
 const CFG = {
@@ -1015,6 +1031,10 @@ const CFG = {
   consentService: data.consent_service || '',
   consentPurpose: data.consent_purpose || '',
   consentVendor: data.consent_vendor || '',
+  // Deliberate opt-out of the F-165 gate: create the user-ID cookie on ANY
+  // consent signal although no service/purpose/vendor is required. Only the
+  // literal boolean true switches it on.
+  cookieNoCondition: data.cookie_without_condition === true,
   cookieName: data.cookie_name || '_tpf',
   cookieLifetimeDays: makeNumber(data.cookie_lifetime || 365),
   cookieDomain: data.cookie_domain || 'auto',
@@ -1067,8 +1087,15 @@ const CFG = {
 const inConsentStr = function(str, val) {
   return !!(val && str && str.indexOf(',' + val + ',') >= 0);
 };
+// No consent requirement configured at all (F-165). This used to mean "every
+// consent signal grants the cookie" — including the essential-only answer most
+// CMPs report after "deny all" (measured on CCM19: six "technically necessary"
+// services), so a tenant who left the fields empty minted a one-year user-ID
+// cookie after a REJECTION. An empty requirement is a blank, not a decision:
+// it now grants nothing unless `cookie_without_condition` says otherwise.
+const consentConditionMissing = !CFG.consentService && !CFG.consentPurpose && !CFG.consentVendor;
 const hasRequiredConsent = function(services, purposes, vendors) {
-  if (!CFG.consentService && !CFG.consentPurpose && !CFG.consentVendor) return true;
+  if (consentConditionMissing) return CFG.cookieNoCondition;
   return inConsentStr(services, CFG.consentService) ||
          inConsentStr(purposes, CFG.consentPurpose) ||
          inConsentStr(vendors, CFG.consentVendor);
@@ -1402,11 +1429,22 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   const isAutoDenialSentinel = cpServices === ',aGTMconsent,';
   // Explicit consent signal: at least one of services/purposes/vendors must
   // be non-empty. Without this, hasRequiredConsent() returns true on empty
-  // input when no consent_service is configured (line ~95, default-permissive
-  // for tenants that don't use the consent gate) — and a corrupt or empty
-  // POST payload would otherwise be considered "granted" and trigger promote.
+  // input when no requirement is configured AND cookie_without_condition is
+  // ticked (the deliberate opt-out of F-165) — and a corrupt or empty POST
+  // payload would otherwise be considered "granted" and trigger promote.
   const hasExplicitSignal = !!(cpServices || cpPurposes || cpVendors);
   if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes, granted: granted, explicit: hasExplicitSignal});
+  // Say so when the missing requirement is what stopped the cookie (F-165).
+  // warn, not debug: otherwise a tenant upgrading with empty fields sees the
+  // user-ID cookie stop for new visitors and finds no trace of why. ONCE per
+  // container instance, not per request: a visitor who never gets a C.* gets
+  // no consent preset either, so the library re-POSTs the same decision on
+  // every page view — a per-request warn would be one line per page view for
+  // every visitor who answered the CMP (critic, 2026-10-20).
+  if (consentConditionMissing && !CFG.cookieNoCondition && hasExplicitSignal && isFingerprintUid(cpUid) && CFG.cookieMode !== 'never' && templateDataStorage.getItemCopy('aGTM_warned_no_cookie_condition') !== true) {
+    templateDataStorage.setItemCopy('aGTM_warned_no_cookie_condition', true);
+    logToConsole('warn', '✗ User ID cookie not created: no consent requirement configured (Consent Service/Purpose/Vendor are empty). Fill one in, or tick "Create the user ID cookie without a consent requirement". Logged once per container instance.');
+  }
 
   // F→C promote applicability: when the visitor still carries an F.*
   // fingerprint UID and the CMP just granted consent (with an explicit
@@ -1454,7 +1492,11 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
           if (maxAge > 0) cookieOpts['max-age'] = maxAge;
           setCookie(CFG.cookieName, finalUid, cookieOpts, true);
           if (CFG.debug) logToConsole('debug', '✓ User ID cookie set (consent granted)', finalUid);
-        } else if (!granted && data.cookie_delete) {
+        } else if (!granted && !consentConditionMissing && data.cookie_delete) {
+          // `!consentConditionMissing`: an EMPTY requirement is a configuration
+          // gap, not a withdrawal. Without this, upgrading a 'consent'-mode
+          // tag whose fields were left empty would delete the cookie of every
+          // visitor on their next consent POST (F-165).
           cookieOpts['max-age'] = 0;
           deleteUidCookies(cookieOpts);
           if (CFG.debug) logToConsole('debug', '✓ User ID cookie deleted (consent withdrawn)');
@@ -2524,11 +2566,13 @@ const afterBotCheck = function(isBot) {
     // that does not grant the required consent. No record, an outage or an
     // auto-denial say nothing about this visitor and leave the cookie alone —
     // deleting on ignorance would drop the ids of real visitors whose consent
-    // simply is not on file. With no consent requirement configured,
-    // hasRequiredConsent() is true and this never fires. Three of the terms
+    // simply is not on file. With no consent requirement configured this never
+    // fires: `!consentConditionMissing` below excludes it (F-165). Three of the terms
     // (sessionRead.ok, hasResponse, existingCookie) are already implied by the
     // pass-through filter further down and kept as defence in depth.
-    const sessionConsentRevoked = CFG.cookieMode === 'consent' && !!existingCookie && sessionRead.ok && !!sessionConsent && sessionConsent.hasResponse === true && !sessionIsAutoDenial && sessionHasExplicitSignal && !hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
+    // `!consentConditionMissing` for the same reason as in the POST handler: an
+    // empty requirement is not evidence of a withdrawal (F-165).
+    const sessionConsentRevoked = CFG.cookieMode === 'consent' && !consentConditionMissing && !!existingCookie && sessionRead.ok && !!sessionConsent && sessionConsent.hasResponse === true && !sessionIsAutoDenial && sessionHasExplicitSignal && !hasRequiredConsent(sessionConsent.services || '', sessionConsent.purposes || '', sessionConsent.vendors || '');
 
     const continueAfterSession = function() {
       let cookieAllowed = (CFG.cookieMode === 'always') ||
@@ -2936,6 +2980,16 @@ ___SERVER_PERMISSIONS___
     "instance": {
       "key": {
         "publicId": "return_response",
+        "versionId": "1"
+      },
+      "param": []
+    },
+    "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "access_template_storage",
         "versionId": "1"
       },
       "param": []
