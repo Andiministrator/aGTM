@@ -55,7 +55,31 @@ This template requires an existing **aGTM integration** within your GTM setup.
 After importing the template, follow these steps to configure it:
 
 - **Tag Type**: Select `aGTM Consent Mode`.
-- **Trigger**: Set the trigger for when you want this tag to fire (e.g., `All Pages`).
+- **Trigger**: Set the trigger for when you want this tag to fire (e.g., `Consent Initialization - All Pages`).
+
+#### You need TWO instances: one for the page load, one for changes on the page
+
+A trigger like *Consent Initialization* fires **once per page load**. When the visitor
+changes their decision on the same page — accepts after denying, or revokes — nothing
+re-runs that instance, and Consent Mode keeps the old state until the next page load.
+For a revocation that means analytics and personalisation storage stay **granted** for
+the rest of that page view (measured live on 2026-10-20, F-242).
+
+Add a second instance of the same template:
+
+| Instance | `cm_update` | Trigger | Rows in `cm_attributes` |
+|---|---|---|---|
+| Page load | off (`cm_update_after_default` as you prefer) | `Consent Initialization - All Pages` | your mapping |
+| Change on the page | **on** | Custom Event **`aGTM_consent_update`** | **the same mapping** |
+
+aGTM fires `aGTM_consent_update` whenever the consent state actually changed, after
+`aGTM.d.consent` holds the new decision. Keep both mapping tables identical — a row
+missing in the update instance leaves that signal at its page-load value.
+
+⚠️ **Only one writer.** If your CMP also pushes Google Consent Mode itself (CCM19:
+*Einbindung → Google Consent Mode v2*, per embedding; Cookiebot, Usercentrics etc. have
+similar switches), turn that off. Two writers with different mappings overwrite each
+other, and whichever runs last wins.
 
 ---
 
