@@ -54,8 +54,72 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   **Changing the consent requirement** thereby deletes the cookie of every returning
   visitor whose recorded consent does not meet the new one (logged as `warn`).
 
+- **sGTM Client, cross-origin setups (sGTM on a subdomain such as `rp.example.com` serving
+  `www.example.com`): the consent store works now** (F-160) — it never did before. Needs
+  library **and** Client from this build, and with *Cookie Domain* `auto` a proxy that passes
+  the public host on (`Host`, `X-Forwarded-Host` or `Forwarded`).
+- **Breaking, sGTM Client on a domain OTHER than the site's** (e.g. a hosting platform's
+  default host serving `www.shop.de`): the site's hosts must now be listed in the new field
+  *Additional CORS Origins*. Otherwise the browser marks the request `cross-site` and the
+  Client serves the library **without** session data — no uid, no stored consent, no
+  Sources write — and refuses the consent POST. GTM still loads through the normal CMP flow;
+  what is lost is the preset. The page is recognised by its `Referer` (the browser default
+  sends at least the origin); a page with `Referrer-Policy: no-referrer` must load the script
+  with `crossorigin="use-credentials"` instead, so that the browser sends an `Origin`.
+  Enter hosts in Punycode (`xn--…`), as browsers send them. Same-domain setups (the cookie
+  domain and its subdomains) need nothing. Reason: the Client used to hand every visitor's uid, sid and stored consent
+  to any page that asked — by `fetch()` (it echoed every `Origin`) and by `<script src>`
+  (F-189).
+- **Own consent-store endpoint** (standalone integrators setting `consent_store_url`
+  themselves): the POST is now `text/plain` with credentials — see
+  [README-for-Integrators](README-for-Integrators.md) §"The consent-store endpoint".
+
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
+
+### Fixed — consent store cross-origin (F-160), CORS echo (F-189), cross-site consent writes (F-238)
+
+**F-160.** Tenants that run the sGTM Client behind a subdomain reverse proxy
+(`rp.example.com` on `www.example.com`), which makes the consent POST cross-origin. The
+library sent it as `application/json` without credentials: the browser sent an OPTIONS
+preflight the Client never answers, so the POST never left; and even same-site, the user-id
+cookie would not have travelled and a promote's `Set-Cookie` would have been dropped. No
+consent was stored and no F→C promote happened for any such tenant. Now the consent POST
+goes `withCredentials` and as `text/plain;charset=UTF-8` — a CORS simple request, no
+preflight. The body is the same JSON; the Client parses it whatever the header says. This
+is a new optional fifth parameter of `aGTM.f.xsend`, used by the consent store only: the
+`_post` transport and the aEvents tag keep `application/json` without credentials, because
+their endpoints are the integrator's choice and must not start receiving the visitor's
+cookies.
+
+**F-189.** The Client echoed any request `Origin` into `Access-Control-Allow-Origin` with
+`Allow-Credentials: true`. Any site the visitor later opened could `fetch()` `/aGTM.js` with
+credentials and read the per-visitor body: uid, sid, `ga4sid`, counters, the stored consent.
+`setCorsHeaders()` now allows only https origins whose host is the cookie domain or one of
+its subdomains, or (with *Cookie Domain* `auto`, the delivered default) shares the eTLD+1 of
+the sGTM host, or is listed in the new field *Additional CORS Origins* (`cors_origins`). It
+runs on `/aGTM.js` and on both consent answers (200, 501) and always sends `Vary: Origin`.
+An Origin is echoed only in its plain `https://host[:port]` form, and a cookie domain that is
+itself a public suffix (`de`, `co.uk`) vouches for nobody.
+
+CORS alone did not close F-189: a foreign page can include `/aGTM.js` as a classic
+`<script src>` — no Origin, cookie included — and read `aGTM.d.session` in its own window.
+A request the browser marks `Sec-Fetch-Site: cross-site` from a page (judged by its
+`Referer`) outside the allow-list is now served the library **without** anything personal:
+no Session API lookup, no cookie, no Sources write (which also stops a foreign page from
+pushing its own `?c=` page URL and referrer into the visitor's attribution — F-239), no
+bot verdict, no consent-store URL. `same-site`/`same-origin` requests and browsers without
+the header are served as before.
+
+**F-238.** CORS only decides who may *read* a response. A foreign page could still *send*
+the consent POST as a `no-cors` simple request, with the `SameSite=None` user-id cookie,
+and store a consent decision in the visitor's name. The handler now refuses a request
+marked `Sec-Fetch-Site: cross-site` from an origin outside the allow-list with 403, before
+reading the body. Browsers without the header pass — the gap they leave is the old one.
+What this does **not** stop: a server-side caller (no browser, no `Sec-Fetch-Site`) that
+knows a visitor's uid can still write a consent for it, because the handler takes the uid
+from the body (F-240, open). The cross-site embed fix above removes the easy way to learn
+that uid.
 
 ### Fixed — sGTM Client: the template did not import ("Variable "body" already exists")
 
@@ -466,7 +530,7 @@ itself. The GET path now covers what the POST cannot: *Delete Cookie if Consent 
 switched on after the withdrawal, a changed consent requirement, a POST whose `Set-Cookie`
 never reached the browser (plausibly an aborted navigation — not observed), or another
 writer to the Session API. (A
-cross-origin consent POST does not arrive at all — F-160, open.)
+cross-origin consent POST did not arrive at all — F-160, fixed further up.)
 
 It deletes (under every name the Client reads, like the POST handler) only on **positive
 evidence**: an authoritative answer carrying a real CMP decision — not the auto-denial

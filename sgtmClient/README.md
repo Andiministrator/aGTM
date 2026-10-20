@@ -408,6 +408,37 @@ Name, lifetime **in days** (converted to `max-age` internally; a non-positive va
 A visitor who has not answered the CMP carries **no** cookie at all, including under
 *Cookie Mode: always* — see *[Cookie Mode](#cookie-mode)* for why.
 
+#### Additional CORS Origins
+
+Which pages may **read** this Client's responses with cookies (`/aGTM.js` and the consent
+store). Allowed automatically: https pages on the *Cookie Domain* and its subdomains, and —
+with *Cookie Domain* `auto`, the default — every https page sharing the registrable domain of
+this sGTM host (`rp.example.com` allows `www.example.com`, `shop.example.com`). Enter further
+hosts here, comma-separated, only for pages **outside** that domain (`shop.example.net`).
+
+What it governs:
+
+- **Reading responses with `fetch()`** — needed by the consent store whenever the sGTM host is
+  not the page's own origin (a subdomain reverse proxy is exactly that case).
+- **Embedding from another site.** When the browser marks the `/aGTM.js` request `cross-site`
+  (the sGTM host is on a different registrable domain than the page) and the page — judged by
+  its `Referer` — is not allowed, the library is served **without** session data: no uid, no
+  stored consent, no Sources write, no consent store. GTM still loads through the CMP flow.
+  **So if your sGTM runs on a domain other than your site's, list your site's hosts here.**
+  The page must send at least its origin as `Referer` (the browser default does); with
+  `Referrer-Policy: no-referrer`, load the script with `crossorigin="use-credentials"` so the
+  browser sends an `Origin` instead. Enter internationalised hosts in Punycode (`xn--…`).
+- **Consent writes**: a cross-site consent POST from a page that is not allowed is refused with
+  403. The library cannot read the answer of any non-allowed origin, so it never reaches
+  `synced` there.
+
+Each host you list can read the per-visitor body (uid, session id, stored consent). List only
+sites you operate. With *Cookie Domain* `auto`, the Client derives the sGTM host from
+`Forwarded` / `X-Forwarded-Host` / `Host`, in that order; a proxy that rewrites `Host` to its
+upstream without passing the public one on breaks that derivation — set *Cookie Domain*
+explicitly then. On a hosting platform's shared domain (`<you>.<platform>.io`), `auto` would
+trust every other customer's subdomain of it; set *Cookie Domain* to your own full host.
+
 #### Fingerprint Allowed
 
 If checked, a fingerprint-based user ID `F{lim}1{lim}{tenant}{lim}{hash}.{date}` is generated when no cookie is available, used as the Session API key on first visits — and **only** there, never as a cookie value. Once the visitor consents, the Client gives them a stable cookie-based ID `C.1{lim}{tenant}{lim}{rand12}.{ms}` (via the api4sgtm `/promote` endpoint when a Session API is configured, minted locally otherwise) and writes that `C.*` to the cookie — so the persistent identifier is a true random cookie ID, not the daily-rolling fingerprint. `{lim}` is the configured `fip_limiter` (recommended `.`); the literal `C.` two-character prefix on the C-side is mandated by api4sgtm. Returning visitors carrying an `F.*` cookie from older deploys are migrated lazily on their next request.

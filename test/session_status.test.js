@@ -92,6 +92,23 @@ describe('aGTM.d.session_status — run_cc() lifecycle', () => {
     expect(aGTM.d.session_status).toBe('synced');
   });
 
+  test('the consent-store POST goes with credentials and as text/plain (F-160)', () => {
+    resetAGTM({
+      consent_store_url: 'https://rp.example.com/aGTMconsent',
+      session: { sid: 's-1', consent: { hasResponse: true, services: ',svc-old,' } }
+    });
+    setupRunCc();
+    aGTM.f.consent_check = function () {
+      aGTM.d.consent.hasResponse = true;
+      aGTM.d.consent.services = ',svc-new,';
+      return true;
+    };
+    aGTM.f.run_cc('update');
+    const xhr = MockXHR.instances[MockXHR.instances.length - 1];
+    expect(xhr.withCredentials).toBe(true);
+    expect(xhr._headers['Content-Type']).toBe('text/plain;charset=UTF-8');
+  });
+
   test('transitions to "confirmed" when run_cc finds no diff (preset matches CMP)', () => {
     resetAGTM({
       consent_store_url: 'https://store.example.com/consent',

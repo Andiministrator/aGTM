@@ -448,7 +448,8 @@ aGTM.f.call_cc()             — called by timer, manually, or sync from config(
   │           ├─ Polling-safe: ticks without state change emit nothing
   │         consent diff/store (gated on consent_store_url):
   │         if (new_hash !== aGTM.d.consent_hash):
-  │            xhr = xsend(consent_store_url, {uid, sid, consent: <without gtm/blocked>})
+  │            xhr = xsend(consent_store_url, {uid, sid, consent: <without gtm/blocked>}, …, cred=true)
+  │                  (withCredentials + text/plain — cross-origin simple request, F-160)
   │            xhr.onreadystatechange: on 2xx → consent_hash = new_hash;
   │                                              session_status = 'synced'
   │                                              parse responseText: if response.uid
@@ -658,6 +659,56 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
   `{type, category, score, confirmed}` (capped at 10). **`signals[].detail` is deliberately
   dropped** — for `asn_reputation` it carries tenant-wide aggregates about *other* visitors
   (`asn`, `asnOrg`, `uniqueIps`, `requests`, `consecutiveWindows`).
+
+### CORS and the cross-site write guard (sGTM Client only)
+
+`setCorsHeaders()` runs on every answer that a page may need to read: `/aGTM.js` (200) and
+`/aGTMconsent` (200 path `finishConsentPost`, 501 path). It always sends `Vary: Origin` and
+sends `Access-Control-Allow-Origin: <origin>` + `Allow-Credentials: true` **only** for an
+allowed origin (F-189 — it used to echo any origin, so every site could `fetch()` the
+per-visitor body with uid, sid and stored consent):
+
+- `https://` only; the host is compared, port ignored, the origin echoed verbatim.
+- listed in **`cors_origins`** (exact hosts, comma-separated; scheme/path ignored) — for a
+  site outside the cookie domain;
+- or the host is `cookie_domain` or a subdomain of it;
+- or, with `cookie_domain: 'auto'` (the delivered default), the same **eTLD+1** as the
+  request host — resolved like `setCookie`'s `auto`: `Forwarded host=`, then
+  `X-Forwarded-Host`, then `Host`. Via `computeEffectiveTldPlusOne`, so
+  `a.github.io` never vouches for `b.github.io`. Fails closed: an empty eTLD+1 never
+  matches, and without the public-suffix list the API returns its argument, so two
+  siblings compare unequal. `'auto'` cannot mean "no CORS" — that would leave F-160
+  broken for exactly the default configuration.
+
+The library side (F-160): the consent POST goes `withCredentials` + `text/plain`
+(`aGTM.f.xsend`'s 5th parameter), a CORS simple request — the Client still has no OPTIONS
+route and needs none. `text/plain` is safe because the Client parses the body whatever
+its Content-Type.
+
+**CORS is not the only way to read** (F-189, second half). A foreign page can include
+`/aGTM.js` as a classic `<script src>` — no `Origin`, cookie included — and read `aGTM.d`
+in its own window. So the GET handler computes `foreignEmbed` right after the path gate:
+`Sec-Fetch-Site: cross-site`, the page's `Referer` host not allowed (`hostAllowed`) and no
+allowed `Origin` either (a listed page without Referer loads with `crossorigin=use-credentials`).
+Only the Referer **host** is ever logged, and only under `debug`.
+`afterBotCheck` then calls `buildAndSend(null)` before any uid resolution — no Session API,
+no cookie, no Sources POST (closes F-239, `?c=` attribution injection), no `c.bot`, no
+consent-store URL builder. Consequence: an sGTM on a different registrable domain than the
+site needs the site's hosts in `cors_origins`, or its visitors get no preset.
+
+**CORS governs reading, not sending** (F-238). A foreign page can still deliver the POST
+(`mode: 'no-cors'`, `text/plain`), and the `SameSite=None` user-id cookie travels with it —
+before F-238 any site could store a consent decision in the visitor's name. The POST
+handler therefore refuses with 403, before reading the body, when
+`Sec-Fetch-Site: cross-site` arrives from an origin the allow-list does not name.
+`same-site` / `same-origin` and a missing header (older browsers, server-to-server) pass —
+refusing them would break real visitors, and the gap they leave is the pre-existing one.
+Not covered and tracked: a server-side caller that knows a uid can still write a consent for
+it — the handler takes the uid from the body (F-240); `auto` on a hosting platform's shared
+domain trusts every other tenant's subdomain (F-241); a proxy that rewrites `Host` without
+passing the public host on defeats `auto` (debug log `✗ CORS: origin not allowed` names
+both hosts). The new code avoids `String.prototype.trim` (see `trimCond`) and uses
+`split(' ').join('')`. `test/sgtm/cors.test.js` covers the matrix.
 
 ### Container URL parameters (sGTM Client only)
 

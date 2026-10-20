@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 29.09.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 20.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -703,7 +703,7 @@ aGTM.f.run_cc = function (action) {
       var encrypt = aGTM.c.consent_store_enc === true;
       var salt = (typeof aGTM.c.session_salt === 'number' && aGTM.c.session_salt >= 1) ? aGTM.c.session_salt : 0;
       aGTM.f.log('m_consent_store_post', {url: aGTM.c.consent_store_url, hash: newHash});
-      var xhr = aGTM.f.xsend(aGTM.c.consent_store_url, consentPayload, encrypt, salt);
+      var xhr = aGTM.f.xsend(aGTM.c.consent_store_url, consentPayload, encrypt, salt, true);
       // No request left the browser (xsend logged e_xsend): the attempt still
       // counts, and the last one must still say that the budget is spent.
       if (!xhr && st.n >= 3) aGTM.f.log('e_consent_store_gave_up', {hash: newHash});
@@ -2451,13 +2451,28 @@ aGTM.f.enc = function(str, salt) {
  * @param {object} data - The data object to send.
  * @param {boolean} encrypt - Whether to obfuscate the payload (see aGTM.f.enc — this is not encryption).
  * @param {number} salt - Salt for the obfuscation (integer >= 1).
+ * @param {boolean} [cred] - Cross-origin consent store mode (F-160): send the
+ *   request with credentials and as text/plain. The sGTM Client is commonly on a
+ *   subdomain of the page (rp.example.com on www.example.com), which makes the
+ *   POST cross-origin. text/plain keeps it a CORS "simple request" - no OPTIONS
+ *   preflight, which the Client does not answer - and the body is still the same
+ *   JSON, which the Client parses regardless of the header. withCredentials sends
+ *   the user-id cookie and lets the browser keep the Set-Cookie of an F->C
+ *   promote. Off for every other caller: the _post transport and the aEvents tag
+ *   send to endpoints of the integrator's choosing, and those must not start
+ *   receiving the visitor's cookies because the consent store needs them.
  */
-aGTM.f.xsend = function(url, data, encrypt, salt) {
+aGTM.f.xsend = function(url, data, encrypt, salt, cred) {
   if (!url || typeof url !== 'string') return;
   try {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (cred === true) {
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8');
+    } else {
+      xhr.setRequestHeader('Content-Type', 'application/json');
+    }
     var body;
     if (encrypt && typeof salt === 'number' && salt >= 1) {
       body = '{"q":"' + aGTM.f.enc(aGTM.f.sStrf(data), salt) + '"}';

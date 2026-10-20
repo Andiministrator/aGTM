@@ -387,7 +387,7 @@ is not optional.
 - **Deletion on withdrawal** (only `cookie_mode: consent` with `cookie_delete`): the consent
   POST deletes the cookie when a withdrawal arrives; since F-154 `/aGTM.js` also deletes it
   when the Session API has a withdrawal on record. No record or an outage deletes nothing,
-  and a cross-origin consent POST does not arrive at all (F-160). Under `always` a
+  and before this build a cross-origin consent POST did not arrive at all (F-160). Under `always` a
   withdrawal does **not** remove the cookie.
 - **Caveat worth testing yourself.** In the delivered default (`cookie_mode: always`) there
   is **no configurable consent requirement for minting the cookie at all**: the check
@@ -411,11 +411,24 @@ Two properties of that response belong in an assessment:
 
 - It is sent with `Cache-Control: private, no-store`. It must never be cached by a CDN or
   proxy, or one visitor's session would be handed to the next.
-- It echoes the request's `Origin` header back in `Access-Control-Allow-Origin` together
-  with `Access-Control-Allow-Credentials: true`, and the user-id cookie is `SameSite=None`.
-  A page on **any** origin the visitor later opens can therefore read this per-visitor body,
-  including the uid and the stored consent decision. Tracked as finding F-189; if you run
-  shape B, treat this as open until it is resolved.
+- **Who may read it.** Until this build, any page the visitor later opened could read this
+  body, uid and stored consent included — by `fetch()` (the Client echoed every `Origin`
+  with credentials) and by including it as `<script src>` (F-189). Now:
+  - CORS headers go only to https origins on the cookie domain or its subdomains (with
+    *Cookie Domain* `auto`: origins sharing the sGTM host's registrable domain) and to the
+    hosts in *Additional CORS Origins*.
+  - A request the browser marks `cross-site` from a page outside that list is served the
+    library **without** session data, bot verdict or consent store.
+  - **Limits:** every subdomain of the allowed domain is trusted, including one run by a
+    third party (a shop or landing-page service on `shop.example.com`) — the same trust a
+    domain-wide cookie already implies. Browsers that do not send `Sec-Fetch-Site` (roughly
+    Safari before 16.4) are served as before. An installation on an older Client still has
+    the full exposure — check the `x-agtm-version` header of its answer.
+- **Who may write a consent.** A consent POST marked `cross-site` from an origin outside the
+  list is refused (F-238), so a foreign page can no longer store a decision through the
+  visitor's browser. **Not covered:** a caller without a browser that knows a visitor's uid
+  can still write a consent for it, because the uid is taken from the request body (F-240,
+  open); and browsers without `Sec-Fetch-Site`.
 
 ### S7 — pre-init code
 
@@ -607,9 +620,9 @@ and the two your DPO asks for on top:
 
 Three honest caveats to carry over rather than paper over: the server-side fingerprint is not
 a per-person identifier and still leaks session identifiers between visitors who share it
-(§6), the *before consent* rows of §5 are structural — they are how the library gets
-delivered at all, not an optional add-on — and the response of row S6 is currently readable
-cross-origin (F-189).
+(§6), and the *before consent* rows of §5 are structural — they are how the library gets
+delivered at all, not an optional add-on. (Row S6 was readable by any page until this
+build, F-189; the remaining limits are listed there.)
 
 ---
 

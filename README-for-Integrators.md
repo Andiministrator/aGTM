@@ -625,7 +625,8 @@ aGTM POSTs a consent diff whenever the CMP state changes:
 
 ```jsonc
 POST <consent_store_url>
-{
+Content-Type: text/plain;charset=UTF-8      // sent with credentials (withCredentials)
+{ "e": {                              // the payload is wrapped in "e" (xsend envelope)
   "uid": "<user id>",                 // from aGTM.d.session.uid, if present
   "sid": "<session id>",              // from aGTM.d.session.sid, if present
   "consent": {                        // blacklist: no gtmConsent/blocked/empty
@@ -635,8 +636,24 @@ POST <consent_store_url>
     "vendors":  "",
     "feedback": "…"
   }
-}
+} }
 ```
+
+**Transport (v1.5, F-160).** The body is JSON but declared `text/plain`, and the request carries
+credentials. That keeps it a CORS *simple request* — no OPTIONS preflight — when the endpoint sits on
+another origin than the page (typically a sibling subdomain), and it lets your user-id cookie travel.
+For your endpoint that means:
+
+- **Read the body as text and `JSON.parse` it**; do not rely on the Content-Type (a framework JSON
+  parser that keys on `application/json`, such as Express `json()`, sees an empty body).
+- **Cross-origin, answer with the exact origin**: `Access-Control-Allow-Origin: <the request Origin>`
+  plus `Access-Control-Allow-Credentials: true`, and `Vary: Origin`. A wildcard `*` is not allowed with
+  credentials — the browser hides the response, the library sees status 0, retries three times and
+  never reaches `synced`. Allow only origins you operate.
+- **Refuse cross-site writes**: CORS only governs reading. A foreign page can still deliver this POST
+  (`mode: 'no-cors'`), with the visitor's cookie if it is `SameSite=None`. The sGTM Client answers a
+  request marked `Sec-Fetch-Site: cross-site` from an origin outside its allow-list with `403` before
+  reading the body (F-238); do the same.
 
 Handler responsibilities (the parts the **library** observes or depends on):
 

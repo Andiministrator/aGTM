@@ -95,7 +95,27 @@ export function runClient(opts = {}) {
     getRequestBody: () => opts.reqBody || '',
     sendHttpGet: (url) => thenable(() => httpFn(url)),
     sendHttpRequest: (url, o, body) => thenable(() => httpFn(url, body)),
-    getRequestHeader: (h) => (opts.headers || {})[h] || '',
+    // Case-insensitive, like the real API: HTTP header names are.
+    getRequestHeader: (h) => {
+      const hs = opts.headers || {};
+      const k = Object.keys(hs).find((n) => n.toLowerCase() === String(h).toLowerCase());
+      return k === undefined ? '' : hs[k];
+    },
+    // eTLD+1 against a tiny public-suffix list — enough to tell co.uk and
+    // github.io (where a sibling is a STRANGER) from an ordinary .com. The real
+    // API's documented edge cases are modelled: '' for something that is not a
+    // domain, and `opts.pslDown` returns the argument unchanged, as the server
+    // does when it cannot fetch the list.
+    computeEffectiveTldPlusOne: (d) => {
+      if (d === null || d === undefined) return d;
+      if (opts.pslDown) return d;
+      const h = String(d).replace(/^[a-z]+:\/\//, '').split('/')[0].split(':')[0].toLowerCase();
+      if (!/^[a-z0-9.-]+$/.test(h) || h.indexOf('.') < 0) return '';
+      const labels = h.split('.');
+      const suffix2 = labels.slice(-2).join('.');
+      const n = ['co.uk', 'github.io'].indexOf(suffix2) >= 0 ? 3 : 2;
+      return labels.length < n ? '' : labels.slice(-n).join('.');
+    },
     getRemoteAddress: () => (opts.clientIP === undefined ? '203.0.113.7' : opts.clientIP),
     getCookieValues: (name) => {
       const list = opts.cookies || [];
