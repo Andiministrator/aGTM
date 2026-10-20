@@ -650,11 +650,13 @@ const foreignEmbed = makeString(getRequestHeader('sec-fetch-site') || '').toLowe
 // query, and any foreign page can trigger this line.
 if (foreignEmbed && CFG.debug) logToConsole('debug', '✗ Cross-site embed from a page not on the allow-list - serving without session data', httpsHost(getRequestHeader('referer')));
 
-// cors_origins takes exact hosts. A wildcard or leading-dot entry looks like it
-// should cover subdomains and silently covers nothing - say so, once per /aGTM.js request
-// (tenant configuration, so `warn`, not caller-driven).
-const corsOriginsNeverMatch = CFG.corsOrigins.filter(function(h) { return h.charAt(0) === '.' || h.charAt(0) === '*' || h.indexOf('.') < 0; });
-if (corsOriginsNeverMatch.length > 0) logToConsole('warn', '\u2717 Additional CORS Origins: entries that never match (exact hosts only, no wildcard or leading dot): ' + corsOriginsNeverMatch.join(','));
+// cors_origins takes exact ASCII hosts. A wildcard or leading-dot entry looks like
+// it should cover subdomains, and an internationalised name typed as Unicode looks
+// like the host the browser sends as Punycode - both silently cover nothing. Say
+// so, once per /aGTM.js request (tenant configuration, so `warn`). A dotless entry
+// (localhost, an intranet name) is valid and stays quiet.
+const corsOriginsNeverMatch = CFG.corsOrigins.filter(function(h) { return h.charAt(0) === '.' || h.charAt(0) === '*' || encodeUriComponent(h) !== h; });
+if (corsOriginsNeverMatch.length > 0) logToConsole('warn', '\u2717 Additional CORS Origins: entries that never match (exact ASCII hosts only - no wildcard, no leading dot, Punycode for internationalised names): ' + corsOriginsNeverMatch.join(','));
 
 // Decode ?c= → {u: pageUrl, r: referrer}
 const queryParameters = getRequestQueryParameters();
@@ -1790,11 +1792,11 @@ const afterBotCheck = function(isBot) {
 // rollout step that is supposed to be safe.
 const botNoIpBlocks = CFG.botCheckMode === 'block';
 
-// A foreign embed is not checked: it is served nothing personal anyway, and
-// running the check would send this visitor's IP and user agent to the filter
-// service on behalf of a page that is not ours - and, in block mode, hand that
-// page a bot yes/no through the script's onload/onerror.
-if (botCheckEnabled && botCheckUrl && !foreignEmbed) {
+// A foreign embed is checked like any other request: skipping it would let a
+// bot dodge block mode with one forged header (Sec-Fetch-Site: cross-site), and
+// leave mark mode blind for every visitor of a misconfigured cross-domain tenant.
+// What a foreign page never gets is the verdict itself (buildAndSend drops c.bot).
+if (botCheckEnabled && botCheckUrl) {
   if (!clientIP && botNoIpBlocks) {
     logToConsole('error', '\u2717 Bot check enabled but no client IP');
     setResponseStatus(403);

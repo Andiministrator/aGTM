@@ -702,9 +702,13 @@ Served WITHOUT session data …")` and the response carries `x-agtm-preset: with
 missing `cors_origins` looks like a first-time visitor forever.
 `afterBotCheck` then calls `buildAndSend(null)` before any uid resolution — no Session API,
 no cookie, no Sources POST (closes F-239, `?c=` attribution injection), no `c.bot`, no
-consent-store URL builder — and the bot check itself is skipped (no IP/UA to the filter on a
-foreign page's behalf, no bot yes/no via the script's onload/onerror). `cors_origins` entries
-starting with `.`/`*` or without a dot are logged once per `/aGTM.js` request at `warn`. Consequence: an sGTM on a different registrable domain than the
+consent-store URL builder. The bot check still runs (a forged `Sec-Fetch-Site` must not dodge
+`block`, and `mark` must keep measuring a misconfigured cross-domain tenant); only the verdict
+is withheld. **Proxy dependency applies here too:** a proxy that strips `Sec-Fetch-Site`
+silently turns this read protection off, one that strips `Referer` turns listed foreign hosts
+into foreign embeds. `cors_origins` entries starting with `.`/`*` or containing non-ASCII
+characters are logged once per `/aGTM.js` request at `warn` (a dotless host such as
+`localhost` is valid). Consequence: an sGTM on a different registrable domain than the
 site needs the site's hosts in `cors_origins`, or its visitors get no preset.
 
 **CORS governs reading, not sending** (F-238). A foreign page can still deliver the POST

@@ -420,8 +420,9 @@ Two properties of that response belong in an assessment:
     *Cookie Domain* `auto`: origins sharing the sGTM host's registrable domain) and to the
     hosts in *Additional CORS Origins*.
   - A request the browser marks `cross-site` from a page outside that list is served the
-    library **without** session data, bot verdict or consent store, and the bot check is not
-    run for it (no IP or user agent goes to the filter service on its behalf).
+    library **without** session data, bot verdict or consent store (the bot check itself still
+    runs, as for every request). This depends on the proxy in front of the Client passing
+    `Sec-Fetch-Site` through — a proxy that strips it switches the protection off silently.
   - **Limits:** every subdomain of the allowed domain is trusted, including one run by a
     third party (a shop or landing-page service on `shop.example.com`) — the same trust a
     domain-wide cookie already implies. Browsers that do not send `Sec-Fetch-Site` (roughly

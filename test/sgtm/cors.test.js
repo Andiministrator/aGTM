@@ -315,12 +315,19 @@ describe('final-round hardening (QA/critic, session 2026-10-20)', () => {
     expect(() => new Function(r.body)).not.toThrow();
   });
 
-  test('a foreign embed does not run the bot check (no IP/UA to the filter, no block side channel)', () => {
+  test('a foreign embed is still bot-checked: block mode blocks, a forged cross-site header is no way around it', () => {
     const calls = [];
     const r = foreign({ botCheckEnabled: true, botCheck: 'https://filter.example/tp/filter/t', botCheckMode: 'block' },
       { http: (url) => { calls.push(url); return { statusCode: 403, body: '{"isBot":true}' }; } });
-    expect(calls.filter((u) => u.indexOf('filter.example') >= 0)).toEqual([]);
+    expect(calls.filter((u) => u.indexOf('filter.example') >= 0).length).toBe(1);
+    expect(r.status).toBe(403);
+  });
+
+  test('a foreign embed in mark mode is served, but never sees the verdict', () => {
+    const r = foreign({ botCheckEnabled: true, botCheck: 'https://filter.example/tp/filter/t', botCheckMode: 'mark' },
+      { http: () => ({ statusCode: 403, body: '{"isBot":true,"band":"bot"}' }) });
     expect(r.status).toBe(200);
+    expect(r.body).not.toContain('"isBot"');
   });
 
   test('cors_origins entries that can never match are reported once per /aGTM.js request', () => {
@@ -330,6 +337,15 @@ describe('final-round hardening (QA/critic, session 2026-10-20)', () => {
     expect(w[0]).toContain('*.example.net');
     expect(w[0]).toContain('.example.org');
     expect(w[0]).not.toContain('ok.example.com');
+  });
+
+  test('a dotless host (localhost) is valid and not reported; a Unicode name is', () => {
+    const r = js({ cors_origins: 'localhost, bücher.example' }, { origin: 'https://localhost' });
+    expect(r.headers[ACAO]).toBe('https://localhost');
+    const w = r.logs.filter((l) => l.indexOf('Additional CORS Origins') >= 0);
+    expect(w.length).toBe(1);
+    expect(w[0]).toContain('bücher.example');
+    expect(w[0]).not.toContain('localhost');
   });
 
   test('carriage return and no-break space inside a cors_origins entry are dropped', () => {

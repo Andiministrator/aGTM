@@ -113,9 +113,10 @@ A request the browser marks `Sec-Fetch-Site: cross-site` from a page (judged by 
 `Referer`) outside the allow-list is now served the library **without** anything personal:
 no Session API lookup, no cookie, no Sources write (which also stops a foreign page from
 pushing its own `?c=` page URL and referrer into the visitor's attribution — F-239), no
-bot verdict, no consent-store URL, and no bot check either (it would send the visitor's IP to
-the filter on that page's behalf). `same-site`/`same-origin` requests and browsers without
-the header are served as before.
+bot verdict, no consent-store URL. The bot check itself still runs, so `block` cannot be
+dodged with a forged `Sec-Fetch-Site` header. `same-site`/`same-origin` requests and browsers
+without the header are served as before. Like the write guard below, this depends on the proxy
+in front of the Client passing `Sec-Fetch-Site` through.
 
 **F-238.** CORS only decides who may *read* a response. A foreign page could still *send*
 the consent POST as a `no-cors` simple request, with the `SameSite=None` user-id cookie,
