@@ -116,8 +116,11 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   [README-for-Integrators](README-for-Integrators.md) §"The consent-store endpoint".
 - **sGTM Client: the fingerprint hash now changes daily.** If the same server container
   also runs the `serverside_fingerprint` variable (e.g. as the fallback of `user_id`),
-  update it to **v1.2** in the same publish — otherwise the Client and the variable
-  produce different IDs for the same visitor and their sessions split.
+  update it to **v1.2** in the same publish, never the variable alone — otherwise the
+  Client and the variable produce different IDs for the same visitor and their sessions
+  split. Publish shortly after **00:00 UTC** (the day is UTC, not local time): on the
+  publish day every cookieless visitor gets a new key once, and at midnight that happens
+  anyway. Expect a one-day bump in visitors/sessions counted by fingerprint.
 
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
@@ -128,15 +131,25 @@ The fingerprint uid is `F{lim}1{lim}{tenant}{lim}{hash}.{YYYYMMDD}`. The day use
 trail the value only; the hash in front of it was built from request headers alone and
 stayed the same across days — a stable, visible component, which is what CNIL's
 criterion 2 (a time-varying component) is about. The day is now also part of the
-hashed input. The full uid rotated daily before as well, so sessions keyed on the
-fingerprint end exactly when they did; the format and the `1` version are unchanged
-(the Session API's promote expects `F.1…`).
+hashed input. The full uid rotated daily before as well, so from the day after the
+publish sessions keyed on the fingerprint end exactly when they did; on the publish day
+itself every cookieless visitor starts a new session once. The format and the `1`
+version are unchanged on purpose: the Client recognises a fingerprint uid by its
+`F{lim}1{lim}` prefix, and promote, local minting, the lazy promote and the cookie
+clean-up all hang off that check. The day is read once per uid, so hash and suffix
+cannot straddle midnight.
+
+What it achieves, and what not: the visible value no longer carries a component that is
+stable across days. The day is public and there is no secret salt, so whoever holds the
+raw request data (IP and headers) can still recompute the id for any day — it removes the
+cross-day link through the value, not through the inputs.
 
 What this does not change: two visitors with identical headers on the same day still
 derive the same key (F-156 — use the user-ID cookie or switch the fingerprint off).
 
 **Companion:** `serverside_fingerprint` v1.2 carries the same change (same key, value
-and position), so both keep producing the same ID. Update it together with the Client.
+and position), so both keep producing the same ID — provided both must be configured alike: the same non-empty `client_ip` variable (the Client falls back to the remote address when its field is empty, the variable does not), `fip_limiter` = `fipLimiter`, `tenant_id` = `fipIdentifier`, the same `sgtm_host`.
+Update it together with the Client.
 
 ### Added — the dataLayer hook warning names the script that set the hook
 

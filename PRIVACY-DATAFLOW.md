@@ -476,7 +476,7 @@ Both are consequences of a consent decision arriving at `POST /aGTMconsent` (row
 
 | Identifier | Form | Derived from | Lives where | Lifetime |
 |---|---|---|---|---|
-| Fingerprint id | `F$1$<tenant>$<hash>.<YYYYMMDD>` | SHA-256 over IP, User-Agent, `Accept-Language`, `sec-ch-ua*`, GeoIP headers, scheme, sGTM host | server-side only | rolls daily (date suffix) |
+| Fingerprint id | `F$1$<tenant>$<hash>.<YYYYMMDD>` | SHA-256 over IP, User-Agent, `Accept-Language`, `sec-ch-ua*`, GeoIP headers, scheme, sGTM host, the UTC day | server-side only | rolls daily (day in the hash and as suffix) |
 | Stable user id | `C.1$<tenant>$<random>.<ms>` | a random number, minted on a consent signal | the `_tpf` cookie | `cookie_lifetime`, default 365 d |
 | Session id | from the Session API | server-side | `aGTM.d.session.sid` | per the API's session window |
 | GA4 session id | from the Session API | server-side | `aGTM.d.session.ga4sid`, `.muidga4` | per the API's session window |

@@ -40,7 +40,9 @@ describe('fingerprint hash includes the day', () => {
 describe('fingerprint stays equal to serverside_fingerprint v1.2', () => {
   // The same literal is pinned in the ___TESTS___ of serverside_fingerprint v1.2
   // (separate repo). Both sides pinned to one string: if either changes its keys,
-  // values or order, its own test turns red before the IDs drift apart.
+  // values or order, its own test turns red - here on every bun test, on the other
+  // side only when someone runs its GTM Tests tab. The pin covers keys and order,
+  // not where the values come from (client_ip fallback, limiter, tenant).
   test('hashed string for the shared reference request', () => {
     const r = runClient({
       data: { ...DATA, sgtm_host: 'tm.example.com', client_ip: '203.0.113.9' },

@@ -837,9 +837,12 @@ const userAgent = getRequestHeader('User-Agent') || '';
 // The day is part of the HASHED input, not only the trailing .YYYYMMDD: with the
 // suffix alone the hash itself stayed the same across days and was visible in
 // the value — the stable component CNIL's criterion 2 (a time-varying
-// component) is about. The full uid rotated daily before as well, so session
-// keys change exactly as often as they did. Declared first: getFingerprintString
-// calls it.
+// component) is about. The full uid rotated daily before as well, so from the
+// day after the publish session keys change exactly as often as they did (on the
+// publish day itself every cookieless visitor gets a new key once). Declared
+// first: getFingerprint calls it. The day is read once per uid and passed in, so
+// hash and suffix cannot straddle midnight. Same key, value and position as
+// serverside_fingerprint v1.2 - change both together.
 var getFingerprintTimestamp = function() {
   var ms = getTimestampMillis();
   var z = Math.floor(ms / 86400000);
@@ -857,9 +860,9 @@ var getFingerprintTimestamp = function() {
   while (doy > ml[month]) { doy = doy - ml[month]; month = month + 1; }
   return '' + year + (month + 1 < 10 ? '0' : '') + (month + 1) + (doy < 10 ? '0' : '') + doy;
 };
-var getFingerprintString = function() {
+var getFingerprintString = function(day) {
   var requestHeaders = {
-    'fp-day': getFingerprintTimestamp(),
+    'fp-day': day,
     'accept-language': getRequestHeader('accept-language'),
     'client-ip': clientIP,
     'sgtm-host': CFG.sgtmHost,
@@ -881,7 +884,8 @@ var getFingerprintString = function() {
   return toBase64(sha256Sync(buildStr));
 };
 const getFingerprint = function() {
-  return 'F' + CFG.fipLimiter + '1' + CFG.fipLimiter + CFG.tenantID + CFG.fipLimiter + getFingerprintString() + '.' + getFingerprintTimestamp();
+  const day = getFingerprintTimestamp();
+  return 'F' + CFG.fipLimiter + '1' + CFG.fipLimiter + CFG.tenantID + CFG.fipLimiter + getFingerprintString(day) + '.' + day;
 };
 
 // ── Helper: write cookie ──────────────────────────────────────────────────────

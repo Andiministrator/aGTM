@@ -667,6 +667,11 @@ Please contact me if you found problems or have improvements:
 
 - Version 1.5, *in development*
   - aGTM Client Template updated to v1.5 (matches the v1.5 redesign of aGTM)
+  - **Changed: the UTC day is part of the fingerprint hash** (CNIL criterion 2), not only the
+    trailing `.YYYYMMDD`. > **Upgrade note.** If the container also runs the
+    `serverside_fingerprint` variable, update it to **v1.2 in the same publish** (never the
+    variable alone) and publish shortly after 00:00 UTC; otherwise the two produce different
+    IDs and sessions split. Same ID only if both must be configured alike: the same non-empty `client_ip` variable (the Client falls back to the remote address when its field is empty, the variable does not), `fip_limiter` = `fipLimiter`, `tenant_id` = `fipIdentifier`, the same `sgtm_host`
   - **Fixed: the "Use env Parameter" switch read a column that does not exist.** The
     table defines it as `gtm_use`, the code read `gtm_env` — so the environment
     parameters were never appended, whatever the switch was set to. Broken since the
