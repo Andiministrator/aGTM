@@ -105,6 +105,13 @@ architecture, see `CLAUDE.md` (sections "CMP Files", "Build Process",
 3. **Register in the docs:** add the CMP **with its exact `cmp` slug** to
    `cmp/README-cmp.md` — the authoritative CMP → value list that integrators read —
    and add its display name to the "Available CMPs" list in `CLAUDE.md`.
+   **List it in the configurator, too:** an entry in `CMPData.cmps` in
+   `configurator/index.html` — the key is the file name without `cc_` (the generator
+   loads `cmp/cc_<key>.min.js`), and `consentTypes` must be exactly the fields the
+   adapter writes into `aGTM.d.consent` (a condition on a type the adapter never fills
+   can never be met, so GTM never loads). `test/cmp/configurator-sync.test.js` fails
+   otherwise; an adapter that must not be offered goes into its `NOT_LISTED` with a reason.
+   Also add it to the CMP list in `configurator/README-v2_1_3.md`.
 4. **Teach the Inspector to recognise it.** `devtools-extension/cmpdetect.js` names the
    CMP a page is actually running, and its signatures come from exactly the presence
    guard you wrote in step 1. Add an entry to `SIGNATURES`:
@@ -177,7 +184,8 @@ drift-guard test depends on you running `bun test` — always do so before commi
 - [ ] Header `@version` / `@lastupdate` updated
 - [ ] Regression test present and red without the fix
 - [ ] `./build.sh` runs **without warnings**; saw the `Re-synced …` log (if embedded)
-- [ ] `bun test` green (both drift guards: the sGTM template sync **and** `cmpdetect`)
+- [ ] `bun test` green (all three drift guards: the sGTM template sync, `cmpdetect` **and** the configurator CMP list)
+- [ ] New CMP: entry in `CMPData.cmps` in `configurator/index.html` with the adapter's consent types
 - [ ] New CMP: signature in `devtools-extension/cmpdetect.js` (or an `UNDETECTABLE`
       entry with a reason) + `scripts/pack-devtools-extension.sh` re-run
 - [ ] `CHANGELOG.md` updated (+ `CLAUDE.md` & `README.md` for a new CMP)

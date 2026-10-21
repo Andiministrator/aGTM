@@ -1810,7 +1810,7 @@ console.log('User opted out');"></textarea>
             cmp: {
               type: 'ccm19',
               customCode: null,
-              supportedTypes: ['services', 'purposes']
+              supportedTypes: ['services']
             },
             gtm: {
               serverside: false,
@@ -2023,6 +2023,22 @@ console.log('User opted out');"></textarea>
                 migrated = true;
               }
             });
+          }
+
+          // CMP-IDs bis v2.1.3: 'onetrust' hieß anders; neun angebotene CMPs hatten
+          // nie einen Adapter (der generierte Code bekam nur einen ERROR-Kommentar).
+          // Mehrdeutiges/Unbekanntes leeren, damit Schritt 3 neu gewählt wird.
+          if (current.cmp && typeof current.cmp.type === 'string' && current.cmp.type) {
+            const renamed = { onetrust: 'onetrust_cookiepro' };
+            const type = current.cmp.type;
+            if (renamed[type]) {
+              current.cmp.type = renamed[type];
+              migrated = true;
+            } else if (!CMPData.cmps[type]) {
+              Logger.warn('Migrator', `CMP "${type}" gibt es nicht (mehr) — bitte in Schritt 3 neu wählen`);
+              current.cmp.type = '';
+              migrated = true;
+            }
           }
 
           // Fehlende Felder mit Defaults auffüllen
@@ -2896,26 +2912,28 @@ console.log('User opted out');"></textarea>
          * @type {Object.<string, {name: string, description: string, website: string, consentTypes: string[], recommended: boolean, group: string}>}
          */
         cmps: {
+          // Abgeleitet aus cmp/cc_<key>.js: der Schlüssel ist der Dateiname, consentTypes
+          // sind die Felder, die der Adapter in aGTM.d.consent schreibt. Neuer Adapter ⇒ hier ergänzen.
           // === EMPFOHLEN ===
           ccm19: {
             name: 'CCM19',
-            description: 'Deutsche CMP-Lösung. Unterstützt Services und Purposes.',
+            description: 'Deutsche CMP-Lösung. Liefert Services.',
             website: 'https://www.ccm19.de',
-            consentTypes: ['services', 'purposes'],
+            consentTypes: ['services'],
             recommended: true,
             group: 'recommended'
           },
           cookiebot: {
-            name: 'Cookiebot (Usercentrics)',
-            description: 'Weit verbreitete CMP mit guter DSGVO-Konformität. Unterstützt Services und Purposes.',
+            name: 'Cookiebot',
+            description: 'Weit verbreitete CMP. Liefert Kategorien (Purposes).',
             website: 'https://www.cookiebot.com',
-            consentTypes: ['services', 'purposes'],
+            consentTypes: ['purposes'],
             recommended: true,
             group: 'recommended'
           },
           usercentrics3: {
-            name: 'Usercentrics v3',
-            description: 'Neueste Version von Usercentrics mit verbesserter API. Unterstützt Services und Purposes.',
+            name: 'Usercentrics v3 / neueres Cookiebot',
+            description: 'Aktuelle Usercentrics-API (auch neuere Cookiebot-Versionen). Liefert Services und Purposes.',
             website: 'https://usercentrics.com',
             consentTypes: ['services', 'purposes'],
             recommended: true,
@@ -2923,7 +2941,7 @@ console.log('User opted out');"></textarea>
           },
           consentmanager: {
             name: 'Consentmanager',
-            description: 'Flexible CMP mit umfangreichen Anpassungsmöglichkeiten. Unterstützt Purposes und Vendors.',
+            description: 'Flexible CMP mit IAB-TCF-Vendoren. Liefert Purposes und Vendors.',
             website: 'https://www.consentmanager.net',
             consentTypes: ['purposes', 'vendors'],
             recommended: true,
@@ -2932,129 +2950,177 @@ console.log('User opted out');"></textarea>
 
           // === WEITERE ===
           usercentrics: {
-            name: 'Usercentrics v1/v2',
-            description: 'Ältere Usercentrics-Versionen. Für neue Projekte v3 empfohlen.',
+            name: 'Usercentrics v2',
+            description: 'Ältere Usercentrics-Version. Für neue Projekte v3. Liefert Services und Purposes.',
             website: 'https://usercentrics.com',
             consentTypes: ['services', 'purposes'],
             recommended: false,
             group: 'other'
           },
-          onetrust: {
-            name: 'OneTrust',
-            description: 'Enterprise-CMP für große Organisationen. Unterstützt Purposes und Vendors.',
+          onetrust_cookiepro: {
+            name: 'OneTrust / CookiePro',
+            description: 'Enterprise-CMP. Liefert Kategorien (Purposes).',
             website: 'https://www.onetrust.com',
-            consentTypes: ['purposes', 'vendors'],
+            consentTypes: ['purposes'],
             recommended: false,
             group: 'other'
           },
           complianz: {
             name: 'Complianz',
-            description: 'WordPress-Plugin für Cookie-Consent. Unterstützt Purposes (Kategorien) und Services.',
+            description: 'WordPress-Plugin. Liefert Services und Purposes.',
             website: 'https://complianz.io',
-            consentTypes: ['purposes', 'services'],
+            consentTypes: ['services', 'purposes'],
             recommended: false,
             group: 'other'
           },
-          borlabs: {
-            name: 'Borlabs Cookie',
-            description: 'Beliebtes WordPress-Plugin. Unterstützt Services und Purposes.',
+          borlabs3: {
+            name: 'Borlabs Cookie 3',
+            description: 'WordPress-Plugin, Version 3. Liefert Services und Purposes.',
+            website: 'https://borlabs.io',
+            consentTypes: ['services', 'purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          borlabs2: {
+            name: 'Borlabs Cookie 2',
+            description: 'WordPress-Plugin, Version 2. Liefert Services und Purposes.',
             website: 'https://borlabs.io',
             consentTypes: ['services', 'purposes'],
             recommended: false,
             group: 'other'
           },
           klaro: {
-            name: 'Klaro',
-            description: 'Open-Source CMP. Unterstützt Services und Purposes.',
-            website: 'https://klaro.org',
+            name: 'Klaro!',
+            description: 'Open-Source-CMP. Liefert Services und Purposes.',
+            website: '',
             consentTypes: ['services', 'purposes'],
             recommended: false,
             group: 'other'
           },
           cookiefirst: {
             name: 'CookieFirst',
-            description: 'Einfach zu implementierende CMP. Unterstützt Services und Purposes.',
+            description: 'Liefert Services und Purposes.',
             website: 'https://cookiefirst.com',
             consentTypes: ['services', 'purposes'],
             recommended: false,
             group: 'other'
           },
-          cookieyes: {
-            name: 'CookieYes',
-            description: 'CMP mit kostenloser Einstiegsoption. Unterstützt Purposes und Vendors.',
-            website: 'https://www.cookieyes.com',
-            consentTypes: ['purposes', 'vendors'],
-            recommended: false,
-            group: 'other'
-          },
-          termly: {
-            name: 'Termly',
-            description: 'All-in-One Compliance-Lösung. Unterstützt Services und Purposes.',
-            website: 'https://termly.io',
-            consentTypes: ['services', 'purposes'],
-            recommended: false,
-            group: 'other'
-          },
-          iubenda: {
-            name: 'iubenda',
-            description: 'Cookie-Lösung mit Rechtstexte-Generator. Unterstützt Services und Purposes.',
-            website: 'https://www.iubenda.com',
-            consentTypes: ['services', 'purposes'],
-            recommended: false,
-            group: 'other'
-          },
-          trustarc: {
-            name: 'TrustArc',
-            description: 'Enterprise Privacy Management. Unterstützt Purposes und Vendors.',
-            website: 'https://trustarc.com',
-            consentTypes: ['purposes', 'vendors'],
-            recommended: false,
-            group: 'other'
-          },
-          didomi: {
-            name: 'Didomi',
-            description: 'CMP für Publisher und E-Commerce. Unterstützt Purposes und Vendors.',
-            website: 'https://www.didomi.io',
-            consentTypes: ['purposes', 'vendors'],
-            recommended: false,
-            group: 'other'
-          },
-          quantcast: {
-            name: 'Quantcast Choice',
-            description: 'Kostenlose CMP für Publisher. Unterstützt Purposes und Vendors.',
-            website: 'https://www.quantcast.com',
-            consentTypes: ['purposes', 'vendors'],
-            recommended: false,
-            group: 'other'
-          },
-          ogury: {
-            name: 'Ogury Choice Manager',
-            description: 'Mobile-fokussierte CMP. Unterstützt Purposes und Vendors.',
-            website: 'https://ogury.com',
-            consentTypes: ['purposes', 'vendors'],
-            recommended: false,
-            group: 'other'
-          },
           sourcepoint: {
             name: 'Sourcepoint',
-            description: 'Publisher-fokussierte CMP. Unterstützt Purposes und Vendors.',
+            description: 'IAB-TCF-CMP für Publisher. Liefert Purposes und Vendors.',
             website: 'https://www.sourcepoint.com',
             consentTypes: ['purposes', 'vendors'],
             recommended: false,
             group: 'other'
           },
-          commanders: {
-            name: 'Commanders Act',
-            description: 'Enterprise Tag Management mit CMP. Unterstützt Services und Purposes.',
-            website: 'https://www.commandersact.com',
+          clickskeks: {
+            name: 'Clickskeks',
+            description: 'Liefert Purposes.',
+            website: '',
+            consentTypes: ['purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          secure_privacy: {
+            name: 'Secure Privacy',
+            description: 'Liefert Services und Purposes.',
+            website: '',
             consentTypes: ['services', 'purposes'],
             recommended: false,
             group: 'other'
           },
-          ketch: {
-            name: 'Ketch',
-            description: 'Moderne Privacy-Plattform. Unterstützt Services und Purposes.',
-            website: 'https://www.ketch.com',
+          matomo: {
+            name: 'Matomo Consent',
+            description: 'Consent-Status des Matomo-Trackers. Liefert Services und Purposes.',
+            website: 'https://matomo.org',
+            consentTypes: ['services', 'purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          orestbida_cookieconsent: {
+            name: 'Orestbida CookieConsent',
+            description: 'Open-Source-Banner (orestbida/cookieconsent). Liefert Purposes.',
+            website: '',
+            consentTypes: ['purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          ppcm: {
+            name: 'PP Consent Manager (PixelPoint)',
+            description: 'Liefert Services und Purposes.',
+            website: '',
+            consentTypes: ['services', 'purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          tramino: {
+            name: 'Tramino',
+            description: 'Liefert Purposes.',
+            website: '',
+            consentTypes: ['purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          perspectivefunnel: {
+            name: 'Perspective Funnel',
+            description: 'Consent-Banner von Perspective-Funnels. Liefert Services.',
+            website: '',
+            consentTypes: ['services'],
+            recommended: false,
+            group: 'other'
+          },
+          magento_cc_cookie: {
+            name: 'Magento CC Cookie',
+            description: 'Magento-Erweiterung. Liefert Services und Purposes.',
+            website: '',
+            consentTypes: ['services', 'purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          shopify_consent: {
+            name: 'Shopify Consent',
+            description: 'Shopify Customer Privacy API. Liefert Purposes.',
+            website: 'https://www.shopify.com',
+            consentTypes: ['purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          shopware6_cookie: {
+            name: 'Shopware 6 Cookie',
+            description: 'Cookie-Banner von Shopware 6. Liefert Services.',
+            website: 'https://www.shopware.com',
+            consentTypes: ['services'],
+            recommended: false,
+            group: 'other'
+          },
+          shopware5_cookie: {
+            name: 'Shopware 5 Cookie',
+            description: 'Cookie-Banner von Shopware 5. Liefert Services und Purposes.',
+            website: 'https://www.shopware.com',
+            consentTypes: ['services', 'purposes'],
+            recommended: false,
+            group: 'other'
+          },
+          shopware_acris_cookie: {
+            name: 'Shopware Acris Cookie',
+            description: 'Acris-Cookie-Plugin für Shopware. Liefert Services.',
+            website: '',
+            consentTypes: ['services'],
+            recommended: false,
+            group: 'other'
+          },
+          jtl_consent: {
+            name: 'JTL Consent',
+            description: 'Consent-Manager von JTL-Shop. Liefert Services.',
+            website: '',
+            consentTypes: ['services'],
+            recommended: false,
+            group: 'other'
+          },
+          jtl_eu_cookie: {
+            name: 'JTL EU Cookie',
+            description: 'EU-Cookie-Plugin für JTL-Shop. Liefert Services und Purposes.',
+            website: '',
             consentTypes: ['services', 'purposes'],
             recommended: false,
             group: 'other'
@@ -5256,10 +5322,14 @@ aGTM.f.consent_check = function(action) {
             App.currentConfig = ConfigSchema.createEmpty();
           }
 
+          // Nur Typen speichern, die der CMP-Adapter liefert: eine Bedingung auf
+          // einen Typ, den der Adapter nie befüllt, ist nie erfüllt — GTM lädt nie.
+          // (Leere activeTypes = Custom CMP: alles übernehmen.)
+          const keep = (type) => this.activeTypes.length === 0 || this.activeTypes.includes(type);
           App.currentConfig.consent = {
-            gtmServices: this.values.services.join(','),
-            gtmPurposes: this.values.purposes.join(','),
-            gtmVendors: this.values.vendors.join(',')
+            gtmServices: keep('services') ? this.values.services.join(',') : '',
+            gtmPurposes: keep('purposes') ? this.values.purposes.join(',') : '',
+            gtmVendors: keep('vendors') ? this.values.vendors.join(',') : ''
           };
 
           App.currentConfig._meta.modified = new Date().toISOString();
@@ -6226,6 +6296,18 @@ aGTM.f.consent_check = function(action) {
               '   so aGTM will NOT load GTM. Add a condition, or set allowEmptyConsentConditions: true',
               '   if you deliberately want no consent gate. */');
             ToastManager.warning('Keine Consent-Bedingung: aGTM lädt GTM so nicht (siehe Kommentar im Code)');
+          }
+
+          // Bedingung auf einen Typ, den der Adapter nie befüllt (z. B. aus einer alten Config)
+          const cmpTypes = CMPData.cmps[config.cmp?.type]?.consentTypes || [];
+          const field = { services: 'gtmServices', purposes: 'gtmPurposes', vendors: 'gtmVendors' };
+          const unfillable = cmpTypes.length === 0 ? [] :
+            Object.keys(field).filter(t => config.consent?.[field[t]] && !cmpTypes.includes(t)).map(t => field[t]);
+          if (unfillable.length > 0) {
+            lines.splice(lines.lastIndexOf('aGTM.f.config({'), 0,
+              `/* WARNING: ${unfillable.join(', ')} can never be met — this CMP's consent_check`,
+              `   does not report ${unfillable.map(f => f.slice(3).toLowerCase()).join('/')}. GTM will NOT load. */`);
+            ToastManager.warning(`${unfillable.join(', ')}: liefert dieses CMP nicht — GTM würde nie laden`);
           }
 
           lines.push(configParts.join(',\n'));

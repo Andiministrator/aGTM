@@ -17,6 +17,10 @@ Changes by the aGTM project, on top of InBiz's 2.1.3.
 - **No consent condition** – the generated code now carries a warning comment (and the UI shows a toast) when no condition is set and `allowEmptyConsentConditions` is off, because GTM will not load.
 - **Quotes in input values** – string values in the generated config are escaped, so `Google Tag Manager's` no longer breaks the code.
 
+- **CMP list rebuilt from the real adapters** – up to 2.1.3, 11 of the 20 offered CMPs produced only an `ERROR: Could not load … consent_check` comment: nine had no adapter at all (CookieYes, Termly, iubenda, TrustArc, Didomi, Quantcast, Ogury, Commanders Act, Ketch), OneTrust and Borlabs pointed at file names that do not exist. The list now holds the 26 adapters from `cmp/` (14 of them were missing), keyed by file name.
+- **Consent types per CMP** – step 4 offered types an adapter never reports (services for Cookiebot and OneTrust, purposes for CCM19). Such a condition can never be met, so GTM never loaded. Step 4 now offers and saves only the adapter's own types, and the generator warns about a condition the CMP cannot meet (e.g. from an imported older configuration).
+- **Stored configurations** – `onetrust` is renamed to `onetrust_cookiepro`; a CMP that no longer exists is cleared so it is chosen again in step 3.
+
 #### Removed
 - **`ckServices` / `ckPurposes` / `ckVendors`** – removed in aGTM v1.5 (the library never produced the `ck` parameter). Stored or imported configurations drop them on load.
 

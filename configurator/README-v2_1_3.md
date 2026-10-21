@@ -37,7 +37,7 @@ Version 2.1.3 is based on the **SEA Suite dark theme** (InBiz branding):
 |------|-------------|
 | 1. Load | Load a saved configuration or start fresh |
 | 2. Basics | Customer name, mode (simple/advanced), aGTM version |
-| 3. CMP | Pick the consent management platform (23 CMPs) |
+| 3. CMP | Pick the consent management platform (26 adapters, plus Custom and No CMP) |
 | 4. GTM | Container IDs and optionally STAPE.io server-side |
 | 5. Consent | Configure the consent logic (services/purposes/vendors) |
 | 6. Features | Enable aGTM options |
@@ -46,9 +46,11 @@ Version 2.1.3 is based on the **SEA Suite dark theme** (InBiz branding):
 
 ---
 
-## 🔌 Supported CMPs (23)
+## 🔌 Supported CMPs (26)
 
-Cookiebot · Usercentrics v2 · Usercentrics v3 · Borlabs Cookie · OneTrust · Consentmanager · CCM19 · Klaro · Complianz · CookieYes · Osano · Termly · iubenda · TrustArc · Didomi · Quantcast · Shopify · ACRIS · clickskeks · Magento CC Cookie · Secure Privacy · Perspective · Custom · No CMP
+CCM19 · Cookiebot · Usercentrics v3 / newer Cookiebot · Consentmanager · Usercentrics v2 · OneTrust / CookiePro · Complianz · Borlabs Cookie 3 · Borlabs Cookie 2 · Klaro! · CookieFirst · Sourcepoint · Clickskeks · Secure Privacy · Matomo Consent · Orestbida CookieConsent · PP Consent Manager (PixelPoint) · Tramino · Perspective Funnel · Magento CC Cookie · Shopify Consent · Shopware 6 Cookie · Shopware 5 Cookie · Shopware Acris Cookie · JTL Consent · JTL EU Cookie · Custom · No CMP
+
+The list mirrors the adapters in [`cmp/`](../cmp/): each entry loads `cmp/cc_<key>.min.js`, and step 4 only offers the consent types (services / purposes / vendors) that adapter actually reports. The `cc_simple_cookie_regex_check` template is not listed — it has to be edited by hand, so use **Custom** for it.
 
 ---
 

@@ -114,7 +114,9 @@ the real CMP), and a **newer CMP version may publish the older one's API** (User
 v3 ships a working `UC_UI` incl. `getServicesBaseInfo`, so v2 carries a `deny` on
 `__ucCmp.cmpController` — same shape as Borlabs 2 vs. 3).
 **Adding a CMP adapter ⇒ add its signature or its exception**, same reflex as the
-`CMP_MAP` entry for the sGTM Client sync. The probe collects existence/`typeof` only: a
+`CMP_MAP` entry for the sGTM Client sync and the configurator's `CMPData.cmps` entry
+(key = file name without `cc_`, `consentTypes` = the fields the adapter writes;
+drift-guarded by `test/cmp/configurator-sync.test.js`). The probe collects existence/`typeof` only: a
 cookie string and a storage key *are* read to answer "does this key exist", but no
 **value** is ever carried out of the page — it runs before any consent decision.
 
