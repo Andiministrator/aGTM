@@ -62,10 +62,11 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   push if it has one. See `gtm/tags/consent-mode/README-gtm-tag-consent-mode.md` (F-242).
   The workspace export `gtm/aGTM-GTM-Workspace-Template-18.json` still carries the old
   template, only the page-load trigger and *Once per page* — change all three after import.
-- **sGTM Client: a visitor without a user-id cookie no longer receives a consent preset.**
+- **sGTM Client: a visitor without a user-id cookie no longer receives a stored consent.**
   Without a cookie the session is keyed on a server-side fingerprint that is not
   per-visitor, so the stored consent of a stranger could be handed to them. Those visitors
-  now go through the CMP again — expect consent rates and the GTM load ratio to move.
+  go through the CMP again; a returning one (no decision yet) still gets the Client's
+  auto-denial — expect consent rates and the GTM load ratio to move.
 - **sGTM Client: the user-id cookie default is `_tpf`** (it was `_TPU` during v1.5
   development). A cookie written under the old name is read, carried over and retired, so
   nobody loses their id.
@@ -612,15 +613,17 @@ passed the stored consent of whoever got there first into `cfg.session.consent`,
 library set `preset_with_consent`, and GTM was injected for someone who had never seen a
 CMP (F-156).
 
-The stored consent and the server-side auto-denial are now only passed through for a
-**cookie-bound** uid. An `F.*` cookie still counts — it sits in that one browser, and the
+The stored consent is now only passed through for a **cookie-bound** uid. An `F.*` cookie still counts — it sits in that one browser, and the
 lazy F→C promote needs the consent — so the migration path is unaffected; what is excluded
 is the case where the uid came from the fingerprint because no cookie exists.
 
-The auto-denial branch had to be excluded as well, and that is the subtle part: it *looks*
-like a safe fallback ("Consent denied by aGTM") but sets `gtmConsent` from
-`auto_deny_load_gtm`, which defaults to **true** — so leaving it in place would have moved
-the visitor from one preset that loads GTM to another.
+~~The auto-denial branch had to be excluded as well~~ — **revised 2026-10-21:** the
+auto-denial applies again with or without a cookie. It loads GTM (`auto_deny_load_gtm`,
+default true), but its services are the sentinel `,aGTMconsent,`, so only what is gated on
+`aGTMconsent` fires: it can only ever deny. A denial passing through a shared fingerprint
+is harmless; only a grant must not, and a grant can only sit in the *stored* consent
+(failed promote, partial grant, `cookie_mode: never`) — which stays withheld. Withholding
+the auto-denial as well put the banner back on every page of a cookieless visitor.
 
 **What remains open:** consent is still *persisted* under the shared fingerprint key when
 no cookie exists, so the shared record can still be written. Closing that is a separate

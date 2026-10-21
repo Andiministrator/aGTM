@@ -1780,12 +1780,17 @@ const afterBotCheck = function(isBot) {
           // same browser build derive the SAME key. Passing the stored consent
           // through in that case hands visitor B the decision visitor A made —
           // aGTM sets preset_with_consent and injects GTM for someone who never
-          // saw a CMP (F-156). The auto-denial branch is excluded for the same
-          // reason and is NOT a safe fallback: it sets gtmConsent from
-          // autoDenyLoadGtm, which defaults to true, so it would load GTM too.
-          // A cookie-bound uid keeps both branches — including an F.* cookie,
-          // which IS per-browser (it sits in that browser) and still needs the
-          // consent for the lazy F→C promote below. What stays open: the
+          // saw a CMP (F-156). A cookie-bound uid keeps this branch — including
+          // an F.* cookie, which IS per-browser (it sits in that browser) and
+          // still needs the consent for the lazy F→C promote below.
+          // The auto-denial applies with or without a cookie (Andi, 2026-10-21):
+          // it can only ever DENY — services is the sentinel ',aGTMconsent,', so
+          // GTM loads (autoDenyLoadGtm) but only what is gated on aGTMconsent
+          // fires. Inheriting a denial through a shared fingerprint is harmless;
+          // only a grant must not travel that way, and the stored consent is
+          // exactly where a grant can sit (failed promote, partial grant,
+          // cookie_mode never). It was withheld for cookieless visitors from
+          // 4ac262f to here, which put the banner back on every page. What stays open: the
           // consent is still PERSISTED under the shared fingerprint key when no
           // cookie exists, so the record can still be written by whoever gets
           // there first. Closing that is a separate step (F-156 option B).
@@ -1793,9 +1798,8 @@ const afterBotCheck = function(isBot) {
           if (r.consent && typeof r.consent === 'object' && r.consent.hasResponse === true && uidIsBrowserBound) {
             sd.consent = r.consent;
             if (CFG.debug) logToConsole('debug', '✓ Session API returned stored consent', sd.consent);
-          } else if (!uidIsBrowserBound) {
-            if (CFG.debug) logToConsole('debug', '↷ No consent preset: uid is a shared fingerprint, not cookie-bound — the CMP decides');
           } else if (sd.ret) {
+            if (CFG.debug && !uidIsBrowserBound && r.consent) logToConsole('debug', '↷ Stored consent ignored: uid is a shared fingerprint, not cookie-bound');
             // Returning visitor with no recorded consent -> server-side auto-denial.
             // Replaces the old client-side session_apply_denial() (Phase 2 removal).
             // `blocked` mirrors `gtmConsent` so the aGTM run_cc() chelp fallback

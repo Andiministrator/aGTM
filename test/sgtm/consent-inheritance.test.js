@@ -7,23 +7,21 @@
 // key into cfg.session.consent, aGTM set preset_with_consent and injected GTM
 // for someone who had never seen a CMP.
 //
-// The fix binds BOTH preset branches — stored consent and server-side
-// auto-denial — to a cookie-bound uid. An F.* cookie still counts: it sits in
-// that one browser, and the lazy F→C promote needs the consent.
+// The fix binds the stored-consent branch to a cookie-bound uid. An F.* cookie
+// still counts: it sits in that one browser, and the lazy F→C promote needs the
+// consent. The server-side auto-denial applies with or without a cookie (Andi,
+// 2026-10-21): it can only ever deny (services ',aGTMconsent,'), and only a
+// grant must not travel through a shared key. From 4ac262f until then it was
+// withheld for cookieless visitors too, which put the banner back on every page.
 //
 // Scope, stated because the tests would otherwise look stronger than they are:
 // this covers the READ path only. Consent is still persisted under the shared
 // fingerprint key when no cookie exists (F-156 option B, deliberately open).
 //
-// Mutation-checked (6 green unmutated):
-//   * `uidIsBrowserBound = true` (the pre-fix state)        → 2 fail
-//   * only the grant branch gated, auto-denial left through → 2 fail
-// The second one matters most: it is the implementation trap the finding warns
-// about. Gating only the stored consent pushes the visitor into the
-// `else if (sd.ret)` branch, i.e. an auto-denial preset whose gtmConsent comes
-// from auto_deny_load_gtm — default true — so GTM would load anyway, and a
-// test suite that only checked "no stored consent leaked" would have called
-// that a pass.
+// What the tests pin: a cookieless visitor never receives the STORED consent
+// (it may be a stranger's grant); a cookieless returning visitor receives the
+// auto-denial instead. Mutation `uidIsBrowserBound = true` (the pre-fix state)
+// turns the first test red: the stranger's grant would be handed over.
 
 import { describe, test, expect } from 'bun:test';
 import { runClient } from './client-harness.js';
@@ -83,7 +81,7 @@ function session(r) {
 }
 
 describe('F-156 — consent preset requires a cookie-bound uid', () => {
-  test('no cookie (uid from fingerprint): stored consent is NOT passed through', () => {
+  test('no cookie (uid from fingerprint): the stored grant is NOT passed through, the auto-denial applies', () => {
     const r = runClient({
       data: { ...BASE },
       cookies: [],
@@ -91,21 +89,31 @@ describe('F-156 — consent preset requires a cookie-bound uid', () => {
     });
     expect(r.throws).toBeNull();
     expect(r.returned).toBe(true);
-    // The session itself still ships — only the consent block is withheld.
+    // The session itself still ships. The stranger's grant does not: the
+    // returning visitor (counter 3) gets the Client's own denial instead.
     expect(session(r).sid).toBe('s1');
-    expect(session(r).consent).toBeUndefined();
+    expect(session(r).consent.services).toBe(',aGTMconsent,');
+    expect(session(r).consent.feedback).toBe('Consent denied by aGTM');
   });
 
-  test('no cookie: the auto-denial preset is withheld too', () => {
-    // The subtle half. The auto-denial branch reads like a safe fallback
-    // ("Consent denied by aGTM") but sets gtmConsent from auto_deny_load_gtm,
-    // which defaults to true — so leaving it in place would have moved the
-    // visitor from one GTM-loading preset to another.
+  test('no cookie, returning visitor without stored consent: the auto-denial applies', () => {
+    // A denial is the one thing a shared fingerprint may pass on (Andi,
+    // 2026-10-21): only what is gated on aGTMconsent fires.
     const r = runClient({
       data: { ...BASE },
       cookies: [],
       // Returning visitor (counter > 0), no consent on file.
       http: () => ({ statusCode: 200, body: JSON.stringify({ sessionId: 's1', counter: 5 }) })
+    });
+    expect(r.throws).toBeNull();
+    expect(session(r).consent.services).toBe(',aGTMconsent,');
+  });
+
+  test('no cookie, first visit (counter 0): no preset at all', () => {
+    const r = runClient({
+      data: { ...BASE },
+      cookies: [],
+      http: () => ({ statusCode: 200, body: JSON.stringify({ sessionId: 's1', counter: 0 }) })
     });
     expect(r.throws).toBeNull();
     expect(session(r).consent).toBeUndefined();
