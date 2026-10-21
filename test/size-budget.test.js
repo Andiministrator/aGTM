@@ -19,7 +19,8 @@ import { gzipSync } from "zlib";
 // Headroom is intentionally small (~1 KB raw) so a meaningful addition trips the guard.
 // Raised 2026-10-21 (37_000 → 38_500 / 11_300 → 11_600): the dataLayer hook warning names
 // the hooking script (fct_hook_src — aGTM.f.dlHookTrap + aGTM.f.stackSrc, +818 B raw).
-// Size before it was 36_964 B, i.e. the old ceiling had 36 B left. Now: raw 37_782 B.
+// Size before it was 36_964 B, i.e. the old ceiling had 36 B left. Now: raw 38_036 B (incl. the
+// review hardening: early-hook baseline, no-throw setter, inline/blob/userinfo handling).
 const BUDGET_RAW = 38_500;
 const BUDGET_GZIP = 11_600;
 

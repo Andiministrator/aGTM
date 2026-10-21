@@ -296,7 +296,7 @@ Possible Values:
 - ""
   Do nothing.
 - "log"
-  Push an `exception` event (`errtype: "DL Error"`) once per page, with the hook's source (`fct_hook`), the URL of the script that set it (`fct_hook_src`, without query string; empty if unknown) and GTM's original (`fct_orig`). All three non-empty values send this event.
+  Push an `exception` event (`errtype: "DL Error"`) once per page, with the hook's source (`fct_hook`), the URL of the script that set it (`fct_hook_src`, without query string; `inline` for an inline script of the page, `blob` for a blob: script, empty if unknown) and GTM's original (`fct_orig`). All three non-empty values send this event.
 - "use"
   Use the original (GTM) dataLayer.push function if it was overwritten (hooked) instead of the new (hooked) one.
 - "restore"

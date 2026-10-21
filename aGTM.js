@@ -2491,15 +2491,22 @@ aGTM.f.xsend = function(url, data, encrypt, salt, cred) {
  * Extracts the script URL that caused a stack trace, skipping the frames of the script the trace was taken in.
  * @property {function} aGTM.f.stackSrc
  * @param {string} s - An Error stack (Chrome "at … (url:l:c)" or Firefox "fn@url:l:c").
- * @returns {string} The first foreign script URL without query string/fragment, or "" if there is none.
+ * Assumes the first URL in the stack is aGTM's own script; served inline, aGTM also skips other inline frames.
+ * @returns {string} The first foreign script URL without query string/fragment/userinfo, "inline" for a frame
+ *   of the page itself, "blob" for a blob: script, or "" if there is none.
  */
 aGTM.f.stackSrc = function (s) {
-  var u = String(s || '').match(/https?:\/\/[^\s()'"@]+/g) || [], own = '', i, x;
+  var u = String(s || '').match(/(blob:)?https?:\/\/[^\s()'"]+/g) || [], own = '', page = '', i, x;
+  try { page = String(location.href).split(/[?#]/)[0]; } catch (e) {}
   for (i = 0; i < u.length; i++) {
     // Drop :line:column, then query string and fragment — a script URL may carry IDs or tokens
     x = u[i].replace(/(:\d+){1,2}$/, '').split(/[?#]/)[0];
-    if (!i) own = x;
-    else if (x !== own) return x;
+    if (!i) { own = x; continue; }
+    if (x === own) continue;
+    // Never pass on the page address: an inline hook would report its path (order IDs, reset tokens)
+    if (x === page) return 'inline';
+    if (/^blob:/.test(x)) return 'blob';
+    return x.replace(/^(https?:\/\/)[^\/]*@/, '$1');
   }
   return '';
 };
@@ -2521,10 +2528,14 @@ aGTM.f.dlHookTrap = function (dl) {
     Object.defineProperty(dl, 'push', { configurable: true, enumerable: true,
       get: function () { return cur; },
       set: function (v) {
-        // No GTM baseline yet, or GTM (re-)wrapping its own push: just pass it through
-        if (!aGTM.d.originalDLpush || /sandbox/i.test(String(v))) { cur = v; return; }
-        if (!aGTM.d.dlHookSrc) aGTM.d.dlHookSrc = aGTM.f.stackSrc(new Error().stack);
-        Object.defineProperty(dl, 'push', { value: v, writable: true, configurable: true, enumerable: true });
+        try {
+          // The hook may come before the next sendnaus has recorded GTM's push: take the baseline from the trap
+          if (!aGTM.d.originalDLpush && /sandbox/i.test(String(cur))) aGTM.d.originalDLpush = cur;
+          // No GTM baseline yet, or GTM (re-)wrapping its own push: just pass it through
+          if (!aGTM.d.originalDLpush || /sandbox/i.test(String(v))) { cur = v; return; }
+          if (!aGTM.d.dlHookSrc) aGTM.d.dlHookSrc = aGTM.f.stackSrc(new Error().stack);
+          Object.defineProperty(dl, 'push', { value: v, writable: true, configurable: true, enumerable: true });
+        } catch (e) { cur = v; } // never break the script that sets push
       }
     });
     aGTM.d.dlHookTrap = dl;

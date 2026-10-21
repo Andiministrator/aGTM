@@ -94,7 +94,7 @@ The sGTM Client reads the `c` parameter (Base64-encoded JSON with current URL an
    `curl -s -o /dev/null -D - -A '<browser UA>' -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: cors' -H 'Origin: https://evil.example' -H 'Referer: https://evil.example/' 'https://<sgtm-host>/aGTM.js?id=<GTM-ID>'`
    Expected: `x-agtm-preset: withheld-cross-site`. Without that header the cross-site protection is silently off — fix the proxy.
 
-Public bodies, or a strict reading of the ePrivacy rules: untick *Allow server-side fingerprint as fallback user ID* (on by default) — it derives a user ID from IP and browser signals before any consent.
+Public bodies, or a strict reading of the ePrivacy rules: untick *Allow server-side fingerprint as fallback user ID* (on by default) — it derives a user ID from IP and browser signals before any consent. Know the cost: the user-ID cookie is only ever minted from a fingerprint ID, so without it no visitor gets a user-ID cookie, a session preset or a stored consent — even after consenting.
 
 ---
 
@@ -314,6 +314,8 @@ If you need a diffrenet name (as "dataLayer") for the GTM Datalayer, you can spe
 #### Action for dataLayer.push Hook
 
 The dataLayer.push function is the connection from the dataLayer Array to the Google Tag Manager. If this function is changed, the connection can be lost. With this feature you can decide, what to do in this case.
+
+Every option except "Do Nothing" pushes an `exception` event once per page. Its `fct_hook_src` names the script that replaced the function (URL without query string; `inline` for an inline script of the page, empty if unknown). "Use" and "Restore" cut the hooking script off from the dataLayer — it then no longer sees aGTM's events.
 
 #### Nonce Value (for Content Security Policy)
 

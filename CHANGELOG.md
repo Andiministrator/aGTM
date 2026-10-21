@@ -125,18 +125,25 @@ said *that* `dataLayer.push` had been replaced, not *by whom*: `fct_hook` carrie
 wrapper's minified source, whose names change with every build of the third party. Finding
 the culprit took a live debugging session — on a real shop it was the OpenAI ads pixel
 (`oaiq.min.js`), whose *automatic advanced matching* wraps `dataLayer.push` and reads every
-push for e-mail addresses and phone numbers (names and addresses it takes from forms).
+push for e-mail addresses and phone numbers; names and addresses it collects from form
+fields and page content.
 
 - New field **`fct_hook_src`** on that event: the URL of the script that set the hook,
-  without query string or fragment (a script URL may carry IDs). Empty if the stack names
-  no script (inline code).
+  without query string, fragment or userinfo (a script URL may carry IDs). A hook set by an
+  inline script of the page reports `inline` — never the page path, which may carry an order
+  ID or a reset token —, a `blob:` script reports `blob`, and the field is empty if the stack
+  names no other script (e.g. `eval`'d code).
 - How: when `dlOrgPush` is set, `sendnaus()` arms a setter trap on `dataLayer.push`
-  (`aGTM.f.dlHookTrap`). GTM's own push passes through. On the first foreign one the trap
+  (`aGTM.f.dlHookTrap`). GTM's own push passes through. A hook that arrives right after GTM,
+  before aGTM's next event, is caught too: the trap takes GTM's push as the baseline. On
+  the first foreign one the trap
   reads the setter's stack (`aGTM.f.stackSrc`), stores the URL in `aGTM.d.dlHookSrc` and
   steps aside, so a script that saved the property descriptor and restores it later gets
-  GTM's push back. An accessor somebody else already put on `push` is left alone.
+  GTM's push back. An accessor somebody else already put on `push` is left alone, and the
+  trap never throws into the script that sets `push`.
 - Deliberately vendor-neutral: no list of known hooks in the library. Naming the vendor
-  behind a URL is a job for the Inspector or a lookup variable in GTM.
+  behind a URL is a job for a lookup table in GTM (or, later, the Inspector, which does not
+  show it yet).
 - With `dlOrgPush` empty (the default) nothing changes: no trap, no event.
 - Documentation: README.md described `"log"` as attaching a `dlPushFunction` flag to the
   dataLayer; it has sent the `exception` event since v1.4. Corrected.

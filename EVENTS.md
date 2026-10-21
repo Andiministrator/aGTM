@@ -64,7 +64,7 @@ they are aGTM's own control signals and must reach GTM before the consent decisi
 | `aGTM_repeat_fallback` | DL-Repeat gave up waiting for its gate event(s) — only if something was actually replayed | `aGTMrepeatCount`, `aGTMrepeatSource`, `aGTMrepeatMissing` (the gate event(s) that never arrived), `aGTMrepeatWaited` (ms) |
 | `aPageview` | pageview, if `aPageview: true` (or via the Pageview tag) | `aGTMts` |
 | `aDOMready` / `aPAGEready` | DOM ready / page fully loaded, if configured. When aGTM fires them itself they carry `aMSG` instead of a payload | `aGTMts`, `aMSG` |
-| `exception` | caught JS error or a dataLayer problem | `errmsg`, `errtype` (`"JS Error"` / `"DL Error"`); on `"JS Error"` also `errct` (error counter, max 5 pushed / 100 counted) + `browser` + `timestamp`; on `"DL Error"` instead `obj_type`/`obj_value` or `fct_hook`/`fct_hook_src`/`fct_orig` (`fct_hook_src` = URL of the script that set the hook, no query string; `""` if unknown) |
+| `exception` | caught JS error or a dataLayer problem | `errmsg`, `errtype` (`"JS Error"` / `"DL Error"`); on `"JS Error"` also `errct` (error counter, max 5 pushed / 100 counted) + `browser` + `timestamp`; on `"DL Error"` instead `obj_type`/`obj_value` or `fct_hook`/`fct_hook_src`/`fct_orig` (`fct_hook_src` = URL of the script that set the hook, no query string; `inline` / `blob` / `""` if not a script URL) |
 | `vPageview` | **deprecated** — legacy name of `aPageview`, incl. the SPA URL listener (`oldURL`, `newURL`, `newTitle`) | `aGTMts` |
 
 **Replayed events** (DL-Repeat / late enrichment) carry `aGTMrepeated: true`.

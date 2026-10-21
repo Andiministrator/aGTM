@@ -168,3 +168,98 @@ describe('aGTM.f.dlHookTrap() + sendnaus() — fct_hook_src', () => {
     expect(globalThis.dataLayer.push).toBe(gtmPush);
   });
 });
+
+describe('aGTM.f.stackSrc() — page addresses and odd URLs (Kritiker K-4)', () => {
+  let realHref;
+  beforeEach(() => { realHref = globalThis.location.href; globalThis.location.href = 'https://shop.example/konto/reset/ab12cd?x=1'; });
+  const withFrame = f => 'Error\n    at set (https://sgtm.example.com/aGTM.js:1:2)\n    at ' + f;
+
+  test('a hook from an inline script of the page reports "inline", never the page path', () => {
+    try {
+      expect(aGTM.f.stackSrc(withFrame('https://shop.example/konto/reset/ab12cd:55:3'))).toBe('inline');
+    } finally { globalThis.location.href = realHref; }
+  });
+
+  test('blob: scripts report "blob", userinfo is stripped', () => {
+    try {
+      expect(aGTM.f.stackSrc(withFrame('blob:https://shop.example/0f8e-uuid:1:9'))).toBe('blob');
+      expect(aGTM.f.stackSrc(withFrame('https://user:pw@cdn.example/a.js:3:4'))).toBe('https://cdn.example/a.js');
+    } finally { globalThis.location.href = realHref; }
+  });
+});
+
+describe('aGTM.f.dlHookTrap() — order, re-wraps and robustness (QA-6, K-5, K-13)', () => {
+  let real;
+  beforeEach(() => {
+    resetAGTM();
+    aGTM.f.config({ gdl: 'dataLayer', dlOrgPush: 'log' });
+    globalThis.dataLayer = [];
+    real = aGTM.f.stackSrc;
+  });
+
+  test('GTM re-wrap after the baseline passes through, records nothing, trap stays', () => {
+    try {
+      aGTM.f.stackSrc = () => 'https://www.googletagmanager.com/gtm.js';
+      aGTM.f.sendnaus({ event: 'aGTM_ready' });
+      globalThis.dataLayer.push = makeGtmPush();
+      aGTM.f.sendnaus({ event: 'gtm.js' });
+      globalThis.dataLayer.push = makeGtmPush();
+      expect(aGTM.d.dlHookSrc).toBeUndefined();
+      expect(Object.getOwnPropertyDescriptor(globalThis.dataLayer, 'push').get).toBeDefined();
+    } finally { aGTM.f.stackSrc = real; }
+  });
+
+  test('the first setter wins after a descriptor restore and a second foreign set', () => {
+    try {
+      aGTM.f.sendnaus({ event: 'aGTM_ready' });
+      const g = makeGtmPush();
+      globalThis.dataLayer.push = g;
+      aGTM.f.sendnaus({ event: 'gtm.js' });
+      const saved = Object.getOwnPropertyDescriptor(globalThis.dataLayer, 'push');
+      aGTM.f.stackSrc = () => 'https://a.example/first.js';
+      globalThis.dataLayer.push = makeHook(g, []);
+      Object.defineProperty(globalThis.dataLayer, 'push', saved);
+      aGTM.f.stackSrc = () => 'https://b.example/second.js';
+      globalThis.dataLayer.push = makeHook(g, []);
+      expect(aGTM.d.dlHookSrc).toBe('https://a.example/first.js');
+    } finally { aGTM.f.stackSrc = real; }
+  });
+
+  test('the setter hands a real stack string to stackSrc', () => {
+    let got;
+    try {
+      aGTM.f.stackSrc = s => { got = s; return 'x'; };
+      aGTM.f.sendnaus({ event: 'aGTM_ready' });
+      const g = makeGtmPush();
+      globalThis.dataLayer.push = g;
+      aGTM.f.sendnaus({ event: 'gtm.js' });
+      globalThis.dataLayer.push = makeHook(g, []);
+      expect(typeof got).toBe('string');
+      expect(got.length).toBeGreaterThan(0);
+    } finally { aGTM.f.stackSrc = real; }
+  });
+
+  test('a hook right after GTM, before any further sendnaus, is still recorded and reported', () => {
+    try {
+      aGTM.f.stackSrc = () => 'https://bzrcdn.openai.com/sdk/oaiq.min.js';
+      aGTM.f.sendnaus({ event: 'aGTM_ready' });
+      const g = makeGtmPush();
+      globalThis.dataLayer.push = g;
+      globalThis.dataLayer.push = makeHook(g, []);
+      expect(aGTM.d.dlHookSrc).toBe('https://bzrcdn.openai.com/sdk/oaiq.min.js');
+      aGTM.f.sendnaus({ event: 'aPAGEready' });
+      expect(globalThis.dataLayer.find(e => e.event === 'exception').fct_hook_src).toBe('https://bzrcdn.openai.com/sdk/oaiq.min.js');
+    } finally { aGTM.f.stackSrc = real; }
+  });
+
+  test('a hook whose toString throws does not break the script that sets it', () => {
+    aGTM.f.sendnaus({ event: 'aGTM_ready' });
+    const g = makeGtmPush();
+    globalThis.dataLayer.push = g;
+    aGTM.f.sendnaus({ event: 'gtm.js' });
+    const evil = function () { return g.apply(this, arguments); };
+    evil.toString = () => { throw new Error('nope'); };
+    expect(() => { globalThis.dataLayer.push = evil; }).not.toThrow();
+    expect(globalThis.dataLayer.push).toBe(evil);
+  });
+});
