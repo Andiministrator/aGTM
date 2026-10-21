@@ -2494,6 +2494,13 @@ console.log('User opted out');"></textarea>
         }
       };
 
+      /**
+       * Text für innerHTML entschärfen. Werte aus geladenen Konfigurationen und
+       * Share-Links sind fremde Eingaben (ein Link kann `<img onerror=…>` als
+       * Consent-Wert tragen) — sie werden nie roh in HTML eingesetzt.
+       */
+      const escHtml = (val) => String(val).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
       // ============================================================
       // TOAST MANAGER - Benachrichtigungen
       // ============================================================
@@ -2542,7 +2549,7 @@ console.log('User opted out');"></textarea>
             info: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
           };
 
-          toast.innerHTML = `${icons[type]}<span>${message}</span>`;
+          toast.innerHTML = `${icons[type]}<span>${escHtml(message)}</span>`;
           this.container.appendChild(toast);
 
           // Animate in
@@ -4898,8 +4905,8 @@ aGTM.f.consent_check = function(action) {
           },
           vendors: {
             name: 'gtmVendors',
-            desc: 'Prüft auf TCF Vendor IDs (für TCF 2.0 kompatible CMPs)',
-            placeholder: 'Vendor ID auswählen oder eingeben...'
+            desc: 'Prüft auf Vendor-Namen, so wie das CMP sie meldet (Consentmanager, Sourcepoint: Name, nicht die TCF-ID)',
+            placeholder: 'Vendor-Namen eingeben...'
           }
         },
 
@@ -5182,11 +5189,11 @@ aGTM.f.consent_check = function(action) {
 
           container.innerHTML = this.values[type].map(value => `
             <span class="chip inline-flex items-center gap-1 px-3 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-200 rounded-full text-sm">
-              ${value}
+              ${escHtml(value)}
               <button type="button"
                       class="chip-remove hover:text-primary-600 dark:hover:text-primary-400"
                       data-type="${type}"
-                      data-value="${value}">
+                      data-value="${escHtml(value)}">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
@@ -5217,7 +5224,8 @@ aGTM.f.consent_check = function(action) {
           // Sammle aktive Bedingungen
           const conditions = [];
 
-          ['services', 'purposes', 'vendors'].forEach(type => {
+          // nur Typen, die das CMP liefert — die übrigen verwirft saveToConfig
+          this.activeTypes.forEach(type => {
             if (this.values[type].length > 0) {
               const typeName = this.descriptions[type].name;
               conditions.push({
@@ -5236,7 +5244,7 @@ aGTM.f.consent_check = function(action) {
 
           // Vorschau generieren
           const preview = conditions.map(c => {
-            const valuesStr = c.values.map(v => `"${v}"`).join(' UND ');
+            const valuesStr = c.values.map(v => `"${escHtml(v)}"`).join(' UND ');
             return `<span class="text-primary-600 dark:text-primary-400">${c.type}</span>: ${valuesStr}`;
           }).join('<br><span class="text-amber-600 dark:text-amber-400 font-bold">UND</span><br>');
 
@@ -5323,7 +5331,7 @@ aGTM.f.consent_check = function(action) {
           const keep = (type) => this.activeTypes.includes(type);
           const dropped = ['services', 'purposes', 'vendors'].filter(type => !keep(type) && this.values[type].length > 0);
           if (dropped.length > 0) {
-            ToastManager.warning(`Entfernt: ${dropped.join(', ')}-Bedingung (${dropped.map(t => this.values[t].join(', ')).join(' / ')}) — dieses CMP liefert ${dropped.join('/')} nicht`);
+            ToastManager.warning(`Bedingung entfernt (${dropped.map(t => `${t}: ${this.values[t].join(', ')}`).join('; ')}) — dieses CMP meldet ${dropped.join('/')} nicht`);
             Logger.warn('Step4', 'Bedingungen verworfen, CMP liefert den Typ nicht', dropped);
           }
           App.currentConfig.consent = {
@@ -5488,13 +5496,14 @@ aGTM.f.consent_check = function(action) {
           // Erweiterte Optionen ein-/ausblenden
           this.toggleAdvancedSection(this.isAdvancedMode);
 
-          // Defaults setzen (im Einfach-Modus empfohlene Werte)
+          // Werte aus Config laden (setzt jedes Feld, auch auf leer)
+          this.loadFromConfig();
+
+          // Danach die Empfehlungen für eine neue Konfiguration — vorher würde
+          // loadFromConfig() sie gleich wieder mit false überschreiben
           if (!this.hasLoadedBefore()) {
             this.applyDefaults();
           }
-
-          // Werte aus Config laden
-          this.loadFromConfig();
 
           Logger.debug('Step5', `Modus: ${this.isAdvancedMode ? 'Erweitert' : 'Einfach'}`);
         },
@@ -6057,7 +6066,7 @@ aGTM.f.consent_check = function(action) {
           lines.push(`  aGTM v${agtmv} Configuration (Konfigurator v${cnfgv})`);
           lines.push('  ----------------------------------------------------------');
           lines.push(`  Generated: ${date}`);
-          lines.push(`  Customer:  ${config.basis?.kundenname || 'Unknown'}`);
+          lines.push(`  Customer:  ${(config.basis?.kundenname || 'Unknown').replace(/\*\//g, '* /')}`);
           lines.push('  ==========================================================');
           lines.push('*/');
           lines.push('');
@@ -6194,7 +6203,7 @@ aGTM.f.consent_check = function(action) {
           const configParts = [];
 
           // JS-String-Literal in einfachen Anführungszeichen (Eingaben escapen)
-          const q = (val) => "'" + String(val).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/</g, '\\x3C').replace(/\r?\n/g, ' ') + "'";
+          const q = (val) => "'" + String(val).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/</g, '\\x3C').replace(/\r\n|[\r\n\u2028\u2029]/g, ' ') + "'";
 
           // Kein CMP: ohne cmp:'none' sucht aGTM eine consent_check-Funktion,
           // findet keine und lädt GTM nie
@@ -6216,7 +6225,7 @@ aGTM.f.consent_check = function(action) {
           } else if (config.gtm?.serverside && config.gtm?.stapeio?.cid) {
             // Bei STAPE.io: GTM-Container aus cid ableiten
             const gtmId = 'GTM-' + config.gtm.stapeio.cid;
-            configParts.push(`  gtm: { '${gtmId}': {} }`);
+            configParts.push(`  gtm: { ${q(gtmId)}: {} }`);
           }
 
           // Consent-Logik
@@ -7003,7 +7012,12 @@ aGTM.f.consent_check = function(action) {
 
             // Base64 dekodieren
             const json = decodeURIComponent(escape(atob(configParam)));
-            const config = ConfigMigrator.migrate(JSON.parse(json)).config;
+            const raw = JSON.parse(json);
+            if (!raw || !raw._meta) {
+              ToastManager.warning('Geteilte Konfiguration ist unvollständig (kein _meta) — nicht geladen');
+              return;
+            }
+            const config = ConfigMigrator.migrate(raw).config;
 
             // Validieren
             const validation = ConfigSchema.validate(config);
