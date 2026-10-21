@@ -53,14 +53,16 @@ const SRC = readFileSync(
  *                        such a lookup can never miss, so the fallback chain
  *                        would look correct in a test and be untested.
  * @param opts.clientIP    remote address
- * @returns {{status, body, headers, claimed, returned, logs, cookies, throws}}
+ * @param opts.now         getTimestampMillis() (default 1785230523000 = 2026-07-28)
+ * @returns {{status, body, headers, claimed, returned, logs, cookies, hashed, throws}}
+ *          `hashed` records every sha256Sync() input in order.
  *          `cookies` records every setCookie() call as {name, val, maxAge} in
  *          order. Recorded rather than stubbed away because the one thing the
  *          Client writes into the visitor's browser was, until F-153, the one
  *          thing no test could see.
  */
 export function runClient(opts = {}) {
-  const state = { status: 200, body: '', headers: {}, claimed: false, returned: false, logs: [], cookies: [] };
+  const state = { status: 200, body: '', headers: {}, claimed: false, returned: false, logs: [], cookies: [], hashed: [] };
   const data = opts.data || {};
   const query = opts.query || { id: 'GTM-TEST' };
   const httpFn = opts.http || (() => ({ statusCode: 200, body: '{}' }));
@@ -133,9 +135,10 @@ export function runClient(opts = {}) {
     setCookie: (name, val, o) => { state.cookies.push({ name: name, val: val, maxAge: o && o['max-age'] }); },
     fromBase64: (s) => Buffer.from(s, 'base64').toString('utf8'),
     toBase64: (s) => Buffer.from(s, 'utf8').toString('base64'),
-    sha256Sync: (s) => 'sha_' + String(s).length,
+    // Inputs recorded: the fingerprint's hashed string is otherwise invisible.
+    sha256Sync: (s) => { state.hashed.push(String(s)); return 'sha_' + String(s).length; },
     generateRandom: (min, max) => min,
-    getTimestampMillis: () => 1785230523000,
+    getTimestampMillis: () => (opts.now === undefined ? 1785230523000 : opts.now),
     makeInteger: (v) => parseInt(v, 10) || 0,
     makeNumber: (v) => Number(v) || 0,
     makeString: (v) => String(v),

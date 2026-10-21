@@ -1,0 +1,38 @@
+// test/sgtm/fingerprint-day.test.js — the day is part of the fingerprint HASH (#72).
+//
+// Before, the day only trailed the value (`….YYYYMMDD`) and the hash in front
+// of it stayed identical across days — a stable, visible component, which is
+// what CNIL's criterion 2 (a time-varying component) asks to avoid. The hashed
+// string is invisible in the served uid (sha256Sync is stubbed), so the harness
+// records its inputs and this file asserts on them.
+import { describe, test, expect } from 'bun:test';
+import { runClient } from './client-harness.js';
+
+const GTM = [{ gtm_id: 'GTM-TEST', gtm_consent: true }];
+const DATA = { gtm: GTM, session_api_url: 'https://api.example/tp/session', tenant_id: 't' };
+const DAY1 = 1785230523000;            // 2026-07-28
+const DAY2 = DAY1 + 86400000;          // 2026-07-29
+const HEADERS = { 'user-agent': 'UA', 'accept-language': 'de' };
+
+const run = (now) => {
+  const urls = [];
+  const r = runClient({ data: DATA, now, headers: HEADERS, http: (url) => { urls.push(url); return { statusCode: 200, body: '{}' }; } });
+  return { r, urls, fp: r.hashed.filter((s) => s.indexOf('user-agent:') > -1) };
+};
+
+describe('fingerprint hash includes the day', () => {
+  test('the hashed input carries the day stamp', () => {
+    const { r, fp } = run(DAY1);
+    expect(r.throws).toBeNull();
+    expect(fp.length).toBeGreaterThan(0);
+    expect(fp[0].indexOf('fp-day:20260728')).toBe(0);
+  });
+
+  test('same headers, next day: different hashed input, suffix still the day', () => {
+    const a = run(DAY1), b = run(DAY2);
+    expect(a.fp[0]).not.toBe(b.fp[0]);
+    expect(a.fp[0].replace('20260728', '')).toBe(b.fp[0].replace('20260729', ''));
+    expect(a.urls.some((u) => /\$t\$[A-Za-z0-9+/=]+\.20260728$/.test(u))).toBe(true);
+    expect(b.urls.some((u) => /\$t\$[A-Za-z0-9+/=]+\.20260729$/.test(u))).toBe(true);
+  });
+});

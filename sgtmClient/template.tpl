@@ -1810,9 +1810,33 @@ claimRequest();
 const clientIP = data.client_ip || getRemoteAddress() || '';
 const userAgent = getRequestHeader('User-Agent') || '';
 
-// ── Helper: generate fingerprint (exact logic from serverside_fingerprint v1.1.tpl)
+// ── Helper: generate fingerprint (serverside_fingerprint v1.1.tpl, plus the day)
+// The day is part of the HASHED input, not only the trailing .YYYYMMDD: with the
+// suffix alone the hash itself stayed the same across days and was visible in
+// the value — the stable component CNIL's criterion 2 (a time-varying
+// component) is about. The full uid rotated daily before as well, so session
+// keys change exactly as often as they did. Declared first: getFingerprintString
+// calls it.
+var getFingerprintTimestamp = function() {
+  var ms = getTimestampMillis();
+  var z = Math.floor(ms / 86400000);
+  var rd = z + 719163;
+  var d = rd - 1;
+  var n400 = Math.floor(d / 146097); d = d - n400 * 146097;
+  var n100 = Math.floor(d / 36524);  d = d - n100 * 36524;
+  var n4   = Math.floor(d / 1461);   d = d - n4   * 1461;
+  var n1   = Math.floor(d / 365);    d = d - n1   * 365;
+  var year = 400 * n400 + 100 * n100 + 4 * n4 + n1 + 1;
+  var doy  = d + 1;
+  var ml   = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if ((year % 4 === 0) && (year % 100 !== 0 || year % 400 === 0)) ml[1] = 29;
+  var month = 0;
+  while (doy > ml[month]) { doy = doy - ml[month]; month = month + 1; }
+  return '' + year + (month + 1 < 10 ? '0' : '') + (month + 1) + (doy < 10 ? '0' : '') + doy;
+};
 var getFingerprintString = function() {
   var requestHeaders = {
+    'fp-day': getFingerprintTimestamp(),
     'accept-language': getRequestHeader('accept-language'),
     'client-ip': clientIP,
     'sgtm-host': CFG.sgtmHost,
@@ -1832,23 +1856,6 @@ var getFingerprintString = function() {
   }
   if (CFG.debug) logToConsole('debug', 'FP buildStr:', buildStr);
   return toBase64(sha256Sync(buildStr));
-};
-var getFingerprintTimestamp = function() {
-  var ms = getTimestampMillis();
-  var z = Math.floor(ms / 86400000);
-  var rd = z + 719163;
-  var d = rd - 1;
-  var n400 = Math.floor(d / 146097); d = d - n400 * 146097;
-  var n100 = Math.floor(d / 36524);  d = d - n100 * 36524;
-  var n4   = Math.floor(d / 1461);   d = d - n4   * 1461;
-  var n1   = Math.floor(d / 365);    d = d - n1   * 365;
-  var year = 400 * n400 + 100 * n100 + 4 * n4 + n1 + 1;
-  var doy  = d + 1;
-  var ml   = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  if ((year % 4 === 0) && (year % 100 !== 0 || year % 400 === 0)) ml[1] = 29;
-  var month = 0;
-  while (doy > ml[month]) { doy = doy - ml[month]; month = month + 1; }
-  return '' + year + (month + 1 < 10 ? '0' : '') + (month + 1) + (doy < 10 ? '0' : '') + doy;
 };
 const getFingerprint = function() {
   return 'F' + CFG.fipLimiter + '1' + CFG.fipLimiter + CFG.tenantID + CFG.fipLimiter + getFingerprintString() + '.' + getFingerprintTimestamp();

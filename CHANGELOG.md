@@ -114,9 +114,29 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 - **Own consent-store endpoint** (standalone integrators setting `consent_store_url`
   themselves): the POST is now `text/plain` with credentials — see
   [README-for-Integrators](README-for-Integrators.md) §"The consent-store endpoint".
+- **sGTM Client: the fingerprint hash now changes daily.** If the same server container
+  also runs the `serverside_fingerprint` variable (e.g. as the fallback of `user_id`),
+  update it to **v1.2** in the same publish — otherwise the Client and the variable
+  produce different IDs for the same visitor and their sessions split.
 
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
+
+### Changed — sGTM Client: the day is part of the fingerprint hash (CNIL criterion 2)
+
+The fingerprint uid is `F{lim}1{lim}{tenant}{lim}{hash}.{YYYYMMDD}`. The day used to
+trail the value only; the hash in front of it was built from request headers alone and
+stayed the same across days — a stable, visible component, which is what CNIL's
+criterion 2 (a time-varying component) is about. The day is now also part of the
+hashed input. The full uid rotated daily before as well, so sessions keyed on the
+fingerprint end exactly when they did; the format and the `1` version are unchanged
+(the Session API's promote expects `F.1…`).
+
+What this does not change: two visitors with identical headers on the same day still
+derive the same key (F-156 — use the user-ID cookie or switch the fingerprint off).
+
+**Companion:** `serverside_fingerprint` v1.2 carries the same change (same key, value
+and position), so both keep producing the same ID. Update it together with the Client.
 
 ### Added — the dataLayer hook warning names the script that set the hook
 
