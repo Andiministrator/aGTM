@@ -242,13 +242,58 @@ describe('aGTM.f.run_cc() — consent diff/store', () => {
       for (let i = 0; i < 10; i++) {
         aGTM.f.run_cc('update');
         const open = consentXHRs().filter((x) => x.readyState !== 4);
-        open.forEach((x) => x.respond(404, { ok: false }));
+        open.forEach((x) => x.respond(503, { ok: false }));
       }
       expect(consentXHRs().length).toBe(3);
       expect(aGTM.l.filter((e) => e && (e.m === 'e_consent_store_gave_up' || e.msg === 'e_consent_store_gave_up' || JSON.stringify(e).indexOf('e_consent_store_gave_up') >= 0)).length).toBe(1);
       expect(aGTM.d.consent_hash).toBe('');
       expect(aGTM.d.session_status).not.toBe('synced');
       expect(aGTM.d.session_status).not.toBe('confirmed');
+    });
+
+    // A 4xx (except 408/429) and 501 are final for this state: the server
+    // already did what it could (the Client heals a cookie-bound 404 itself),
+    // so a repeat seconds later only doubles the load — for cookieless
+    // fingerprint visitors that was tens of thousands of requests a day.
+    for (const status of [404, 403, 400, 501]) {
+      test(`${status} is final: one POST, no retry, gave_up logged once`, () => {
+        resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
+        setupRunCc();
+        aGTM.f.consent_check = grant(',svc1,');
+        for (let i = 0; i < 6; i++) {
+          aGTM.f.run_cc('update');
+          consentXHRs().filter((x) => x.readyState !== 4).forEach((x) => x.respond(status, {}));
+        }
+        expect(consentXHRs().length).toBe(1);
+        expect(aGTM.l.filter((e) => JSON.stringify(e).indexOf('e_consent_store_gave_up') >= 0).length).toBe(1);
+        expect(aGTM.d.consent_hash).toBe('');
+      });
+    }
+
+    for (const status of [408, 429, 500, 502, 503, 0]) {
+      test(`${status} is transient: retried up to 3 POSTs`, () => {
+        resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
+        setupRunCc();
+        aGTM.f.consent_check = grant(',svc1,');
+        for (let i = 0; i < 6; i++) {
+          aGTM.f.run_cc('update');
+          consentXHRs().filter((x) => x.readyState !== 4).forEach((x) => x.respond(status, {}));
+        }
+        expect(consentXHRs().length).toBe(3);
+      });
+    }
+
+    test('a final 4xx does not block the next decision', () => {
+      resetAGTM({ consent_store_url: 'https://store.example.com/consent' });
+      setupRunCc();
+      aGTM.f.consent_check = grant(',svc1,');
+      aGTM.f.run_cc('update');
+      consentXHRs()[0].respond(404, {});
+      aGTM.f.consent_check = grant(',svc2,');
+      aGTM.f.run_cc('update');
+      expect(consentXHRs().length).toBe(2);
+      consentXHRs()[1].respond(200, { ok: true });
+      expect(aGTM.d.session_status).toBe('synced');
     });
 
     test('no second POST while the first is still in flight', () => {
@@ -270,7 +315,7 @@ describe('aGTM.f.run_cc() — consent diff/store', () => {
       aGTM.f.consent_check = grant(',svc1,');
       for (let i = 0; i < 5; i++) {
         aGTM.f.run_cc('update');
-        consentXHRs().filter((x) => x.readyState !== 4).forEach((x) => x.respond(404, {}));
+        consentXHRs().filter((x) => x.readyState !== 4).forEach((x) => x.respond(503, {}));
       }
       expect(consentXHRs().length).toBe(3);
       aGTM.f.consent_check = grant(',svc2,');
@@ -301,7 +346,7 @@ describe('aGTM.f.run_cc() — consent diff/store', () => {
       setupRunCc();
       aGTM.f.consent_check = grant(',svc1,');
       aGTM.f.run_cc('update');
-      consentXHRs()[0].respond(404, {});
+      consentXHRs()[0].respond(503, {});
       aGTM.f.run_cc('update');
       consentXHRs()[1].respond(200, { ok: true });
       expect(aGTM.d.session_status).toBe('synced');

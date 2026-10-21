@@ -132,6 +132,23 @@ describe('/aGTMconsent — Session API write result (F-236)', () => {
     expect(r.throws).toBeNull();
     expect(s.calls.map((c) => c.url)).toEqual([API + '/t/F$1$t$sha_123.20260929/consent']);
     expect(r.status).toBe(404);
+    // Expected for a cookieless visitor, not a lost decision: no warn line per
+    // request (it ran at 10,000+ a day on one tenant, F-248), a header instead.
+    expect(warns(r).length).toBe(0);
+    expect(r.headers['x-agtm-consent']).toBe('not-persisted-fingerprint');
+  });
+
+  test('a fingerprint uid with a non-404 failure still warns', () => {
+    const s = scripted([{ statusCode: 503, body: '' }]);
+    const r = runClient({
+      data: { gtm: [{ gtm_id: 'GTM-TEST', gtm_consent: true }], cookie_name: 'aGTMuid', cookie_mode: 'consent', tenant_id: 't', session_api_url: API },
+      path: '/aGTMconsent',
+      method: 'POST',
+      reqBody: JSON.stringify({ uid: 'F$1$t$sha_123.20260929', sid: 's1', consent: { hasResponse: true } }),
+      http: s.fn
+    });
+    expect(r.status).toBe(503);
     expect(warns(r).length).toBe(1);
+    expect(r.headers['x-agtm-consent']).toBeUndefined();
   });
 });

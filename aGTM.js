@@ -745,6 +745,13 @@ aGTM.f.run_cc = function (action) {
             }
           } else {
             aGTM.f.log('e_consent_store', {status: xhr.status, attempt: st.n});
+            // A 4xx is the server's final answer for this state (404 "no
+            // active session" after the Client's own healing, 403 cross-site),
+            // and so is 501 (obfuscated body, no decoder): a repeat a few
+            // seconds later gets the same answer. 408/429, any other 5xx and
+            // no answer (0) are worth a retry.
+            var s = xhr.status;
+            if ((s >= 400 && s < 500 && s !== 408 && s !== 429) || s === 501) st.n = 3;
             if (st.n >= 3) aGTM.f.log('e_consent_store_gave_up', {hash: newHash});
           }
         };

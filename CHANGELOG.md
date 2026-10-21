@@ -129,6 +129,24 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Changed — consent store: a final refusal is not retried, a cookieless 404 is not a warning
+
+Measured on one tenant after the F-236 update: the healing of a cookie-bound `C.*` uid works
+(consent 404 for `C.*` from ~1,800 to ~150 a day, 3 failed heals in 24 h). For cookieless
+visitors (`F.*` fingerprint uid, never healed — F-156) the consent write answered `404` 10,000
+to 126,000 times a day, each with a `warn` line, and the library repeated each refusal up to twice.
+
+- **Library:** a 4xx other than 408/429, and a 501, is the server's final answer for that
+  consent state — one POST, no retry. 408/429, other 5xx and no answer are retried as before (at
+  most 3 POSTs per state). This cuts the repeats for every refusal that cannot heal within the page
+  (404 after the Client's own healing, 403 from the cross-site guard, 501 for an obfuscated body).
+- **sGTM Client:** the expected `404` for an `F.*` uid answers with
+  `x-agtm-consent: not-persisted-fingerprint` and a debug line instead of a `warn` line per
+  request. Every other refused write still logs at `warn`.
+
+Nothing changes for what is stored: a cookieless visitor's consent is still not handed back on
+the next page (F-156), with or without this write.
+
 ### Fixed — configurator 2.2.0: v1.5 options, and the CMPs that actually exist
 
 The configurator loaded the v1.5 library but generated v1.4 configurations. It now

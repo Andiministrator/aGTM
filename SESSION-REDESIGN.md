@@ -154,7 +154,8 @@ aGTM.f.consent_serialize = function(c) {
 
 ```
 new_hash = consent_serialize(aGTM.d.consent)
-// F-236: retry budget — at most 3 POSTs per hash, none for the same hash in flight
+// F-236: retry budget — at most 3 POSTs per hash, none for the same hash in flight;
+// F-248: a 4xx (not 408/429) or 501 is final — no retry
 if (consent_store_url && new_hash !== aGTM.d.consent_hash && budget(new_hash)) {
   xhr = xsend(consent_store_url, payload, enc, salt, true)  // cred: text/plain + withCredentials (F-160)
   // Hash is updated ONLY on successful POST — see "Failure handling" below
@@ -170,7 +171,7 @@ if (consent_store_url && new_hash !== aGTM.d.consent_hash && budget(new_hash)) {
 }
 ```
 
-**Failure handling:** if the POST fails (network error, non-2xx), `aGTM.d.consent_hash` stays at the old value. The next `run_cc('update')` will diff again and retry — **at most 3 POSTs per consent state** (F-236: without the budget the 2 s poll re-POSTed on every tick for as long as the server refused). The sGTM Client passes the real status through; before F-236 it answered a constant 200, so this retry never ran. This restores today's "page reload retries" semantics; it's a strict improvement because retries happen within the same page load (e.g. on the next CMP update event).
+**Failure handling:** if the POST fails (network error, non-2xx), `aGTM.d.consent_hash` stays at the old value. The next `run_cc('update')` will diff again and retry — **at most 3 POSTs per consent state**, none after a 4xx other than 408/429 or a 501 (F-236/F-248: without the budget the 2 s poll re-POSTed on every tick for as long as the server refused). The sGTM Client passes the real status through; before F-236 it answered a constant 200, so this retry never ran. This restores today's "page reload retries" semantics; it's a strict improvement because retries happen within the same page load (e.g. on the next CMP update event).
 
 **Initial hash seed:** at end of `aGTM.f.config()`, if `cfg.session.consent` was preset, `aGTM.d.consent_hash = consent_serialize(cfg.session.consent)`. Otherwise hash starts as `""` (any non-empty consent → diff → first POST).
 
