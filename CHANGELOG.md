@@ -118,6 +118,29 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Added — the dataLayer hook warning names the script that set the hook
+
+With `dlOrgPush` set, the `exception` "Function dataLayer.push hooked - no longer from GTM"
+said *that* `dataLayer.push` had been replaced, not *by whom*: `fct_hook` carries the
+wrapper's minified source, whose names change with every build of the third party. Finding
+the culprit took a live debugging session — on a real shop it was the OpenAI ads pixel
+(`oaiq.min.js`), whose *automatic advanced matching* wraps `dataLayer.push` and reads every
+push for e-mail, phone, name and address data.
+
+- New field **`fct_hook_src`** on that event: the URL of the script that set the hook,
+  without query string or fragment (a script URL may carry IDs). Empty if the stack names
+  no script (inline code).
+- How: when `dlOrgPush` is set, `sendnaus()` arms a setter trap on `dataLayer.push`
+  (`aGTM.f.dlHookTrap`). GTM's own push passes through. On the first foreign one the trap
+  reads the setter's stack (`aGTM.f.stackSrc`), stores the URL in `aGTM.d.dlHookSrc` and
+  steps aside, so a script that saved the property descriptor and restores it later gets
+  GTM's push back. An accessor somebody else already put on `push` is left alone.
+- Deliberately vendor-neutral: no list of known hooks in the library. Naming the vendor
+  behind a URL is a job for the Inspector or a lookup variable in GTM.
+- With `dlOrgPush` empty (the default) nothing changes: no trap, no event.
+- Documentation: README.md described `"log"` as attaching a `dlPushFunction` flag to the
+  dataLayer; it has sent the `exception` event since v1.4. Corrected.
+
 ### Fixed — consent store cross-origin (F-160), CORS echo (F-189), cross-site consent writes (F-238)
 
 **F-160.** Tenants that run the sGTM Client behind a subdomain reverse proxy

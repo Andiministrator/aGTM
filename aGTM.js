@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 20.10.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 21.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -2488,6 +2488,50 @@ aGTM.f.xsend = function(url, data, encrypt, salt, cred) {
 };
 
 /**
+ * Extracts the script URL that caused a stack trace, skipping the frames of the script the trace was taken in.
+ * @property {function} aGTM.f.stackSrc
+ * @param {string} s - An Error stack (Chrome "at … (url:l:c)" or Firefox "fn@url:l:c").
+ * @returns {string} The first foreign script URL without query string/fragment, or "" if there is none.
+ */
+aGTM.f.stackSrc = function (s) {
+  var u = String(s || '').match(/https?:\/\/[^\s()'"@]+/g) || [], own = '', i, x;
+  for (i = 0; i < u.length; i++) {
+    // Drop :line:column, then query string and fragment — a script URL may carry IDs or tokens
+    x = u[i].replace(/(:\d+){1,2}$/, '').split(/[?#]/)[0];
+    if (!i) own = x;
+    else if (x !== own) return x;
+  }
+  return '';
+};
+
+/**
+ * Arms a setter trap on dataLayer.push, so a hook can be traced back to the script that set it (fct_hook_src).
+ * GTM's own (sandboxed) push passes through. On the first foreign push the trap records the setter's script
+ * and steps aside: push becomes a plain property again. A script that saved the descriptor before hooking
+ * (oaiq.min.js does) and restores it later therefore gets the trap back, which still returns GTM's push.
+ * @property {function} aGTM.f.dlHookTrap
+ * @param {Array} dl - The GTM dataLayer.
+ */
+aGTM.f.dlHookTrap = function (dl) {
+  if (!dl || aGTM.d.dlHookTrap === dl) return;
+  try {
+    var d = Object.getOwnPropertyDescriptor(dl, 'push'), cur = dl.push;
+    // Somebody else's accessor or a locked property: leave it alone
+    if (d && (!d.configurable || !('value' in d))) return;
+    Object.defineProperty(dl, 'push', { configurable: true, enumerable: true,
+      get: function () { return cur; },
+      set: function (v) {
+        // No GTM baseline yet, or GTM (re-)wrapping its own push: just pass it through
+        if (!aGTM.d.originalDLpush || /sandbox/i.test(String(v))) { cur = v; return; }
+        if (!aGTM.d.dlHookSrc) aGTM.d.dlHookSrc = aGTM.f.stackSrc(new Error().stack);
+        Object.defineProperty(dl, 'push', { value: v, writable: true, configurable: true, enumerable: true });
+      }
+    });
+    aGTM.d.dlHookTrap = dl;
+  } catch (e) {}
+};
+
+/**
  * Pushes an event object to the GTM dataLayer with checking dataLayer.
  * @property {function} aGTM.f.sendnaus
  * @param {object} o - The event object to be pushed to the dataLayer.
@@ -2496,6 +2540,7 @@ aGTM.f.xsend = function(url, data, encrypt, salt, cred) {
 aGTM.f.sendnaus = function (o) {
   // Preparations
   if (!o || typeof o !== 'object') return;
+  if (aGTM.c.dlOrgPush) aGTM.f.dlHookTrap(window[aGTM.c.gdl]);
   var currentPush = window[aGTM.c.gdl].push;
   // Save original push function if not already saved and if it looks like sandboxed
   if (!aGTM.d.originalDLpush && /sandbox/i.test(currentPush.toString())) aGTM.d.originalDLpush = currentPush;
@@ -2514,6 +2559,7 @@ aGTM.f.sendnaus = function (o) {
           errtype: 'DL Error',
           errmsg: 'Function dataLayer.push hooked - no longer from GTM',
           fct_hook: pushStr,
+          fct_hook_src: aGTM.d.dlHookSrc || '',
           fct_orig: aGTM.d.originalDLpush.toString(),
           timestamp: new Date().getTime(),
           eventModel: null

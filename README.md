@@ -296,7 +296,7 @@ Possible Values:
 - ""
   Do nothing.
 - "log"
-  Attach a flag/attribute to the dataLayer object with the name "dlPushFunction" and the value "overwritten".
+  Push an `exception` event (`errtype: "DL Error"`) once per page, with the hook's source (`fct_hook`), the URL of the script that set it (`fct_hook_src`, without query string; empty if unknown) and GTM's original (`fct_orig`). All three non-empty values send this event.
 - "use"
   Use the original (GTM) dataLayer.push function if it was overwritten (hooked) instead of the new (hooked) one.
 - "restore"

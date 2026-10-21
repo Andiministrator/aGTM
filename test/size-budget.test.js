@@ -17,8 +17,11 @@ import { gzipSync } from "zlib";
 
 // Deliberate ceilings. Current (2026-07-27): raw 35_969 B, gzip 10_827 B.
 // Headroom is intentionally small (~1 KB raw) so a meaningful addition trips the guard.
-const BUDGET_RAW = 37_000;
-const BUDGET_GZIP = 11_300;
+// Raised 2026-10-21 (37_000 → 38_500 / 11_300 → 11_600): the dataLayer hook warning names
+// the hooking script (fct_hook_src — aGTM.f.dlHookTrap + aGTM.f.stackSrc, +818 B raw).
+// Size before it was 36_964 B, i.e. the old ceiling had 36 B left. Now: raw 37_782 B.
+const BUDGET_RAW = 38_500;
+const BUDGET_GZIP = 11_600;
 
 function sizes(path) {
   const buf = readFileSync(path);

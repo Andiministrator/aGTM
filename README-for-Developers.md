@@ -186,7 +186,7 @@ aGTM.f.fire(o)
        │     ├─ internal events  → aGTM.f.sendnaus()
        │     └─ user events      → window.top.postMessage() (or queue)
        └─ [normal mode && !_noDLPush] → aGTM.f.sendnaus()
-             ├─ dataLayer hook detection/protection
+             ├─ dataLayer hook detection/protection (setter trap names the hooking script)
              ├─ window[gdl].push()   actual GTM dataLayer push
              └─ sendnaus_callback()
 ```
@@ -200,6 +200,8 @@ Events fired before consent is available are stored in `aGTM.d.f` and replayed a
 #### dataLayer hook protection
 
 `sendnaus()` detects when `dataLayer.push` has been replaced by a third party. Depending on `aGTM.c.dlOrgPush`, it can log the hook, use the original push function, or replace the hook with the original. This protects against tracking tools that intercept the dataLayer.
+
+When `dlOrgPush` is set, `sendnaus()` also arms `aGTM.f.dlHookTrap()`: an accessor on `dataLayer.push` that lets GTM's own (sandboxed) push through and, on the first foreign one, records the script that set it (`aGTM.f.stackSrc()` reads the URL from the setter's stack, without query string or fragment) into `aGTM.d.dlHookSrc`. The trap then steps aside — `push` becomes a plain property again — so a script that saved the descriptor before hooking and restores it later gets GTM's push back. The `exception` event carries the URL as `fct_hook_src` (`""` if the stack names no script, e.g. an inline script). Real case: the OpenAI ads pixel `oaiq.min.js` wraps `dataLayer.push` for its *automatic advanced matching* and reads every push for e-mail, phone, name and address data.
 
 #### Event property reference
 

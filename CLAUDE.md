@@ -332,7 +332,13 @@ aGTM.f.fire(o)
        │
        ├─ [normal mode && !_noDLPush]
        │    └─ aGTM.f.sendnaus(obj)
-       │         ├─ detect/protect against dataLayer.push hooks
+       │         ├─ [dlOrgPush set] aGTM.f.dlHookTrap(window[gdl]) — setter trap on push:
+       │         │    GTM's sandboxed push (and anything before the GTM baseline
+       │         │    is known) passes through; the first foreign set after it
+       │         │    records its script (aGTM.f.stackSrc →
+       │         │    aGTM.d.dlHookSrc) and the trap steps aside (plain property again)
+       │         ├─ detect/protect against dataLayer.push hooks — the exception
+       │         │    event carries fct_hook_src
        │         ├─ window[gdl].push(obj)   — actual GTM dataLayer push
        │         └─ aGTM.f.sendnaus_callback(obj)  — if defined
        │
@@ -530,6 +536,8 @@ aGTM.f.inject()
 | `aGTM.d.session_status` | Consent-sync lifecycle: `""` (no preset), `"preset"` (cfg.session accepted, no usable consent — this also covers a source-/attribution-only delivery that carries no `sid`), `"preset_with_consent"` (preset consent seeded into `aGTM.d.consent`), `"synced"` (CMP decision diffed and POSTed to `consent_store_url`), `"confirmed"` (CMP decision matches the preset, no POST needed). |
 | `aGTM.d.bot` | Bot-check verdict from the sGTM Client (`cfg.bot`), `{}` when the check is off. Shape `{isBot, score, band, primarySignal, signals[]}`. Only ever present for a **non-blocked** visitor — a definitive bot gets HTTP 403 and no library. Meant for *marking* (a webGTM `traffic_type` dimension), never for blocking. See "Bot check" below. |
 | `aGTM.d.attribution` | Keyed-by-method attribution object populated at end of `config()` from `aGTM.d.session.attribution` merged with current URL/referrer. Empty `{}` when no preset is supplied. Read e.g. `aGTM.d.attribution.last_touch.sou`. See `internal/api/integration-guide.md` §7 (gitignored maintainer reference). |
+| `aGTM.d.dlHookSrc` | Script URL (no query/fragment) that first replaced `dataLayer.push` with a foreign function, `""` if the stack named none. Recorded by the setter trap `aGTM.f.dlHookTrap`, which is only armed when `dlOrgPush` is set; reported as `fct_hook_src` in the hook `exception`. Vendor-neutral on purpose — a name for the URL belongs in the Inspector or a GTM lookup, not in the library. |
+| `aGTM.d.dlHookTrap` | The dataLayer array the trap was armed on; a replaced array gets a new trap. |
 | `aGTM.d.dlrepeatDone` / `dlrepeatPolling` / `dlrepeatGate` | DL-Repeat state: replay already ran once · a gate poll is currently active · the gate spec (`cfg.gateEvents`) being awaited, exposed read-only for the aGTM Inspector. Consumers of `dlrepeatPolling` must also check `!dlrepeatDone` — the flag is not cleared after a successful replay (F-74). |
 | `aGTM.l` | Log array (decoded by `aGTM_debug.js`) |
 
