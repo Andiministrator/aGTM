@@ -125,7 +125,7 @@ said *that* `dataLayer.push` had been replaced, not *by whom*: `fct_hook` carrie
 wrapper's minified source, whose names change with every build of the third party. Finding
 the culprit took a live debugging session — on a real shop it was the OpenAI ads pixel
 (`oaiq.min.js`), whose *automatic advanced matching* wraps `dataLayer.push` and reads every
-push for e-mail, phone, name and address data.
+push for e-mail addresses and phone numbers (names and addresses it takes from forms).
 
 - New field **`fct_hook_src`** on that event: the URL of the script that set the hook,
   without query string or fragment (a script URL may carry IDs). Empty if the stack names
