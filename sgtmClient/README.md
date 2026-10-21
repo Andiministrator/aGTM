@@ -94,6 +94,8 @@ The sGTM Client reads the `c` parameter (Base64-encoded JSON with current URL an
    `curl -s -o /dev/null -D - -A '<browser UA>' -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: cors' -H 'Origin: https://evil.example' -H 'Referer: https://evil.example/' 'https://<sgtm-host>/aGTM.js?id=<GTM-ID>'`
    Expected: `x-agtm-preset: withheld-cross-site`. Without that header the cross-site protection is silently off — fix the proxy.
 
+Public bodies, or a strict reading of the ePrivacy rules: untick *Allow server-side fingerprint as fallback user ID* (on by default) — it derives a user ID from IP and browser signals before any consent.
+
 ---
 
 ## Configuration Options ⚙

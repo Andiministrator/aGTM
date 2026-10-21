@@ -779,7 +779,7 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "Allow server-side fingerprint as fallback user ID",
         "simpleValueType": true,
         "defaultValue": true,
-        "help": "Use server-side fingerprint as fallback when cookie is not set"
+        "help": "Use server-side fingerprint as fallback when cookie is not set. Public bodies or a strict reading of the ePrivacy rules: switch this off — the fingerprint is derived from IP and browser signals before any consent."
       },
       {
         "type": "TEXT",
