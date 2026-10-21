@@ -34,7 +34,7 @@ const adapters = readdirSync('cmp')
 const reported = (key) => {
   const src = readFileSync(`cmp/cc_${key}.js`, 'utf8');
   return ['services', 'purposes', 'vendors']
-    .filter((t) => new RegExp(`aGTM\\.d\\.consent\\.${t}\\s*=`).test(src));
+    .filter((t) => new RegExp(`aGTM\\.d\\.consent\\.${t}\\s*=(?!=)`).test(src));
 };
 
 describe('configurator CMP list ↔ cmp/ adapters', () => {

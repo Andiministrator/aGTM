@@ -1,14 +1,14 @@
-# aGTM Configurator v2.1.3
+# aGTM Configurator v2.2.0
 
 > Visual configurator for the [aGTM library](https://github.com/Andiministrator/aGTM) – GDPR-compliant Google Tag Manager loading with consent management.
 >
-> Developed by **InBiz Online Marketing GmbH & Co. KG** · [sea-suite.de](https://www.sea-suite.de)
+> Developed by **InBiz Online Marketing GmbH & Co. KG** · [sea-suite.de](https://www.sea-suite.de). Version 2.2.0 adds the aGTM v1.5 options (aGTM project).
 
 ---
 
 ## 🚀 Quick start
 
-1. **Open the file** – open `agtm-konfigurator-v2.1.3.html` in your browser
+1. **Open the file** – open `index.html` (in this repository: `configurator/index.html`, also served via GitHub Pages) in your browser
 2. **Walk through the wizard** – 8 steps to a complete configuration
 3. **Export the code** – copy & paste, or download as `.js`
 
@@ -40,7 +40,7 @@ Version 2.1.3 is based on the **SEA Suite dark theme** (InBiz branding):
 | 3. CMP | Pick the consent management platform (26 adapters, plus Custom and No CMP) |
 | 4. GTM | Container IDs and optionally STAPE.io server-side |
 | 5. Consent | Configure the consent logic (services/purposes/vendors) |
-| 6. Features | Enable aGTM options |
+| 6. Features | Enable aGTM options; advanced mode adds the v1.5 consent store (`consent_store_url`, `consent_poll_ms`, `session_salt`, `user_id`, `consent_store_enc`), POST transport (`transport_url`/`_enc`/`_salt`) and `allowEmptyConsentConditions` |
 | 7. Callbacks | Custom JavaScript callbacks (advanced mode only) |
 | 8. Export | Generate, copy and download the code |
 
@@ -91,10 +91,9 @@ The list mirrors the adapters in [`cmp/`](../cmp/): each entry loads `cmp/cc_<ke
 ## 📁 File structure
 
 ```
-agtm-konfigurator-v2.1.3.html   # Main application (single file, logo included)
-CHANGELOG-v2.1.3.md             # Version history
-README-v2.1.3.md                # This file
-design.md                       # Design system documentation
+index.html                      # Main application (single file, logo included)
+CHANGELOG-v2_1_3.md             # Version history (file name kept from 2.1.3, covers 2.2.0)
+README-v2_1_3.md                # This file
 ```
 
 ---
@@ -129,7 +128,7 @@ The entire application including the aGTM logo (Base64) lives in a single `.html
 // aGTM Configuration
 // Generated: 2026-04-08
 // Customer: [customer name]
-// Generator: aGTM Configurator v2.1.3
+// Generator: aGTM Configurator v2.2.0
 // ==================================================
 
 // ========== aGTM Library ==========

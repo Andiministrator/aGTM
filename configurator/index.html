@@ -599,10 +599,10 @@
             <div>
               <h4 class="font-medium text-amber-800 dark:text-amber-200 mb-1">Kein CMP ausgewählt</h4>
               <p class="text-sm text-amber-700 dark:text-amber-300 mb-2">
-                Ohne CMP wird eine Dummy-Funktion verwendet, die direkt die konfigurierten Consent-Werte aus Schritt 4 übernimmt.
+                Ohne CMP (<code>cmp: 'none'</code>) lädt aGTM den GTM sofort, ohne jede Consent-Prüfung. Schritt 4 entfällt.
               </p>
               <p class="text-sm text-amber-700 dark:text-amber-300">
-                <strong>Hinweis:</strong> Die Consent-Logik funktioniert nicht automatisch. Du musst die Werte selbst setzen oder diese Option nur für Testzwecke verwenden.
+                <strong>Hinweis:</strong> Nur verwenden, wenn auf der Seite wirklich keine Einwilligung nötig ist oder für Tests.
               </p>
             </div>
           </div>
@@ -1243,7 +1243,7 @@
                 </label>
                 <div id="consentStoreEncHint" class="hidden mt-2 ml-9 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                   <p class="text-xs text-amber-700 dark:text-amber-400">
-                    <strong>Nicht einschalten:</strong> Es gibt keinen serverseitigen Decoder. Der aGTM sGTM-Client antwortet auf einen verschleierten Body mit <code>501</code> und speichert nichts — der Consent-Speicher ist damit abgeschaltet.
+                    <strong>Nicht einschalten:</strong> Es gibt keinen serverseitigen Decoder. Mit einem <code>session_salt</code> ≥ 1 antwortet der aGTM sGTM-Client auf den verschleierten Body mit <code>501</code> und speichert nichts — der Consent-Speicher ist damit abgeschaltet. Ohne Salt wirkt der Schalter gar nicht (es wird unverschleiert gesendet).
                   </p>
                 </div>
               </div>
@@ -1295,7 +1295,7 @@
                          class="feature-toggle mt-0.5 w-5 h-5 text-primary-600 rounded border-slate-300 dark:border-slate-500 focus:ring-primary-500">
                   <div class="flex-1">
                     <span class="font-medium ">transport_enc</span>
-                    <p class="text-sm  mt-0.5">POST-Body verschleiern (Base64 + Caesar — keine Verschlüsselung). Der Empfänger muss ihn dekodieren können.</p>
+                    <p class="text-sm  mt-0.5">POST-Body verschleiern (Base64 + Caesar — keine Verschlüsselung). Wirkt nur mit einem Salt ≥ 1; der Empfänger muss ihn dekodieren können.</p>
                   </div>
                 </label>
               </div>
@@ -1306,7 +1306,7 @@
             <div class="p-3 rounded-lg mt-4" style="background:#0c1a2e;border:1px solid #1e3a5f;">
               <p class="text-xs font-medium mb-1" style="color:#60a5fa;">Event-Flags (pro Event in <code>aGTM.f.fire()</code>, nicht in der Config)</p>
               <ul class="text-xs space-y-1" style="color:#93c5fd;">
-                <li><code>_post: true</code> — Event zusätzlich per POST an <code>transport_url</code> senden; oder ein Objekt <code>{url, enc, salt}</code> für Abweichungen. Wartet wie jedes Event auf Consent.</li>
+                <li><code>_post: true</code> — Event zusätzlich per POST an <code>transport_url</code> senden; oder ein Objekt <code>{url, enc, salt, consent}</code> für Abweichungen. Wartet wie jedes Event auf Consent.</li>
                 <li><code>_noConsent: true</code> — Consent-Gate für dieses Event umgehen (nur für funktionale/rechtlich nötige Events).</li>
                 <li><code>_noDLPush: true</code> — nicht in den GTM-dataLayer pushen; das Event bleibt in aGTMs Log und kann trotzdem per POST gehen.</li>
               </ul>
@@ -2743,12 +2743,12 @@ console.log('User opted out');"></textarea>
          * @param {string} cmpId - CMP ID (z.B. 'consentmanager', 'cookiebot')
          * @returns {Promise<string|null>}
          */
-        async fetchCMPFunction(cmpId) {
+        async fetchCMPFunction(cmpId, version = 'latest') {
           if (!cmpId || cmpId === 'none' || cmpId === 'custom') {
             return null;
           }
 
-          const cacheKey = `cmp_${cmpId}`;
+          const cacheKey = `cmp_${version}_${cmpId}`;
 
           if (this.cache[cacheKey]) {
             Logger.debug('GitHub', `CMP Funktion aus Cache (${cmpId})`);
@@ -2758,7 +2758,10 @@ console.log('User opted out');"></textarea>
           try {
             Logger.debug('GitHub', `Lade CMP Funktion (${cmpId})...`);
 
-            const url = `${this.BASE_URL}/cmp/cc_${cmpId}.min.js`;
+            // Dieselbe Quelle wie die Library: 'dev' aus dem dev-Branch, sonst GitHub Pages
+            const url = version === 'dev'
+              ? `${this.RAW_URL}/dev/cmp/cc_${cmpId}.min.js`
+              : `${this.BASE_URL}/cmp/cc_${cmpId}.min.js`;
             const response = await fetch(url, { cache: 'no-cache' });
 
             if (!response.ok) {
@@ -3131,13 +3134,13 @@ console.log('User opted out');"></textarea>
             name: 'Custom CMP',
             description: 'Eigene consent_check Funktion implementieren. Für CMPs die nicht in der Liste sind.',
             website: '',
-            consentTypes: [],
+            consentTypes: ['services', 'purposes', 'vendors'],
             recommended: false,
             group: 'special'
           },
           none: {
             name: 'Kein CMP',
-            description: 'Keine Consent-Prüfung. Die konfigurierten Consent-Werte werden direkt verwendet.',
+            description: 'Keine Consent-Prüfung: GTM lädt sofort (cmp: \'none\').',
             website: '',
             consentTypes: ['services', 'purposes', 'vendors'],
             recommended: false,
@@ -4874,18 +4877,9 @@ aGTM.f.consent_check = function(action) {
             'measurement',
             'performance'
           ],
-          vendors: [
-            '755',  // Google LLC
-            '91',   // Criteo
-            '28',   // Facebook
-            '144',  // Microsoft
-            '259',  // Matomo
-            '69',   // Adobe
-            '10',   // Index Exchange
-            '32',   // Xandr
-            '52',   // Rubicon
-            '25'    // Yahoo
-          ]
+          // Keine Vorschläge: consentmanager/Sourcepoint melden Vendor-NAMEN (die IAB-IDs
+          // stehen in vendorIDs, gegen die aGTM nicht prüft) — eine ID-Bedingung wäre nie erfüllt.
+          vendors: []
         },
 
         /**
@@ -5256,6 +5250,8 @@ aGTM.f.consent_check = function(action) {
          * Lädt Werte aus Config
          */
         loadFromConfig() {
+          // Werte der zuvor bearbeiteten Konfiguration nicht mitnehmen
+          this.values = { services: [], purposes: [], vendors: [] };
           if (!App.currentConfig?.consent) return;
 
           const consent = App.currentConfig.consent;
@@ -5299,8 +5295,8 @@ aGTM.f.consent_check = function(action) {
           const requiresConsent = cmpData?.consentTypes?.length > 0;
 
           if (requiresConsent) {
-            // Mindestens ein Wert muss gesetzt sein
-            const hasAnyValue = Object.values(this.values).some(arr => arr.length > 0);
+            // Mindestens ein Wert muss gesetzt sein (nur angezeigte Typen zählen)
+            const hasAnyValue = this.activeTypes.some(type => this.values[type].length > 0);
 
             if (!hasAnyValue) {
               ToastManager.error('Mindestens ein Consent-Wert muss angegeben werden');
@@ -5324,8 +5320,12 @@ aGTM.f.consent_check = function(action) {
 
           // Nur Typen speichern, die der CMP-Adapter liefert: eine Bedingung auf
           // einen Typ, den der Adapter nie befüllt, ist nie erfüllt — GTM lädt nie.
-          // (Leere activeTypes = Custom CMP: alles übernehmen.)
-          const keep = (type) => this.activeTypes.length === 0 || this.activeTypes.includes(type);
+          const keep = (type) => this.activeTypes.includes(type);
+          const dropped = ['services', 'purposes', 'vendors'].filter(type => !keep(type) && this.values[type].length > 0);
+          if (dropped.length > 0) {
+            ToastManager.warning(`Entfernt: ${dropped.join(', ')}-Bedingung (${dropped.map(t => this.values[t].join(', ')).join(' / ')}) — dieses CMP liefert ${dropped.join('/')} nicht`);
+            Logger.warn('Step4', 'Bedingungen verworfen, CMP liefert den Typ nicht', dropped);
+          }
           App.currentConfig.consent = {
             gtmServices: keep('services') ? this.values.services.join(',') : '',
             gtmPurposes: keep('purposes') ? this.values.purposes.join(',') : '',
@@ -5558,16 +5558,17 @@ aGTM.f.consent_check = function(action) {
           // Boolean Features
           this.booleanKeys.forEach(key => {
             const el = document.getElementById(`feature_${key}`);
-            if (el && typeof features[key] === 'boolean') {
-              el.checked = features[key];
+            if (el) {
+              // immer setzen: sonst bleibt der Wert der vorher bearbeiteten Konfiguration stehen
+              el.checked = features[key] === true;
               this.updateFeatureStyle(el);
 
               // Abhängige Hinweise
               if (key === 'useListener') {
-                this.toggleHint('useListenerHint', features[key]);
+                this.toggleHint('useListenerHint', el.checked);
               }
               if (this.warnHints[key]) {
-                this.toggleHint(this.warnHints[key], features[key]);
+                this.toggleHint(this.warnHints[key], el.checked);
               }
             }
           });
@@ -5575,15 +5576,16 @@ aGTM.f.consent_check = function(action) {
           // String- und Zahl-Features
           [...this.stringKeys, ...this.numberKeys].forEach(key => {
             const el = document.getElementById(`feature_${key}`);
-            if (el && features[key] !== undefined && features[key] !== null && features[key] !== '') {
-              el.value = features[key];
+            if (el) {
+              const val = features[key];
+              el.value = (val === undefined || val === null) ? (key === 'gdl' ? 'dataLayer' : '') : val;
             }
           });
 
           // Select Feature
           const dlOrgPush = document.getElementById('feature_dlOrgPush');
-          if (dlOrgPush && features.dlOrgPush) {
-            dlOrgPush.value = features.dlOrgPush;
+          if (dlOrgPush) {
+            dlOrgPush.value = features.dlOrgPush || '';
           }
 
           Logger.debug('Step5', 'Config geladen', features);
@@ -5628,9 +5630,15 @@ aGTM.f.consent_check = function(action) {
             if (el) {
               const raw = el.value.trim();
               const num = Number(raw);
-              App.currentConfig.features[key] = (raw !== '' && Number.isInteger(num) && num >= 0) ? num : '';
-              if (raw !== '' && App.currentConfig.features[key] === '') {
-                ToastManager.warning(`${key}: nur ganze Zahlen ≥ 0 — Wert verworfen`);
+              // consent_poll_ms: 0 (aus) oder 100 ms … 1 h (setInterval läuft über 2^31−1 über)
+              const ok = Number.isInteger(num) && (key === 'consent_poll_ms'
+                ? (num === 0 || (num >= 100 && num <= 3600000))
+                : (num >= 0 && num <= 2147483647));
+              App.currentConfig.features[key] = (raw !== '' && ok) ? num : '';
+              if (raw !== '' && !ok) {
+                ToastManager.warning(key === 'consent_poll_ms'
+                  ? 'consent_poll_ms: 0 oder 100–3600000 — Wert verworfen'
+                  : `${key}: nur ganze Zahlen ≥ 0 — Wert verworfen`);
                 el.value = '';
               }
             }
@@ -6087,7 +6095,7 @@ aGTM.f.consent_check = function(action) {
             } else {
               // CMP von GitHub laden
               try {
-                const cmpCode = await GitHubAPI.fetchCMPFunction(config.cmp.type);
+                const cmpCode = await GitHubAPI.fetchCMPFunction(config.cmp.type, agtmVersion);
                 if (cmpCode) {
                   lines.push(cmpCode);
                 } else {
@@ -6186,7 +6194,7 @@ aGTM.f.consent_check = function(action) {
           const configParts = [];
 
           // JS-String-Literal in einfachen Anführungszeichen (Eingaben escapen)
-          const q = (val) => "'" + String(val).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ') + "'";
+          const q = (val) => "'" + String(val).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/</g, '\\x3C').replace(/\r?\n/g, ' ') + "'";
 
           // Kein CMP: ohne cmp:'none' sucht aGTM eine consent_check-Funktion,
           // findet keine und lädt GTM nie
@@ -6197,15 +6205,14 @@ aGTM.f.consent_check = function(action) {
           // GTM Containers (Standard-Modus)
           const containers = config.gtm?.containers || [];
           if (containers.length > 0) {
-            const gtmObj = {};
-            containers.forEach(c => {
-              const opts = {};
-              if (c.gtmURL) opts.gtmURL = c.gtmURL;
-              if (c.env) opts.env = c.env;
-              if (c.noConsent) opts.noConsent = true;
-              gtmObj[c.id] = opts;
+            const gtmEntries = containers.map(c => {
+              const opts = [];
+              if (c.gtmURL) opts.push(`gtmURL: ${q(c.gtmURL)}`);
+              if (c.env) opts.push(`env: ${q(c.env)}`);
+              if (c.noConsent) opts.push('noConsent: true');
+              return `${q(c.id)}: {${opts.join(', ')}}`;
             });
-            configParts.push(`  gtm: ${JSON.stringify(gtmObj).replace(/"/g, "'")}`);
+            configParts.push(`  gtm: {${gtmEntries.join(', ')}}`);
           } else if (config.gtm?.serverside && config.gtm?.stapeio?.cid) {
             // Bei STAPE.io: GTM-Container aus cid ableiten
             const gtmId = 'GTM-' + config.gtm.stapeio.cid;
@@ -6251,7 +6258,7 @@ aGTM.f.consent_check = function(action) {
           if (features.iframeSupport) {
             configParts.push(`  iframeSupport: true`);
           }
-          if (features.vPageviewsTimer) {
+          if (Number.isInteger(features.vPageviewsTimer) && features.vPageviewsTimer > 0) {
             configParts.push(`  vPageviewsTimer: ${features.vPageviewsTimer}`);
           }
           if (features.vPageviewsFallback) {
@@ -6264,7 +6271,9 @@ aGTM.f.consent_check = function(action) {
             configParts.push(`  consent_store_url: ${q(features.consent_store_url)}`);
           }
           if (features.consent_store_enc) {
-            configParts.push(`  consent_store_enc: true /* WARNING: the aGTM sGTM Client answers 501 and stores nothing */`);
+            configParts.push(isNum(features.session_salt) && features.session_salt > 0
+              ? `  consent_store_enc: true /* WARNING: the aGTM sGTM Client answers 501 and stores nothing */`
+              : `  consent_store_enc: true /* WARNING: has no effect without session_salt >= 1 */`);
           }
           if (isNum(features.consent_poll_ms) && features.consent_poll_ms !== 2000) {
             configParts.push(`  consent_poll_ms: ${features.consent_poll_ms}`);
@@ -6281,10 +6290,17 @@ aGTM.f.consent_check = function(action) {
             configParts.push(`  transport_url: ${q(features.transport_url)}`);
           }
           if (features.transport_enc) {
-            configParts.push(`  transport_enc: true`);
+            const saltOk = (isNum(features.transport_salt) && features.transport_salt > 0) || (isNum(features.session_salt) && features.session_salt > 0);
+            configParts.push(saltOk ? `  transport_enc: true` : `  transport_enc: true /* WARNING: has no effect without transport_salt or session_salt >= 1 */`);
           }
           if (isNum(features.transport_salt) && features.transport_salt > 0) {
             configParts.push(`  transport_salt: ${features.transport_salt}`);
+          }
+
+          // Kein CMP gewählt (nur über Umwege erreichbar): ohne consent_check und ohne cmp lädt GTM nie
+          if (!config.cmp?.type) {
+            lines.splice(lines.lastIndexOf('aGTM.f.config({'), 0,
+              '/* WARNING: no CMP is selected — without a consent_check function aGTM will NOT load GTM. */');
           }
 
           // Leere Consent-Tabelle: ab aGTM v1.5 lädt GTM dann nicht (fail-closed)
@@ -6349,7 +6365,8 @@ aGTM.f.consent_check = function(action) {
                   keep_fnames: true
                 },
                 output: {
-                  ecma: 2015
+                  ecma: 2015,
+                  comments: /WARNING/
                 }
               });
 
@@ -6986,7 +7003,7 @@ aGTM.f.consent_check = function(action) {
 
             // Base64 dekodieren
             const json = decodeURIComponent(escape(atob(configParam)));
-            const config = JSON.parse(json);
+            const config = ConfigMigrator.migrate(JSON.parse(json)).config;
 
             // Validieren
             const validation = ConfigSchema.validate(config);

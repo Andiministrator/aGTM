@@ -18,8 +18,15 @@ Changes by the aGTM project, on top of InBiz's 2.1.3.
 - **Quotes in input values** – string values in the generated config are escaped, so `Google Tag Manager's` no longer breaks the code.
 
 - **CMP list rebuilt from the real adapters** – up to 2.1.3, 11 of the 20 offered CMPs produced only an `ERROR: Could not load … consent_check` comment: nine had no adapter at all (CookieYes, Termly, iubenda, TrustArc, Didomi, Quantcast, Ogury, Commanders Act, Ketch), OneTrust and Borlabs pointed at file names that do not exist. The list now holds the 26 adapters from `cmp/` (14 of them were missing), keyed by file name.
-- **Consent types per CMP** – step 4 offered types an adapter never reports (services for Cookiebot and OneTrust, purposes for CCM19). Such a condition can never be met, so GTM never loaded. Step 4 now offers and saves only the adapter's own types, and the generator warns about a condition the CMP cannot meet (e.g. from an imported older configuration).
-- **Stored configurations** – `onetrust` is renamed to `onetrust_cookiepro`; a CMP that no longer exists is cleared so it is chosen again in step 3.
+- **Consent types per CMP** – step 4 offered types an adapter never reports (services for Cookiebot, vendors for OneTrust, purposes for CCM19). Such a condition can never be met, so GTM never loaded. Step 4 now offers and saves only the adapter's own types and says so in a toast when it drops a stored condition; the generator warns as well.
+- **Custom CMP offered no condition at all** – so a custom setup could only be generated without a consent gate (GTM never loads in v1.5). Custom now offers services, purposes and vendors.
+- **Vendor suggestions were IAB IDs** (`755`, `91`, …), but the adapters that report vendors (Consentmanager, Sourcepoint) report vendor **names** — an ID condition could never be met. The suggestions are gone.
+- **Values leaked into the next configuration** – step 4 and 5 kept field values of the configuration edited before when the next one had none (in simple mode even invisibly). With 2.2.0 that would have sent consent data to another customer's `consent_store_url`; every field is now reset on load.
+- **Escaping covers the container table** (`gtmURL`, `env`, ID) and `<` (no `</script>` break-out); `consent_poll_ms` is limited to 0 or 100–3600000.
+- **`*_enc` without a salt** – the generator notes that `consent_store_enc`/`transport_enc` have no effect without a salt ≥ 1. Warning comments survive minification.
+- **CMP code comes from the same source as the library** – with library version "dev", the CMP adapters are now loaded from the `dev` branch too.
+- **"No CMP" was described as using "the configured consent values"** – it loads GTM without any check; the texts say so now.
+- **Stored configurations** – `onetrust` is renamed to `onetrust_cookiepro`; a CMP that no longer exists is cleared so it is chosen again in step 3. This now also applies to share links.
 
 #### Removed
 - **`ckServices` / `ckPurposes` / `ckVendors`** – removed in aGTM v1.5 (the library never produced the `ck` parameter). Stored or imported configurations drop them on load.

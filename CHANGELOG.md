@@ -137,14 +137,19 @@ offers `consent_store_url`, `consent_poll_ms`, `session_salt`, `user_id`,
 `_enc`/`_salt` and `allowEmptyConsentConditions`, explains the event flags `_post`/
 `_noConsent`/`_noDLPush`, and drops the dead `ck*` fields.
 
-Three ways it produced a page on which GTM never loads, all fixed:
+Five ways it produced a page on which GTM never loads, all fixed:
 - **"No CMP"** generated no `cmp: 'none'`, so aGTM waited for a `consent_check` forever.
 - **11 of 20 offered CMPs had no loadable adapter** (nine never existed in `cmp/`,
   OneTrust and Borlabs used wrong file names). The list is now the 26 adapters in `cmp/`.
-- **Consent types an adapter never reports** were offered (services for Cookiebot and
-  OneTrust, purposes for CCM19) — a condition that can never be met. Step 4 now offers
-  only the adapter's types; the generator warns about such a condition and about an empty
-  consent table. `test/cmp/configurator-sync.test.js` keeps list, file names and types in
+- **Consent types an adapter never reports** were offered (services for Cookiebot,
+  vendors for OneTrust, purposes for CCM19) — a condition that can never be met. Step 4 now
+  offers only the adapter's types; the generator warns about such a condition and about an
+  empty consent table.
+- **Custom CMP offered no condition at all**, and the **vendor suggestions were IAB IDs**
+  while the adapters report vendor names.
+
+Also fixed: field values of one configuration leaked into the next one edited in the same
+session (with 2.2.0 that would have included `consent_store_url` and `user_id`). `test/cmp/configurator-sync.test.js` keeps list, file names and types in
   step with `cmp/`. Details in `configurator/CHANGELOG-v2_1_3.md`.
 
 ### Changed — sGTM Client: the day is part of the fingerprint hash (CNIL criterion 2)
