@@ -129,23 +129,26 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
-### Changed — consent store: a final refusal is not retried, a cookieless 404 is not a warning
+### Changed — consent store: a final refusal is not retried
 
-Measured on one tenant after the F-236 update: the healing of a cookie-bound `C.*` uid works
-(consent 404 for `C.*` from ~1,800 to ~150 a day, 3 failed heals in 24 h). For cookieless
-visitors (`F.*` fingerprint uid, never healed — F-156) the consent write answered `404` 10,000
-to 126,000 times a day, each with a `warn` line, and the library repeated each refusal up to twice.
+Measured on one tenant after the F-236 update (Session API log): the healing of a cookie-bound
+`C.*` uid works (consent 404 for `C.*` from ~1,800 to ~150 a day, 3 failed heals in 24 h). For
+cookieless visitors (`F.*` fingerprint uid, never healed — F-156) the consent write answered
+`404` 10,000 to 126,000 times a day — up from ~650 a day, sharply, with that update. Why is open
+(F-249). From the code (not measured): the library repeated every such refusal up to twice.
 
 - **Library:** a 4xx other than 408/429, and a 501, is the server's final answer for that
-  consent state — one POST, no retry. 408/429, other 5xx and no answer are retried as before (at
-  most 3 POSTs per state). This cuts the repeats for every refusal that cannot heal within the page
-  (404 after the Client's own healing, 403 from the cross-site guard, 501 for an obfuscated body).
-- **sGTM Client:** the expected `404` for an `F.*` uid answers with
-  `x-agtm-consent: not-persisted-fingerprint` and a debug line instead of a `warn` line per
-  request. Every other refused write still logs at `warn`.
+  consent state — one POST, no retry. 408/429, other 5xx and no answer (status 0) are retried as
+  before (at most 3 POSTs per state). This cuts the repeats for refusals that cannot heal within
+  the page (404 after the Client's own healing, 400, 501 for an obfuscated body). The Client's
+  cross-site 403 carries no CORS headers, so the browser reports it as status 0 — still retried.
+- **sGTM Client:** the `404` for an `F.*` uid now also answers with
+  `x-agtm-consent: not-persisted-fingerprint`. It still logs at `warn` — not healed by design,
+  but while the cause of the volume is open, that line is the live signal.
 
-Nothing changes for what is stored: a cookieless visitor's consent is still not handed back on
-the next page (F-156), with or without this write.
+What a missing write means is not settled: since the auto-denial applies again to cookieless
+visitors with nothing on file (`258aeff`), a failed `F.*` write can decide between "no preset" and
+"auto-denial" on the next page, depending on whether the session still exists (F-249).
 
 ### Fixed — configurator 2.2.0: v1.5 options, and the CMPs that actually exist
 
@@ -158,7 +161,8 @@ offers `consent_store_url`, `consent_poll_ms`, `session_salt`, `user_id`,
 Five ways it produced a page on which GTM never loads, all fixed:
 - **"No CMP"** generated no `cmp: 'none'`, so aGTM waited for a `consent_check` forever.
 - **11 of 20 offered CMPs had no loadable adapter** (nine never existed in `cmp/`,
-  OneTrust and Borlabs used wrong file names). The list is now the 26 adapters in `cmp/`.
+  OneTrust and Borlabs used wrong file names). The list is now the 26 adapters in `cmp/` (all but the hand-edited
+  `cc_simple_cookie_regex_check` template).
 - **Consent types an adapter never reports** were offered (services for Cookiebot,
   vendors for OneTrust, purposes for CCM19) — a condition that can never be met. Step 4 now
   offers only the adapter's types; the generator warns about such a condition and about an

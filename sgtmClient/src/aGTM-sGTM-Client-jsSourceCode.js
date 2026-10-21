@@ -581,16 +581,15 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
         // server-side fingerprint shared by everyone behind the same NAT and
         // browser build; reopening a session under it would write a consent
         // into exactly the shared record F-156 is about. Its 404 goes to the
-        // browser unhealed, and the library takes a 404 as final.
-        // Not a warn line: for cookieless visitors this 404 is the expected
-        // outcome, not a lost decision — their stored consent is never handed
-        // back anyway (F-156) — and it ran at 10,000 to 126,000 a day on one
-        // tenant, drowning the warn lines that do mean something. A response
-        // header and a debug line instead (F-248).
+        // browser unhealed, and the library takes a 404 as final (F-248).
+        // It still logs at warn: it is not healed by design, but WHY it
+        // happens as often as it does (10,000 to 126,000 a day on one
+        // tenant, sharply up with the 30.09. update) is open (F-249), and
+        // while it is, this line is the Client's only live signal for it.
+        // The header names the case for whoever reads a single response.
         if (res.statusCode === 404 && !isCookieUid(finalUid)) {
           setResponseHeader('x-agtm-consent', 'not-persisted-fingerprint');
-          if (CFG.debug) logToConsole('debug', '✗ Consent not persisted (fingerprint uid, no active session)', {status: 404});
-          finishConsentPost(404);
+          failStatus('write', res);
           return;
         }
         if (res.statusCode !== 404) {

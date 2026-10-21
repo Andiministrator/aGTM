@@ -391,7 +391,8 @@ At the end of **every** successful `run_cc()` (both `init` and `update`):
    none for the same state while one is still in flight. A 4xx other than 408/429, and 501, is
    final: no retry. Giving up is logged once as
    `e_consent_store_gave_up`. `/aGTMconsent` answers with the Session API's real status (not a constant 200)
-   and logs a refused write at `warn`. For a cookie-bound `C.*` uid a `404` "no active session" is
+   and logs a refused write at `warn` (a `404` for an `F.*` fingerprint uid also carries
+   `x-agtm-consent: not-persisted-fingerprint`). For a cookie-bound `C.*` uid a `404` "no active session" is
    healed server-side (session GET — which, per the api4sgtm maintainer, starts a new session — plus one rewrite).
 3. If the hash matches: `session_status = 'confirmed'` (no POST).
 

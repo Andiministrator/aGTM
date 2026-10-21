@@ -132,9 +132,9 @@ describe('/aGTMconsent — Session API write result (F-236)', () => {
     expect(r.throws).toBeNull();
     expect(s.calls.map((c) => c.url)).toEqual([API + '/t/F$1$t$sha_123.20260929/consent']);
     expect(r.status).toBe(404);
-    // Expected for a cookieless visitor, not a lost decision: no warn line per
-    // request (it ran at 10,000+ a day on one tenant, F-248), a header instead.
-    expect(warns(r).length).toBe(0);
+    // Not healed by design, but still a warn line: why it happens this often
+    // is open (F-249), and the line is the only live signal. Plus a header.
+    expect(warns(r).length).toBe(1);
     expect(r.headers['x-agtm-consent']).toBe('not-persisted-fingerprint');
   });
 
