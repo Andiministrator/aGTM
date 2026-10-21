@@ -36,3 +36,17 @@ describe('fingerprint hash includes the day', () => {
     expect(b.urls.some((u) => /\$t\$[A-Za-z0-9+/=]+\.20260729$/.test(u))).toBe(true);
   });
 });
+
+describe('fingerprint stays equal to serverside_fingerprint v1.2', () => {
+  // The same literal is pinned in the ___TESTS___ of serverside_fingerprint v1.2
+  // (separate repo). Both sides pinned to one string: if either changes its keys,
+  // values or order, its own test turns red before the IDs drift apart.
+  test('hashed string for the shared reference request', () => {
+    const r = runClient({
+      data: { ...DATA, sgtm_host: 'tm.example.com', client_ip: '203.0.113.9' },
+      headers: { 'user-agent': 'UA', 'accept-language': 'de' },
+      http: () => ({ statusCode: 200, body: '{}' })
+    });
+    expect(r.hashed).toContain('fp-day:20260728accept-language:declient-ip:203.0.113.9sgtm-host:tm.example.comuser-agent:UA');
+  });
+});
