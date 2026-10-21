@@ -129,6 +129,24 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Fixed — configurator 2.2.0: v1.5 options, and the CMPs that actually exist
+
+The configurator loaded the v1.5 library but generated v1.4 configurations. It now
+offers `consent_store_url`, `consent_poll_ms`, `session_salt`, `user_id`,
+`consent_store_enc` (with the warning that the Client answers `501`), `transport_url`/
+`_enc`/`_salt` and `allowEmptyConsentConditions`, explains the event flags `_post`/
+`_noConsent`/`_noDLPush`, and drops the dead `ck*` fields.
+
+Three ways it produced a page on which GTM never loads, all fixed:
+- **"No CMP"** generated no `cmp: 'none'`, so aGTM waited for a `consent_check` forever.
+- **11 of 20 offered CMPs had no loadable adapter** (nine never existed in `cmp/`,
+  OneTrust and Borlabs used wrong file names). The list is now the 26 adapters in `cmp/`.
+- **Consent types an adapter never reports** were offered (services for Cookiebot and
+  OneTrust, purposes for CCM19) — a condition that can never be met. Step 4 now offers
+  only the adapter's types; the generator warns about such a condition and about an empty
+  consent table. `test/cmp/configurator-sync.test.js` keeps list, file names and types in
+  step with `cmp/`. Details in `configurator/CHANGELOG-v2_1_3.md`.
+
 ### Changed — sGTM Client: the day is part of the fingerprint hash (CNIL criterion 2)
 
 The fingerprint uid is `F{lim}1{lim}{tenant}{lim}{hash}.{YYYYMMDD}`. The day used to
