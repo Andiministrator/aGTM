@@ -57,23 +57,36 @@ After importing the template, follow these steps to configure it:
 - **Tag Type**: Select `aGTM Consent Mode`.
 - **Trigger**: Set the trigger for when you want this tag to fire (e.g., `Consent Initialization - All Pages`).
 
-#### You need TWO instances: one for the page load, one for changes on the page
+#### Give the tag a second trigger for changes on the page
 
 A trigger like *Consent Initialization* fires **once per page load**. When the visitor
 changes their decision on the same page — accepts after denying, or revokes — nothing
-re-runs that instance, and Consent Mode keeps the old state until the next page load.
+re-runs the tag, and Consent Mode keeps the old state until the next page load.
 For a revocation that means every signal granted at page load stays **granted** for the
 rest of that page view (measured live on 2026-10-20 for analytics and personalisation
 storage, F-242).
 
-Add a second instance of the same template:
+Add a **second trigger to the same tag**: Custom Event **`aGTM_consent_update`** — and set
+the tag's **Advanced Settings → Tag firing options** to **Once per event**. ⚠️ With
+**Once per page** (the setting in the workspace export `gtm/aGTM-GTM-Workspace-Template-18.json`)
+GTM runs the tag only once per page load, whatever triggers it has, so the second
+trigger never fires and the fix has no effect.
 
-| Instance | `cm_update` | Trigger | Rows in `cm_attributes` |
-|---|---|---|---|
-| Page load | off (`cm_update_after_default` as you prefer) | `Consent Initialization - All Pages` | your mapping |
-| Change on the page | **on** | Custom Event **`aGTM_consent_update`** | **the same mapping** |
+| Trigger | What the tag sends |
+|---|---|
+| `Consent Initialization - All Pages` | the Default (or, with `cm_update_after_default`, the all-denied Default plus the Update) — as configured |
+| Custom Event `aGTM_consent_update` | **only an Update** with the current consent — no Default, no `region`, no `wait_for_update`, no `url_passthrough`/`ads_data_redaction`; Microsoft UET gets `consent update` |
 
-aGTM fires `aGTM_consent_update` when it re-reads the CMP and the consent state has changed — after `aGTM.d.consent` holds the new decision. It re-reads on a CMP event listed in `consent_events`, and, when the library is served by the sGTM Client (`consent_store_url` set), on a poll every `consent_poll_ms` (default 2 s — so the update may arrive up to that much later). A standalone setup without `consent_store_url` needs the CMP's change event in `consent_events`, otherwise this instance never fires. Keep both mapping tables identical — a row missing in the update instance leaves that signal at its page-load value.
+The tag recognises the event by itself (since the F-242 fix), so the mapping in
+`cm_attributes` exists once and cannot drift between two instances. An existing second
+instance with `cm_update` on that event keeps working; it is simply no longer needed. Use
+**one** of the two — the trigger or the second instance — not both, or every change sends
+two updates and the mappings can drift apart again.
+
+`cm_grant_outside` only shapes the page-load default. The Update carries no region: it sets
+the mapped consent everywhere, also outside `cm_regions`.
+
+aGTM fires `aGTM_consent_update` when it re-reads the CMP and the consent state has changed **after the first decision** (the first decision itself runs through `run_cc('init')` and pushes no such event; a container loaded after consent reads it in its default run) — after `aGTM.d.consent` holds the new decision. It re-reads on a CMP event listed in `consent_events`, and, when the library is served by the sGTM Client (`consent_store_url` set), on a poll every `consent_poll_ms` (default 2 s — so the update may arrive up to that much later). A standalone setup without `consent_store_url` needs the CMP's change event in `consent_events`, otherwise the event never fires.
 
 ⚠️ **Only one writer.** If your CMP also pushes Google Consent Mode itself (CCM19:
 *Einbindung → Google Consent Mode v2*, per embedding; Cookiebot, Usercentrics etc. have
@@ -96,8 +109,8 @@ Configure the consent attributes and their conditions. Each row in the table rep
 
 ### Additional Options
 
-- **Use as Consent Update (`cm_update`)**: Use this tag as a consent update rather than setting defaults.
-- **Update after Default (`cm_update_after_default`)**: Set an all-denied default first, then immediately apply the real consent as an update (one tag, one page load).
+- **Use as Consent Update (`cm_update`)**: Use this tag as a consent update rather than setting defaults. Usually not needed: fired by `aGTM_consent_update`, the tag sends an Update anyway.
+- **Update after Default (`cm_update_after_default`)**: On page load, set an all-denied default first, then immediately apply the real consent as an update. Changes later on the page come from the `aGTM_consent_update` trigger (see above).
 - **Wait for Consent Update (`cm_wait`)**: Delay setting the consent state (in milliseconds).
 - **CM Regions (`cm_regions`)**: Comma-separated ISO 3166-2 region codes (e.g. `DE,AT,US-CA`) that scope the **default** consent state. Leave at `all` (or empty) for a global default.
 - **Grant consent by default outside the configured regions (`cm_grant_outside`)**: When specific regions are set, also emit a **global granted default** (Google's two-default pattern) so visitors **outside** those regions are granted by default instead of being left unset. Ideal when the consent banner is suppressed outside those regions and everything should be allowed there.

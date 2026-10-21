@@ -49,15 +49,19 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   real boolean `false` counts (F-198). Not yet verified in a live no-banner region: if
   OneTrust has not filled its consent payload before any interaction there, the adapter
   keeps waiting as before.
-- **Consent Mode tag: changes on the page need a second instance.** An instance on
+- **Consent Mode tag: a change on the page now reaches Consent Mode.** A tag on
   *Consent Initialization* runs once per page load, so a decision changed on the same
   page — a revocation included — reached Consent Mode only on the next page load
-  (measured live: `analytics_storage` stayed granted after "revoke all"). Add a second
-  instance with *Use it as Consent Update (instead of Default)* on the Custom Event
-  `aGTM_consent_update` with the same mapping, and switch off the CMP's own Consent Mode
+  (measured live: `analytics_storage` stayed granted after "revoke all"). Fired by the
+  event `aGTM_consent_update`, the tag now sends only a Consent Mode Update (no Default,
+  region, `wait_for_update` or `gtagSet`; Microsoft UET gets `consent update`) — so **add
+  the Custom Event `aGTM_consent_update` as a second trigger to the existing tag** and set
+  its tag firing option to **Once per event** (with *Once per page* the second trigger never
+  fires); no second instance, the mapping stays in one place. Re-import the template (new
+  permission: read the dataLayer key `event`), and switch off the CMP's own Consent Mode
   push if it has one. See `gtm/tags/consent-mode/README-gtm-tag-consent-mode.md` (F-242).
-  The workspace export `gtm/aGTM-GTM-Workspace-Template-18.json` still carries only the
-  page-load instance.
+  The workspace export `gtm/aGTM-GTM-Workspace-Template-18.json` still carries the old
+  template, only the page-load trigger and *Once per page* — change all three after import.
 - **sGTM Client: a visitor without a user-id cookie no longer receives a consent preset.**
   Without a cookie the session is keyed on a server-side fingerprint that is not
   per-visitor, so the stored consent of a stranger could be handed to them. Those visitors

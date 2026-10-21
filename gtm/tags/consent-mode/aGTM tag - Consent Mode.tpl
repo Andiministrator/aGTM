@@ -46,6 +46,7 @@ ___TEMPLATE_PARAMETERS___
     "name": "cm_update",
     "checkboxText": "Use it as Consent Update (instead of Default)",
     "simpleValueType": true,
+    "help": "Usually not needed: a tag fired by the event \u003cb\u003eaGTM_consent_update\u003c/b\u003e sends a Consent Mode Update by itself, whatever is set here. Give the default tag a second trigger on that event instead of creating a second instance - and set its tag firing option to \u003cb\u003eOnce per event\u003c/b\u003e: with Once per page the second trigger never fires.",
     "enablingConditions": [
       {
         "paramName": "cm_update_after_default",
@@ -57,9 +58,9 @@ ___TEMPLATE_PARAMETERS___
   {
     "type": "CHECKBOX",
     "name": "cm_update_after_default",
-    "checkboxText": "Fire a Consent Mode Update Event after a Consent Mode Default",
+    "checkboxText": "On page load: set an all-denied Default, then update it with the current consent",
     "simpleValueType": true,
-    "help": "First it fires a Consent Mode Default Event with all flags denied. After that a Consent Mode Update Event will fire with the correct flags.",
+    "help": "Runs once per page load: first a Consent Mode Default with all flags denied, then a Consent Mode Update with the current flags. A change of the consent on the same page is a separate step: add a second trigger on the event \u003cb\u003eaGTM_consent_update\u003c/b\u003e to this tag - fired by that event, the tag sends only an Update (no Default, no region, no wait_for_update). The tag firing option must be \u003cb\u003eOnce per event\u003c/b\u003e - with Once per page the second trigger never fires.",
     "enablingConditions": [
       {
         "paramName": "cm_update",
@@ -467,6 +468,7 @@ const makeNumber = require('makeNumber');
 const createQueue = require('createQueue');
 const setDefaultConsentState = require('setDefaultConsentState');
 const updateConsentState = require('updateConsentState');
+const copyFromDataLayer = require('copyFromDataLayer');
 
 // Config
 const debug = typeof data.debug=='boolean' ? data.debug : false;
@@ -504,6 +506,23 @@ o.c.ads_data_redaction = typeof data.ads_data_redaction=='boolean' ? data.ads_da
 o.c.ms_consent_mode = typeof data.ms_consent_mode=='boolean' ? data.ms_consent_mode : false;
 o.c.cm_event = typeof data.cm_event=='boolean' ? data.cm_event : false;
 o.c.cm_grant_outside = typeof data.cm_grant_outside=='boolean' ? data.cm_grant_outside : false;
+
+// Fired by aGTM_consent_update, the tag is an Update whatever its configuration
+// says (F-242). aGTM pushes that event when the visitor changes the consent on
+// the page; a Default at that point is ignored by Consent Mode, so a tag that
+// only ever set defaults left analytics_storage/personalization_storage at the
+// page-load state until the next navigation - a withdrawal did not take effect
+// for Analytics on the page it was made on. Treating the event as an Update
+// lets ONE instance with a second trigger cover both moments, so the signal
+// mapping exists once instead of in two instances that can drift apart. The
+// update path already drops what an Update must not carry (gtagSet,
+// wait_for_update, region) and switches Microsoft UET to 'update'.
+o.c.update_event = copyFromDataLayer('event') === 'aGTM_consent_update';
+if (o.c.update_event) {
+  o.c.cm_update = true;
+  o.c.cm_update_after_default = false;
+  if (debug) log('info','Fired by aGTM_consent_update - sending a Consent Mode Update only');
+}
 
 // Get consent signals from aGTM. Guard against aGTM not being loaded yet
 // (copyFromWindow returns undefined): without this, the .hasResponse access
@@ -1326,6 +1345,39 @@ ___WEB_PERMISSIONS___
   {
     "instance": {
       "key": {
+        "publicId": "read_data_layer",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "allowedKeys",
+          "value": {
+            "type": 1,
+            "string": "specific"
+          }
+        },
+        {
+          "key": "keyPatterns",
+          "value": {
+            "type": 2,
+            "listItem": [
+              {
+                "type": 1,
+                "string": "event"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
+    },
+    "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
         "publicId": "write_data_layer",
         "versionId": "1"
       },
@@ -1359,6 +1411,87 @@ ___WEB_PERMISSIONS___
 ___TESTS___
 
 scenarios:
+- name: F-242 - a default instance fired by aGTM_consent_update sends only an Update
+  code: |-
+    // A withdrawal on the page must reach analytics_storage: the event turns the
+    // run into an Update - no Default, no gtagSet, no region, no wait_for_update.
+    let updArg = null;
+    mock('copyFromDataLayer', function(k) { return k === 'event' ? 'aGTM_consent_update' : undefined; });
+    mock('copyFromWindow', function() { return { hasResponse: true }; });
+    mock('updateConsentState', function(o) { updArg = o; });
+    let uetCalls = [];
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      cm_regions: 'DE,AT', cm_wait: '500', cm_grant_outside: true, ms_consent_mode: true,
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', personalization_storage: 'denied',
+      functionality_storage: 'granted', security_storage: 'granted'
+    });
+    assertThat(updArg).isDefined();
+    assertThat(updArg.analytics_storage).isEqualTo('denied');
+    assertThat(updArg.personalization_storage).isEqualTo('denied');
+    assertThat(updArg.region).isUndefined();
+    assertThat(updArg.wait_for_update).isUndefined();
+    assertApi('setDefaultConsentState').wasNotCalled();
+    assertApi('gtagSet').wasNotCalled();
+    let uet = uetCalls.filter(function(c) { return c[0] === 'uetq'; });
+    assertThat(uet.length).isEqualTo(1);
+    assertThat(uet[0][2]).isEqualTo('update');
+    assertThat(uet[0][3].wait_for_update).isUndefined();
+- name: F-242 - update-after-default fired by aGTM_consent_update sets no new Default
+  code: |-
+    let updArg = null;
+    mock('copyFromDataLayer', function(k) { return k === 'event' ? 'aGTM_consent_update' : undefined; });
+    mock('copyFromWindow', function() { return { hasResponse: true }; });
+    mock('updateConsentState', function(o) { updArg = o; });
+    runCode({
+      cm_update_after_default: true,
+      ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted',
+      analytics_storage: 'granted', personalization_storage: 'granted',
+      functionality_storage: 'granted', security_storage: 'granted'
+    });
+    assertThat(updArg).isDefined();
+    assertThat(updArg.analytics_storage).isEqualTo('granted');
+    assertApi('setDefaultConsentState').wasNotCalled();
+- name: F-242 - any other event keeps the Default path unchanged
+  code: |-
+    let defArg = null;
+    mock('copyFromDataLayer', function(k) { return k === 'event' ? 'gtm.init_consent' : undefined; });
+    mock('copyFromWindow', function() { return { hasResponse: true }; });
+    mock('setDefaultConsentState', function(o) { defArg = o; });
+    runCode({
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', personalization_storage: 'denied',
+      functionality_storage: 'denied', security_storage: 'denied'
+    });
+    assertApi('setDefaultConsentState').wasCalled();
+    assertThat(defArg).isNotEqualTo(null);
+    assertThat(defArg.analytics_storage).isEqualTo('denied');
+    assertApi('updateConsentState').wasNotCalled();
+- name: F-242 - Microsoft UET gets an update, not a default, on aGTM_consent_update
+  code: |-
+    let uetCalls = [];
+    mock('copyFromDataLayer', function(k) { return k === 'event' ? 'aGTM_consent_update' : undefined; });
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) {};
+      return { hasResponse: true };
+    });
+    mock('updateConsentState', function(o) {});
+    mock('createQueue', function(name) {
+      return function(a, b, c) { uetCalls.push([name, a, b, c]); };
+    });
+    runCode({
+      ms_consent_mode: true,
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', personalization_storage: 'denied',
+      functionality_storage: 'granted', security_storage: 'granted'
+    });
+    let uet = uetCalls.filter(function(c) { return c[0] === 'uetq'; });
+    assertThat(uet.length).isEqualTo(1);
+    assertThat(uet[0][2]).isEqualTo('update');
+    assertThat(uet[0][3].ad_storage).isEqualTo('denied');
 - name: Unresolved aGTM consent still sets a denied default - fail-open guard
   code: |-
     // aGTM not loaded yet: copyFromWindow('aGTM.d.consent') returns undefined.
@@ -1740,7 +1873,7 @@ ___NOTES___
 
 - Version 1.5
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 19.08.2026
+- Last Update: 21.10.2026
 
 ## Description
 
@@ -1748,6 +1881,14 @@ This template sets the Google (and Microsoft) Consent Mode signals for GTM.
 
 ## Changes in 1.5
 
+- **Fired by `aGTM_consent_update`, the tag sends only a Consent Mode Update**
+  (F-242). Give the page-load tag a second trigger on that Custom Event: a
+  decision changed on the same page — a revocation included — then reaches
+  Consent Mode at once instead of on the next page load. No Default, region,
+  `wait_for_update` or `gtagSet` on that run; Microsoft UET gets
+  `consent update`. New permission: read the dataLayer key `event`.
+  The tag firing option must be **Once per event** — with Once per page GTM
+  never runs the second trigger.
 - Microsoft Consent Mode (`ms_consent_mode`) reworked and documented. Measured
   against the live `bat.bing.com/bat.js` (2026-08-19), not inferred from the
   Microsoft docs alone:
