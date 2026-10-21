@@ -11,6 +11,7 @@ const returnResponse = require('returnResponse');
 const getRequestPath = require('getRequestPath');
 const getRequestQueryParameters = require('getRequestQueryParameters');
 const sendHttpGet = require('sendHttpGet');
+const queryPermission = require('queryPermission');
 const getRequestHeader = require('getRequestHeader');
 const fromBase64 = require('fromBase64');
 const toBase64 = require('toBase64');
@@ -297,15 +298,18 @@ if (!botCheckEnabled || !boturl) {
   boturl += '/' + toBase64(JSON.stringify(plObj));
   logToConsole('info', '✓ API Service Call', plObj);
   // A failed bot check must still answer: without a response /aGTM.js hangs
-  // and GTM loads for nobody. This covers a service outage and a bot-check URL
-  // outside the send_http permission - caught whether the call throws or rejects.
+  // and GTM loads for nobody. Covers a service outage (rejection) and a
+  // bot-check URL outside the send_http permission, which is asked up front:
+  // the sandbox has no try/catch, so a denied call could not be caught.
   // Same as v1.5: no verdict means serve. (F-244)
   const botCheckFailed = function(error) {
     logToConsole('error', '✗ API Service Problem - serving without bot check', error);
     sendCode(200,jsCode);
   };
   // Use Service
-  try {
+  if (!queryPermission('send_http', boturl)) {
+    botCheckFailed('bot-check URL not covered by the send_http permission');
+  } else {
   sendHttpGet(boturl, {
     timeout: 5000,
   }).then(function(result) {
@@ -324,8 +328,6 @@ if (!botCheckEnabled || !boturl) {
       sendCode(200,jsCode);
     }
   }, botCheckFailed);
-  } catch (e) {
-    botCheckFailed(e);
   }
 }
 

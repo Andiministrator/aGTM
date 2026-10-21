@@ -557,6 +557,7 @@ const returnResponse = require('returnResponse');
 const getRequestPath = require('getRequestPath');
 const getRequestQueryParameters = require('getRequestQueryParameters');
 const sendHttpGet = require('sendHttpGet');
+const queryPermission = require('queryPermission');
 const getRequestHeader = require('getRequestHeader');
 const fromBase64 = require('fromBase64');
 const toBase64 = require('toBase64');
@@ -843,15 +844,18 @@ if (!botCheckEnabled || !boturl) {
   boturl += '/' + toBase64(JSON.stringify(plObj));
   logToConsole('info', '✓ API Service Call', plObj);
   // A failed bot check must still answer: without a response /aGTM.js hangs
-  // and GTM loads for nobody. This covers a service outage and a bot-check URL
-  // outside the send_http permission - caught whether the call throws or rejects.
+  // and GTM loads for nobody. Covers a service outage (rejection) and a
+  // bot-check URL outside the send_http permission, which is asked up front:
+  // the sandbox has no try/catch, so a denied call could not be caught.
   // Same as v1.5: no verdict means serve. (F-244)
   const botCheckFailed = function(error) {
     logToConsole('error', '✗ API Service Problem - serving without bot check', error);
     sendCode(200,jsCode);
   };
   // Use Service
-  try {
+  if (!queryPermission('send_http', boturl)) {
+    botCheckFailed('bot-check URL not covered by the send_http permission');
+  } else {
   sendHttpGet(boturl, {
     timeout: 5000,
   }).then(function(result) {
@@ -870,8 +874,6 @@ if (!botCheckEnabled || !boturl) {
       sendCode(200,jsCode);
     }
   }, botCheckFailed);
-  } catch (e) {
-    botCheckFailed(e);
   }
 }
 
@@ -1261,14 +1263,16 @@ scenarios:
 
 - name: bot check URL outside the send_http permission - the library is still served
   code: |
-    // A URL the permission does not cover makes sendHttpGet throw. Before 1.4.5
-    // nothing answered after that, so /aGTM.js hung and GTM loaded for nobody (F-244).
+    // A URL the permission does not cover may not be called. Before 1.4.5 the
+    // call failed and nothing answered, so /aGTM.js hung and GTM loaded for nobody (F-244).
     const mockData = baseData('no');
     mockData.botCheckEnabled = true;
     mockData.botCheck = 'https://bots.not-permitted.example/check';
     mockGet({id: 'GTM-XYZ123'}, '/aGTM.js', '203.0.113.9');
-    mock('sendHttpGet', function() { throw 'permission denied'; });
+    mock('queryPermission', function() { return false; });
+    mock('sendHttpGet', function() { fail('sendHttpGet must not be called'); });
     runCode(mockData);
+    assertApi('sendHttpGet').wasNotCalled();
     assertApi('setResponseStatus').wasCalledWith(200);
     assertThat(body).contains('aGTM.f.config');
 setup: |-

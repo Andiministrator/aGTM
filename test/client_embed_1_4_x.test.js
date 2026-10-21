@@ -128,7 +128,12 @@ describe('1.4.x Client — bot check never swallows the response (F-244)', () =>
     const b = block(SRC);
     expect(b).toMatch(/const botCheckFailed = function\(error\) \{[^}]*sendCode\(200,jsCode\);/);
     expect(b).toContain('}, botCheckFailed);');
-    expect(b).toMatch(/catch \(e\) \{\s*botCheckFailed\(e\);/);
+    expect(b).toMatch(/if \(!queryPermission\('send_http', boturl\)\) \{\s*botCheckFailed\(/);
+  });
+
+  test('no try/catch anywhere in the server block - the sandbox refuses to parse it', () => {
+    expect(SRC).not.toMatch(/\btry\s*\{/);
+    expect(SRC).not.toMatch(/\bcatch\s*\(/);
   });
 
   test('template server block == client source (sync invariant)', () => {
