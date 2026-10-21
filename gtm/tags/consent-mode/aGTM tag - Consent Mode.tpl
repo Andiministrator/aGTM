@@ -1417,7 +1417,10 @@ scenarios:
     // run into an Update - no Default, no gtagSet, no region, no wait_for_update.
     let updArg = null;
     mock('copyFromDataLayer', function(k) { return k === 'event' ? 'aGTM_consent_update' : undefined; });
-    mock('copyFromWindow', function() { return { hasResponse: true }; });
+    mock('copyFromWindow', function(key) {
+      if (key === 'clarity') return function(a, b) {};
+      return { hasResponse: true };
+    });
     mock('updateConsentState', function(o) { updArg = o; });
     let uetCalls = [];
     mock('createQueue', function(name) {
