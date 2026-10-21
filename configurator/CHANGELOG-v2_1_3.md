@@ -1,5 +1,27 @@
 # aGTM Configurator – Changelog
 
+## [2.2.0] - 2026-10-21
+
+### aGTM v1.5 options
+
+Changes by the aGTM project, on top of InBiz's 2.1.3.
+
+#### Added (step "Features", advanced mode)
+- **Session & consent store** – `consent_store_url`, `consent_poll_ms`, `session_salt`, `user_id`, `consent_store_enc`. A note explains that the aGTM sGTM Client sets `consent_store_url` and `session` itself. `consent_store_enc` carries a warning: no server-side decoder exists, so the Client answers `501` and stores nothing.
+- **POST transport** – `transport_url`, `transport_enc`, `transport_salt`, plus a short reference for the per-event flags `_post`, `_noConsent` and `_noDLPush` (they belong in `aGTM.f.fire()`, not in the config).
+- **`allowEmptyConsentConditions`** – with a warning. Since aGTM v1.5 an empty consent table is fail-closed: GTM is not loaded.
+- **`dlOrgPush`** – the option labels now say what each mode does. Every mode sends one `exception` event per page with `fct_hook` and `fct_hook_src` (the script that replaced `dataLayer.push`).
+
+#### Fixed
+- **"No CMP" never loaded GTM** – the generated config lacked `cmp: 'none'`, so aGTM kept looking for a `consent_check` function that was never there. The generator now emits it.
+- **No consent condition** – the generated code now carries a warning comment (and the UI shows a toast) when no condition is set and `allowEmptyConsentConditions` is off, because GTM will not load.
+- **Quotes in input values** – string values in the generated config are escaped, so `Google Tag Manager's` no longer breaks the code.
+
+#### Removed
+- **`ckServices` / `ckPurposes` / `ckVendors`** – removed in aGTM v1.5 (the library never produced the `ck` parameter). Stored or imported configurations drop them on load.
+
+---
+
 ## [2.1.3] - 2026-04-08
 
 ### 🎨 Design overhaul – SEA Suite dark theme

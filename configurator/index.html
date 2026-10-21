@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <!--
   aGTM Konfigurator
-  Version: 2.1.3
-  Datum: 2026-04-08
+  Version: 2.2.0
+  Datum: 2026-10-21
   Autor: Marco Brenn (InBiz Online Marketing GmbH & Co. KG)
+  v2.2.0: aGTM-v1.5-Optionen ergänzt (aGTM-Projekt, Andi Petzoldt)
 
   Modulare Single-File Anwendung für aGTM Konfiguration.
 -->
@@ -11,11 +12,11 @@
 <head>
   <script>
   const agtmv = '1.5';
-  const cnfgv = '2.1.3';
+  const cnfgv = '2.2.0';
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>aGTM Konfigurator v2.1.3</title>
+  <title>aGTM Konfigurator v2.2.0</title>
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -214,7 +215,7 @@
             <h1 class="text-lg font-bold" style="color:#f1f5f9; font-family:Inter,sans-serif;">
               aGTM <span style="color:#E30613;">Konfigurator</span>
             </h1>
-            <p class="text-xs" style="color:#64748b;">v2.1.3 · by InBiz</p>
+            <p class="text-xs" style="color:#64748b;">v2.2.0 · by InBiz</p>
           </div>
         </div>
 
@@ -1066,6 +1067,24 @@
                 </p>
               </div>
 
+              <!-- allowEmptyConsentConditions -->
+              <div class="feature-item" data-feature="allowEmptyConsentConditions">
+                <label class="flex items-start gap-4 p-4 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <input type="checkbox"
+                         id="feature_allowEmptyConsentConditions"
+                         class="feature-toggle mt-0.5 w-5 h-5 text-primary-600 rounded border-slate-300 dark:border-slate-500 focus:ring-primary-500">
+                  <div class="flex-1">
+                    <span class="font-medium ">allowEmptyConsentConditions</span>
+                    <p class="text-sm  mt-0.5">GTM auch laden, wenn in Schritt „Consent“ <strong>keine</strong> Bedingung eingetragen ist</p>
+                  </div>
+                </label>
+                <div id="allowEmptyConsentConditionsHint" class="hidden mt-2 ml-9 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <p class="text-xs text-amber-700 dark:text-amber-400">
+                    <strong>Achtung:</strong> Ohne Bedingung lädt GTM dann für jeden Besucher, auch nach „Alles ablehnen“. Standard (aus): Ohne Bedingung lädt GTM gar nicht. Eine eingetragene Bedingung schwächt der Schalter nicht ab.
+                  </p>
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -1100,10 +1119,13 @@
                 <select id="feature_dlOrgPush"
                         class="w-full px-4 py-2.5 border border-slate-700 rounded-lg bg-white   focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                   <option value="">-- Keine Aktion --</option>
-                  <option value="log">log - Flag setzen wenn überschrieben</option>
-                  <option value="use">use - Original-Funktion verwenden</option>
-                  <option value="restore">restore - Überschreibung rückgängig</option>
+                  <option value="log">log - melden, wenn push überschrieben wird</option>
+                  <option value="use">use - melden + aGTM-Events am Hook vorbei senden</option>
+                  <option value="restore">restore - melden + Original-push wiederherstellen</option>
                 </select>
+                <p class="mt-1.5 text-xs ">
+                  Jeder Modus sendet einmal pro Seite ein <code>exception</code>-Event mit <code>fct_hook</code> und <code>fct_hook_src</code> (Skript-URL des Verursachers). <code>log</code> zeigt dir, welches Skript <code>dataLayer.push</code> überschreibt.
+                </p>
               </div>
 
             </div>
@@ -1135,50 +1157,160 @@
             </div>
           </div>
 
-          <!-- sGTM Consent URL Parameters -->
-          <div class="mb-4">
+          <!-- Session & Consent-Store (v1.5) -->
+          <div class="mb-8">
             <h3 class="text-sm font-medium  uppercase tracking-wider mb-4">
               <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
               </svg>
-              Server-side GTM Parameter
+              Session &amp; Consent-Speicher
             </h3>
 
-            <div class="p-3 bg-slate-50 /50 rounded-lg mb-4">
-              <p class="text-xs ">
-                Diese Parameter werden als <code class="px-1 py-0.5 bg-slate-200 dark:bg-slate-600 rounded">ck</code> Parameter an die GTM-URL angehängt (für Server-side Consent-Tracking).
+            <div class="p-3 rounded-lg mb-4" style="background:#0c1a2e;border:1px solid #1e3a5f;">
+              <p class="text-xs" style="color:#93c5fd;">
+                Wird aGTM vom <strong>aGTM sGTM-Client</strong> ausgeliefert, setzt der Client <code>consent_store_url</code> und die Session-Daten (<code>session</code>) selbst — dann diese Felder leer lassen. Sie sind für Integrationen mit eigenem Endpunkt.
               </p>
             </div>
 
-            <div class="grid sm:grid-cols-3 gap-4" id="featuresSgtm">
+            <div class="grid sm:grid-cols-2 gap-4" id="featuresSession">
 
-              <!-- ckServices -->
-              <div class="feature-item" data-feature="ckServices">
-                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">ckServices</label>
+              <!-- consent_store_url -->
+              <div class="feature-item sm:col-span-2" data-feature="consent_store_url">
+                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">
+                  consent_store_url <span class="font-normal text-slate-400">(POST-Endpunkt für Consent-Änderungen)</span>
+                </label>
                 <input type="text"
-                       id="feature_ckServices"
-                       placeholder="User ID Service"
-                       class="w-full px-4 py-2 border border-slate-700 rounded-lg bg-white   placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm">
+                       id="feature_consent_store_url"
+                       placeholder="https://sgtm.example.com/aGTMconsent"
+                       class="w-full px-4 py-2.5 rounded-lg font-mono" style="background:#1a1a1a;border:1px solid #334155;color:#e2e8f0;">
+                <p class="mt-1.5 text-xs ">
+                  Leer = aus. Gesendet wird nur, wenn sich die Consent-Entscheidung ändert (mit Cookie, <code>text/plain</code>).
+                </p>
               </div>
 
-              <!-- ckPurposes -->
-              <div class="feature-item" data-feature="ckPurposes">
-                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">ckPurposes</label>
-                <input type="text"
-                       id="feature_ckPurposes"
-                       placeholder="Functional"
-                       class="w-full px-4 py-2 border border-slate-700 rounded-lg bg-white   placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm">
+              <!-- consent_poll_ms -->
+              <div class="feature-item" data-feature="consent_poll_ms">
+                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">
+                  consent_poll_ms <span class="font-normal text-slate-400">(ms)</span>
+                </label>
+                <input type="number" min="0" step="100"
+                       id="feature_consent_poll_ms"
+                       placeholder="2000"
+                       class="w-full px-4 py-2.5 rounded-lg font-mono" style="background:#1a1a1a;border:1px solid #334155;color:#e2e8f0;">
+                <p class="mt-1.5 text-xs ">
+                  Wie oft der CMP-Zustand nachgelesen wird. Leer = 2000, <code>0</code> = aus. Wirkt nur mit <code>consent_store_url</code>.
+                </p>
               </div>
 
-              <!-- ckVendors -->
-              <div class="feature-item" data-feature="ckVendors">
-                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">ckVendors</label>
-                <input type="text"
-                       id="feature_ckVendors"
-                       placeholder="Google Inc"
-                       class="w-full px-4 py-2 border border-slate-700 rounded-lg bg-white   placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm">
+              <!-- session_salt -->
+              <div class="feature-item" data-feature="session_salt">
+                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">
+                  session_salt <span class="font-normal text-slate-400">(Ganzzahl ≥ 1)</span>
+                </label>
+                <input type="number" min="0" step="1"
+                       id="feature_session_salt"
+                       placeholder="0"
+                       class="w-full px-4 py-2.5 rounded-lg font-mono" style="background:#1a1a1a;border:1px solid #334155;color:#e2e8f0;">
+                <p class="mt-1.5 text-xs ">
+                  Salt für die Verschleierung des Consent-POST; zugleich Ersatzwert für <code>transport_salt</code>.
+                </p>
               </div>
 
+              <!-- user_id -->
+              <div class="feature-item sm:col-span-2" data-feature="user_id">
+                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">
+                  user_id <span class="font-normal text-slate-400">(CRM-ID eingeloggter Nutzer)</span>
+                </label>
+                <input type="text"
+                       id="feature_user_id"
+                       placeholder="leer lassen"
+                       class="w-full px-4 py-2.5 rounded-lg font-mono" style="background:#1a1a1a;border:1px solid #334155;color:#e2e8f0;">
+                <p class="mt-1.5 text-xs ">
+                  Der Konfigurator schreibt einen <strong>festen</strong> Wert. Eine ID, die pro Besucher wechselt, muss das CMS/der Shop beim Ausgeben der Seite einsetzen.
+                </p>
+              </div>
+
+              <!-- consent_store_enc -->
+              <div class="feature-item sm:col-span-2" data-feature="consent_store_enc">
+                <label class="flex items-start gap-4 p-4 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <input type="checkbox"
+                         id="feature_consent_store_enc"
+                         class="feature-toggle mt-0.5 w-5 h-5 text-primary-600 rounded border-slate-300 dark:border-slate-500 focus:ring-primary-500">
+                  <div class="flex-1">
+                    <span class="font-medium ">consent_store_enc</span>
+                    <p class="text-sm  mt-0.5">Consent-POST mit <code>session_salt</code> verschleiern (Base64 + Caesar — keine Verschlüsselung)</p>
+                  </div>
+                </label>
+                <div id="consentStoreEncHint" class="hidden mt-2 ml-9 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <p class="text-xs text-amber-700 dark:text-amber-400">
+                    <strong>Nicht einschalten:</strong> Es gibt keinen serverseitigen Decoder. Der aGTM sGTM-Client antwortet auf einen verschleierten Body mit <code>501</code> und speichert nichts — der Consent-Speicher ist damit abgeschaltet.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- POST-Transport (v1.5) -->
+          <div class="mb-4">
+            <h3 class="text-sm font-medium  uppercase tracking-wider mb-4">
+              <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+              POST-Transport
+            </h3>
+
+            <div class="grid sm:grid-cols-2 gap-4" id="featuresTransport">
+
+              <!-- transport_url -->
+              <div class="feature-item sm:col-span-2" data-feature="transport_url">
+                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">
+                  transport_url <span class="font-normal text-slate-400">(Standard-Endpunkt für <code>_post</code>)</span>
+                </label>
+                <input type="text"
+                       id="feature_transport_url"
+                       placeholder="https://sgtm.example.com/collect"
+                       class="w-full px-4 py-2.5 rounded-lg font-mono" style="background:#1a1a1a;border:1px solid #334155;color:#e2e8f0;">
+              </div>
+
+              <!-- transport_salt -->
+              <div class="feature-item" data-feature="transport_salt">
+                <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;">
+                  transport_salt <span class="font-normal text-slate-400">(Ganzzahl ≥ 1)</span>
+                </label>
+                <input type="number" min="0" step="1"
+                       id="feature_transport_salt"
+                       placeholder="0"
+                       class="w-full px-4 py-2.5 rounded-lg font-mono" style="background:#1a1a1a;border:1px solid #334155;color:#e2e8f0;">
+                <p class="mt-1.5 text-xs ">
+                  Leer = <code>session_salt</code> wird verwendet.
+                </p>
+              </div>
+
+              <!-- transport_enc -->
+              <div class="feature-item" data-feature="transport_enc">
+                <label class="flex items-start gap-4 p-4 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <input type="checkbox"
+                         id="feature_transport_enc"
+                         class="feature-toggle mt-0.5 w-5 h-5 text-primary-600 rounded border-slate-300 dark:border-slate-500 focus:ring-primary-500">
+                  <div class="flex-1">
+                    <span class="font-medium ">transport_enc</span>
+                    <p class="text-sm  mt-0.5">POST-Body verschleiern (Base64 + Caesar — keine Verschlüsselung). Der Empfänger muss ihn dekodieren können.</p>
+                  </div>
+                </label>
+              </div>
+
+            </div>
+
+            <!-- Event-Flags: Dokumentation, keine Config-Option -->
+            <div class="p-3 rounded-lg mt-4" style="background:#0c1a2e;border:1px solid #1e3a5f;">
+              <p class="text-xs font-medium mb-1" style="color:#60a5fa;">Event-Flags (pro Event in <code>aGTM.f.fire()</code>, nicht in der Config)</p>
+              <ul class="text-xs space-y-1" style="color:#93c5fd;">
+                <li><code>_post: true</code> — Event zusätzlich per POST an <code>transport_url</code> senden; oder ein Objekt <code>{url, enc, salt}</code> für Abweichungen. Wartet wie jedes Event auf Consent.</li>
+                <li><code>_noConsent: true</code> — Consent-Gate für dieses Event umgehen (nur für funktionale/rechtlich nötige Events).</li>
+                <li><code>_noDLPush: true</code> — nicht in den GTM-dataLayer pushen; das Event bleibt in aGTMs Log und kann trotzdem per POST gehen.</li>
+              </ul>
+              <p class="text-xs mt-2 font-mono" style="color:#cbd5e1;">aGTM.f.fire({ event: 'lead', _post: true });</p>
             </div>
           </div>
 
@@ -1707,10 +1839,16 @@ console.log('User opted out');"></textarea>
               gdl: 'dataLayer',
               dlOrgPush: '',
               consent_events: '',
+              allowEmptyConsentConditions: false,
               nonce: '',
-              ckServices: '',
-              ckPurposes: '',
-              ckVendors: ''
+              consent_store_url: '',
+              consent_store_enc: false,
+              consent_poll_ms: '',
+              session_salt: '',
+              user_id: '',
+              transport_url: '',
+              transport_enc: false,
+              transport_salt: ''
             },
             callbacks: {
               consent_callback: null,
@@ -1876,6 +2014,17 @@ console.log('User opted out');"></textarea>
             migrated = true;
           }
 
+          // ckServices/ckPurposes/ckVendors wurden in aGTM v1.5 ersatzlos entfernt
+          // (die Library hat den ck-Parameter nie erzeugt) — aus alten Configs löschen
+          if (current.features) {
+            ['ckServices', 'ckPurposes', 'ckVendors'].forEach(key => {
+              if (key in current.features) {
+                delete current.features[key];
+                migrated = true;
+              }
+            });
+          }
+
           // Fehlende Felder mit Defaults auffüllen
           current = this.fillDefaults(current);
 
@@ -1899,15 +2048,9 @@ console.log('User opted out');"></textarea>
           // v1 hatte eventuell andere Feldnamen
           // Hier können spezifische Migrationen erfolgen
 
-          // Beispiel: features.ckServices war in v1 nicht vorhanden
           if (!config.features) {
             config.features = {};
           }
-
-          // ck-Parameter hinzufügen falls nicht vorhanden
-          config.features.ckServices = config.features.ckServices || '';
-          config.features.ckPurposes = config.features.ckPurposes || '';
-          config.features.ckVendors = config.features.ckVendors || '';
 
           return config;
         },
@@ -5152,7 +5295,8 @@ aGTM.f.consent_check = function(action) {
           },
           consent: {
             useListener: { type: 'boolean', default: false, recommended: false, hasHint: true },
-            consent_events: { type: 'string', default: '', recommended: false }
+            consent_events: { type: 'string', default: '', recommended: false },
+            allowEmptyConsentConditions: { type: 'boolean', default: false, recommended: false, hasHint: true }
           },
           dataLayer: {
             gdl: { type: 'string', default: 'dataLayer', recommended: false },
@@ -5161,11 +5305,34 @@ aGTM.f.consent_check = function(action) {
           security: {
             nonce: { type: 'string', default: '', recommended: false }
           },
-          sgtm: {
-            ckServices: { type: 'string', default: '', recommended: false },
-            ckPurposes: { type: 'string', default: '', recommended: false },
-            ckVendors: { type: 'string', default: '', recommended: false }
+          session: {
+            consent_store_url: { type: 'string', default: '', recommended: false },
+            consent_poll_ms: { type: 'number', default: '', recommended: false },
+            session_salt: { type: 'number', default: '', recommended: false },
+            user_id: { type: 'string', default: '', recommended: false },
+            consent_store_enc: { type: 'boolean', default: false, recommended: false, hasHint: true }
+          },
+          transport: {
+            transport_url: { type: 'string', default: '', recommended: false },
+            transport_salt: { type: 'number', default: '', recommended: false },
+            transport_enc: { type: 'boolean', default: false, recommended: false }
           }
+        },
+
+        /** Boolean-Felder (Checkboxen) */
+        booleanKeys: ['debug', 'sendConsentEvent', 'dlStateEvents', 'aPageview', 'vPageviews', 'useListener',
+          'allowEmptyConsentConditions', 'consent_store_enc', 'transport_enc'],
+
+        /** Text-Felder */
+        stringKeys: ['gdl', 'consent_events', 'nonce', 'consent_store_url', 'user_id', 'transport_url'],
+
+        /** Zahl-Felder (leer = Library-Default) */
+        numberKeys: ['consent_poll_ms', 'session_salt', 'transport_salt'],
+
+        /** Schalter mit Warn-Hinweis: feature → Hinweis-ID */
+        warnHints: {
+          allowEmptyConsentConditions: 'allowEmptyConsentConditionsHint',
+          consent_store_enc: 'consentStoreEncHint'
         },
 
         /**
@@ -5191,6 +5358,16 @@ aGTM.f.consent_check = function(action) {
               this.toggleHint('useListenerHint', e.target.checked);
             });
           }
+
+          // Warn-Hinweise zu riskanten Schaltern
+          Object.entries(this.warnHints).forEach(([key, hintId]) => {
+            const toggle = document.getElementById(`feature_${key}`);
+            if (toggle) {
+              toggle.addEventListener('change', (e) => {
+                this.toggleHint(hintId, e.target.checked);
+              });
+            }
+          });
 
           // Feature-Toggles → Styling aktualisieren
           document.querySelectorAll('.feature-toggle').forEach(toggle => {
@@ -5309,7 +5486,7 @@ aGTM.f.consent_check = function(action) {
           if (!features) return;
 
           // Boolean Features
-          ['debug', 'sendConsentEvent', 'dlStateEvents', 'aPageview', 'vPageviews', 'useListener'].forEach(key => {
+          this.booleanKeys.forEach(key => {
             const el = document.getElementById(`feature_${key}`);
             if (el && typeof features[key] === 'boolean') {
               el.checked = features[key];
@@ -5319,13 +5496,16 @@ aGTM.f.consent_check = function(action) {
               if (key === 'useListener') {
                 this.toggleHint('useListenerHint', features[key]);
               }
+              if (this.warnHints[key]) {
+                this.toggleHint(this.warnHints[key], features[key]);
+              }
             }
           });
 
-          // String Features
-          ['gdl', 'consent_events', 'nonce', 'ckServices', 'ckPurposes', 'ckVendors'].forEach(key => {
+          // String- und Zahl-Features
+          [...this.stringKeys, ...this.numberKeys].forEach(key => {
             const el = document.getElementById(`feature_${key}`);
-            if (el && features[key]) {
+            if (el && features[key] !== undefined && features[key] !== null && features[key] !== '') {
               el.value = features[key];
             }
           });
@@ -5357,8 +5537,7 @@ aGTM.f.consent_check = function(action) {
           }
 
           // Boolean Features
-          const booleanFeatures = ['debug', 'sendConsentEvent', 'dlStateEvents', 'aPageview', 'vPageviews', 'useListener'];
-          booleanFeatures.forEach(key => {
+          this.booleanKeys.forEach(key => {
             const el = document.getElementById(`feature_${key}`);
             if (el) {
               App.currentConfig.features[key] = el.checked;
@@ -5366,11 +5545,24 @@ aGTM.f.consent_check = function(action) {
           });
 
           // String Features
-          const stringFeatures = ['gdl', 'consent_events', 'nonce', 'ckServices', 'ckPurposes', 'ckVendors'];
-          stringFeatures.forEach(key => {
+          this.stringKeys.forEach(key => {
             const el = document.getElementById(`feature_${key}`);
             if (el) {
               App.currentConfig.features[key] = el.value.trim();
+            }
+          });
+
+          // Zahl-Features: nur nicht-negative Ganzzahlen, sonst leer (= Library-Default)
+          this.numberKeys.forEach(key => {
+            const el = document.getElementById(`feature_${key}`);
+            if (el) {
+              const raw = el.value.trim();
+              const num = Number(raw);
+              App.currentConfig.features[key] = (raw !== '' && Number.isInteger(num) && num >= 0) ? num : '';
+              if (raw !== '' && App.currentConfig.features[key] === '') {
+                ToastManager.warning(`${key}: nur ganze Zahlen ≥ 0 — Wert verworfen`);
+                el.value = '';
+              }
             }
           });
 
@@ -5718,6 +5910,9 @@ aGTM.f.consent_check = function(action) {
           if (features.aPageview) activeFeatures.push('aPageview');
           if (features.vPageviews) activeFeatures.push('vPageviews');
           if (features.useListener) activeFeatures.push('useListener');
+          if (features.allowEmptyConsentConditions) activeFeatures.push('allowEmptyConsentConditions');
+          if (features.consent_store_url) activeFeatures.push('consent_store_url');
+          if (features.transport_url) activeFeatures.push('transport_url');
 
           sections.push({
             title: 'Features',
@@ -5920,6 +6115,15 @@ aGTM.f.consent_check = function(action) {
 
           const configParts = [];
 
+          // JS-String-Literal in einfachen Anführungszeichen (Eingaben escapen)
+          const q = (val) => "'" + String(val).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ') + "'";
+
+          // Kein CMP: ohne cmp:'none' sucht aGTM eine consent_check-Funktion,
+          // findet keine und lädt GTM nie
+          if (config.cmp?.type === 'none') {
+            configParts.push(`  cmp: 'none'`);
+          }
+
           // GTM Containers (Standard-Modus)
           const containers = config.gtm?.containers || [];
           if (containers.length > 0) {
@@ -5940,13 +6144,13 @@ aGTM.f.consent_check = function(action) {
 
           // Consent-Logik
           if (config.consent?.gtmServices) {
-            configParts.push(`  gtmServices: '${config.consent.gtmServices}'`);
+            configParts.push(`  gtmServices: ${q(config.consent.gtmServices)}`);
           }
           if (config.consent?.gtmPurposes) {
-            configParts.push(`  gtmPurposes: '${config.consent.gtmPurposes}'`);
+            configParts.push(`  gtmPurposes: ${q(config.consent.gtmPurposes)}`);
           }
           if (config.consent?.gtmVendors) {
-            configParts.push(`  gtmVendors: '${config.consent.gtmVendors}'`);
+            configParts.push(`  gtmVendors: ${q(config.consent.gtmVendors)}`);
           }
 
           // Features
@@ -5960,16 +6164,19 @@ aGTM.f.consent_check = function(action) {
           if (features.sendConsentEvent) configParts.push(`  sendConsentEvent: true`);
           if (features.debug) configParts.push(`  debug: true`);
           if (features.gdl && features.gdl !== 'dataLayer') {
-            configParts.push(`  gdl: '${features.gdl}'`);
+            configParts.push(`  gdl: ${q(features.gdl)}`);
           }
           if (features.dlOrgPush) {
-            configParts.push(`  dlOrgPush: '${features.dlOrgPush}'`);
+            configParts.push(`  dlOrgPush: ${q(features.dlOrgPush)}`);
           }
           if (features.consent_events) {
-            configParts.push(`  consent_events: '${features.consent_events}'`);
+            configParts.push(`  consent_events: ${q(features.consent_events)}`);
+          }
+          if (features.allowEmptyConsentConditions) {
+            configParts.push(`  allowEmptyConsentConditions: true`);
           }
           if (features.nonce) {
-            configParts.push(`  nonce: '${features.nonce}'`);
+            configParts.push(`  nonce: ${q(features.nonce)}`);
           }
           if (features.iframeSupport) {
             configParts.push(`  iframeSupport: true`);
@@ -5981,15 +6188,44 @@ aGTM.f.consent_check = function(action) {
             configParts.push(`  vPageviewsFallback: true`);
           }
 
-          // Cookie Keeper Features
-          if (features.ckServices) {
-            configParts.push(`  ckServices: '${features.ckServices}'`);
+          // Session & Consent-Speicher (v1.5)
+          const isNum = (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+          if (features.consent_store_url) {
+            configParts.push(`  consent_store_url: ${q(features.consent_store_url)}`);
           }
-          if (features.ckPurposes) {
-            configParts.push(`  ckPurposes: '${features.ckPurposes}'`);
+          if (features.consent_store_enc) {
+            configParts.push(`  consent_store_enc: true /* WARNING: the aGTM sGTM Client answers 501 and stores nothing */`);
           }
-          if (features.ckVendors) {
-            configParts.push(`  ckVendors: '${features.ckVendors}'`);
+          if (isNum(features.consent_poll_ms) && features.consent_poll_ms !== 2000) {
+            configParts.push(`  consent_poll_ms: ${features.consent_poll_ms}`);
+          }
+          if (isNum(features.session_salt) && features.session_salt > 0) {
+            configParts.push(`  session_salt: ${features.session_salt}`);
+          }
+          if (features.user_id) {
+            configParts.push(`  user_id: ${q(features.user_id)}`);
+          }
+
+          // POST-Transport (v1.5)
+          if (features.transport_url) {
+            configParts.push(`  transport_url: ${q(features.transport_url)}`);
+          }
+          if (features.transport_enc) {
+            configParts.push(`  transport_enc: true`);
+          }
+          if (isNum(features.transport_salt) && features.transport_salt > 0) {
+            configParts.push(`  transport_salt: ${features.transport_salt}`);
+          }
+
+          // Leere Consent-Tabelle: ab aGTM v1.5 lädt GTM dann nicht (fail-closed)
+          const noConditions = !config.consent?.gtmServices && !config.consent?.gtmPurposes && !config.consent?.gtmVendors;
+          if (config.cmp?.type !== 'none' && noConditions && !features.allowEmptyConsentConditions) {
+            // vor die Zeile 'aGTM.f.config({' setzen, nicht in das Objekt hinein
+            lines.splice(lines.lastIndexOf('aGTM.f.config({'), 0,
+              '/* WARNING: no consent condition (gtmServices/gtmPurposes/gtmVendors) is set,',
+              '   so aGTM will NOT load GTM. Add a condition, or set allowEmptyConsentConditions: true',
+              '   if you deliberately want no consent gate. */');
+            ToastManager.warning('Keine Consent-Bedingung: aGTM lädt GTM so nicht (siehe Kommentar im Code)');
           }
 
           lines.push(configParts.join(',\n'));
@@ -6561,7 +6797,7 @@ aGTM.f.consent_check = function(action) {
          * Initialisiert die Anwendung
          */
         init() {
-          Logger.info('App', 'aGTM Konfigurator v2.1.3 startet...');
+          Logger.info('App', `aGTM Konfigurator v${cnfgv} startet...`);
 
           // Dark Mode
           this.initDarkMode();
