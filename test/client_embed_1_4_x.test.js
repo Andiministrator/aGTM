@@ -91,8 +91,8 @@ describe('1.4.x Client — embedded library is the built one', () => {
   });
 
   test('the Client version and the embedded library version are the released pair', () => {
-    expect(TPL).toContain('const aGTMversion = "1.4.5";');
-    expect(SRC).toContain('const aGTMversion = "1.4.5";');
+    expect(TPL).toContain('const aGTMversion = "1.4.6";');
+    expect(SRC).toContain('const aGTMversion = "1.4.6";');
     expect(MIN).toContain('"version","1.4.3"');
   });
 });
@@ -126,8 +126,9 @@ describe('1.4.x Client — bot check never swallows the response (F-244)', () =>
 
   test('both failure paths of sendHttpGet serve the library', () => {
     const b = block(SRC);
-    expect(b).toMatch(/const botCheckFailed = function\(error\) \{[^}]*sendCode\(200,jsCode\);/);
-    expect(b).toContain('}, botCheckFailed);');
+    expect(b).toMatch(/const botCheckFailed = function\(reason, error\) \{[^}]*setResponseHeader\('x-agtm-botcheck', reason\);\s*sendCode\(200,jsCode\);/);
+    expect(b).toMatch(/\}, function\(error\) \{\s*botCheckFailed\('skipped-no-answer', error\);/);
+    expect(b).toContain("botCheckFailed('skipped-not-permitted'");
     expect(b).toMatch(/if \(!queryPermission\('send_http', boturl\)\) \{\s*botCheckFailed\(/);
   });
 
@@ -140,6 +141,10 @@ describe('1.4.x Client — bot check never swallows the response (F-244)', () =>
     const start = TPL.indexOf('___SANDBOXED_JS_FOR_SERVER___') + '___SANDBOXED_JS_FOR_SERVER___'.length;
     const end = TPL.indexOf('___SERVER_PERMISSIONS___');
     expect(TPL.slice(start, end).trim()).toBe(SRC.trim());
+  });
+
+  test('a body of null cannot throw in the success handler', () => {
+    expect(block(SRC)).toContain("if (resObj && typeof resObj=='object' && resObj.isBot)");
   });
 
   test('send_http lists exactly the one placeholder host', () => {

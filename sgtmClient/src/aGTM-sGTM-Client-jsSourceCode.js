@@ -1,6 +1,6 @@
 // ssGTM Doku: https://developers.google.com/tag-platform/tag-manager/server-side/api?hl=de
 // aGTM Doku: https://github.com/Andiministrator/aGTM
-const aGTMversion = "1.4.5";
+const aGTMversion = "1.4.6";
 
 // Load Libraries
 const claimRequest = require('claimRequest');
@@ -301,14 +301,17 @@ if (!botCheckEnabled || !boturl) {
   // and GTM loads for nobody. Covers a service outage (rejection) and a
   // bot-check URL outside the send_http permission, which is asked up front:
   // the sandbox has no try/catch, so a denied call could not be caught.
-  // Same as v1.5: no verdict means serve. (F-244)
-  const botCheckFailed = function(error) {
+  // Same as v1.5: no verdict means serve. (F-244) The response header says why:
+  // the logging permission is debug-only, so in a live container this header is
+  // the only trace that the bot filter did not run.
+  const botCheckFailed = function(reason, error) {
     logToConsole('error', '✗ API Service Problem - serving without bot check', error);
+    setResponseHeader('x-agtm-botcheck', reason);
     sendCode(200,jsCode);
   };
   // Use Service
   if (!queryPermission('send_http', boturl)) {
-    botCheckFailed('bot-check URL not covered by the send_http permission');
+    botCheckFailed('skipped-not-permitted', 'bot-check URL not covered by the send_http permission');
   } else {
   sendHttpGet(boturl, {
     timeout: 5000,
@@ -317,7 +320,7 @@ if (!botCheckEnabled || !boturl) {
     var isBot = false;
     if (typeof result.body=='string' && result.body) {
       var resObj = JSON.parse(result.body);
-      if (typeof resObj=='object' && resObj.isBot) isBot = true;
+      if (resObj && typeof resObj=='object' && resObj.isBot) isBot = true;
     }
     if (isBot) {
       logToConsole('warn', '✗ Bot recognized', userAgent);
@@ -327,7 +330,9 @@ if (!botCheckEnabled || !boturl) {
     } else {
       sendCode(200,jsCode);
     }
-  }, botCheckFailed);
+  }, function(error) {
+    botCheckFailed('skipped-no-answer', error);
+  });
   }
 }
 
