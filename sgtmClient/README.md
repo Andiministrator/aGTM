@@ -245,10 +245,18 @@ Please contact me if you found problems or have improvements:
 
 ## Changelog
 
+- Version 1.4.6, *21.10.2026*
+  - **A skipped bot check is visible:** response header `x-agtm-botcheck` =
+    `skipped-not-permitted` or `skipped-no-answer` (the console log is debug-only, so live
+    this header is the only trace)
+  - **Fixed:** a bot-check body of `null` no longer stops the response
+  - Bot-check field help names the permission step; it is needed after every import
+
 - Version 1.4.5, *21.10.2026*
-  - **Fixed: a failed bot check left `/aGTM.js` without an answer.** Outage, error answer
+  - **Fixed: a failed bot check left `/aGTM.js` without an answer.** Outage/timeout
     or a bot-check URL outside the `send_http` permission: the Client only logged it and
     never responded, so GTM loaded for nobody. It now serves the library without a verdict
+    (after up to 5 seconds when the service is down)
   - **Bot check: the `send_http` permission holds one placeholder host**
     (`https://tgapi.example.com/`). If you use the bot check, put your bot-check host there
     in the template editor after import; otherwise the check is skipped and everyone is served.

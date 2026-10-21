@@ -13,7 +13,7 @@ ___INFO___
   "id": "cvt_temp_public_id",
   "version": 1,
   "securityGroups": [],
-  "displayName": "aGTM v1.4.5",
+  "displayName": "aGTM v1.4.6",
   "brand": {
     "id": "brand_dummy",
     "displayName": "Andiministrator",
@@ -443,7 +443,7 @@ ___TEMPLATE_PARAMETERS___
             "name": "botCheck",
             "displayName": "API URL for Bot Check",
             "simpleValueType": true,
-            "help": "Optional \u003cb\u003eURL to check if a visitor is a bot\u003c/b\u003e. Leave empty to disable.\u003cbr /\u003e\u003cbr /\u003e\n\nIf set, a request will be sent to this URL with a \u003cb\u003eBase64-encoded JSON object\u003c/b\u003e:\u003cbr /\u003e\n\u003ccode\u003e{\"UserAgent\":\"\u0026lt;visitor user agent\u0026gt;\",\"ClientIP\":\"\u0026lt;visitor IP\u0026gt;\"}\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\nThe JSON object will be converted to Base64 and attached to the URL.\u003cbr /\u003e\nExample URL structure for the field value \"https://api.example.com/botCheckService/\":\u003cbr /\u003e\n\u003ccode\u003ehttps://api.example.com/botCheckService/BASE64VALUEOFJSONOBJECT\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\n\n\u003cb\u003eExample request URL:\u003c/b\u003e\u003cbr /\u003e\n\u003ccode\u003ehttps://api.example.com/botCheckService/eyJVc2VyQWdlbnQiOiAiTW96aWxsYS8uLi4iLCAiQ2xpZW50SVAiOiAiODcuMTIxLjE5Mi42NCJ9\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\n\nThe service must respond with \u003ccode\u003eContent-Type: application/json\u003c/code\u003e and a JSON object containing an \u003cb\u003e\u003ccode\u003eisBot\u003c/code\u003e\u003c/b\u003e field (\u003ccode\u003etrue\u003c/code\u003e or \u003ccode\u003efalse\u003c/code\u003e).\u003cbr /\u003e\u003cbr /\u003e\n\n\u003cb\u003eExample response:\u003c/b\u003e\u003cbr /\u003e\n\u003ccode\u003e{\"isBot\": false}\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\n\nIf \u003cb\u003e\u003ccode\u003eisBot\u003c/code\u003e \u003d true\u003c/b\u003e, the request will be aborted and the client-side GTM will \u003cb\u003enot\u003c/b\u003e be delivered."
+            "help": "Optional \u003cb\u003eURL to check if a visitor is a bot\u003c/b\u003e. Leave empty to disable.\u003cbr /\u003e\u003cbr /\u003e\n\nIf set, a request will be sent to this URL with a \u003cb\u003eBase64-encoded JSON object\u003c/b\u003e:\u003cbr /\u003e\n\u003ccode\u003e{\"UserAgent\":\"\u0026lt;visitor user agent\u0026gt;\",\"ClientIP\":\"\u0026lt;visitor IP\u0026gt;\"}\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\nThe JSON object will be converted to Base64 and attached to the URL.\u003cbr /\u003e\nExample URL structure for the field value \"https://api.example.com/botCheckService/\":\u003cbr /\u003e\n\u003ccode\u003ehttps://api.example.com/botCheckService/BASE64VALUEOFJSONOBJECT\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\n\n\u003cb\u003eExample request URL:\u003c/b\u003e\u003cbr /\u003e\n\u003ccode\u003ehttps://api.example.com/botCheckService/eyJVc2VyQWdlbnQiOiAiTW96aWxsYS8uLi4iLCAiQ2xpZW50SVAiOiAiODcuMTIxLjE5Mi42NCJ9\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\n\nThe service must respond with \u003ccode\u003eContent-Type: application/json\u003c/code\u003e and a JSON object containing an \u003cb\u003e\u003ccode\u003eisBot\u003c/code\u003e\u003c/b\u003e field (\u003ccode\u003etrue\u003c/code\u003e or \u003ccode\u003efalse\u003c/code\u003e).\u003cbr /\u003e\u003cbr /\u003e\n\n\u003cb\u003eExample response:\u003c/b\u003e\u003cbr /\u003e\n\u003ccode\u003e{\"isBot\": false}\u003c/code\u003e\u003cbr /\u003e\u003cbr /\u003e\n\nIf \u003cb\u003e\u003ccode\u003eisBot\u003c/code\u003e \u003d true\u003c/b\u003e, the request will be aborted and the client-side GTM will \u003cb\u003enot\u003c/b\u003e be delivered.\u003cbr /\u003e\u003cbr /\u003e\n\n\u003cb\u003eThe host of this URL must be listed in the template permission \u003ci\u003eSends HTTP requests\u003c/i\u003e\u003c/b\u003e (after every import). Otherwise the check is skipped and every visitor is served; the response then carries the header \u003ccode\u003ex-agtm-botcheck\u003c/code\u003e."
           }
         ]
       },
@@ -530,7 +530,7 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "LABEL",
         "name": "aGTM Version",
-        "displayName": "\u003cb\u003eaGTM Version:\u003c/b\u003e v1.4.5"
+        "displayName": "\u003cb\u003eaGTM Version:\u003c/b\u003e v1.4.6"
       },
       {
         "type": "LABEL",
@@ -546,7 +546,7 @@ ___SANDBOXED_JS_FOR_SERVER___
 
 // ssGTM Doku: https://developers.google.com/tag-platform/tag-manager/server-side/api?hl=de
 // aGTM Doku: https://github.com/Andiministrator/aGTM
-const aGTMversion = "1.4.5";
+const aGTMversion = "1.4.6";
 
 // Load Libraries
 const claimRequest = require('claimRequest');
@@ -847,14 +847,17 @@ if (!botCheckEnabled || !boturl) {
   // and GTM loads for nobody. Covers a service outage (rejection) and a
   // bot-check URL outside the send_http permission, which is asked up front:
   // the sandbox has no try/catch, so a denied call could not be caught.
-  // Same as v1.5: no verdict means serve. (F-244)
-  const botCheckFailed = function(error) {
+  // Same as v1.5: no verdict means serve. (F-244) The response header says why:
+  // the logging permission is debug-only, so in a live container this header is
+  // the only trace that the bot filter did not run.
+  const botCheckFailed = function(reason, error) {
     logToConsole('error', '✗ API Service Problem - serving without bot check', error);
+    setResponseHeader('x-agtm-botcheck', reason);
     sendCode(200,jsCode);
   };
   // Use Service
   if (!queryPermission('send_http', boturl)) {
-    botCheckFailed('bot-check URL not covered by the send_http permission');
+    botCheckFailed('skipped-not-permitted', 'bot-check URL not covered by the send_http permission');
   } else {
   sendHttpGet(boturl, {
     timeout: 5000,
@@ -863,7 +866,7 @@ if (!botCheckEnabled || !boturl) {
     var isBot = false;
     if (typeof result.body=='string' && result.body) {
       var resObj = JSON.parse(result.body);
-      if (typeof resObj=='object' && resObj.isBot) isBot = true;
+      if (resObj && typeof resObj=='object' && resObj.isBot) isBot = true;
     }
     if (isBot) {
       logToConsole('warn', '✗ Bot recognized', userAgent);
@@ -873,7 +876,9 @@ if (!botCheckEnabled || !boturl) {
     } else {
       sendCode(200,jsCode);
     }
-  }, botCheckFailed);
+  }, function(error) {
+    botCheckFailed('skipped-no-answer', error);
+  });
   }
 }
 
@@ -1274,6 +1279,8 @@ scenarios:
     runCode(mockData);
     assertApi('sendHttpGet').wasNotCalled();
     assertApi('setResponseStatus').wasCalledWith(200);
+    // The only trace in a live container: logging is debug-only.
+    assertApi('setResponseHeader').wasCalledWith('x-agtm-botcheck', 'skipped-not-permitted');
     assertThat(body).contains('aGTM.f.config');
 setup: |-
   // ── Test helpers (shared, re-run before every scenario) ────────────────────
@@ -1350,20 +1357,31 @@ ___NOTES___
 
 This is the aGTM Client Template to use it with the serverside Google Tag Manager.
 
+## What is new in 1.4.6
+
+**A skipped bot check is visible.** When the bot check does not run, `/aGTM.js`
+carries the response header `x-agtm-botcheck`: `skipped-not-permitted` (the
+bot-check URL is not in the `send_http` permission) or `skipped-no-answer` (the
+service did not answer within 5 seconds). The console log is debug-only, so in a
+live container this header is the only trace. Also fixed: a bot-check body of
+`null` no longer stops the response.
+
 ## What is new in 1.4.5
 
 **Fixed: a failed bot check left `/aGTM.js` without an answer.** If the bot-check
-service was down, answered with an error, or its URL was not covered by the
+service did not answer (outage, timeout), or its URL was not covered by the
 `send_http` permission, the Client only logged the problem and never responded —
 the request hung and GTM loaded for nobody. It now serves the library without a
-bot verdict, as v1.5 does.
+bot verdict (after up to 5 seconds when the service is down), as v1.5 does.
 
-⚠️ **Bot check: enter your host in the permission.** The `send_http` permission
-lists one placeholder, `https://tgapi.example.com/`. The bot check is the only
-HTTP request this Client makes, so the permission must name the host of your
-*API URL for Bot Check* — edit it in the template editor (*Permissions* → *Sends
-HTTP requests*) after import. Without that, the bot check is skipped (logged) and
-every visitor is served. Without a bot-check URL, nothing needs to change.
+⚠️ **Bot check: enter your host in the permission — after every import.** The
+`send_http` permission lists one placeholder, `https://tgapi.example.com/`. The
+bot check is the only HTTP request this Client makes, so the permission must name
+the host of your *API URL for Bot Check* — edit it in the template editor
+(*Permissions* → *Sends HTTP requests*). An import brings the placeholder back.
+Without your host the bot check is skipped and every visitor is served; check for
+the response header `x-agtm-botcheck`. Without a bot-check URL, nothing needs to
+change.
 
 ## What is new in 1.4.4
 
