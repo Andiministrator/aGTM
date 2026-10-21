@@ -245,6 +245,16 @@ Please contact me if you found problems or have improvements:
 
 ## Changelog
 
+- Version 1.4.5, *21.10.2026*
+  - **Fixed: a failed bot check left `/aGTM.js` without an answer.** Outage, error answer
+    or a bot-check URL outside the `send_http` permission: the Client only logged it and
+    never responded, so GTM loaded for nobody. It now serves the library without a verdict
+  - **Bot check: the `send_http` permission holds one placeholder host**
+    (`https://tgapi.example.com/`). If you use the bot check, put your bot-check host there
+    in the template editor after import; otherwise the check is skipped and everyone is served.
+    The second listed host was never called by any code and is gone
+  - The embedded aGTM library is **1.4.3** and unchanged by this release
+
 - Version 1.4.3, *05.08.2026*
   - **Fixed: the "Use env Parameter" switch read a column that does not exist.** The
     container table defines it as `gtm_use`, the code read `gtm_env` — so the environment

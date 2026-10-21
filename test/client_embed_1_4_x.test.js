@@ -91,8 +91,8 @@ describe('1.4.x Client — embedded library is the built one', () => {
   });
 
   test('the Client version and the embedded library version are the released pair', () => {
-    expect(TPL).toContain('const aGTMversion = "1.4.4";');
-    expect(SRC).toContain('const aGTMversion = "1.4.4";');
+    expect(TPL).toContain('const aGTMversion = "1.4.5";');
+    expect(SRC).toContain('const aGTMversion = "1.4.5";');
     expect(MIN).toContain('"version","1.4.3"');
   });
 });
@@ -118,5 +118,29 @@ describe('1.4.x Client — CCM19 acceptance (F-49/F-167)', () => {
     const r = serve({ gtm: GTM }, ACCEPT_ALL);
     expect(r.gtm).toEqual([]);
     expect(r.aGTM.l.some((e) => e.id === 'm_consent_no_conditions')).toBe(true);
+  });
+});
+
+describe('1.4.x Client — bot check never swallows the response (F-244)', () => {
+  const block = (t) => t.slice(t.indexOf('var boturl = data.botCheck;'), t.indexOf('// EOF'));
+
+  test('both failure paths of sendHttpGet serve the library', () => {
+    const b = block(SRC);
+    expect(b).toMatch(/const botCheckFailed = function\(error\) \{[^}]*sendCode\(200,jsCode\);/);
+    expect(b).toContain('}, botCheckFailed);');
+    expect(b).toMatch(/catch \(e\) \{\s*botCheckFailed\(e\);/);
+  });
+
+  test('template server block == client source (sync invariant)', () => {
+    const start = TPL.indexOf('___SANDBOXED_JS_FOR_SERVER___') + '___SANDBOXED_JS_FOR_SERVER___'.length;
+    const end = TPL.indexOf('___SERVER_PERMISSIONS___');
+    expect(TPL.slice(start, end).trim()).toBe(SRC.trim());
+  });
+
+  test('send_http lists exactly the one placeholder host', () => {
+    const perms = JSON.parse(TPL.slice(TPL.indexOf('___SERVER_PERMISSIONS___') + 25, TPL.indexOf('___TESTS___')));
+    const http = perms.find((p) => p.instance.key.publicId === 'send_http').instance.param;
+    const urls = http.find((p) => p.key === 'urls').value.listItem.map((i) => i.string);
+    expect(urls).toEqual(['https://tgapi.example.com/']);
   });
 });

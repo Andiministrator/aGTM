@@ -13,7 +13,7 @@ ___INFO___
   "id": "cvt_temp_public_id",
   "version": 1,
   "securityGroups": [],
-  "displayName": "aGTM v1.4.4",
+  "displayName": "aGTM v1.4.5",
   "brand": {
     "id": "brand_dummy",
     "displayName": "Andiministrator",
@@ -530,7 +530,7 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "LABEL",
         "name": "aGTM Version",
-        "displayName": "\u003cb\u003eaGTM Version:\u003c/b\u003e v1.4.4"
+        "displayName": "\u003cb\u003eaGTM Version:\u003c/b\u003e v1.4.5"
       },
       {
         "type": "LABEL",
@@ -546,7 +546,7 @@ ___SANDBOXED_JS_FOR_SERVER___
 
 // ssGTM Doku: https://developers.google.com/tag-platform/tag-manager/server-side/api?hl=de
 // aGTM Doku: https://github.com/Andiministrator/aGTM
-const aGTMversion = "1.4.4";
+const aGTMversion = "1.4.5";
 
 // Load Libraries
 const claimRequest = require('claimRequest');
@@ -842,7 +842,16 @@ if (!botCheckEnabled || !boturl) {
   // Enrich boturl
   boturl += '/' + toBase64(JSON.stringify(plObj));
   logToConsole('info', '✓ API Service Call', plObj);
+  // A failed bot check must still answer: without a response /aGTM.js hangs
+  // and GTM loads for nobody. This covers a service outage and a bot-check URL
+  // outside the send_http permission - caught whether the call throws or rejects.
+  // Same as v1.5: no verdict means serve. (F-244)
+  const botCheckFailed = function(error) {
+    logToConsole('error', '✗ API Service Problem - serving without bot check', error);
+    sendCode(200,jsCode);
+  };
   // Use Service
+  try {
   sendHttpGet(boturl, {
     timeout: 5000,
   }).then(function(result) {
@@ -860,9 +869,10 @@ if (!botCheckEnabled || !boturl) {
     } else {
       sendCode(200,jsCode);
     }
-  }, function(error) {
-    logToConsole('error', '✗ API Service Problem', error);
-  });
+  }, botCheckFailed);
+  } catch (e) {
+    botCheckFailed(e);
+  }
 }
 
 // EOF
@@ -1012,10 +1022,6 @@ ___SERVER_PERMISSIONS___
               {
                 "type": 1,
                 "string": "https://tgapi.example.com/"
-              },
-              {
-                "type": 1,
-                "string": "https://tg-api-service.internal.example.com/"
               }
             ]
           }
@@ -1252,6 +1258,19 @@ scenarios:
     // added the Client wrote it as a second response right after deciding 403.
     assertThat(body).doesNotContain('aGTM.f.config');
     assertThat(body).contains('blocked IP address');
+
+- name: bot check URL outside the send_http permission - the library is still served
+  code: |
+    // A URL the permission does not cover makes sendHttpGet throw. Before 1.4.5
+    // nothing answered after that, so /aGTM.js hung and GTM loaded for nobody (F-244).
+    const mockData = baseData('no');
+    mockData.botCheckEnabled = true;
+    mockData.botCheck = 'https://bots.not-permitted.example/check';
+    mockGet({id: 'GTM-XYZ123'}, '/aGTM.js', '203.0.113.9');
+    mock('sendHttpGet', function() { throw 'permission denied'; });
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertThat(body).contains('aGTM.f.config');
 setup: |-
   // ── Test helpers (shared, re-run before every scenario) ────────────────────
   const JSON = require('JSON');
@@ -1326,6 +1345,21 @@ ___NOTES___
 # aGTM serverside GTM Client Template
 
 This is the aGTM Client Template to use it with the serverside Google Tag Manager.
+
+## What is new in 1.4.5
+
+**Fixed: a failed bot check left `/aGTM.js` without an answer.** If the bot-check
+service was down, answered with an error, or its URL was not covered by the
+`send_http` permission, the Client only logged the problem and never responded —
+the request hung and GTM loaded for nobody. It now serves the library without a
+bot verdict, as v1.5 does.
+
+⚠️ **Bot check: enter your host in the permission.** The `send_http` permission
+lists one placeholder, `https://tgapi.example.com/`. The bot check is the only
+HTTP request this Client makes, so the permission must name the host of your
+*API URL for Bot Check* — edit it in the template editor (*Permissions* → *Sends
+HTTP requests*) after import. Without that, the bot check is skipped (logged) and
+every visitor is served. Without a bot-check URL, nothing needs to change.
 
 ## What is new in 1.4.4
 

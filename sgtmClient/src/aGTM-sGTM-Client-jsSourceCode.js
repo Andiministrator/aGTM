@@ -1,6 +1,6 @@
 // ssGTM Doku: https://developers.google.com/tag-platform/tag-manager/server-side/api?hl=de
 // aGTM Doku: https://github.com/Andiministrator/aGTM
-const aGTMversion = "1.4.4";
+const aGTMversion = "1.4.5";
 
 // Load Libraries
 const claimRequest = require('claimRequest');
@@ -296,7 +296,16 @@ if (!botCheckEnabled || !boturl) {
   // Enrich boturl
   boturl += '/' + toBase64(JSON.stringify(plObj));
   logToConsole('info', '✓ API Service Call', plObj);
+  // A failed bot check must still answer: without a response /aGTM.js hangs
+  // and GTM loads for nobody. This covers a service outage and a bot-check URL
+  // outside the send_http permission - caught whether the call throws or rejects.
+  // Same as v1.5: no verdict means serve. (F-244)
+  const botCheckFailed = function(error) {
+    logToConsole('error', '✗ API Service Problem - serving without bot check', error);
+    sendCode(200,jsCode);
+  };
   // Use Service
+  try {
   sendHttpGet(boturl, {
     timeout: 5000,
   }).then(function(result) {
@@ -314,9 +323,10 @@ if (!botCheckEnabled || !boturl) {
     } else {
       sendCode(200,jsCode);
     }
-  }, function(error) {
-    logToConsole('error', '✗ API Service Problem', error);
-  });
+  }, botCheckFailed);
+  } catch (e) {
+    botCheckFailed(e);
+  }
 }
 
 // EOF
