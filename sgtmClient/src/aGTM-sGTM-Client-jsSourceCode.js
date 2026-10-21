@@ -457,8 +457,8 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   const hasExplicitSignal = !!(cpServices || cpPurposes || cpVendors);
   if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes, granted: granted, explicit: hasExplicitSignal});
   // Say so when the missing requirement is what stopped the cookie (F-165) —
-  // without log volume. A visitor who never gets a C.* gets no consent preset
-  // either, so the library re-POSTs the same decision on every page view: a
+  // without log volume. A visitor who never gets a C.* never gets their stored
+  // decision back as a preset either, so the library re-POSTs the same decision on every page view: a
   // warn line here would be one per page view for every visitor who answered
   // the CMP. A once-per-instance flag would need templateDataStorage, which is
   // deliberately not used (Andi, 2026-10-20: server-side storage at this
@@ -1783,23 +1783,28 @@ const afterBotCheck = function(isBot) {
           // saw a CMP (F-156). A cookie-bound uid keeps this branch — including
           // an F.* cookie, which IS per-browser (it sits in that browser) and
           // still needs the consent for the lazy F→C promote below.
-          // The auto-denial applies with or without a cookie (Andi, 2026-10-21):
-          // it can only ever DENY — services is the sentinel ',aGTMconsent,', so
-          // GTM loads (autoDenyLoadGtm) but only what is gated on aGTMconsent
-          // fires. Inheriting a denial through a shared fingerprint is harmless;
-          // only a grant must not travel that way, and the stored consent is
-          // exactly where a grant can sit (failed promote, partial grant,
-          // cookie_mode never). It was withheld for cookieless visitors from
-          // 4ac262f to here, which put the banner back on every page. What stays open: the
+          // The auto-denial is for a returning visitor with NOTHING on file, with
+          // or without a cookie (Andi, 2026-10-21; withheld for cookieless
+          // visitors from 4ac262f to here). It cannot grant: services is the
+          // sentinel ',aGTMconsent,', so no tag that requires a CMP consent fires
+          // (GTM itself loads with autoDenyLoadGtm, and so do tags without any
+          // consent condition). It must NOT replace a stored decision that is
+          // withheld only because the uid is shared: for a visitor who clicked
+          // "deny all" it would load GTM where their own denial does not, and
+          // for one who agreed it would mask their grant at init (consent_check
+          // short-circuits on hasResponse). Then no preset; the CMP decides.
+          // What stays open: the
           // consent is still PERSISTED under the shared fingerprint key when no
           // cookie exists, so the record can still be written by whoever gets
           // there first. Closing that is a separate step (F-156 option B).
           const uidIsBrowserBound = !!existingCookie;
-          if (r.consent && typeof r.consent === 'object' && r.consent.hasResponse === true && uidIsBrowserBound) {
+          const storedDecision = !!(r.consent && typeof r.consent === 'object' && r.consent.hasResponse === true);
+          if (storedDecision && uidIsBrowserBound) {
             sd.consent = r.consent;
             if (CFG.debug) logToConsole('debug', '✓ Session API returned stored consent', sd.consent);
+          } else if (storedDecision) {
+            if (CFG.debug) logToConsole('debug', '↷ No consent preset: stored decision withheld, uid is a shared fingerprint — the CMP decides');
           } else if (sd.ret) {
-            if (CFG.debug && !uidIsBrowserBound && r.consent) logToConsole('debug', '↷ Stored consent ignored: uid is a shared fingerprint, not cookie-bound');
             // Returning visitor with no recorded consent -> server-side auto-denial.
             // Replaces the old client-side session_apply_denial() (Phase 2 removal).
             // `blocked` mirrors `gtmConsent` so the aGTM run_cc() chelp fallback

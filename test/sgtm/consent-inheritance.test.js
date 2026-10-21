@@ -9,19 +9,20 @@
 //
 // The fix binds the stored-consent branch to a cookie-bound uid. An F.* cookie
 // still counts: it sits in that one browser, and the lazy F→C promote needs the
-// consent. The server-side auto-denial applies with or without a cookie (Andi,
-// 2026-10-21): it can only ever deny (services ',aGTMconsent,'), and only a
-// grant must not travel through a shared key. From 4ac262f until then it was
-// withheld for cookieless visitors too, which put the banner back on every page.
+// consent. The server-side auto-denial is for a returning visitor with NOTHING
+// on file, with or without a cookie (Andi, 2026-10-21). It must not replace a
+// decision that is withheld only because the key is shared: for a "deny all"
+// visitor it would load GTM where their own denial does not (QA + critic,
+// 2026-10-21, P1), and for one who agreed it would mask the grant at init.
 //
 // Scope, stated because the tests would otherwise look stronger than they are:
 // this covers the READ path only. Consent is still persisted under the shared
 // fingerprint key when no cookie exists (F-156 option B, deliberately open).
 //
-// What the tests pin: a cookieless visitor never receives the STORED consent
-// (it may be a stranger's grant); a cookieless returning visitor receives the
-// auto-denial instead. Mutation `uidIsBrowserBound = true` (the pre-fix state)
-// turns the first test red: the stranger's grant would be handed over.
+// What the tests pin: a cookieless visitor never receives a STORED decision
+// (it may be a stranger's) and then gets no preset at all; a cookieless
+// returning visitor with nothing on file receives the auto-denial; the
+// auto_deny_load_gtm switch reaches gtmConsent and blocked.
 
 import { describe, test, expect } from 'bun:test';
 import { runClient } from './client-harness.js';
@@ -81,7 +82,7 @@ function session(r) {
 }
 
 describe('F-156 — consent preset requires a cookie-bound uid', () => {
-  test('no cookie (uid from fingerprint): the stored grant is NOT passed through, the auto-denial applies', () => {
+  test('no cookie (uid from fingerprint): a stored grant is NOT passed through, and no auto-denial replaces it', () => {
     const r = runClient({
       data: { ...BASE },
       cookies: [],
@@ -89,16 +90,39 @@ describe('F-156 — consent preset requires a cookie-bound uid', () => {
     });
     expect(r.throws).toBeNull();
     expect(r.returned).toBe(true);
-    // The session itself still ships. The stranger's grant does not: the
-    // returning visitor (counter 3) gets the Client's own denial instead.
+    // The session itself still ships. The stranger's grant does not, and the
+    // auto-denial does not stand in for it either: the CMP decides at init.
     expect(session(r).sid).toBe('s1');
-    expect(session(r).consent.services).toBe(',aGTMconsent,');
-    expect(session(r).consent.feedback).toBe('Consent denied by aGTM');
+    expect(session(r).consent).toBeUndefined();
+  });
+
+  test('no cookie, stored DENIAL: no preset - the auto-denial would load GTM for someone who clicked deny all', () => {
+    const r = runClient({
+      data: { ...BASE },
+      cookies: [],
+      http: () => ({ statusCode: 200, body: JSON.stringify({ sessionId: 's1', counter: 2, consent: { hasResponse: true, services: '', purposes: '', vendors: '' } }) })
+    });
+    expect(r.throws).toBeNull();
+    expect(session(r).consent).toBeUndefined();
+  });
+
+  test('auto-denial: auto_deny_load_gtm reaches gtmConsent and blocked (default true, switch false)', () => {
+    const run = (extra) => runClient({
+      data: { ...BASE, ...extra },
+      cookies: [],
+      http: () => ({ statusCode: 200, body: JSON.stringify({ sessionId: 's1', counter: 5 }) })
+    });
+    const on = session(run({})).consent;
+    expect(on.gtmConsent).toBe(true);
+    expect(on.blocked).toBe(true);
+    const off = session(run({ auto_deny_load_gtm: false })).consent;
+    expect(off.gtmConsent).toBe(false);
+    expect(off.blocked).toBe(false);
   });
 
   test('no cookie, returning visitor without stored consent: the auto-denial applies', () => {
-    // A denial is the one thing a shared fingerprint may pass on (Andi,
-    // 2026-10-21): only what is gated on aGTMconsent fires.
+    // Nothing on file: the auto-denial applies without a cookie as well (Andi,
+    // 2026-10-21). It cannot grant: no tag that requires a CMP consent fires.
     const r = runClient({
       data: { ...BASE },
       cookies: [],

@@ -105,7 +105,7 @@ Configure the consent attributes and their conditions. Each row in the table rep
 |--------------------|------------------------------------------------|--------------------|
 | **Consent Mode Attribute** | Select which attribute to set.               | `ad_storage`       |
 | **Consent Type**   | Define the type of consent (Purpose, Service, Vendor, etc.). | `Service`          |
-| **Consent Value**  | Value to check for consent. aGTM stores consent as comma-wrapped token strings (e.g. `,Google Ads,Google Tag Manager,`), and the match is a substring check — so **wrap the value in commas** (`,Google Ads,`) for an exact token match. Without the commas, `Google Ads` would also match a service named `Google Ads Remarketing` (false grant). | `,Google Ads,`     |
+| **Consent Value**  | Value to check for consent. aGTM stores consent as comma-wrapped token strings (e.g. `,Google Ads,Google Tag Manager,`), and the match is a substring check — so **wrap the value in commas** (`,Google Ads,`) for an exact token match. Without the commas, `Google Ads` would also match a service named `Google Ads Remarketing` (false grant). | `,Google Ads,` The sGTM Client's server-side auto-denial sets services to `,aGTMconsent,` — an unwrapped value such as `consent`, `GTM` or `aGTM` matches it and reads as **granted**. |
 
 ### Additional Options
 

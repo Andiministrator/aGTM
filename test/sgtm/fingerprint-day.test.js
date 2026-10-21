@@ -52,3 +52,19 @@ describe('fingerprint stays equal to serverside_fingerprint v1.2', () => {
     expect(r.hashed).toContain('fp-day:20260728accept-language:declient-ip:203.0.113.9sgtm-host:tm.example.comuser-agent:UA');
   });
 });
+
+describe('the day is read once per fingerprint', () => {
+  test('a read just before midnight: hash day and suffix day are the same', () => {
+    // Every getTimestampMillis() call advances 1 ms, starting 1 ms before
+    // 2026-07-29 00:00 UTC. Two separate reads in getFingerprint would put
+    // day N into the hash and day N+1 into the suffix.
+    let t = Date.UTC(2026, 6, 29) - 1;
+    const urls = [];
+    const r = runClient({ data: DATA, now: () => t++, headers: HEADERS, http: (url) => { urls.push(url); return { statusCode: 200, body: '{}' }; } });
+    expect(r.throws).toBeNull();
+    const fp = r.hashed.filter((s) => s.indexOf('user-agent:') > -1)[0];
+    const hashDay = fp.slice('fp-day:'.length, 'fp-day:'.length + 8);
+    const suffix = urls.map((u) => (u.match(/\.(\d{8})$/) || [])[1]).filter(Boolean)[0];
+    expect(suffix).toBe(hashDay);
+  });
+});

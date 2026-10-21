@@ -795,7 +795,7 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "Load GTM even under server-side auto-denial",
         "simpleValueType": true,
         "defaultValue": true,
-        "help": "When this Client encounters a returning visitor with no recorded consent in the Session API, it constructs a server-side auto-denial consent block. If checked (default), the embedded gtmConsent flag is set to true so GTM still loads (only services requiring aGTMconsent fire).<br/><br/><b>This switch only bites when the Consent Check Conditions table above is filled.</b> With an empty table the library now refuses to load GTM anyway (fail-closed since v1.5), so the checkbox makes no difference there — it decides between loading and not loading only once a real condition exists. Up to v1.4 the same emptiness had the opposite effect: GTM loaded regardless of this checkbox.<br/><br/>Note that unchecking means GTM does not load <i>at all</i> for that population, so no diagnostic or consent-free tags run either. If your goal is to load GTM but fire no consent-requiring tags, leave this checked and gate the tags inside the container instead.<br/><br/>One more combination worth knowing: with an empty table AND the <i>Load GTM without any consent gate</i> opt-out ticked, this checkbox has no effect in either position — the granted result is decided before the auto-denial fallback is consulted."
+        "help": "When this Client encounters a returning visitor with no recorded consent in the Session API, it constructs a server-side auto-denial consent block. If checked (default), the embedded gtmConsent flag is set to true so GTM still loads (tags that require a CMP consent do not fire; tags without a consent condition do). A visitor without a user-id cookie gets the auto-denial only when nothing is on file.<br/><br/><b>This switch only bites when the Consent Check Conditions table above is filled.</b> With an empty table the library now refuses to load GTM anyway (fail-closed since v1.5), so the checkbox makes no difference there — it decides between loading and not loading only once a real condition exists. Up to v1.4 the same emptiness had the opposite effect: GTM loaded regardless of this checkbox.<br/><br/>Note that unchecking means GTM does not load <i>at all</i> for that population, so no diagnostic or consent-free tags run either. If your goal is to load GTM but fire no consent-requiring tags, leave this checked and gate the tags inside the container instead.<br/><br/>One more combination worth knowing: with an empty table AND the <i>Load GTM without any consent gate</i> opt-out ticked, this checkbox has no effect in either position — the granted result is decided before the auto-denial fallback is consulted."
       }
     ]
   },
@@ -1434,8 +1434,8 @@ if (CFG.consentStoreEnabled && rmethod === 'POST' && rpath.slice(-CONSENT_STORE_
   const hasExplicitSignal = !!(cpServices || cpPurposes || cpVendors);
   if (CFG.debug) logToConsole('debug', '✓ Consent POST parsed', {uid: cpUid, services: cpServices, purposes: cpPurposes, granted: granted, explicit: hasExplicitSignal});
   // Say so when the missing requirement is what stopped the cookie (F-165) —
-  // without log volume. A visitor who never gets a C.* gets no consent preset
-  // either, so the library re-POSTs the same decision on every page view: a
+  // without log volume. A visitor who never gets a C.* never gets their stored
+  // decision back as a preset either, so the library re-POSTs the same decision on every page view: a
   // warn line here would be one per page view for every visitor who answered
   // the CMP. A once-per-instance flag would need templateDataStorage, which is
   // deliberately not used (Andi, 2026-10-20: server-side storage at this
@@ -2760,23 +2760,28 @@ const afterBotCheck = function(isBot) {
           // saw a CMP (F-156). A cookie-bound uid keeps this branch — including
           // an F.* cookie, which IS per-browser (it sits in that browser) and
           // still needs the consent for the lazy F→C promote below.
-          // The auto-denial applies with or without a cookie (Andi, 2026-10-21):
-          // it can only ever DENY — services is the sentinel ',aGTMconsent,', so
-          // GTM loads (autoDenyLoadGtm) but only what is gated on aGTMconsent
-          // fires. Inheriting a denial through a shared fingerprint is harmless;
-          // only a grant must not travel that way, and the stored consent is
-          // exactly where a grant can sit (failed promote, partial grant,
-          // cookie_mode never). It was withheld for cookieless visitors from
-          // 4ac262f to here, which put the banner back on every page. What stays open: the
+          // The auto-denial is for a returning visitor with NOTHING on file, with
+          // or without a cookie (Andi, 2026-10-21; withheld for cookieless
+          // visitors from 4ac262f to here). It cannot grant: services is the
+          // sentinel ',aGTMconsent,', so no tag that requires a CMP consent fires
+          // (GTM itself loads with autoDenyLoadGtm, and so do tags without any
+          // consent condition). It must NOT replace a stored decision that is
+          // withheld only because the uid is shared: for a visitor who clicked
+          // "deny all" it would load GTM where their own denial does not, and
+          // for one who agreed it would mask their grant at init (consent_check
+          // short-circuits on hasResponse). Then no preset; the CMP decides.
+          // What stays open: the
           // consent is still PERSISTED under the shared fingerprint key when no
           // cookie exists, so the record can still be written by whoever gets
           // there first. Closing that is a separate step (F-156 option B).
           const uidIsBrowserBound = !!existingCookie;
-          if (r.consent && typeof r.consent === 'object' && r.consent.hasResponse === true && uidIsBrowserBound) {
+          const storedDecision = !!(r.consent && typeof r.consent === 'object' && r.consent.hasResponse === true);
+          if (storedDecision && uidIsBrowserBound) {
             sd.consent = r.consent;
             if (CFG.debug) logToConsole('debug', '✓ Session API returned stored consent', sd.consent);
+          } else if (storedDecision) {
+            if (CFG.debug) logToConsole('debug', '↷ No consent preset: stored decision withheld, uid is a shared fingerprint — the CMP decides');
           } else if (sd.ret) {
-            if (CFG.debug && !uidIsBrowserBound && r.consent) logToConsole('debug', '↷ Stored consent ignored: uid is a shared fingerprint, not cookie-bound');
             // Returning visitor with no recorded consent -> server-side auto-denial.
             // Replaces the old client-side session_apply_denial() (Phase 2 removal).
             // `blocked` mirrors `gtmConsent` so the aGTM run_cc() chelp fallback
@@ -3496,7 +3501,7 @@ This is the aGTM Client Template to use it with the serverside Google Tag Manage
 also runs the `serverside_fingerprint` variable (e.g. as the fallback of `user_id`), update it
 to **v1.2 in the same publish** - never the variable alone - and publish shortly after
 00:00 UTC. Otherwise the Client and the variable produce different IDs for the same visitor
-and their sessions split. Same ID only if both must be configured alike: the same non-empty client_ip variable (the Client falls back to the remote address when its field is empty, the variable does not), fip_limiter = fipLimiter, tenant_id = fipIdentifier, the same sgtm_host.
+and their sessions split. The same ID results only if both are configured alike: the same non-empty client_ip variable (the Client falls back to the remote address when its field is empty, the variable does not), fip_limiter = fipLimiter, tenant_id = fipIdentifier, fipStart = F, the same sgtm_host, and debug_suffix empty.
 
 Read more about aGTM in the <a href="https://github.com/Andiministrator/aGTM?tab=readme-ov-file#agtm---a-galactic-tagging-modulator">aGTM Documentation</a>.
 

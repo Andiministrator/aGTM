@@ -65,8 +65,11 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 - **sGTM Client: a visitor without a user-id cookie no longer receives a stored consent.**
   Without a cookie the session is keyed on a server-side fingerprint that is not
   per-visitor, so the stored consent of a stranger could be handed to them. Those visitors
-  go through the CMP again; a returning one (no decision yet) still gets the Client's
-  auto-denial — expect consent rates and the GTM load ratio to move.
+  get no preset and go through the CMP; a returning one with **nothing on file** gets the
+  Client's auto-denial (with `auto_deny_load_gtm`, GTM loads; no tag that requires a CMP consent fires; GTM itself loads, and so does any tag without a consent condition).
+  Expect consent rates and the GTM load ratio to move. Because the counter belongs to the
+  fingerprint, a first-time visitor sharing it with someone who was there in the last 30
+  minutes counts as returning too.
 - **sGTM Client: the user-id cookie default is `_tpf`** (it was `_TPU` during v1.5
   development). A cookie written under the old name is read, carried over and retired, so
   nobody loses their id.
@@ -135,9 +138,9 @@ criterion 2 (a time-varying component) is about. The day is now also part of the
 hashed input. The full uid rotated daily before as well, so from the day after the
 publish sessions keyed on the fingerprint end exactly when they did; on the publish day
 itself every cookieless visitor starts a new session once. The format and the `1`
-version are unchanged on purpose: the Client recognises a fingerprint uid by its
-`F{lim}1{lim}` prefix, and promote, local minting, the lazy promote and the cookie
-clean-up all hang off that check. The day is read once per uid, so hash and suffix
+version are unchanged; nothing in the Client depends on the digit (`isFingerprintUid`
+accepts any value starting with `F`), so keeping it only spares readers of the uid
+outside the Client a format change. The day is read once per uid, so hash and suffix
 cannot straddle midnight.
 
 What it achieves, and what not: the visible value no longer carries a component that is
@@ -149,7 +152,7 @@ What this does not change: two visitors with identical headers on the same day s
 derive the same key (F-156 — use the user-ID cookie or switch the fingerprint off).
 
 **Companion:** `serverside_fingerprint` v1.2 carries the same change (same key, value
-and position), so both keep producing the same ID — provided both must be configured alike: the same non-empty `client_ip` variable (the Client falls back to the remote address when its field is empty, the variable does not), `fip_limiter` = `fipLimiter`, `tenant_id` = `fipIdentifier`, the same `sgtm_host`.
+and position), so both keep producing the same ID — provided both are configured alike: the same non-empty `client_ip` variable (the Client falls back to the remote address when its field is empty, the variable does not), `fip_limiter` = `fipLimiter`, `tenant_id` = `fipIdentifier`, `fipStart` = `F`, the same `sgtm_host`, and the Client's `debug_suffix` empty.
 Update it together with the Client.
 
 ### Added — the dataLayer hook warning names the script that set the hook
@@ -613,17 +616,20 @@ passed the stored consent of whoever got there first into `cfg.session.consent`,
 library set `preset_with_consent`, and GTM was injected for someone who had never seen a
 CMP (F-156).
 
-The stored consent is now only passed through for a **cookie-bound** uid. An `F.*` cookie still counts — it sits in that one browser, and the
-lazy F→C promote needs the consent — so the migration path is unaffected; what is excluded
-is the case where the uid came from the fingerprint because no cookie exists.
+A stored decision is now only passed through for a **cookie-bound** uid. An `F.*` cookie
+still counts — it sits in that one browser, and the lazy F→C promote needs the consent — so
+the migration path is unaffected; what is excluded is the case where the uid came from the
+fingerprint because no cookie exists. Such a visitor gets **no preset**, and the CMP decides.
 
-~~The auto-denial branch had to be excluded as well~~ — **revised 2026-10-21:** the
-auto-denial applies again with or without a cookie. It loads GTM (`auto_deny_load_gtm`,
-default true), but its services are the sentinel `,aGTMconsent,`, so only what is gated on
-`aGTMconsent` fires: it can only ever deny. A denial passing through a shared fingerprint
-is harmless; only a grant must not, and a grant can only sit in the *stored* consent
-(failed promote, partial grant, `cookie_mode: never`) — which stays withheld. Withholding
-the auto-denial as well put the banner back on every page of a cookieless visitor.
+The server-side auto-denial stays for a returning visitor with **nothing on file**, with or
+without a cookie. It cannot grant — its services are the sentinel `,aGTMconsent,`, so
+no tag that requires a CMP consent fires; GTM itself loads, and so does any tag without a consent condition (`auto_deny_load_gtm`, default on). It deliberately does **not** stand
+in for a withheld decision: for a visitor who clicked "deny all" it would load GTM where
+their own denial does not, and for one who agreed it would mask the grant at init, because
+`consent_check('init')` returns early once `hasResponse` is set. A cookieless first-time
+visitor whose fingerprint session already counted a request (someone else behind the same
+NAT, within the Session API's 30-minute window) counts as returning and can get the
+auto-denial on the first page.
 
 **What remains open:** consent is still *persisted* under the shared fingerprint key when
 no cookie exists, so the shared record can still be written. Closing that is a separate

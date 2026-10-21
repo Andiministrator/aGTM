@@ -53,7 +53,8 @@ const SRC = readFileSync(
  *                        such a lookup can never miss, so the fallback chain
  *                        would look correct in a test and be untested.
  * @param opts.clientIP    remote address
- * @param opts.now         getTimestampMillis() (default 1785230523000 = 2026-07-28)
+ * @param opts.now         getTimestampMillis(): a number, or a function called per read
+ *                         (default 1785230523000 = 2026-07-28)
  * @returns {{status, body, headers, claimed, returned, logs, cookies, hashed, throws}}
  *          `hashed` records every sha256Sync() input in order.
  *          `cookies` records every setCookie() call as {name, val, maxAge} in
@@ -138,7 +139,7 @@ export function runClient(opts = {}) {
     // Inputs recorded: the fingerprint's hashed string is otherwise invisible.
     sha256Sync: (s) => { state.hashed.push(String(s)); return 'sha_' + String(s).length; },
     generateRandom: (min, max) => min,
-    getTimestampMillis: () => (opts.now === undefined ? 1785230523000 : opts.now),
+    getTimestampMillis: () => (typeof opts.now === 'function' ? opts.now() : (opts.now === undefined ? 1785230523000 : opts.now)),
     makeInteger: (v) => parseInt(v, 10) || 0,
     makeNumber: (v) => Number(v) || 0,
     makeString: (v) => String(v),
