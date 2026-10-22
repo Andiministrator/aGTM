@@ -137,12 +137,35 @@ test('an update in the waiting window does not use up the init attempts', () => 
   expect(loads).toEqual([]);
 });
 
-test('waiting window: no consent counts, events queue; the standing auto-denial is never POSTed', () => {
+test('waiting window: no consent counts, events and _post queue; the standing auto-denial is never POSTed', () => {
   start(null);
-  aGTM.f.fire({ event: 'purchase' });
+  aGTM.f.fire({ event: 'purchase', _post: { url: 'https://post.example.com/x' } });
   expect(globalThis.dataLayer.some((e) => e && e.event === 'purchase')).toBe(false);
   expect(aGTM.d.f.some((e) => e && e.event === 'purchase')).toBe(true);
+  expect(MockXHR.instances.filter((x) => x.url === 'https://post.example.com/x').length).toBe(0);
   for (let i = 2; i <= 5; i++) aGTM.f.call_cc();
   expect(aGTM.d.consent.services).toBe(',aGTMconsent,');
+  expect(aGTM.d.f.some((e) => e && e.event === 'purchase')).toBe(true); // replayed via hastyEvents
   expect(MockXHR.instances.filter((x) => x.url === STORE).length).toBe(0);
+});
+
+// QA 2026-10-22: the "no consent while waiting" rule must apply only to the
+// sentinel. If it ever applied to every failing check, a single update-poll
+// tick at which the CMP is briefly unavailable would shut the gate on a
+// granted page - and inject() never runs again, so events would be lost.
+test('a failing update poll on a granted page keeps the gate open', () => {
+  let ready = true;
+  aGTM.f.consent_check = function (action) {
+    if (action == 'init' && aGTM.d.consent.hasResponse) return true;
+    if (!ready) return false;
+    aGTM.d.consent.hasResponse = true; aGTM.d.consent.services = ',svcA,'; return true;
+  };
+  resetAGTM({ consent_store_url: STORE, gtmServices: 'svcA', gtm: { 'GTM-MAIN': {} },
+    session: { uid: 'C.1.t.1.2', sid: 's-1', consent: { hasResponse: true, services: ',svcA,', purposes: '', vendors: '' } } });
+  expect(loads).toEqual(['GTM-MAIN']);
+  ready = false;
+  aGTM.f.run_cc('update');               // CMP briefly unavailable
+  expect(aGTM.d.consent.gtmConsent).toBe(true);
+  aGTM.f.fire({ event: 'purchase' });
+  expect(globalThis.dataLayer.some((e) => e && e.event === 'purchase')).toBe(true);
 });

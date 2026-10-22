@@ -472,7 +472,7 @@ authoritative on the `update` path **in both directions**: `false` makes the ada
 return `false`, so aGTM keeps waiting instead of deciding. On `init` it decides only
 until something has set `hasResponse` — that short-circuit still wins, deliberately,
 because the sGTM Client's `preset_with_consent` path hands in a stored earlier decision
-on purpose.
+on purpose (the auto-denial sentinel is not such a decision: run_cc resets it before the adapter runs, F-249).
 
 **What that function actually answers**, read out of the shipped SDK (5.11.0, 6.36.0,
 202608.1.0) rather than assumed: the `OptanonAlertBoxClosed` cookie is present **and** no
