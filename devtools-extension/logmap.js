@@ -44,5 +44,6 @@ window.AGTM_LOGMAP = {
   e_consent_store:          { type: "err", msg: "Consent store POST failed (non-2xx response)" },
   e_consent_store_gave_up:  { type: "err", msg: "Consent store POST gave up after 3 attempts for this consent state" },
   e_consent_store_parse:    { type: "err", msg: "Consent store response could not be parsed as JSON" },
-  e_xsend:                  { type: "err", msg: "aGTM.f.xsend Error, request could not be sent" }
+  e_xsend:                  { type: "err", msg: "aGTM.f.xsend Error, request could not be sent" },
+  e_consent_check:          { type: "err", msg: "consent_check threw an exception, treated as no decision" }
 };

@@ -169,3 +169,69 @@ test('a failing update poll on a granted page keeps the gate open', () => {
   aGTM.f.fire({ event: 'purchase' });
   expect(globalThis.dataLayer.some((e) => e && e.event === 'purchase')).toBe(true);
 });
+
+// F-254: an adapter that throws must not abort config() (the Client's snippet
+// calls init() right after it) and must not leave the B2 reset behind.
+test('a throwing consent_check counts as no decision: config() survives, the preset is restored', () => {
+  aGTM.f.consent_check = function () { throw new TypeError('ci[i] is null'); };
+  expect(() => resetAGTM({
+    consent_store_url: STORE,
+    gtmServices: 'svcA',
+    gtm: { 'GTM-MAIN': {} },
+    session: { uid: 'F$1$t$abc.20261022', sid: 's-1', consent: Object.assign({}, DENIAL) }
+  })).not.toThrow();
+  expect(aGTM.d.consent.services).toBe(',aGTMconsent,');
+  expect(aGTM.d.consent.hasResponse).toBe(true);
+  expect(aGTM.d.consent.gtmConsent).toBe(false);   // waiting: nothing passes fire()
+  expect(aGTM.d.adWait).toBe(1);
+  expect(aGTM.l.some((x) => x.id === 'e_consent_check' && x.obj.msg === 'ci[i] is null')).toBe(true);
+  for (let i = 2; i <= 4; i++) expect(aGTM.f.call_cc()).toBe(false);
+  expect(aGTM.f.call_cc()).toBe(true);             // attempt 5: the auto-denial stands
+  expect(loads).toEqual(['GTM-MAIN']);
+});
+
+test('a throwing consent_check on the update poll restores the granted state', () => {
+  let boom = false;
+  aGTM.f.consent_check = function (action) {
+    if (boom) throw new Error('CMP gone');
+    if (action == 'init' && aGTM.d.consent.hasResponse) return true;
+    aGTM.d.consent.hasResponse = true; aGTM.d.consent.services = ',svcA,'; return true;
+  };
+  resetAGTM({ consent_store_url: STORE, gtmServices: 'svcA', gtm: { 'GTM-MAIN': {} },
+    session: { uid: 'C.1.t.1.2', sid: 's-1', consent: { hasResponse: true, services: ',svcA,', purposes: '', vendors: '' } } });
+  boom = true;
+  expect(aGTM.f.run_cc('update')).toBe(false);
+  expect(aGTM.d.consent.services).toBe(',svcA,');
+  expect(aGTM.d.consent.hasResponse).toBe(true);
+  expect(aGTM.d.consent.gtmConsent).toBe(true);
+});
+
+// F-255: before the adapter exists, the auto-denial preset must hold the gate
+// shut as well — and the 5-attempt window only starts once there is a CMP.
+test('no consent_check yet: the auto-denial preset lets nothing through and spends no attempt', () => {
+  delete aGTM.f.consent_check;
+  resetAGTM({
+    consent_store_url: STORE,
+    gtmServices: 'svcA',
+    gtm: { 'GTM-MAIN': {} },
+    session: { uid: 'F$1$t$abc.20261022', sid: 's-1', consent: Object.assign({}, DENIAL) }
+  });
+  expect(aGTM.d.consent.gtmConsent).toBe(false);
+  expect(aGTM.d.adWait).toBe(0);
+  aGTM.f.fire({ event: 'purchase', _post: { url: 'https://post.example.com/x' } });
+  expect(globalThis.dataLayer.some((e) => e && e.event === 'purchase')).toBe(false);
+  expect(aGTM.d.f.some((e) => e && e.event === 'purchase')).toBe(true);
+  expect(MockXHR.instances.filter((x) => x.url === 'https://post.example.com/x').length).toBe(0);
+  // the adapter arrives late and holds a grant: it wins
+  aGTM.f.consent_check = cmp(',svcA,');
+  expect(aGTM.f.call_cc()).toBe(true);
+  expect(aGTM.d.consent.services).toBe(',svcA,');
+  expect(loads).toEqual(['GTM-MAIN']);
+});
+
+test('no consent_check and no sentinel: a stored decision is left as it is', () => {
+  delete aGTM.f.consent_check;
+  resetAGTM({ consent_store_url: STORE, gtmServices: 'svcA', gtm: { 'GTM-MAIN': {} },
+    session: { uid: 'C.1.t.1.2', sid: 's-1', consent: { hasResponse: true, services: ',svcA,', purposes: '', vendors: '', gtmConsent: true } } });
+  expect(aGTM.d.consent.gtmConsent).toBe(true);
+});

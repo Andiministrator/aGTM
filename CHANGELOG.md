@@ -172,6 +172,19 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Fixed — a CMP adapter that throws, or one that is not there yet
+
+- **`consent_check` throws** (F-254): `run_cc` now catches it, logs `e_consent_check` and
+  treats it as "no decision" — the consent snapshot is restored instead of being left in its
+  reset state. Before, the exception escaped; on the synchronous call from `config()` (the
+  sGTM Client's auto-denial preset asks the CMP there) it aborted the page snippet before
+  `init()`, so no listener and no `noConsent` container started.
+- **No `consent_check` yet, auto-denial preset delivered** (F-255): `gtmConsent` was left at
+  the preset's value, so `fire()` let events and their `_post` through although nobody had
+  decided. It is now held at `false` until an adapter answers; the 5-attempt window starts
+  only once there is an adapter. Affects a Client without "Used CMP" whose page defines
+  `consent_check` later, and standalone setups while `load_cc` is still loading.
+
 ### Changed — `aGTM.min.js` is ~0.9 KB smaller, with no change in behaviour
 
 38,334 → 37,411 bytes (gzip level 9: 11,575 → 11,487). Two changes, both invisible at runtime:

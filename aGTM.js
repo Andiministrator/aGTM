@@ -570,8 +570,16 @@ aGTM.f.run_cc = function (action) {
     aGTM.f.log("e5", { action: action });
     return false;
   }
+  // The sGTM Client's auto-denial preset (see below) — determined before the
+  // consent_check test, because without one the same hold applies (F-255).
+  var sentinel = action === "init" && aGTM.d.consent && aGTM.d.consent.services === ",aGTMconsent,";
   // Check if consent_check function is defined
   if (typeof aGTM.f.consent_check !== "function") {
+    // No CMP adapter yet (Client without "Used CMP", or load_cc still loading):
+    // the auto-denial preset is no decision either, so it must not let events
+    // through fire()'s gate meanwhile. adWait does not count — there is no CMP
+    // to wait for, and the window starts once one is there (F-255).
+    if (sentinel) aGTM.d.consent.gtmConsent = false;
     aGTM.f.log("e14", { action: action });
     return false;
   }
@@ -592,7 +600,6 @@ aGTM.f.run_cc = function (action) {
   // the 500 ms init poll). Only when the CMP has given no decision after 5
   // attempts (sync, listener, three 500 ms ticks: ~1.5 s) does the auto-denial
   // stand (F-249, card #115).
-  var sentinel = action === "init" && aGTM.d.consent && aGTM.d.consent.services === ",aGTMconsent,";
   var consentSnapshot = null;
   if ((action === 'update' || sentinel) && aGTM.d.consent) {
     consentSnapshot = JSON.parse(aGTM.f.sStrf(aGTM.d.consent));
@@ -602,8 +609,12 @@ aGTM.f.run_cc = function (action) {
     c.consent_id = ""; c.serviceIDs = ""; c.feedback = "";
     delete c.blocked;
   }
-  // Perform the consent check
-  var consentCheck = aGTM.f.consent_check(action);
+  // Perform the consent check. An adapter that throws counts as "no decision":
+  // the reset above is undone below instead of being left behind, and on the
+  // synchronous call from config() the exception no longer aborts the caller's
+  // snippet before init() (F-254).
+  var consentCheck = false;
+  try { consentCheck = aGTM.f.consent_check(action); } catch (e) { aGTM.f.log("e_consent_check", { action: action, msg: e && e.message }); }
   if (!consentCheck) {
     if (consentSnapshot) aGTM.d.consent = consentSnapshot; // restore preset
     if (!sentinel || ++aGTM.d.adWait < 5) {
