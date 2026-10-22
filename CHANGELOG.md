@@ -66,6 +66,13 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   offers it too (F-190). Note what "sent after consent" does **not** cover: `aGTM_ready`
   carries the queued events (`hastyEvents`) and every error message (`aGTM.errors`), and a
   `noConsent` container receives `aGTM_ready` before any decision (F-253).
+- **The auto-denial preset no longer overrides the CMP** (F-249). At init the library asks the
+  CMP first when the sGTM Client delivered its auto-denial. A decision the CMP holds wins: a
+  visitor who declined no longer gets GTM loaded by the preset, one who agreed gets their tags at
+  once, and the decision is stored. Only while the CMP gives none does the library wait — up to
+  5 init attempts (≈ 1.5 s) — before the auto-denial stands. **For a returning visitor without a
+  decision GTM therefore loads up to ~1.5 s later than before.** A CMP that answers only after that
+  is still overruled for the page until the next consent-poll tick.
 - **sGTM Client: the auto-denial is only built where it can be lifted** (F-251). With
   *Enable Consent Store route* off, with *consent_store_enc* on (the store then answers `501`
   and writes nothing) or with *useListener* on, it used to apply to every returning request
@@ -186,9 +193,8 @@ visitors with nothing on file (`258aeff`), a failed `F.*` write can decide betwe
 against the code, and assuming the Session API's stated meaning of a `404` (no live session —
 not verified by us): the next page starts a new session (counter 0) and gets no auto-denial.
 Where it does happen (another tab opened the new session first, or the write failed with a live
-session), a visitor who **agreed** has the grant masked until the first consent-poll tick at
-which the CMP answers; for a visitor who **declined**, the auto-denial loads GTM at init (with
-*Load GTM even under server-side auto-denial*), and the poll cannot undo that for the page.
+session), the library now asks the CMP first (see *the auto-denial preset no longer overrides the
+CMP* above), so a decision the visitor made — grant or denial — wins at init either way.
 
 ### Fixed — configurator 2.2.0: v1.5 options, and the CMPs that actually exist
 

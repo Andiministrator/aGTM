@@ -47,6 +47,7 @@ aGTM.f.objinit = function() {
     [aGTM.d, "bot", {}],
     [aGTM.d, "consent_hash", ""],
     [aGTM.d, "last_consent_hash", ""],
+    [aGTM.d, "adWait", 0],
     [aGTM.d, "attribution", {}],
     [aGTM.d, "iframe", {
       counter: { events: 0 },
@@ -577,8 +578,17 @@ aGTM.f.run_cc = function (action) {
   // Snapshot before B2 reset so we can restore if consent_check returns false
   // — keeps the periodic update poll (start_consent_poll) safe to run even
   // when the CMP is briefly not ready or the user dismisses the banner.
+  // The sGTM Client's auto-denial preset (sentinel ",aGTMconsent,") stands in
+  // for a returning visitor with NO decision. It must not override one the CMP
+  // holds: for a visitor who declined it would load GTM, for one who agreed it
+  // would mask the grant. So at init the CMP is asked first, through the same
+  // reset as an update, on every init attempt (the sync one in config(), then
+  // the 500 ms init poll). Only when the CMP has given no decision after 5
+  // attempts (sync, listener, three 500 ms ticks: ~1.5 s) does the auto-denial
+  // stand (F-249, card #115).
+  var sentinel = action === "init" && aGTM.d.consent && aGTM.d.consent.services === ",aGTMconsent,";
   var consentSnapshot = null;
-  if (action === 'update' && aGTM.d.consent) {
+  if ((action === 'update' || sentinel) && aGTM.d.consent) {
     consentSnapshot = JSON.parse(aGTM.f.sStrf(aGTM.d.consent));
     var c = aGTM.d.consent;
     c.hasResponse = false;
@@ -590,8 +600,10 @@ aGTM.f.run_cc = function (action) {
   var consentCheck = aGTM.f.consent_check(action);
   if (!consentCheck) {
     if (consentSnapshot) aGTM.d.consent = consentSnapshot; // restore preset
-    aGTM.f.log("m8", null);
-    return false;
+    if (!sentinel || ++aGTM.d.adWait < 5) {
+      aGTM.f.log("m8", null);
+      return false;
+    }
   }
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
   // No consent condition configured at all. Each chelp() call answers "nothing

@@ -427,11 +427,16 @@ aGTM.f.start_consent_poll()        — adaptive CMP-state poll; gated:
 
 aGTM.f.call_cc()             — called by timer, manually, or sync from config()
   ├─ aGTM.f.run_cc('init' | 'update')
-  │    ├─ [action === 'update'] snapshot aGTM.d.consent, then B2 field-reset:
+  │    ├─ [action === 'update', OR 'init' on the sGTM auto-denial sentinel
+  │    │   services === ',aGTMconsent,' — F-249] snapshot aGTM.d.consent, then B2 field-reset:
   │    │    aGTM.d.consent.hasResponse = false; services/purposes/vendors = "";
   │    │    consent_id/serviceIDs/feedback = ""; delete blocked.
   │    │    Stale preset values cannot survive a real CMP decision.
   │    │    On consent_check returning false → restore snapshot (poll-safe).
+  │    │    Sentinel at init: the CMP is asked first; returning false keeps
+  │    │    run_cc false (no inject) for 5 attempts (aGTM.d.adWait: config()
+  │    │    sync, listener, three 500 ms ticks ≈ 1.5 s), then the auto-denial
+  │    │    stands. A CMP decision always beats the preset.
   │    │
   │    ├─ aGTM.f.consent_check(action)    — CMP-specific function (from cmp/ file)
   │    │    └─ on 'init' with hasResponse=true → short-circuit returns true
@@ -532,6 +537,7 @@ aGTM.f.inject()
 | `aGTM.d.consent` | Current consent state written by `consent_check`; `.gtmConsent` controls GTM injection |
 | `aGTM.d.consent_hash` | Phase 3: stable serialization of `aGTM.d.consent` (blacklist of `gtmConsent`/`blocked`) at the **last successful consent-store POST**. Used to gate the diff/POST in `run_cc()` and to support retry on 5xx (advances only on 2xx). |
 | `aGTM.d.consent_store_try` | Retry budget of the consent-store POST (F-236): `{hash, n, busy}`. At most 3 POSTs per consent hash, none for the same hash while one is in flight (single slot: A→B→A re-arms A); a new hash starts a fresh budget. A 4xx other than 408/429, and 501, spends the budget at once — the server's answer for that state will not change (F-248). Exhaustion is logged once as `e_consent_store_gave_up`. Without it the 2 s poll re-POSTed on every tick for as long as the server refused. |
+| `aGTM.d.adWait` | Init attempts on the sGTM auto-denial sentinel without a CMP decision (F-249). At 5 the auto-denial stands; before that `run_cc('init')` returns false so the CMP gets the first word. |
 | `aGTM.d.last_consent_hash` | State-change hash, advanced on **every** `run_cc()` regardless of POST success. Used to gate `sendnaus(aGTM_consent_update)` + `consent_callback` so the periodic CMP poll does not flood when the consent state is stable. |
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
 | `aGTM.d.noCondLogged` | Guards the `m_consent_no_conditions` log entry to one per page load — `run_cc('update')` also runs on the consent poll, and `aGTM.f.log` neither dedupes nor caps |

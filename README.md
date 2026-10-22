@@ -621,11 +621,11 @@ When the sGTM Client serves the library and the Session API has no recorded cons
 
 GTM tags configured to require the `aGTMconsent` service will fire, and so will every tag without a consent condition; tags requiring any other consent signal will not. A visitor without a user-id cookie gets the auto-denial only when **nothing** is on file — a stored decision under the shared fingerprint means no preset at all, and the CMP decides.
 
-If the CMP already holds a decision when the page loads, the preset masks it at init (`consent_check('init')` returns early on `hasResponse`) until the first poll tick at which the CMP answers. Without a running poll — no `consent_store_url`, `useListener: true` or `consent_poll_ms: 0` — that lasts until a matching `consent_events` event or your own `aGTM.f.run_cc('update')`; a manual `aGTM.f.call_cc()` does not lift it.
+The preset never overrides a decision the CMP already holds: at init the library asks the CMP first. A decision it holds — grant or denial — wins at once and is stored; only while the CMP gives none does the library wait, up to 5 init attempts (≈ 1.5 s, so GTM loads that much later for such a visitor), before the auto-denial stands. A CMP slower than that is overruled for the page until the next consent-poll tick (or, without a running poll, until a matching `consent_events` event or your own `aGTM.f.run_cc('update')`).
 
 If the user later makes an explicit decision in the CMP banner, the periodic CMP poll (`consent_poll_ms`, runs only when `consent_store_url` is set; otherwise only a matching `consent_events` event or your own `aGTM.f.run_cc('update')` reads the CMP) catches it within a couple of seconds, the diff is detected and POSTed to `consent_store_url`, and `aGTM.d.session_status` advances to `"synced"`. The auto-denial values are wiped by the B2-reset in `run_cc('update')` so the user choice always wins.
 
-This logic lives entirely in the sGTM Client (template + `jsSourceCode.js`) — no client-side auto-denial code in aGTM since v1.5.
+The auto-denial is built entirely in the sGTM Client (template + `jsSourceCode.js`); the library only recognises its sentinel at init and asks the CMP first.
 
 ---
 

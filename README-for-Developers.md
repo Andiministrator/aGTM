@@ -579,6 +579,10 @@ The init path runs the same diff/POST so first-visit CMP decisions (no preset, h
 
 Before `consent_check` runs on `'update'`, a snapshot of `aGTM.d.consent` is taken, then all CMP-managed fields are cleared: `hasResponse=false`, `services/purposes/vendors/consent_id/serviceIDs/feedback=""`, `delete blocked`. This guarantees a real CMP decision cannot inherit stale preset values from a server-side auto-denial. **If `consent_check` then returns `false`** (CMP not ready, user dismissed banner, etc.), the snapshot is restored so the periodic CMP poll (see below) can run repeatedly without destroying preset state.
 
+### Auto-denial preset at init (`run_cc('init')`, F-249)
+
+When the sGTM Client delivers its auto-denial preset (`services: ',aGTMconsent,'`, `blocked`), `run_cc('init')` treats it like an update: snapshot, field reset, then `consent_check`. A decision the CMP holds wins at once — a visitor who declined does not get GTM loaded by the preset, one who agreed gets their tags immediately, and the decision is POSTed to the consent store. While the CMP gives no decision, `run_cc('init')` returns `false` (no inject) and restores the preset; after 5 such attempts (`aGTM.d.adWait`: the sync call in `config()`, the listener's, three ticks of the 500 ms init poll ≈ 1.5 s) the auto-denial stands. Any other preset keeps the adapters' `init` short-circuit.
+
 ### Adaptive CMP poll (`start_consent_poll`)
 
 After the first successful `run_cc('init')`, aGTM starts a `setInterval` that calls `run_cc('update')` every `consent_poll_ms` (default 2000ms). This is necessary because most CMPs (CCM19, Cookiebot, Usercentrics, …) emit their consent-update events via direct `window.dataLayer.push()` — bypassing `aGTM.f.fire()` and therefore the `consent_events` matcher. The poll catches these state changes and routes them through the diff/POST path so the consent-store endpoint always sees the latest state.
@@ -886,6 +890,7 @@ bun test
 | `test/session_status.test.js` | `aGTM.d.session_status` lifecycle (`""`, `"preset"`, `"preset_with_consent"`, `"synced"`, `"confirmed"`) |
 | `test/consent_store.test.js` | Consent diff/store mechanism in `run_cc()` — diff detection, dedup, retry on POST failure, `consent_id`-change regression check, `gtmConsent`-only mutation excluded from hash |
 | `test/run_cc.test.js` | `aGTM.f.run_cc()` — `blocked` flag deletion + B2 field-reset on `update` |
+| `test/autodenial_init.test.js` | Auto-denial preset at init: the CMP's decision wins (grant and denial), without one the preset stands after 5 attempts (F-249) |
 | `test/fire_salt.test.js` | `aGTM.f.fire()` — POST salt fallback chain |
 | `test/bot_preset.test.js` | `cfg.bot` preset — deep-copy into `aGTM.d.bot`, `isBot`-must-be-boolean guard, and the assertion that it does **not** touch the session preset gate |
 | `test/sgtm/botcheck.test.js` | sGTM Client bot check: the `botFieldsFromResponse` whitelist (extracted from the Client source and run against a sandbox-like `JSON.parse` that returns `undefined` instead of throwing), plus structural guards over the surrounding code — no 2xx status gate (F-127), the blocking decision, the `SOURCES_META` protection, and the `template.tpl` ↔ source byte-identity invariant |

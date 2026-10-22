@@ -529,7 +529,9 @@ plus one misconfiguration that behaves the same way:
    **on**) — a returning visitor with nothing on file gets a denial preset (only with *Enable
    Consent Store route* on, *consent_store_enc* off and *useListener* off — otherwise the CMP
    decides, and with the store off or *consent_store_enc* on a stored decision is not preset either), and this switch
-   decides whether GTM still loads for them. For a cookieless visitor "returning" means that
+   decides whether GTM still loads for them. A decision their CMP already holds wins over the
+   preset at init (the library asks the CMP first and waits up to ~1.5 s, F-249), so a visitor
+   who declined does not get GTM loaded by it. For a cookieless visitor "returning" means that
    the fingerprint session already counted a request — possibly a different person behind the
    same NAT within the Session API's 30-minute window, so a first-time visitor can get it on
    the first page. With an empty condition table and the opt-out

@@ -80,13 +80,24 @@ describe('aGTM.f.run_cc() — blocked flag on update', () => {
     expect(aGTM.d.consent.gtmConsent).toBe(true);
   });
 
-  test('gtmConsent=true on init when blocked=true and services do not match (auto-denial survives init re-check)', () => {
+  test('blocked survives init when the preset is not the auto-denial sentinel', () => {
     aGTM.c.gtmServices = 'Google Tag Manager';
     aGTM.d.consent = { hasResponse: false, blocked: true,
-                        purposes: '', services: ',aGTMconsent,', vendors: '' };
+                        purposes: '', services: ',other,', vendors: '' };
     aGTM.f.run_cc('init');
-    // blocked NOT deleted on init → gtmConsent = blocked = true
+    // no sentinel → no reset on init → gtmConsent falls back to blocked = true
     expect(aGTM.d.consent.blocked).toBe(true);
     expect(aGTM.d.consent.gtmConsent).toBe(true);
+  });
+
+  test('auto-denial sentinel at init: a CMP answer replaces it, blocked is dropped (F-249)', () => {
+    aGTM.c.gtmServices = 'Google Tag Manager';
+    aGTM.d.consent = { hasResponse: true, blocked: true,
+                        purposes: '', services: ',aGTMconsent,', vendors: '' };
+    aGTM.f.run_cc('init');
+    // the stub CMP answers (empty consent) → its decision wins over the preset
+    expect(aGTM.d.consent.blocked).toBeUndefined();
+    expect(aGTM.d.consent.services).toBe('');
+    expect(aGTM.d.consent.gtmConsent).toBe(false);
   });
 });
