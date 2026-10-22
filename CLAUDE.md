@@ -202,6 +202,9 @@ bun test
 
 Tests live in `test/`. Browser globals are set up via `test/setup.js` (loaded automatically by `bunfig.toml`). See `test/helpers.js` for `MockXHR` and `resetAGTM()`.
 
+`bun test` loads `aGTM.js`, not the shipped `aGTM.min.js`. `AGTM_SRC=./aGTM.min.js bun test`
+runs the same suite against the build (run `./build.sh` first).
+
 ### Build system overview
 
 | File | Role |
@@ -273,8 +276,16 @@ freshly built `cmp/*.min.js` on each `./build.sh`. Mechanics (all in
 
 All minification uses **terser** with these flags:
 - `--ecma 5` — ES5-compatible output (required: code may run inside GTM's sandboxed JS environment which only supports ES5)
-- `--keep-fnames` — function names are preserved (required: internal aGTM functions are referenced by name)
+- `--keep-fnames` — function names are preserved — **for `cmp/*.js` only**. `aGTM.js` is built
+  without it (`TERSER_LIB_OPTS` in `build.sh`, since 2026-10-22): its API is property assignments
+  (`aGTM.f.x = function …`), which no minifier renames and which carry no inferred `.name`, so the
+  flag only kept local helpers (`var dbg = function …`) unshortened. Nothing in the library reads a
+  function's `.name` — keep it that way, or bring the flag back.
 - `--compress --mangle` — standard size optimizations
+
+The renaming only exists in `aGTM.min.js`, which the normal `bun test` never loads. After a
+change to the build flags (or to anything the minifier might treat differently), run the suite
+against the shipped build: `AGTM_SRC=./aGTM.min.js bun test`.
 
 **ES5 requirement applies to all files in this repo** — not just the minified output. The source files (`aGTM.js`, `cmp/*.js`) must also be written in ES5. No `let`, `const`, arrow functions, classes, template literals, etc.
 

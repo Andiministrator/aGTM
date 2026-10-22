@@ -61,6 +61,8 @@ globalThis.XMLHttpRequest = class {
 // ── Load aGTM.js into global scope ────────────────────────────────────────
 // Indirect eval executes in global scope so window.aGTM becomes globalThis.aGTM
 
-const aGTMSource = readFileSync('./aGTM.js', 'utf8');
+// AGTM_SRC=./aGTM.min.js bun test runs the whole suite against the shipped build instead —
+// the minifier renames locals, and only this run shows that the result still behaves.
+const aGTMSource = readFileSync(process.env.AGTM_SRC || './aGTM.js', 'utf8');
 // eslint-disable-next-line no-eval
 ;(0, eval)(aGTMSource);

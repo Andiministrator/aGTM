@@ -84,7 +84,7 @@ aGTM.f.objinit();
 aGTM.f.log = function (id, obj) {
   // Clone the object if it's an object to avoid mutations
   var clonedObj = typeof obj === "object" && obj ? JSON.parse(JSON.stringify(obj)) : obj;
-  aGTM.l.push({ id: id, timestamp: new Date().getTime(), obj: clonedObj });
+  aGTM.l.push({ id: id, timestamp: Date.now(), obj: clonedObj });
 };
 
 /**
@@ -254,19 +254,25 @@ aGTM.f.config = function (cfg) {
     return;
   }
   // Assigning user-defined configurations or default values
-  aGTM.f.an(aGTM.c, "debug", cfg, false); // If this is true, the optout cookie will be ignored
-  aGTM.f.an(aGTM.c, "path", cfg, ""); // (relative) path to the directory where aGTM is located, e.g. '/js/''
-  aGTM.f.an(aGTM.c, "file", cfg, "aGTM.js"); // Filename of aGTM, default is 'aGTM.js'
-  aGTM.f.an(aGTM.c, "cmp", cfg, ""); // Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See README.md for possible options.
+  // Shorthand for aGTM.f.an(aGTM.c, key, cfg, default), or (target, source) when both are given.
+  // Local on purpose: the minifier shortens its name, a property path it cannot (~0.5 KB).
+  var opt = function (key, def, target, source) {
+    if (target) aGTM.f.an(target, key, source, def);
+    else aGTM.f.an(aGTM.c, key, cfg, def);
+  };
+  opt("debug", false); // If this is true, the optout cookie will be ignored
+  opt("path", ""); // (relative) path to the directory where aGTM is located, e.g. '/js/''
+  opt("file", "aGTM.js"); // Filename of aGTM, default is 'aGTM.js'
+  opt("cmp", ""); // Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See README.md for possible options.
   aGTM.c.min = typeof cfg.min == "boolean" ? cfg.min : true; // inject the files as minified versions
-  aGTM.f.an(aGTM.c, "nonce", cfg, ""); // Nonce value for the file injections
-  aGTM.f.an(aGTM.c, "iframeSupport", cfg, false); // Enable aGTM inside an iframe: bypasses CMP consent check, listens for parent postMessage handshake
-  aGTM.f.an(aGTM.c, "vPageviews", cfg, false); // Send (dataLayer) Events if the URL changes, but no page reload takes place (virtual Pageviews through History Change)
-  aGTM.f.an(aGTM.c, "vPageviewsTimer", cfg, 0); // Timer to continuous checking the url for changes (set it to 0 for deactivating)
-  aGTM.f.an(aGTM.c, "vPageviewsFallback", cfg, false); // If Proxy Object is not available (older browsers), activate vPageviewsTimer with 500(ms) automatically
+  opt("nonce", ""); // Nonce value for the file injections
+  opt("iframeSupport", false); // Enable aGTM inside an iframe: bypasses CMP consent check, listens for parent postMessage handshake
+  opt("vPageviews", false); // Send (dataLayer) Events if the URL changes, but no page reload takes place (virtual Pageviews through History Change)
+  opt("vPageviewsTimer", 0); // Timer to continuous checking the url for changes (set it to 0 for deactivating)
+  opt("vPageviewsFallback", false); // If Proxy Object is not available (older browsers), activate vPageviewsTimer with 500(ms) automatically
 
   // GTM-specific configuration
-  aGTM.f.an(aGTM.c, "gtmID", cfg, ""); // GTM ID for fire hasty Events, by default the last GTM ID of the following object will be used
+  opt("gtmID", ""); // GTM ID for fire hasty Events, by default the last GTM ID of the following object will be used
   if (cfg.gtm) {
     // Object with GTM container config, example: cfg.gtm = { 'GTM-xxx': { debug_mode:true } };
     for (var k in cfg.gtm) {
@@ -275,23 +281,23 @@ aGTM.f.config = function (cfg) {
         // Assign GTM-container-specific configurations
         aGTM.c.gtm = aGTM.c.gtm || {};
         aGTM.c.gtm[k] = cfg.gtm[k] || {};
-        aGTM.f.an(aGTM.c.gtm[k], "noConsent", cfg.gtm[k], false); // Load this GTM without Consent Check, if this setting is true
-        aGTM.f.an(aGTM.c.gtm[k], "env", cfg.gtm[k], ""); // Environment string (leave it blank you you don't know, what it is)
-        aGTM.f.an(aGTM.c.gtm[k], "idParam", cfg.gtm[k], ""); // GTM ID URL parameter name (leave it blank you you don't know, what it is)
-        aGTM.f.an(aGTM.c.gtm[k], "gtmURL", cfg.gtm[k], ""); // If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
-        aGTM.f.an(aGTM.c.gtm[k], "gtmJS", cfg.gtm[k], ""); // Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
+        opt("noConsent", false, aGTM.c.gtm[k], cfg.gtm[k]); // Load this GTM without Consent Check, if this setting is true
+        opt("env", "", aGTM.c.gtm[k], cfg.gtm[k]); // Environment string (leave it blank you you don't know, what it is)
+        opt("idParam", "", aGTM.c.gtm[k], cfg.gtm[k]); // GTM ID URL parameter name (leave it blank you you don't know, what it is)
+        opt("gtmURL", "", aGTM.c.gtm[k], cfg.gtm[k]); // If you use an own url to the GTM (e.g. using the serverside Google Tag Manager), you can set your URL here. Leave it blank if you don't know what this means.
+        opt("gtmJS", "", aGTM.c.gtm[k], cfg.gtm[k]); // Possibility to give the GTM JS direct as Javascript content, but Base64-encoded. In this case, no external JS script will be loaded.
       }
     }
   }
-  aGTM.f.an(aGTM.c, "gdl", cfg, "dataLayer"); // GTM dataLayer name
-  aGTM.f.an(aGTM.c, "gtmPurposes", cfg, ""); // The purpose(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Functional'
-  aGTM.f.an(aGTM.c, "gtmServices", cfg, ""); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
-  aGTM.f.an(aGTM.c, "gtmVendors", cfg, ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
-  aGTM.f.an(aGTM.c, "allowEmptyConsentConditions", cfg, false); // Load GTM even though gtmPurposes/gtmServices/gtmVendors are ALL empty, i.e. run no consent gate at all. Default false = fail-closed: with no requirement configured, GTM is not loaded (F-167). Only set this if you deliberately want no gate; it does not weaken a gate you did configure.
-  aGTM.f.an(aGTM.c, "gtmAttr", cfg, null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
-  aGTM.f.an(aGTM.c, "dlSet", cfg, {}); // Set dataLayer variables, that should always be attached to an event
-  aGTM.f.an(aGTM.c, "useListener", cfg, false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
-  aGTM.f.an(aGTM.c, "dlOrgPush", cfg, ""); // "" or "log" or "use" or "restore": If the (GTM-)original dataLayer.push Function is changed (hooked), send an exception event ("log") or use the original dataLayer.push ("use") or replace the hooked dataLayer.push ("restore"). If you don't want to use it, leave it blank.
+  opt("gdl", "dataLayer"); // GTM dataLayer name
+  opt("gtmPurposes", ""); // The purpose(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Functional'
+  opt("gtmServices", ""); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
+  opt("gtmVendors", ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
+  opt("allowEmptyConsentConditions", false); // Load GTM even though gtmPurposes/gtmServices/gtmVendors are ALL empty, i.e. run no consent gate at all. Default false = fail-closed: with no requirement configured, GTM is not loaded (F-167). Only set this if you deliberately want no gate; it does not weaken a gate you did configure.
+  opt("gtmAttr", null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
+  opt("dlSet", {}); // Set dataLayer variables, that should always be attached to an event
+  opt("useListener", false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
+  opt("dlOrgPush", ""); // "" or "log" or "use" or "restore": If the (GTM-)original dataLayer.push Function is changed (hooked), send an exception event ("log") or use the original dataLayer.push ("use") or replace the hooked dataLayer.push ("restore"). If you don't want to use it, leave it blank.
   aGTM.c.dlStateEvents = typeof cfg.dlStateEvents == "boolean" ? cfg.dlStateEvents : false; // Fire GTM dataLayer Events for DOMloaded and PAGEready
   aGTM.c.aPageview = typeof cfg.aPageview == "boolean" ? cfg.aPageview : false; // Fire aPageview Event
 /* deprecated */  aGTM.c.vPageview = typeof cfg.vPageview == "boolean" ? cfg.vPageview : false; // Fire vPageview Event
@@ -303,7 +309,7 @@ aGTM.f.config = function (cfg) {
   //   'cmpEvent[attr:val]' - triggers only when event.attr === 'val'
   //   'cmpEvent[attr]'     - triggers when event.attr exists (any value)
   //   'cmpUpdate'          - triggers on event name match alone
-  aGTM.f.an(aGTM.c, "consent_events", cfg, "");
+  opt("consent_events", "");
   aGTM.c.consent_event_attr = aGTM.c.consent_event_attr || {};
   if (typeof aGTM.c.consent_events == "string" && aGTM.c.consent_events) {
     var ce_parts = aGTM.c.consent_events.split(",");
@@ -332,16 +338,16 @@ aGTM.f.config = function (cfg) {
   }
 
   // Transport/POST configuration
-  aGTM.f.an(aGTM.c, "transport_url", cfg, ""); // Endpoint URL for direct POST transport (e.g. sGTM collect endpoint)
-  aGTM.f.an(aGTM.c, "transport_enc", cfg, false); // Default: obfuscate POST payload (Base64 + Caesar shift, NOT encryption)
-  aGTM.f.an(aGTM.c, "transport_salt", cfg, 0); // Default salt for POST payload obfuscation (integer >= 1)
+  opt("transport_url", ""); // Endpoint URL for direct POST transport (e.g. sGTM collect endpoint)
+  opt("transport_enc", false); // Default: obfuscate POST payload (Base64 + Caesar shift, NOT encryption)
+  opt("transport_salt", 0); // Default salt for POST payload obfuscation (integer >= 1)
 
   // Session configuration
-  aGTM.f.an(aGTM.c, "user_id", cfg, ""); // User identifier (logged-in CRM ID), exposed for integrators
-  aGTM.f.an(aGTM.c, "session_salt", cfg, 0); // Salt for consent-store POST obfuscation; also fallback for POST transport salt
-  aGTM.f.an(aGTM.c, "consent_store_url", cfg, ""); // POST endpoint for consent diffs (sGTM Client persists into Session API)
-  aGTM.f.an(aGTM.c, "consent_store_enc", cfg, false); // Obfuscate consent-store POST payload with session_salt. Keep false: no server-side decoder exists, the sGTM Client answers such a body with 501 and stores nothing.
-  aGTM.f.an(aGTM.c, "consent_poll_ms", cfg, 2000); // CMP state-change poll interval (ms) after init success; 0 disables polling. Only active when consent_store_url is set (otherwise nothing to push)
+  opt("user_id", ""); // User identifier (logged-in CRM ID), exposed for integrators
+  opt("session_salt", 0); // Salt for consent-store POST obfuscation; also fallback for POST transport salt
+  opt("consent_store_url", ""); // POST endpoint for consent diffs (sGTM Client persists into Session API)
+  opt("consent_store_enc", false); // Obfuscate consent-store POST payload with session_salt. Keep false: no server-side decoder exists, the sGTM Client answers such a body with 501 and stores nothing.
+  opt("consent_poll_ms", 2000); // CMP state-change poll interval (ms) after init success; 0 disables polling. Only active when consent_store_url is set (otherwise nothing to push)
   // If session data is pre-populated by the sGTM Client, store it directly.
   // Accept any object with sid, consent, attribution, or source.
   if (cfg.session && typeof cfg.session === 'object' && (cfg.session.sid || cfg.session.consent || cfg.session.attribution || cfg.session.source)) {
@@ -380,12 +386,12 @@ aGTM.f.config = function (cfg) {
   cfg.consent = cfg.consent || {}; // object with consent information that should be set by default (if no consent is given or not yet).
   aGTM.c.consent = aGTM.c.consent || cfg.consent; // object with consent information that should be set by default (if no consent is given or not yet).
   // Initialize the nested consent properties with default values or from cfg
-  aGTM.f.an(aGTM.c.consent, "hasResponse", cfg.consent, false); // true (or string) if consent was given, false if consent was not (yet) given (user hasn't interacted with the consent banner)
-  aGTM.f.an(aGTM.c.consent, "feedback", cfg.consent, ""); // contains a string with a CMP info about whether/how the consent was given
-  aGTM.f.an(aGTM.c.consent, "purposes", cfg.consent, ""); // contains a string with the acknowledged consent purposes
-  aGTM.f.an(aGTM.c.consent, "services", cfg.consent, ""); // contains a string with the acknowledged consent services
-  aGTM.f.an(aGTM.c.consent, "vendors", cfg.consent, ""); // contains a string with the acknowledged consent vendors
-  aGTM.f.an(aGTM.c.consent, "consent_id", cfg.consent, ""); // ID of the current CMP User to request consent info
+  opt("hasResponse", false, aGTM.c.consent, cfg.consent); // true (or string) if consent was given, false if consent was not (yet) given (user hasn't interacted with the consent banner)
+  opt("feedback", "", aGTM.c.consent, cfg.consent); // contains a string with a CMP info about whether/how the consent was given
+  opt("purposes", "", aGTM.c.consent, cfg.consent); // contains a string with the acknowledged consent purposes
+  opt("services", "", aGTM.c.consent, cfg.consent); // contains a string with the acknowledged consent services
+  opt("vendors", "", aGTM.c.consent, cfg.consent); // contains a string with the acknowledged consent vendors
+  opt("consent_id", "", aGTM.c.consent, cfg.consent); // ID of the current CMP User to request consent info
 
   // Initialise the dataLayer
   window[aGTM.c.gdl] = window[aGTM.c.gdl] || [];
@@ -667,7 +673,7 @@ aGTM.f.run_cc = function (action) {
     if (!aGTM.d.init) aGTM.f.inject();
     aGTM.f.sendnaus({
       event: "aGTM_consent_update",
-      aGTMts: new Date().getTime(),
+      aGTMts: Date.now(),
       aGTMconsent: aGTM.d.consent ? JSON.parse(aGTM.f.sStrf(aGTM.d.consent)) : {}
     });
   }
@@ -981,7 +987,7 @@ aGTM.f.aGTM_event = function (eventname) {
   if (!eventname) eventname = 'aGTM_event';
   var obj = {
     event: eventname,
-    aGTMts: new Date().getTime(),
+    aGTMts: Date.now(),
     aGTMconsent: aGTM.d.consent ? JSON.parse(aGTM.f.sStrf(aGTM.d.consent)) : {}
   };
   if (eventname == 'aGTM_ready')
@@ -1101,9 +1107,9 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
   // Push Start element in DL
   if (aGTM.d.gtmLoaded.length<1) {
     aGTM.f.sendnaus(aGTM.f.aGTM_event('aGTM_ready'));
-    if (i) aGTM.f.sendnaus({ event: "gtm.js", "gtm.start": new Date().getTime() });
-    if (aGTM.c.aPageview) aGTM.f.sendnaus({ event: "aPageview", aGTMts: new Date().getTime() });
-/* deprecated */    if (aGTM.c.vPageview) aGTM.f.sendnaus({ event: "vPageview", aGTMts: new Date().getTime() });
+    if (i) aGTM.f.sendnaus({ event: "gtm.js", "gtm.start": Date.now() });
+    if (aGTM.c.aPageview) aGTM.f.sendnaus({ event: "aPageview", aGTMts: Date.now() });
+/* deprecated */    if (aGTM.c.vPageview) aGTM.f.sendnaus({ event: "vPageview", aGTMts: Date.now() });
     if (aGTM.c.vPageviews) aGTM.f.urlListener ('vPageview', aGTM.c.vPageviewsTimer, aGTM.c.vPageviewsFallback);
   }
   // Fire aGTM Consent event
@@ -2051,7 +2057,7 @@ aGTM.f.jserrors = function () {
           errmsg: msg,
           browser: browser,
           errtype: "JS Error",
-          timestamp: new Date().getTime(),
+          timestamp: Date.now(),
           errct: aGTM.d.error_counter,
           eventModel: null
         }); // Push the error information to the GTM dataLayer
@@ -2096,7 +2102,7 @@ aGTM.f.timerfkt = function (obj) {
 aGTM.f.timer = function (nm, ft, ev, ms, rp) {
   if (!nm && typeof ev == "object" && ev && typeof ev.event == "string") nm = ev.event;
   nm = nm || "timer";
-  nm+= "_" + new Date().getTime().toString() + "_" + Math.floor(Math.random() * 999999 + 1).toString();
+  nm+= "_" + Date.now().toString() + "_" + Math.floor(Math.random() * 999999 + 1).toString();
   // Check if the timer already exists and stop/delete it if it does
   aGTM.f.stoptimer(nm);
   // Initialize the timer object
@@ -2596,7 +2602,7 @@ aGTM.f.sendnaus = function (o) {
           fct_hook: pushStr,
           fct_hook_src: aGTM.d.dlHookSrc || '',
           fct_orig: aGTM.d.originalDLpush.toString(),
-          timestamp: new Date().getTime(),
+          timestamp: Date.now(),
           eventModel: null
         });
         aGTM.d.dlHookLogged = true;
@@ -2644,7 +2650,7 @@ aGTM.f.fire = function (o) {
       event: "exception",
       errmsg: e.message,
       errtype: m,
-      timestamp: new Date().getTime(),
+      timestamp: Date.now(),
       errct: aGTM.d.error_counter || 1,
       eventModel: null
     };

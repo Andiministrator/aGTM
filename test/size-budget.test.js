@@ -21,7 +21,11 @@ import { gzipSync } from "zlib";
 // the hooking script (fct_hook_src — aGTM.f.dlHookTrap + aGTM.f.stackSrc, +818 B raw).
 // Size before it was 36_964 B, i.e. the old ceiling had 36 B left. Now: raw 38_036 B (incl. the
 // review hardening: early-hook baseline, no-throw setter, inline/blob/userinfo handling).
-const BUDGET_RAW = 38_500;
+// Lowered 2026-10-22 (raw 38_500 → 38_000, card #116): 38_334 / 11_575 → 37_411 / 11_487 without a
+// behaviour change — the library is minified without --keep-fnames (build.sh) and config() sets
+// its options through a local shorthand. gzip stays at 11_600: those ~110 B are the room the
+// pending fixes (F-254, F-255) need, which is why the shrink was done.
+const BUDGET_RAW = 38_000;
 const BUDGET_GZIP = 11_600;
 
 function sizes(path) {

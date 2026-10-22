@@ -12,6 +12,11 @@ set -e
 
 TERSER="bunx terser"
 TERSER_OPTS="--ecma 5 --keep-fnames --compress --mangle"
+# The library itself is built WITHOUT --keep-fnames. Its API functions are property assignments
+# (aGTM.f.x = function …): a minifier never renames a property, and such a function has no
+# inferred .name to keep. The flag only stopped local helpers (var dbg = function …) from being
+# shortened — ~330 B raw. Nothing in the library reads a function's .name (2026-10-22, card #116).
+TERSER_LIB_OPTS="--ecma 5 --compress --mangle"
 
 # ── Preflight checks ────────────────────────────────────────────────────────
 
@@ -45,7 +50,7 @@ fi
 # ── Minify aGTM.js ──────────────────────────────────────────────────────────
 
 echo "Building aGTM.min.js..."
-$TERSER aGTM.js $TERSER_OPTS --output aGTM.min.js
+$TERSER aGTM.js $TERSER_LIB_OPTS --output aGTM.min.js
 echo "  Done: aGTM.min.js ($(wc -c < aGTM.min.js) bytes)"
 
 # ── Minify CMP files ─────────────────────────────────────────────────────────

@@ -907,13 +907,16 @@ bun test
 
 | Source | Output | Notes |
 |---|---|---|
-| `aGTM.js` | `aGTM.min.js` | Minified (terser, ES5, keep_fnames) |
+| `aGTM.js` | `aGTM.min.js` | Minified (terser, ES5, local names shortened) |
 | `cmp/cc_<name>.js` | `cmp/cc_<name>.min.js` | Minified |
 | `aGTM.min.js` | `aGTM.base64` | Base64-encoded, embedded in sGTM client template |
 
-**Minification flags:** `--ecma 5 --keep-fnames --compress --mangle`
+**Minification flags:** `--ecma 5 --compress --mangle` for `aGTM.js`, plus `--keep-fnames` for `cmp/*.js`
 - `--ecma 5`: enforces ES5-compatible output
-- `--keep-fnames`: function names are preserved because aGTM references them by name internally
+- `--keep-fnames` is not used for the library (since v1.5): every API function is a property
+  (`aGTM.f.x = function …`) and is never renamed; without the flag the minifier may shorten
+  local helper names, which saves ~330 bytes. Nothing in aGTM reads a function's `.name`.
+- `AGTM_SRC=./aGTM.min.js bun test` runs the test suite against the minified build.
 
 ### The `aGTM.f.init()` call
 

@@ -172,6 +172,18 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Changed — `aGTM.min.js` is ~0.9 KB smaller, with no change in behaviour
+
+38,334 → 37,411 bytes (gzip level 9: 11,575 → 11,487). Two changes, both invisible at runtime:
+the library is minified without `--keep-fnames` — its API functions are properties
+(`aGTM.f.x = function …`) and keep their names regardless; only local helpers inside a function
+are now shortened — and `config()` sets its options through a local shorthand instead of
+spelling out `aGTM.f.an(aGTM.c, …, cfg, …)` thirty-nine times. `new Date().getTime()` became
+`Date.now()`. The CMP files are still built with `--keep-fnames` and are unchanged.
+The size budget in `test/size-budget.test.js` drops from 38,500 to 38,000 bytes raw; the gzip
+ceiling stays at 11,600 so the room goes to the next fixes. The test suite can now run against
+the shipped build: `AGTM_SRC=./aGTM.min.js bun test` (it passes in full).
+
 ### Changed — consent store: a final refusal is not retried
 
 Measured on one tenant after the F-236 update (Session API log): the healing of a cookie-bound
