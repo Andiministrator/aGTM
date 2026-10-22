@@ -1251,7 +1251,10 @@ const tryPromote = function(oldUid, newUid, consent, then) {
       // uses it to decide whether an F.* cookie may be cleaned up: retrying
       // forever would keep the fingerprint in the browser indefinitely, which
       // is precisely what the cleanup exists to end.
-      logToConsole('warn', '✗ Promote non-2xx — falling back to legacy F.* path', {status: res.statusCode, body: res.body});
+      // The body only under debug: its shape on errors is not specified and
+      // may carry the uid; the warn line runs in every environment.
+      logToConsole('warn', '✗ Promote non-2xx — falling back to legacy F.* path', {status: res.statusCode});
+      if (CFG.debug) logToConsole('debug', 'Promote response body', res.body);
       then('', res.statusCode >= 500);
     }
   }, function(e) {

@@ -215,7 +215,9 @@ feedback (and emits one `aGTM_consent_update`).
 Every `/aGTM.js` request logged `✓ aGTM Config built` with `uid`, `sid` and `ret` at `info`
 level — outside debug mode, and the template's `logging` permission covers all environments.
 Anyone with access to the server container's logs could read every visitor's ID. The line is
-now debug-only. Takes effect with the next Client import.
+now debug-only, and so is the response body of a failed user-ID promote (its error format is
+not specified and may carry the uid; the warn line keeps the status). Takes effect with the
+next Client import.
 
 ### Changed — `aGTM.min.js` is ~0.9 KB smaller, with no change in behaviour
 
