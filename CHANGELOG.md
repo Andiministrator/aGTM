@@ -70,6 +70,12 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   Expect consent rates and the GTM load ratio to move. Because the counter belongs to the
   fingerprint, a first-time visitor sharing it with someone who was there in the last 30
   minutes counts as returning too.
+- **sGTM Client: a container ID listed twice keeps its consent check.** Two rows of the
+  container table that resolve to the same ID used to collapse into the last one — if that
+  was the row without *Consent Check*, the container loaded before any decision. Now the
+  row with *Consent Check* wins as a whole row (its URL and URL parameters, nothing
+  merged); with the same setting the later row wins, as before. The `warn` line names the
+  dropped row (F-192).
 - **sGTM Client: the user-id cookie default is `_tpf`** (it was `_TPU` during v1.5
   development). A cookie written under the old name is read, carried over and retired, so
   nobody loses their id.

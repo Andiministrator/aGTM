@@ -331,21 +331,48 @@ describe('template: the Type columns refuse a duplicate row', () => {
   }
 });
 
-// Same defect class as F-173, one table further up, and the direction is again
-// fail-open: the surviving row may be the one WITHOUT a consent check.
-describe('container table: a duplicate container id is reported', () => {
-  test('two rows with the same id produce a warning', () => {
-    const r = runClient({
-      data: {
-        gtm: [
-          { gtm_id: 'GTM-TEST', gtm_consent: true, gtm_url: 'https://own.example/gtm.js' },
-          { gtm_id: 'GTM-TEST', gtm_consent: false }
-        ],
-        cookie_mode: 'always'
-      }
-    });
+// Same defect class as F-173, one table further up. It used to be fail-open:
+// the LAST row survived, and that could be the one WITHOUT a consent check.
+// F-192 (decided for v1.5): the stricter row wins as a whole row, nothing is
+// merged; same strictness -> the later row; the collision stays a warn line.
+describe('container table: a duplicate container id (F-192)', () => {
+  const GATED = { gtm_id: 'GTM-TEST', gtm_consent: true, gtm_url: 'https://own.example/gtm.js', gtm_use: 'gtm_auth=a1' };
+  const OPEN = { gtm_id: 'GTM-TEST', gtm_consent: false, gtm_url: 'https://other.example/gtm.js', gtm_use: 'gtm_auth=b2' };
+  const run = (rows) => runClient({ data: { gtm: rows, cookie_mode: 'always' } });
+
+  test('gated row first, open row second: the gated row wins, whole', () => {
+    const r = run([GATED, OPEN]);
     expect(r.throws).toBeNull();
+    expect(injectedConfig(r.body).gtm).toEqual({ 'GTM-TEST': { env: '&gtm_auth=a1', gtmURL: 'https://own.example/gtm.js' } });
+    expect(r.logs.some((l) => l.indexOf('GTM container listed more than once') >= 0 && l.indexOf('later row') >= 0)).toBe(true);
+  });
+
+  test('open row first, gated row second: the gated row wins, whole', () => {
+    const r = run([OPEN, GATED]);
+    expect(injectedConfig(r.body).gtm).toEqual({ 'GTM-TEST': { env: '&gtm_auth=a1', gtmURL: 'https://own.example/gtm.js' } });
+    expect(r.logs.some((l) => l.indexOf('GTM container listed more than once') >= 0 && l.indexOf('earlier row') >= 0)).toBe(true);
+  });
+
+  test('nothing of the losing row is merged in, even where the winner left a field empty', () => {
+    const bare = { gtm_id: 'GTM-TEST', gtm_consent: true };
+    const r = run([OPEN, bare]);
+    expect(injectedConfig(r.body).gtm).toEqual({ 'GTM-TEST': {} });
+  });
+
+  test('same strictness: the later row wins, as before', () => {
+    const gated2 = { gtm_id: 'GTM-TEST', gtm_consent: true, gtm_url: 'https://later.example/gtm.js' };
+    const r = run([GATED, gated2]);
+    expect(injectedConfig(r.body).gtm).toEqual({ 'GTM-TEST': { gtmURL: 'https://later.example/gtm.js' } });
     expect(r.logs.some((l) => l.indexOf('GTM container listed more than once') >= 0)).toBe(true);
+    const r2 = run([OPEN, { gtm_id: 'GTM-TEST', gtm_consent: false }]);
+    expect(injectedConfig(r2.body).gtm).toEqual({ 'GTM-TEST': { noConsent: true } });
+  });
+
+  test('a different container in between is untouched', () => {
+    const r = run([GATED, { gtm_id: 'GTM-OTHER', gtm_consent: false }, OPEN]);
+    const gtm = injectedConfig(r.body).gtm;
+    expect(gtm['GTM-OTHER']).toEqual({ noConsent: true });
+    expect(gtm['GTM-TEST'].noConsent).toBeUndefined();
   });
 
   test('a single container produces no such warning', () => {

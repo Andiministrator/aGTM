@@ -1330,21 +1330,22 @@ const buildAndSend = function(sessionData) {
     for (const v of data.gtm) {
       if (v.gtm_id && (!gtmIdMatch || v.gtm_id === qp_id)) {
         // Same shape as F-173 one table further down, and the same fail-open
-        // direction: two rows carrying the same container id collapse into one,
-        // the earlier row's settings vanish, and the UI keeps showing both. If
-        // the surviving row is the one WITHOUT a consent check, the container
-        // loads before any decision — a row the operator wrote to gate it is
-        // simply gone. The id column has `isUnique`, but it also accepts a
+        // direction: two rows carrying the same container id used to collapse
+        // into the LAST one, the earlier row's settings vanished, and the UI
+        // kept showing both. If the surviving row was the one WITHOUT a consent
+        // check, the container loaded before any decision — a row the operator
+        // wrote to gate it was simply gone. The id column has `isUnique`, but it also accepts a
         // variable (its own help text teaches deriving it from `?id=`), so the
         // UI cannot see a collision that only happens at request time.
         //
-        // Only reported, not repaired: which row should win is a product
-        // decision (the stricter one? the first? merged?), and unlike the
-        // consent table there is no obviously correct merge for two differing
-        // container settings. Reporting it costs nothing and ends the silence.
-        if (gtm[v.gtm_id]) logToConsole('warn', '✗ GTM container listed more than once - only the LAST row applies, the earlier one is dropped (incl. its consent setting and URL):', v.gtm_id);
-        gtm[v.gtm_id] = {};
-        if (!v.gtm_consent) gtm[v.gtm_id].noConsent = true;
+        // Decided for v1.5 (F-192): the STRICTER row wins — the one with a
+        // consent check — and it wins as a whole row: its URL and its URL
+        // parameters apply, nothing of the other row is merged in. Merging
+        // would build a container setting nobody wrote. Between two rows of the
+        // same strictness the later one wins, as it always did. The dropped row
+        // stays visible as a warn line, because the UI keeps showing both.
+        const row = {};
+        if (!v.gtm_consent) row.noConsent = true;
         // The column accepts a VARIABLE (macrosInSelect), so this value is not
         // limited to the three listed options — it is whatever the variable
         // resolved to at request time. Anything else IS the parameter string:
@@ -1386,8 +1387,12 @@ const buildAndSend = function(sessionData) {
           else if (claimsOwnParam(cand)) logToConsole('warn', '✗ URL Parameters must not set id, c or l - ignored', mode);
           else envStr = cand;
         }
-        if (envStr) gtm[v.gtm_id].env = envStr;
-        if (v.gtm_url) gtm[v.gtm_id].gtmURL = v.gtm_url;
+        if (envStr) row.env = envStr;
+        if (v.gtm_url) row.gtmURL = v.gtm_url;
+        const prevRow = gtm[v.gtm_id];
+        const keepPrevRow = !!prevRow && !prevRow.noConsent && !!row.noConsent;
+        if (prevRow) logToConsole('warn', '✗ GTM container listed more than once - the row with a consent check wins as a whole (its URL and parameters), nothing is merged; same strictness: the later row wins. Dropped:', v.gtm_id, keepPrevRow ? 'later row' : 'earlier row');
+        if (!keepPrevRow) gtm[v.gtm_id] = row;
       }
     }
     c.gtm = gtm;

@@ -182,6 +182,15 @@ You need to configurate one or more clientside GTM Containers. There are 5 colum
 - **Comment**
   Free text. Only for you — e.g. to tell several containers apart.
 
+**One row per container.** If two rows end up with the same container ID — typically
+because the ID column is a variable and two rows resolve to the same value at request
+time — the row **with** *Consent Check* wins, and it wins as a whole: its *URL Parameters*
+and *Container URL* apply, nothing of the other row is merged in. Between two rows with the
+same *Consent Check* setting the later one wins. Either way the server console gets a `warn`
+line `✗ GTM container listed more than once …` naming the ID and which row was dropped.
+Up to v1.5 development the last row always won, so a row without *Consent Check* could
+silently replace the one that gated the container.
+
 ### Consent Check
 
 Here you need to specify which Consent Tool you use and under what conditions the GTM should fire.
