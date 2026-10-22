@@ -113,8 +113,8 @@ const log = require('logToConsole');
 
 /**
  * Build ND aGTM shadow object
- * @version 1.1
- * @lastupdate 13.07.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.2
+ * @lastupdate 22.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {object} o
  * @param {object} c - config
@@ -261,7 +261,8 @@ if (o.d.viewport_relation>o.d.viewport_start) {
     // correctly, but its listeners run unthrottled and non-passive. That is
     // invisible, so say it once (F-227).
     if (typeof copyFromWindow('aGTM.f.throttle') == 'undefined') {
-      log('warn', 'aGTM Scroll Events: aGTM library older than v1.5 - scroll/resize listeners run unthrottled and non-passive. Update the aGTM library.');
+      // logToConsole has no log level in the web sandbox: one plain line.
+      log('aGTM Scroll Events - warning: aGTM library older than v1.5 - scroll/resize listeners run unthrottled and non-passive. Update the aGTM library.');
     }
     // CWV: passive listeners never block scrolling (better INP/no scroll jank);
     // the throttle bounds how often the handlers' layout reads (getSizes:
@@ -663,7 +664,7 @@ scenarios:
     });
     mock('copyFromWindow', function(key) { if (key === 'aGTM.f.throttle') return undefined; return false; });
     mock('setInWindow', function() {});
-    mock('logToConsole', function(level, msg) { warnings.push(level + ' ' + msg); });
+    mock('logToConsole', function(msg) { warnings.push(msg); });
     runCode({ eventname: 'scroll', steps: '25', addparameter: [], noscrollevent: false, isscrollevent: false, ua_event: false });
     assertThat(evLstnCalls).isEqualTo(2);
     assertThat(warnings.length).isEqualTo(1);
@@ -681,7 +682,7 @@ scenarios:
     });
     mock('copyFromWindow', function(key) { if (key === 'aGTM.f.throttle') return function() {}; return false; });
     mock('setInWindow', function() {});
-    mock('logToConsole', function(level, msg) { warnings.push(msg); });
+    mock('logToConsole', function(msg) { warnings.push(msg); });
     runCode({ eventname: 'scroll', steps: '25', addparameter: [], noscrollevent: false, isscrollevent: false, ua_event: false });
     assertThat(warnings.length).isEqualTo(0);
 setup: ''
@@ -705,7 +706,9 @@ Requires an aGTM integration of the GTM (library v1.5+).
 
 - Version guard (F-227): on an aGTM library older than v1.5 the tag still
   measures, but `aGTM.f.evLstn` there ignores the passive/throttle options. The
-  tag now says so once in the console (`warn`). For that it reads
+  tag now writes one line to the console ("aGTM Scroll Events - warning: …";
+  `logToConsole` has no log level, so filtering the console to "Warnings"
+  hides it). For that it reads
   `aGTM.f.throttle` (new `access_globals` read entry) and needs the `logging`
   permission again (environment "all", so the warning shows where an old
   library actually runs; 1.1 had dropped it as unused).

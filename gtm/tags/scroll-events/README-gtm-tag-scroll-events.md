@@ -138,8 +138,9 @@ To view debug messages in the browser console, ensure that your aGTM integration
 - This template requires JavaScript access to the `aGTM` object. Make sure it is accessible in the current page context.
 - Requires the aGTM library **v1.5+** (uses the passive/throttle `aGTM.f.evLstn`
   options). On an older library the tag still measures, but the listeners run
-  unthrottled and non-passive; since 1.2 it says so once with a console `warn`
-  ("aGTM library older than v1.5"). The template therefore needs the `logging`
+  unthrottled and non-passive; since 1.2 it says so once with a console line
+  ("aGTM Scroll Events - warning: aGTM library older than v1.5" — a plain log
+  line, not a console warning, so a "Warnings" filter hides it). The template therefore needs the `logging`
   permission and read access to `aGTM.f.throttle`.
 - **Run only one scroll-tracking tag per page.** The listeners are registered
   once per page via a shared guard; a second scroll tag would not register its

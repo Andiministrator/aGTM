@@ -176,7 +176,8 @@ record. If you only want to know what to touch, the points above are it.
 
 On an older library the tag still measures, but `aGTM.f.evLstn` there ignores the
 passive/throttle options, so the scroll and resize listeners run unthrottled — silently.
-The tag now writes one console `warn` in that case (F-227). It needs read access to
+The tag now writes one console line in that case (F-227) — a plain log line, since
+`logToConsole` has no level; a console filtered to "Warnings" does not show it. It needs read access to
 `aGTM.f.throttle` and the `logging` permission for that; GTM shows the permission change
 when the template is updated.
 
@@ -186,20 +187,35 @@ when the template is updated.
 returning early on exactly that case, so `Consent declined` was unreachable and a visitor
 who granted nothing got `Consent partially accepted` (F-199). Only `aGTM.d.consent.feedback`
 changes; which purposes count is untouched. Because `feedback` is part of the consent
-hash, a stored "declined" state is re-POSTed once to the consent store.
+hash, a decline stored as "partially accepted" is re-POSTed once with the corrected
+feedback (and emits one `aGTM_consent_update`).
 
 ### Fixed — a CMP adapter that throws, or one that is not there yet
 
-- **`consent_check` throws** (F-254): `run_cc` now catches it, logs `e_consent_check` and
-  treats it as "no decision" — the consent snapshot is restored instead of being left in its
-  reset state. Before, the exception escaped; on the synchronous call from `config()` (the
-  sGTM Client's auto-denial preset asks the CMP there) it aborted the page snippet before
-  `init()`, so no listener and no `noConsent` container started.
+- **`consent_check` throws** (F-254): `run_cc` now catches it and treats it as "no
+  decision" on every path — whatever the adapter wrote before throwing is undone, including
+  a half-written `hasResponse` on a plain `init`. `e_consent_check` is logged once per page.
+  Before, the exception escaped; on the synchronous call from `config()` (the sGTM Client's
+  auto-denial preset asks the CMP there) it aborted the page snippet before `init()`, so no
+  listener and no `noConsent` container started. Two consequences to know: a throwing adapter
+  no longer reaches `window.onerror`, so the `jsErrors` capture does not report it — look for
+  `e_consent_check` in `aGTM.l`; and **with the auto-denial preset, an adapter that keeps
+  throwing now lets the auto-denial stand after the 5 attempts (~1.5 s)**, exactly like an
+  adapter that reports no decision — GTM loads if the Client's `autoDenyLoadGtm` is on.
+  Before, the aborted snippet meant GTM never loaded on such a page.
 - **No `consent_check` yet, auto-denial preset delivered** (F-255): `gtmConsent` was left at
   the preset's value, so `fire()` let events and their `_post` through although nobody had
   decided. It is now held at `false` until an adapter answers; the 5-attempt window starts
-  only once there is an adapter. Affects a Client without "Used CMP" whose page defines
-  `consent_check` later, and standalone setups while `load_cc` is still loading.
+  only once there is an adapter. Affects Client-served pages whose adapter arrives late (no
+  "Used CMP" selected and `consent_check` defined by the page later); the preset itself only
+  ever comes from the Client.
+
+### Changed — sGTM Client: the visitor's uid is no longer written to the server log
+
+Every `/aGTM.js` request logged `✓ aGTM Config built` with `uid`, `sid` and `ret` at `info`
+level — outside debug mode, and the template's `logging` permission covers all environments.
+Anyone with access to the server container's logs could read every visitor's ID. The line is
+now debug-only. Takes effect with the next Client import.
 
 ### Changed — `aGTM.min.js` is ~0.9 KB smaller, with no change in behaviour
 
@@ -207,7 +223,7 @@ hash, a stored "declined" state is re-POSTed once to the consent store.
 the library is minified without `--keep-fnames` — its API functions are properties
 (`aGTM.f.x = function …`) and keep their names regardless; only local helpers inside a function
 are now shortened — and `config()` sets its options through a local shorthand instead of
-spelling out `aGTM.f.an(aGTM.c, …, cfg, …)` thirty-nine times. `new Date().getTime()` became
+spelling out `aGTM.f.an(…)` for each of its thirty-nine options. `new Date().getTime()` became
 `Date.now()`. The CMP files are still built with `--keep-fnames` and are unchanged.
 The size budget in `test/size-budget.test.js` drops from 38,500 to 38,000 bytes raw; the gzip
 ceiling stays at 11,600 so the room goes to the next fixes. The test suite can now run against

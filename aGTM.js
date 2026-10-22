@@ -255,7 +255,7 @@ aGTM.f.config = function (cfg) {
   }
   // Assigning user-defined configurations or default values
   // Shorthand for aGTM.f.an(aGTM.c, key, cfg, default), or (target, source) when both are given.
-  // Local on purpose: the minifier shortens its name, a property path it cannot (~0.5 KB).
+  // Local on purpose: the minifier shortens its name, a property path it cannot (~0.6 KB).
   var opt = function (key, def, target, source) {
     if (target) aGTM.f.an(target, key, source, def);
     else aGTM.f.an(aGTM.c, key, cfg, def);
@@ -609,12 +609,18 @@ aGTM.f.run_cc = function (action) {
     c.consent_id = ""; c.serviceIDs = ""; c.feedback = "";
     delete c.blocked;
   }
-  // Perform the consent check. An adapter that throws counts as "no decision":
-  // the reset above is undone below instead of being left behind, and on the
-  // synchronous call from config() the exception no longer aborts the caller's
-  // snippet before init() (F-254).
-  var consentCheck = false;
-  try { consentCheck = aGTM.f.consent_check(action); } catch (e) { aGTM.f.log("e_consent_check", { action: action, msg: e && e.message }); }
+  // Perform the consent check. An adapter that throws counts as "no decision"
+  // on every path: whatever it wrote before throwing is undone (on 'init'
+  // without the sentinel there is no reset, so a copy is taken here — else a
+  // half-written hasResponse would pass the next init short-circuit), and on
+  // the synchronous call from config() the exception no longer aborts the
+  // caller's snippet before init() (F-254). Logged once per page: the update
+  // poll would otherwise add an entry every tick for a broken adapter.
+  var consentCheck = false, before = consentSnapshot || (aGTM.d.consent && JSON.parse(aGTM.f.sStrf(aGTM.d.consent)));
+  try { consentCheck = aGTM.f.consent_check(action); } catch (e) {
+    aGTM.d.consent = before || aGTM.d.consent;
+    if (!aGTM.d.ccErrLogged) { aGTM.d.ccErrLogged = true; aGTM.f.log("e_consent_check", { action: action, msg: e && e.message }); }
+  }
   if (!consentCheck) {
     if (consentSnapshot) aGTM.d.consent = consentSnapshot; // restore preset
     if (!sentinel || ++aGTM.d.adWait < 5) {

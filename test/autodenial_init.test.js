@@ -235,3 +235,37 @@ test('no consent_check and no sentinel: a stored decision is left as it is', () 
     session: { uid: 'C.1.t.1.2', sid: 's-1', consent: { hasResponse: true, services: ',svcA,', purposes: '', vendors: '', gtmConsent: true } } });
   expect(aGTM.d.consent.gtmConsent).toBe(true);
 });
+
+// Critic round 2026-10-22 (K2): on 'init' without the sentinel there is no
+// reset snapshot. An adapter that writes hasResponse and THEN throws must not
+// leave that half-written state behind - the next init would take the
+// short-circuit and report a decision nobody made.
+test('a throw after a partial write on a plain init leaves no decision behind', () => {
+  aGTM.f.consent_check = function () {
+    aGTM.d.consent.hasResponse = true;
+    aGTM.d.consent.services = ',svcA,';
+    throw new Error('late failure');
+  };
+  resetAGTM({ gtmServices: 'svcA', gtm: { 'GTM-MAIN': {} } });
+  expect(aGTM.f.run_cc('init')).toBe(false);
+  expect(aGTM.d.consent.hasResponse).toBe(false);
+  expect(aGTM.d.consent.services).toBe('');
+  expect(aGTM.f.call_cc()).toBe(false);
+  expect(loads).toEqual([]);
+});
+
+// K8: a persistently throwing adapter on the update poll is logged once per
+// page, not once per tick.
+test('e_consent_check is logged once per page', () => {
+  let n = 0;
+  aGTM.f.consent_check = function (action) {
+    if (n++ > 0) throw new Error('CMP gone');
+    if (action == 'init' && aGTM.d.consent.hasResponse) return true;
+    aGTM.d.consent.hasResponse = true; aGTM.d.consent.services = ',svcA,'; return true;
+  };
+  resetAGTM({ gtmServices: 'svcA', gtm: { 'GTM-MAIN': {} } });
+  aGTM.f.run_cc('init');
+  for (let i = 0; i < 5; i++) aGTM.f.run_cc('update');
+  expect(aGTM.l.filter((x) => x.id === 'e_consent_check').length).toBe(1);
+  expect(aGTM.d.consent.services).toBe(',svcA,');
+});

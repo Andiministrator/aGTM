@@ -142,7 +142,7 @@ With this integration variant you get out a Javascript code, which conatins all 
    ```
    _Notice:_ If you want to insert the code into a HTML template, don't forget to add `<script>` before and `</script>` after the code.
    You can also use the code in a GTM container (as Custom HTML Code).
-   We recommend to minify the code (e.g. with https://minify-js.com/). Keep care that you don't minify the function names (option "keep_fnames" for minify-js.com).
+   We recommend to minify the code (e.g. with https://minify-js.com/). This concerns your own integration snippet only — the shipped `aGTM.min.js` is already minified, and nothing in aGTM depends on function names.
 
 6. _optional_ **Send events**
    Pleas use our GTM templates (find it in the folder "gtm") for a lot of auto-events.
