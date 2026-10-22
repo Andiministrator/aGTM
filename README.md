@@ -609,7 +609,7 @@ The `"synced"` and `"preset_with_consent"` values are good metrics to watch in p
 
 ### Server-side auto-denial (sGTM Client)
 
-When the sGTM Client serves the library and the Session API has no recorded consent for a returning visitor (`counter > 0`), the Client constructs a denial-consent block server-side and embeds it in `cfg.session.consent`:
+When the sGTM Client serves the library and the Session API has no recorded consent for a returning visitor (`counter > 0`), the Client constructs a denial-consent block server-side and embeds it in `cfg.session.consent` — only while the consent store is on (*Enable Consent Store route*); with it off nothing can ever be on file, so there is no auto-denial and the CMP decides:
 
 | Field | Value |
 |---|---|
@@ -620,6 +620,8 @@ When the sGTM Client serves the library and the Session API has no recorded cons
 | `blocked` | mirrors `gtmConsent` (recognised by the `run_cc` chelp fallback) |
 
 GTM tags configured to require the `aGTMconsent` service will fire, and so will every tag without a consent condition; tags requiring any other consent signal will not. A visitor without a user-id cookie gets the auto-denial only when **nothing** is on file — a stored decision under the shared fingerprint means no preset at all, and the CMP decides.
+
+If the CMP already holds a decision when the page loads, the preset masks it at init (`consent_check('init')` returns early on `hasResponse`) until the first poll tick at which the CMP answers. Without a running poll — no `consent_store_url`, `useListener: true` or `consent_poll_ms: 0` — that lasts until a matching `consent_events` event or your own `aGTM.f.run_cc('update')`; a manual `aGTM.f.call_cc()` does not lift it.
 
 If the user later makes an explicit decision in the CMP banner, the periodic CMP poll (`consent_poll_ms`, runs only when `consent_store_url` is set; otherwise only a matching `consent_events` event or your own `aGTM.f.run_cc('update')` reads the CMP) catches it within a couple of seconds, the diff is detected and POSTed to `consent_store_url`, and `aGTM.d.session_status` advances to `"synced"`. The auto-denial values are wiped by the B2-reset in `run_cc('update')` so the user choice always wins.
 
@@ -653,7 +655,7 @@ be requested explicitly.
 | **Consent check switched off** | No CMP is consulted at all. aGTM records `hasResponse: true` with the feedback *“No Consent Check configured”* and injects GTM right away. | `cmp: 'none'` |
 | **No consent conditions configured** | **Changed in v1.5: this is now fail-closed** — with no requirement configured, GTM is not loaded at all. Up to v1.4 the check had nothing to require, was satisfied by anything including a rejection, and GTM loaded after “reject all”. To deliberately run without a gate, say so explicitly. | `gtmPurposes` / `gtmServices` / `gtmVendors`, resp. the *Consent Check Conditions* table of the sGTM Client (**ships empty**). Opt-out: `allowEmptyConsentConditions: true` |
 | **`noConsent` containers** | Containers marked `noConsent: true` are injected at startup, before any decision. Intended for loading a CMP or consent-free diagnostics. | `gtm` container table, column *Consent Check* |
-| **Server-side auto-denial** | The sGTM Client records “no consent” for a returning visitor without a stored decision, and — with `auto_deny_load_gtm` (default **on**) — still loads GTM: tags gated on `aGTMconsent` and tags without a consent condition fire, nothing that requires a CMP consent. | sGTM Client, *auto_deny_load_gtm* |
+| **Server-side auto-denial** | The sGTM Client records “no consent” for a returning visitor without a stored decision (only with the consent store on), and — with `auto_deny_load_gtm` (default **on**) — still loads GTM: tags gated on `aGTMconsent` and tags without a consent condition fire, nothing that requires a CMP consent. | sGTM Client, *auto_deny_load_gtm* |
 | **iFrame mode** | Inside an iframe, aGTM grants consent itself and skips the CMP check — the decision is expected to have been made in the parent document, which runs its own check, and events are forwarded there via `postMessage`. Note that this **also injects whatever GTM container is configured for the iframe instance**; if the iframe should only forward events to the parent, configure no container for it. From v1.5 the receiving "aGTM iFrame Support" tag in the parent **must** have the iframe's hostname in its allow-list, and it strips aGTM's control flags out of the message — see that tag's README before relying on `_noConsent` from an iframe. | `iframeSupport` |
 
 One more, not an option but a misconfiguration worth knowing: if you enable **Custom CMP Check**

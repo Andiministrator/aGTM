@@ -1,8 +1,8 @@
-# aGTM Configurator v2.2.0
+# aGTM Configurator v2.2.1
 
 > Visual configurator for the [aGTM library](https://github.com/Andiministrator/aGTM) – GDPR-compliant Google Tag Manager loading with consent management.
 >
-> Developed by **InBiz Online Marketing GmbH & Co. KG** · [sea-suite.de](https://www.sea-suite.de). Version 2.2.0 adds the aGTM v1.5 options (aGTM project).
+> Developed by **InBiz Online Marketing GmbH & Co. KG** · [sea-suite.de](https://www.sea-suite.de). Version 2.2.0 adds the aGTM v1.5 options, 2.2.1 the `jsErrors` switch (aGTM project).
 
 ---
 
@@ -40,7 +40,7 @@ Version 2.1.3 is based on the **SEA Suite dark theme** (InBiz branding):
 | 3. CMP | Pick the consent management platform (26 adapters, plus Custom and No CMP) |
 | 4. GTM | Container IDs and optionally STAPE.io server-side |
 | 5. Consent | Configure the consent logic (services/purposes/vendors) |
-| 6. Features | Enable aGTM options; advanced mode adds the v1.5 consent store (`consent_store_url`, `consent_poll_ms`, `session_salt`, `user_id`, `consent_store_enc`), POST transport (`transport_url`/`_enc`/`_salt`) and `allowEmptyConsentConditions` |
+| 6. Features | Enable aGTM options (incl. `jsErrors`, on by default); advanced mode adds the v1.5 consent store (`consent_store_url`, `consent_poll_ms`, `session_salt`, `user_id`, `consent_store_enc`), POST transport (`transport_url`/`_enc`/`_salt`) and `allowEmptyConsentConditions` |
 | 7. Callbacks | Custom JavaScript callbacks (advanced mode only) |
 | 8. Export | Generate, copy and download the code |
 
@@ -92,7 +92,7 @@ The list mirrors the adapters in [`cmp/`](../cmp/): each entry loads `cmp/cc_<ke
 
 ```
 index.html                      # Main application (single file, logo included)
-CHANGELOG-v2_1_3.md             # Version history (file name kept from 2.1.3, covers 2.2.0)
+CHANGELOG-v2_1_3.md             # Version history (file name kept from 2.1.3, covers 2.2.x)
 README-v2_1_3.md                # This file
 ```
 
@@ -128,7 +128,7 @@ The entire application including the aGTM logo (Base64) lives in a single `.html
 // aGTM Configuration
 // Generated: 2026-04-08
 // Customer: [customer name]
-// Generator: aGTM Configurator v2.2.0
+// Generator: aGTM Configurator v2.2.1
 // ==================================================
 
 // ========== aGTM Library ==========
