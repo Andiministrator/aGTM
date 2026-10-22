@@ -647,7 +647,7 @@ scenarios:
     scrollHandler();
     assertThat(fired).isDefined();
     assertThat(fired.foo).isEqualTo('bar');
-- name: A library older than v1.5 is reported once and still measured
+- name: An old library without the throttle helper is reported once and still measured
   code: |-
     // F-227: without aGTM.f.throttle (library < 1.5) the listeners are still
     // registered - the tag measures correctly - but one warning says why they

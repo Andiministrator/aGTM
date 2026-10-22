@@ -17,6 +17,11 @@
 // exactly what is evidenced and does not invent a stricter charset — an
 // over-broad rule here would just be noise on names nobody can import-test.
 //
+// Second proven character (2026-10-22): the full stop. The Scroll Events 1.2
+// scenario "A library older than v1.5 is reported once and still measured" was
+// refused with: The name contains invalid character: ".". Same pattern - no local
+// check saw it, the import into the live container did.
+//
 // It covers untracked templates too (see allTemplates below) — the file that
 // caused this was one of them.
 import { describe, test, expect } from 'bun:test';
@@ -64,8 +69,8 @@ describe('GTM template test-scenario names are importable', () => {
     const names = scenarioNames(file);
     if (!names.length) continue;
 
-    test(`${file}: no scenario name contains a double quote`, () => {
-      const offenders = names.filter((n) => n.includes('"'));
+    test(`${file}: no scenario name contains a double quote or a full stop`, () => {
+      const offenders = names.filter((n) => n.includes('"') || n.includes('.'));
       expect(offenders).toEqual([]);
     });
 
