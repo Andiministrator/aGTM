@@ -187,3 +187,75 @@ describe("aGTM.f.run_cc('update') — sendnaus + callback gating on hash change"
     expect(updates.length).toBe(3);
   });
 });
+
+// F-249: a failed fingerprint consent write can make the NEXT page a returning
+// visitor with nothing on file, and the sGTM Client then delivers its
+// auto-denial preset. consent_check('init') short-circuits on hasResponse, so
+// a grant the CMP already holds is masked at init. What bounds that: the
+// consent poll. This pins the chain the bound rests on — the preset path
+// starts the poll, and the first tick replaces the sentinel with the CMP's
+// decision and stores it under the session uid.
+describe('auto-denial preset over a CMP grant — lasts until the first poll tick (F-249)', () => {
+  const STORE = 'https://store.example.com/consent';
+  const FP_UID = 'F$1$t$abc.20261022';
+
+  beforeEach(() => {
+    MockXHR.install();
+    globalThis.dataLayer = [];
+  });
+  afterEach(() => {
+    MockXHR.reset();
+    if (aGTM.d && aGTM.d.timer && aGTM.d.timer.consent_poll) {
+      clearInterval(aGTM.d.timer.consent_poll);
+      delete aGTM.d.timer.consent_poll;
+    }
+    delete aGTM.f.consent_check;
+  });
+
+  test('init keeps the sentinel, the poll starts, the first tick restores and stores the grant', () => {
+    // A CMP that holds a grant, with the short-circuit every adapter has.
+    aGTM.f.consent_check = function (action) {
+      if (action == 'init' && aGTM.d.consent.hasResponse) return true;
+      aGTM.d.consent.hasResponse = true;
+      aGTM.d.consent.services = ',svcA,';
+      return true;
+    };
+    resetAGTM({
+      consent_store_url: STORE,
+      gtmServices: 'svcA',
+      session: {
+        uid: FP_UID,
+        sid: 's-1',
+        consent: {
+          hasResponse: true,
+          feedback: 'Consent denied by aGTM',
+          services: ',aGTMconsent,',
+          purposes: '',
+          vendors: '',
+          gtmConsent: true,
+          blocked: true
+        }
+      }
+    });
+    // Masked: the sentinel stands, nothing was POSTed (the preset hash matches).
+    expect(aGTM.d.consent.services).toBe(',aGTMconsent,');
+    expect(MockXHR.instances.filter((x) => x.url === STORE).length).toBe(0);
+
+    // The init path that follows config() starts the poll.
+    aGTM.f.consent_listener();
+    expect(aGTM.d.timer.consent_poll).toBeDefined();
+
+    // One tick.
+    aGTM.f.run_cc('update');
+    expect(aGTM.d.consent.services).toBe(',svcA,');
+    expect(aGTM.d.consent.blocked).toBeUndefined();
+    expect(aGTM.d.consent.gtmConsent).toBe(true);
+    const posts = MockXHR.instances.filter((x) => x.url === STORE);
+    expect(posts.length).toBe(1);
+    const body = JSON.parse(posts[0]._body);
+    const inner = body.e || body;
+    expect(inner.uid).toBe(FP_UID);
+    expect(inner.consent.services).toBe(',svcA,');
+    expect(globalThis.dataLayer.some((e) => e && e.event === 'aGTM_consent_update')).toBe(true);
+  });
+});
