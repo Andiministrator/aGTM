@@ -53,7 +53,8 @@ aGTM.f.consent_check = function (action) {
   // "still waiting", and the adapter returns false so aGTM keeps polling. On
   // 'init' it only decides until something has set hasResponse — the short-circuit
   // at the top of this function still wins, which is deliberate (the sGTM Client's
-  // preset_with_consent path hands in a stored earlier decision on purpose).
+  // preset_with_consent path hands in a stored earlier decision on purpose; its
+  // auto-denial sentinel is reset by run_cc before this runs, F-249).
   //
   // WHAT IT ACTUALLY MEANS, read out of the shipped SDK rather than assumed:
   // `isAlertBoxClosedAndValid = alertBoxCloseDate() !== null && !reconsentRequired()`,

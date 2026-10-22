@@ -311,7 +311,7 @@ to distinguish a fresh visitor from a returning one with cached consent.
 | `"preset"` | `cfg.session` accepted but no usable consent block — the CMP path runs normally. |
 | `"preset_with_consent"` | `cfg.session.consent` was valid and seeded; **synchronous** `call_cc()` fired → GTM injected on this tick. |
 | `"synced"` | A CMP decision differed from the preset, was POSTed to `consent_store_url`, server returned 2xx. |
-| `"confirmed"` | The CMP decision **matched** the preset — no POST needed. |
+| `"confirmed"` | The CMP decision **matched** the preset — no POST needed. Also set when the server-side auto-denial stood because the CMP gave no decision (`services: ",aGTMconsent,"`) — check that before treating it as consent. |
 
 ### Preset consent (returning visitors)
 

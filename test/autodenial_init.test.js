@@ -87,3 +87,62 @@ test('a real stored decision (no sentinel) keeps the init short-circuit', () => 
   expect(aGTM.d.consent.services).toBe(',svcA,');
   expect(loads).toEqual(['GTM-MAIN']);
 });
+
+// Critic round 2026-10-22: the real 500 ms ticks must ask the CMP too, an
+// update in the window must not use up the init budget, the standing
+// auto-denial is never POSTed, and nothing passes fire()'s gate while waiting.
+test('CMP decides on a 500 ms init tick (attempt 3): its decision wins', () => {
+  let decided = false;
+  aGTM.f.consent_check = function (action) {
+    if (action == 'init' && aGTM.d.consent.hasResponse) return true;
+    if (!decided) return false;
+    aGTM.d.consent.hasResponse = true;
+    aGTM.d.consent.services = ',other,';
+    return true;
+  };
+  resetAGTM({
+    consent_store_url: STORE,
+    gtmServices: 'svcA',
+    gtm: { 'GTM-MAIN': {} },
+    session: { uid: 'F$1$t$abc.20261022', sid: 's-1', consent: Object.assign({}, DENIAL) }
+  });
+  const timers = [];
+  const origSet = globalThis.setInterval;
+  const origClear = globalThis.clearInterval;
+  globalThis.setInterval = function (fn, ms) { timers.push({ fn: fn, ms: ms }); return timers.length; };
+  globalThis.clearInterval = function () {};
+  try {
+    aGTM.f.consent_listener();           // attempt 2
+    const tick = timers.find((t) => t.ms === 500);
+    expect(tick).toBeDefined();
+    decided = true;
+    tick.fn();                           // attempt 3: the CMP answers (denial)
+  } finally {
+    globalThis.setInterval = origSet;
+    globalThis.clearInterval = origClear;
+  }
+  expect(aGTM.d.consent.services).toBe(',other,');
+  expect(aGTM.d.consent.gtmConsent).toBe(false);
+  expect(loads).toEqual([]);
+});
+
+test('an update in the waiting window does not use up the init attempts', () => {
+  start(null);
+  aGTM.f.run_cc('update');
+  aGTM.f.run_cc('update');
+  aGTM.f.run_cc('update');
+  aGTM.f.run_cc('update');
+  expect(aGTM.d.adWait).toBe(1);        // only config()'s sync attempt
+  expect(aGTM.f.call_cc()).toBe(false);  // attempt 2 still waits
+  expect(loads).toEqual([]);
+});
+
+test('waiting window: no consent counts, events queue; the standing auto-denial is never POSTed', () => {
+  start(null);
+  aGTM.f.fire({ event: 'purchase' });
+  expect(globalThis.dataLayer.some((e) => e && e.event === 'purchase')).toBe(false);
+  expect(aGTM.d.f.some((e) => e && e.event === 'purchase')).toBe(true);
+  for (let i = 2; i <= 5; i++) aGTM.f.call_cc();
+  expect(aGTM.d.consent.services).toBe(',aGTMconsent,');
+  expect(MockXHR.instances.filter((x) => x.url === STORE).length).toBe(0);
+});

@@ -601,6 +601,9 @@ aGTM.f.run_cc = function (action) {
   if (!consentCheck) {
     if (consentSnapshot) aGTM.d.consent = consentSnapshot; // restore preset
     if (!sentinel || ++aGTM.d.adWait < 5) {
+      // While waiting, no consent counts: events queue in aGTM.d.f instead of
+      // passing fire()'s gate on the restored preset (attempt 5 recomputes it).
+      if (sentinel) aGTM.d.consent.gtmConsent = false;
       aGTM.f.log("m8", null);
       return false;
     }
@@ -808,7 +811,8 @@ if (typeof aGTM.f.consent_listener != "function") aGTM.f.consent_listener = func
   // Phase 3 B1: try once synchronously before starting the 500 ms poll. For
   // preset_with_consent flows (cfg.session.consent valid, hasResponse=true),
   // consent_check's load-bearing short-circuit returns true on the first
-  // call, so run_cc → inject runs immediately. If the call fails (no preset
+  // call, so run_cc → inject runs immediately — except for the auto-denial
+  // sentinel, where run_cc asks the CMP first (F-249). If the call fails (no preset
   // or CMP not yet ready), fall through to the polling loop as before.
   if (typeof aGTM.f.call_cc == "function" && aGTM.f.call_cc()) {
     if (typeof aGTM.f.start_consent_poll == "function") aGTM.f.start_consent_poll();

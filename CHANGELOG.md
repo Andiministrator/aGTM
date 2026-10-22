@@ -70,9 +70,11 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   CMP first when the sGTM Client delivered its auto-denial. A decision the CMP holds wins: a
   visitor who declined no longer gets GTM loaded by the preset, one who agreed gets their tags at
   once, and the decision is stored. Only while the CMP gives none does the library wait — up to
-  5 init attempts (≈ 1.5 s) — before the auto-denial stands. **For a returning visitor without a
-  decision GTM therefore loads up to ~1.5 s later than before.** A CMP that answers only after that
-  is still overruled for the page until the next consent-poll tick.
+  5 init attempts (≈ 1.5 s) — before the auto-denial stands; meanwhile no consent counts, so
+  events queue. **For a returning visitor without a decision GTM therefore loads up to ~1.5 s
+  later than before.** A CMP that answers only after that is overruled: a grant until the next
+  consent-poll tick, a denial for the whole page — with *Load GTM even under server-side
+  auto-denial* on, GTM is already loaded and a later denial cannot unload it.
 - **sGTM Client: the auto-denial is only built where it can be lifted** (F-251). With
   *Enable Consent Store route* off, with *consent_store_enc* on (the store then answers `501`
   and writes nothing) or with *useListener* on, it used to apply to every returning request
@@ -718,7 +720,8 @@ answer** (F-251, see the Upgrading list). It cannot grant — its services are t
 no tag that requires a CMP consent fires; GTM itself loads, and so does any tag without a consent condition (`auto_deny_load_gtm`, default on). It deliberately does **not** stand
 in for a withheld decision: for a visitor who clicked "deny all" it would load GTM where
 their own denial does not, and for one who agreed it would mask the grant at init, because
-`consent_check('init')` returns early once `hasResponse` is set. A cookieless first-time
+`consent_check('init')` returned early once `hasResponse` was set (since F-249 the library asks
+the CMP first on the auto-denial, but only for ~1.5 s, so a withheld decision still gets no preset). A cookieless first-time
 visitor whose fingerprint session already counted a request (someone else behind the same
 NAT, within the Session API's 30-minute window) counts as returning and can get the
 auto-denial on the first page.

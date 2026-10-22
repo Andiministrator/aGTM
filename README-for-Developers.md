@@ -651,7 +651,7 @@ aGTM.d.consent_store_try     // retry budget of the consent-store POST: {hash, n
 [README-for-Integrators.md → Session status](README-for-Integrators.md#session_status-lifecycle)
 and is the canonical one — it is not repeated here, because five copies of it had
 already started to drift apart. GTM Custom Templates can branch on the value (e.g.
-only personalize when `"preset_with_consent"` or `"confirmed"`).
+only personalize when `"preset_with_consent"` or `"confirmed"`). Also set when the server-side auto-denial stood because the CMP gave no decision (`services: ",aGTMconsent,"`) — check that before treating it as consent.
 
 ### `aGTM.f.consent_serialize(c)`
 
