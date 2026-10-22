@@ -4,8 +4,8 @@
 
 The **aGTM Scroll Events Template** provides enhanced scroll tracking functionality for Google Tag Manager (GTM). This template allows you to define custom scroll events at specific scroll depths, detect when users start scrolling, and even handle cases where the viewport is too small for scrolling. This is particularly useful when the default GTM scroll tracking does not provide the precision you need.
 
-- **Version**: 1.1
-- **Last Updated**: 13.07.2026
+- **Version**: 1.2
+- **Last Updated**: 22.10.2026
 - **Author**: Andi Petzoldt <andi@petzoldt.net>
 
 For an overview of other available GTM templates, see the [GTM Templates Overview](../../README-gtm-templates.md).
@@ -137,7 +137,10 @@ To view debug messages in the browser console, ensure that your aGTM integration
 ### Known Limitations
 - This template requires JavaScript access to the `aGTM` object. Make sure it is accessible in the current page context.
 - Requires the aGTM library **v1.5+** (uses the passive/throttle `aGTM.f.evLstn`
-  options).
+  options). On an older library the tag still measures, but the listeners run
+  unthrottled and non-passive; since 1.2 it says so once with a console `warn`
+  ("aGTM library older than v1.5"). The template therefore needs the `logging`
+  permission and read access to `aGTM.f.throttle`.
 - **Run only one scroll-tracking tag per page.** The listeners are registered
   once per page via a shared guard; a second scroll tag would not register its
   own listeners. On single-page-app route changes the first listener is reused —

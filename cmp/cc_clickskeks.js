@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Clickskeks
- * @version 1.0
- * @lastupdate 19.06.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.1
+ * @lastupdate 22.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -45,11 +45,11 @@ aGTM.f.consent_check = function (action) {
 
   // Set Purposes from object
   aGTM.d.consent.purposes = ',' + purposes.join(',') + ',';
-  // Build feedback
-  var feedback = 'Consent available';
-  if (purposeCtr==0) { feedback = 'Consent declined'; }
+  // Build feedback. purposeCtr counts the configured purposes, purposes.length the
+  // granted ones (purposeCtr is > 0 here, see above): none granted is a decline.
+  var feedback = 'Consent partially accepted';
+  if (!purposes.length) feedback = 'Consent declined';
   else if (purposeCtr == purposes.length) feedback = 'Consent full accepted';
-  else if (purposeCtr > purposes.length) feedback = 'Consent partially accepted';
   aGTM.d.consent.feedback = feedback;
   // Set Response
   aGTM.d.consent.hasResponse = true;

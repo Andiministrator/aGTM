@@ -172,6 +172,22 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Changed — Scroll Events tag 1.2 warns on a library older than v1.5
+
+On an older library the tag still measures, but `aGTM.f.evLstn` there ignores the
+passive/throttle options, so the scroll and resize listeners run unthrottled — silently.
+The tag now writes one console `warn` in that case (F-227). It needs read access to
+`aGTM.f.throttle` and the `logging` permission for that; GTM shows the permission change
+when the template is updated.
+
+### Fixed — Clickskeks: "nothing granted" was reported as "partially accepted"
+
+`cc_clickskeks` 1.1: the feedback cascade tested for zero configured purposes after
+returning early on exactly that case, so `Consent declined` was unreachable and a visitor
+who granted nothing got `Consent partially accepted` (F-199). Only `aGTM.d.consent.feedback`
+changes; which purposes count is untouched. Because `feedback` is part of the consent
+hash, a stored "declined" state is re-POSTed once to the consent store.
+
 ### Fixed — a CMP adapter that throws, or one that is not there yet
 
 - **`consent_check` throws** (F-254): `run_cc` now catches it, logs `e_consent_check` and

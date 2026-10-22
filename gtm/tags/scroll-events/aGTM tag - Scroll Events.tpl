@@ -109,6 +109,7 @@ const callInWindow = require('callInWindow');
 const copyFromWindow = require('copyFromWindow');
 const setInWindow = require('setInWindow');
 const Math = require('Math');
+const log = require('logToConsole');
 
 /**
  * Build ND aGTM shadow object
@@ -255,6 +256,13 @@ if (o.d.viewport_relation>o.d.viewport_start) {
   // one scroll-tracking tag per page.
   if (!copyFromWindow('aGTM.d.scrollListener_active')) {
     setInWindow('aGTM.d.scrollListener_active', true, true);
+    // aGTM.f.throttle and evLstn's options argument both arrived with library
+    // v1.5. An older evLstn ignores the options: the tag still measures
+    // correctly, but its listeners run unthrottled and non-passive. That is
+    // invisible, so say it once (F-227).
+    if (typeof copyFromWindow('aGTM.f.throttle') == 'undefined') {
+      log('warn', 'aGTM Scroll Events: aGTM library older than v1.5 - scroll/resize listeners run unthrottled and non-passive. Update the aGTM library.');
+    }
     // CWV: passive listeners never block scrolling (better INP/no scroll jank);
     // the throttle bounds how often the handlers' layout reads (getSizes:
     // offsetHeight/scrollHeight/…) force a reflow. resize 250ms, scroll 200ms.
@@ -451,8 +459,68 @@ ___WEB_PERMISSIONS___
                     "boolean": true
                   }
                 ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "aGTM.f.throttle"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
               }
             ]
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
+    },
+    "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "logging",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "environments",
+          "value": {
+            "type": 1,
+            "string": "all"
           }
         }
       ]
@@ -578,6 +646,44 @@ scenarios:
     scrollHandler();
     assertThat(fired).isDefined();
     assertThat(fired.foo).isEqualTo('bar');
+- name: A library older than v1.5 is reported once and still measured
+  code: |-
+    // F-227: without aGTM.f.throttle (library < 1.5) the listeners are still
+    // registered - the tag measures correctly - but one warning says why they
+    // are unthrottled. With the function present, nothing is logged.
+    let evLstnCalls = 0, warnings = [];
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.evLstn') { evLstnCalls++; return; }
+      if (fn === 'aGTM.f.getVal') {
+        let t = arguments[1], p = arguments[2];
+        if (t === 'w' && p === 'innerHeight') return 1000;
+        if (t === 'b' && p === 'offsetHeight') return 3000;
+        return 0;
+      }
+    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTM.f.throttle') return undefined; return false; });
+    mock('setInWindow', function() {});
+    mock('logToConsole', function(level, msg) { warnings.push(level + ' ' + msg); });
+    runCode({ eventname: 'scroll', steps: '25', addparameter: [], noscrollevent: false, isscrollevent: false, ua_event: false });
+    assertThat(evLstnCalls).isEqualTo(2);
+    assertThat(warnings.length).isEqualTo(1);
+    assertThat(warnings[0].indexOf('older than v1.5') > 0).isTrue();
+- name: A current library logs nothing
+  code: |-
+    let warnings = [];
+    mock('callInWindow', function(fn) {
+      if (fn === 'aGTM.f.getVal') {
+        let t = arguments[1], p = arguments[2];
+        if (t === 'w' && p === 'innerHeight') return 1000;
+        if (t === 'b' && p === 'offsetHeight') return 3000;
+        return 0;
+      }
+    });
+    mock('copyFromWindow', function(key) { if (key === 'aGTM.f.throttle') return function() {}; return false; });
+    mock('setInWindow', function() {});
+    mock('logToConsole', function(level, msg) { warnings.push(msg); });
+    runCode({ eventname: 'scroll', steps: '25', addparameter: [], noscrollevent: false, isscrollevent: false, ua_event: false });
+    assertThat(warnings.length).isEqualTo(0);
 setup: ''
 
 
@@ -585,15 +691,24 @@ ___NOTES___
 
 # aGTM Custom Template
 
-- Version 1.1
+- Version 1.2
 - Autor: Andi Petzoldt <andi@petzoldt.net>
-- Last Update: 13.07.2026
+- Last Update: 22.10.2026
 
 ## Description
 
 The GTM scroll tracking sends events even if the user hasn't scrolled.
 This Custom Template is for a better scroll tracking.
 Requires an aGTM integration of the GTM (library v1.5+).
+
+## Changes in 1.2
+
+- Version guard (F-227): on an aGTM library older than v1.5 the tag still
+  measures, but `aGTM.f.evLstn` there ignores the passive/throttle options. The
+  tag now says so once in the console (`warn`). For that it reads
+  `aGTM.f.throttle` (new `access_globals` read entry) and needs the `logging`
+  permission again (environment "all", so the warning shows where an old
+  library actually runs; 1.1 had dropped it as unused).
 
 ## Fixes in 1.1
 
