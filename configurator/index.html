@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   aGTM Konfigurator
-  Version: 2.2.0
-  Datum: 2026-10-21
+  Version: 2.2.1
+  Datum: 2026-10-22
   Autor: Marco Brenn (InBiz Online Marketing GmbH & Co. KG)
   v2.2.0: aGTM-v1.5-Optionen ergänzt (aGTM-Projekt, Andi Petzoldt)
+  v2.2.1: jsErrors (aGTM-Projekt)
 
   Modulare Single-File Anwendung für aGTM Konfiguration.
 -->
@@ -12,11 +13,11 @@
 <head>
   <script>
   const agtmv = '1.5';
-  const cnfgv = '2.2.0';
+  const cnfgv = '2.2.1';
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>aGTM Konfigurator v2.2.0</title>
+  <title>aGTM Konfigurator v2.2.1</title>
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -215,7 +216,7 @@
             <h1 class="text-lg font-bold" style="color:#f1f5f9; font-family:Inter,sans-serif;">
               aGTM <span style="color:#E30613;">Konfigurator</span>
             </h1>
-            <p class="text-xs" style="color:#64748b;">v2.2.0 · by InBiz</p>
+            <p class="text-xs" style="color:#64748b;">v2.2.1 · by InBiz</p>
           </div>
         </div>
 
@@ -949,6 +950,20 @@
                     <span class="px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">Empfohlen</span>
                   </div>
                   <p class="text-sm  mt-0.5">Separates <code class="px-1 py-0.5 bg-slate-100  rounded text-xs">aGTM_consent</code> Event feuern</p>
+                </div>
+              </label>
+            </div>
+
+            <!-- jsErrors (Standard: an) -->
+            <div class="feature-item" data-feature="jsErrors">
+              <label class="flex items-start gap-4 p-4 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                <input type="checkbox"
+                       id="feature_jsErrors"
+                       checked
+                       class="feature-toggle mt-0.5 w-5 h-5 text-primary-600 rounded border-slate-300 dark:border-slate-500 focus:ring-primary-500">
+                <div class="flex-1">
+                  <span class="font-medium ">jsErrors</span>
+                  <p class="text-sm  mt-0.5">JavaScript-Fehler als <code class="px-1 py-0.5 bg-slate-100  rounded text-xs">exception</code>-Event erfassen (Meldung, Skript-URL, Zeile, Browserangaben aus <code class="px-1 py-0.5 bg-slate-100  rounded text-xs">navigator</code>). Gesendet erst nach Consent. Standard: an</p>
                 </div>
               </label>
             </div>
@@ -1832,6 +1847,7 @@ console.log('User opted out');"></textarea>
             features: {
               debug: false,
               sendConsentEvent: false,
+              jsErrors: true,
               useListener: false,
               dlStateEvents: false,
               aPageview: false,
@@ -5363,7 +5379,8 @@ aGTM.f.consent_check = function(action) {
           // Basis-Features (beide Modi)
           basic: {
             debug: { type: 'boolean', default: false, recommended: false },
-            sendConsentEvent: { type: 'boolean', default: false, recommended: true }
+            sendConsentEvent: { type: 'boolean', default: false, recommended: true },
+            jsErrors: { type: 'boolean', default: true, recommended: false }
           },
           // Erweiterte Features
           events: {
@@ -5398,7 +5415,7 @@ aGTM.f.consent_check = function(action) {
         },
 
         /** Boolean-Felder (Checkboxen) */
-        booleanKeys: ['debug', 'sendConsentEvent', 'dlStateEvents', 'aPageview', 'vPageviews', 'useListener',
+        booleanKeys: ['debug', 'sendConsentEvent', 'jsErrors', 'dlStateEvents', 'aPageview', 'vPageviews', 'useListener',
           'allowEmptyConsentConditions', 'consent_store_enc', 'transport_enc'],
 
         /** Text-Felder */
@@ -5568,8 +5585,9 @@ aGTM.f.consent_check = function(action) {
           this.booleanKeys.forEach(key => {
             const el = document.getElementById(`feature_${key}`);
             if (el) {
-              // immer setzen: sonst bleibt der Wert der vorher bearbeiteten Konfiguration stehen
-              el.checked = features[key] === true;
+              // immer setzen: sonst bleibt der Wert der vorher bearbeiteten Konfiguration stehen.
+              // jsErrors ist in der Library standardmäßig an: fehlt der Schlüssel (ältere Configs), bleibt es an.
+              el.checked = key === 'jsErrors' ? features[key] !== false : features[key] === true;
               this.updateFeatureStyle(el);
 
               // Abhängige Hinweise
@@ -5993,6 +6011,7 @@ aGTM.f.consent_check = function(action) {
           const activeFeatures = [];
           if (features.debug) activeFeatures.push('debug');
           if (features.sendConsentEvent) activeFeatures.push('sendConsentEvent');
+          if (features.jsErrors === false) activeFeatures.push('jsErrors: aus');
           if (features.dlStateEvents) activeFeatures.push('dlStateEvents');
           if (features.aPageview) activeFeatures.push('aPageview');
           if (features.vPageviews) activeFeatures.push('vPageviews');
@@ -6248,6 +6267,7 @@ aGTM.f.consent_check = function(action) {
           if (features.aPageview) configParts.push(`  aPageview: true`);
           if (features.vPageviews) configParts.push(`  vPageviews: true`);
           if (features.sendConsentEvent) configParts.push(`  sendConsentEvent: true`);
+          if (features.jsErrors === false) configParts.push(`  jsErrors: false`);
           if (features.debug) configParts.push(`  debug: true`);
           if (features.gdl && features.gdl !== 'dataLayer') {
             configParts.push(`  gdl: ${q(features.gdl)}`);

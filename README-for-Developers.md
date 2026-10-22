@@ -834,11 +834,10 @@ aGTM.f.addElLst('form', 'submit', function(event) {
 
 ### Error Monitoring
 
-Monitor JavaScript errors:
-
-```javascript
-aGTM.f.jserrors();
-```
+`aGTM.f.init()` installs the JavaScript error listener itself (`aGTM.f.jserrors()`), unless
+the config sets `jsErrors: false`. Each error becomes an `exception` event — see
+[EVENTS.md](EVENTS.md). Calling `aGTM.f.jserrors()` by hand is only needed with
+`jsErrors: false` plus a later decision to capture after all.
 
 ## Contributing & Development Setup
 

@@ -58,7 +58,7 @@ fingerprint, no user-id cookie, no Sources API — none of it is in the library.
 | L5 | ~~Consentmanager block probe~~ — **removed in v1.5** | (was `cdn.consentmanager.net`) | — | — |
 | L6 | `aGTMoptout` / `aGTMdebug` cookies | first-party, no request | not set | n/a |
 | L7 | iFrame events via `postMessage` | the parent document | off (`iframeSupport`) | **before** ³ |
-| L8 | JavaScript error capture | your dataLayer / GTM | **always on, no switch** | collected before, sent after |
+| L8 | JavaScript error capture | your dataLayer / GTM | **on** (`jsErrors`) | collected before, sent after |
 | T1 | Copy-Events tag: the copied text | your dataLayer / GTM | tag not installed | after |
 | T2 | Pageview tag: test-result cookie | first-party, no request | tag not installed | after |
 | T3 | Pageview tag: device attributes | your dataLayer / GTM | tag not installed | after |
@@ -196,18 +196,19 @@ through the same helper — see T2.
 
 ### L8 — JavaScript error capture
 
-- **Trigger:** a `window.onerror` listener installed unconditionally at the end of
-  `aGTM.f.init()`.
+- **Trigger:** a `window.onerror` listener installed at the end of `aGTM.f.init()`.
 - **Sent:** an `exception` event into the dataLayer with `errmsg` (message + script URL +
   line/column) and `browser` = `navigator.appCodeName | appName | appVersion | platform`.
   `appVersion` is effectively the full User-Agent. The first 5 errors are fired, up to 100
   counted.
-- **Condition / field:** **none — there is no configuration flag for this.**
+- **Condition / field:** `jsErrors` — **on by default**; `jsErrors: false` installs no
+  listener at all. Up to v1.4.x there was no switch (F-190).
 - **Consent:** the *capture* starts with `init()`, i.e. before any decision; the
   *transmission* goes through `aGTM.f.fire()` and is therefore consent-gated like any other
   event (queued in `aGTM.d.f`, replayed after consent). Worth naming in an assessment
   anyway: an error message can contain a URL with parameters, and this is the only data
-  collection the library performs without being asked to.
+  collection the library performs without being asked to — switch it off where you do not
+  need it.
 
 ---
 
@@ -536,8 +537,8 @@ plus one misconfiguration that behaves the same way:
 Independent of GTM, these run **before** any decision in every installation of shape B: the
 `/aGTM.js` request itself (S1) with page URL and referrer, the bot check (S2), the Session
 API read (S3), the Sources POST (S4), and the publication of session and verdict data to the
-page (S6). In every installation, shape A included: the CMP adapter file (L2), the error
-listener (L8). (Up to v1.4.x also the Consentmanager block probe, row L5.)
+page (S6). In every installation, shape A included: the CMP adapter file (L2) and the error
+listener (L8, unless `jsErrors: false`). (Up to v1.4.x also the Consentmanager block probe, row L5.)
 
 ---
 

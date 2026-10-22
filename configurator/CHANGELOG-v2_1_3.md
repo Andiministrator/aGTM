@@ -1,5 +1,10 @@
 # aGTM Configurator – Changelog
 
+## [2.2.1] - 2026-10-22
+
+#### Added (step "Features")
+- **`jsErrors`** – switch for aGTM's JavaScript error capture (`exception` events). On by default, as in the library; only an unticked box writes `jsErrors: false` into the generated config. Stored configurations without the key keep it on.
+
 ## [2.2.0] - 2026-10-21
 
 ### aGTM v1.5 options

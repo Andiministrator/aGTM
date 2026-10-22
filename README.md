@@ -371,6 +371,20 @@ If it set to true, a separate Consent Event named `aGTM_consent` will be fired (
 - Example: `true`
 - Default: `false`
 
+### jsErrors
+
+Capture JavaScript errors of the page as `exception` events (`errtype: "JS Error"`). Each
+event carries the error message with script URL, line and column, and `browser` built from
+`navigator.appCodeName | appName | appVersion | platform` (`appVersion` is effectively the
+User-Agent). Capture starts with `aGTM.f.init()`; the events go through `aGTM.f.fire()` and
+are therefore sent only after consent. The first 5 errors are pushed, up to 100 counted.
+`false` installs no error listener at all. Only a real boolean counts — any other value
+keeps it on.
+
+- Type: boolean
+- Example: `false`
+- Default: `true`
+
 ### gtm
 
 The object with the GTM containers to inject (GTM container ID as key, options as value).

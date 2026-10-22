@@ -126,6 +126,7 @@ aGTM.f.init();
 | `gtmServices` | string | `""` | Consent-Services, die für GTM-Load nötig sind (kommagetrennt) |
 | `gtmVendors` | string | `""` | Consent-Anbieter, die für GTM-Load nötig sind (kommagetrennt) |
 | `sendConsentEvent` | boolean | `false` | Separates Consent-Event in den dataLayer pushen |
+| `jsErrors` | boolean | `true` | JavaScript-Fehler als `exception`-Event erfassen (Meldung, Skript-URL, Zeile/Spalte, `navigator`-Angaben); gesendet erst nach Consent. `false` = kein Fehler-Listener |
 | `dlStateEvents` | boolean | `false` | Events für DOMready und PAGEready feuern |
 | `aPageview` | boolean | `false` | `aPageview`-Event nach GTM-Load feuern |
 | `transport_url` | string | `""` | Endpunkt für direkten HTTP-POST (z.B. sGTM Collect) |

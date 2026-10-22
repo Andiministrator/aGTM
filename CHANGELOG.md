@@ -58,6 +58,10 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   Consentmanager sites** — by the share of visitors who block the CMP (not measured; it was
   never visible, because those visitors were counted as loaded). Standalone: deploy the new
   `cmp/cc_consentmanager.min.js`; sGTM Client: re-import the template (F-164).
+- **New option `jsErrors` (default `true`, no change).** The JavaScript error capture —
+  `exception` events with message, script URL, line/column and `navigator` details — was the
+  one data collection of the library without a switch. `jsErrors: false` installs no error
+  listener at all. Configurator 2.2.1 offers it (F-190).
 - **Consent Mode tag: a change on the page now reaches Consent Mode.** A tag on
   *Consent Initialization* runs once per page load, so a decision changed on the same
   page — a revocation included — reached Consent Mode only on the next page load

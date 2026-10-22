@@ -520,6 +520,7 @@ aGTM.f.inject()
 |---|---|
 | `aGTM.c` | Configuration (set via `aGTM.f.config()`) |
 | `aGTM.c.allowEmptyConsentConditions` | Opt-out of the empty-conditions gate. `false` (default) means fail-closed: with `gtmPurposes`/`gtmServices`/`gtmVendors` **all** empty, `run_cc` sets `gtmConsent = false` (F-167). Cannot weaken a requirement that IS configured. `cmp:'none'` and the iframe mode are excluded via an explicit `noGate` flag — not by control flow, because `run_cc` stays reachable for them through `consent_events`. |
+| `aGTM.c.jsErrors` | Install the JavaScript error listener (`aGTM.f.jserrors`) at the end of `init()`. Default `true`; only a real boolean `false` switches it off (F-190). The one data collection that runs without being configured — listed as L8 in `PRIVACY-DATAFLOW.md`. |
 | `aGTM.c.consent_events` | Comma-separated event names that trigger `run_cc('update')` when seen in `fire()` |
 | `aGTM.c.consent_event_attr` | Parsed attribute conditions for `consent_events` (keyed by event name) |
 | `aGTM.c.dlSet` | Map of `{ targetProp: dlVariableName }` — auto-appended to every event in `fire()` |

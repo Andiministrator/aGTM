@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 21.10.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 22.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -295,6 +295,7 @@ aGTM.f.config = function (cfg) {
   aGTM.c.aPageview = typeof cfg.aPageview == "boolean" ? cfg.aPageview : false; // Fire aPageview Event
 /* deprecated */  aGTM.c.vPageview = typeof cfg.vPageview == "boolean" ? cfg.vPageview : false; // Fire vPageview Event
   aGTM.c.sendConsentEvent = typeof cfg.sendConsentEvent == "boolean" ? cfg.sendConsentEvent : false; // Should aGTM send a separate Event with Consent Info?
+  aGTM.c.jsErrors = typeof cfg.jsErrors == "boolean" ? cfg.jsErrors : true; // Capture JavaScript errors as "exception" events (message, script URL, line/column, navigator.appCodeName/appName/appVersion/platform). Sent through fire(), so consent-gated; capture starts with init(). false = no error listener at all (F-190)
 
   // Consent-event triggers: comma-separated event names that trigger run_cc('update') in fire()
   // Bracket notation: 'cmpEvent[userChoiceType:useraction],cmpUpdate'
@@ -2418,8 +2419,8 @@ aGTM.f.init = function () {
       aGTM.f.initGTM(true);
     }
   }
-  // Run JS error monitoring
-  aGTM.f.jserrors();
+  // Run JS error monitoring, unless switched off (jsErrors: false)
+  if (aGTM.c.jsErrors) aGTM.f.jserrors();
 };
 
 /**
