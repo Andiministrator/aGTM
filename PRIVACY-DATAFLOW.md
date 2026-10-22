@@ -55,7 +55,7 @@ fingerprint, no user-id cookie, no Sources API — none of it is in the library.
 | L2 | CMP adapter file | whatever `aGTM.c.path` points at | none (no `cmp` set) | **before** |
 | L3 | `_post` event transport | `transport_url` / per-event URL | off (empty) | **after** ² |
 | L4 | Consent-store `POST /aGTMconsent` | the sGTM host serving the library | off standalone · **on** in shape B | **at the decision** |
-| L5 | Consentmanager block probe | `cdn.consentmanager.net` | only with `cmp: "consentmanager"` | **before** |
+| L5 | ~~Consentmanager block probe~~ — **removed in v1.5** | (was `cdn.consentmanager.net`) | — | — |
 | L6 | `aGTMoptout` / `aGTMdebug` cookies | first-party, no request | not set | n/a |
 | L7 | iFrame events via `postMessage` | the parent document | off (`iframeSupport`) | **before** ³ |
 | L8 | JavaScript error capture | your dataLayer / GTM | **always on, no switch** | collected before, sent after |
@@ -150,7 +150,12 @@ anything else happens. In shape B it is row S1, and it carries considerably more
 - **Note:** `consent_store_enc` is offered but unusable — the server answers `501` and
   stores nothing (see CHANGELOG). Leave it off.
 
-### L5 — Consentmanager "is the CMP blocked?" probe
+### L5 — Consentmanager "is the CMP blocked?" probe — removed in v1.5
+
+**Removed (F-164).** As of v1.5 the adapter makes no request of its own: while
+`window.__cmp` is missing it simply reports "no decision yet", so a blocked Consentmanager
+means GTM does not load. The row keeps its number so references stay valid. What it did up
+to v1.4.x, for anyone auditing an older installation:
 
 - **Trigger:** `cmp/cc_consentmanager.js`. If `window.__cmp` is still missing on the 11th
   poll, the adapter issues `fetch('https://cdn.consentmanager.net/delivery/1x1.gif')` and,
@@ -161,8 +166,7 @@ anything else happens. In shape B it is row S1, and it carries considerably more
   off**, and it is the only CMP adapter that behaves this way.
 - **Consequence worth knowing:** `blocked` is the value the consent gate falls back to
   whenever the configured requirements are **not met**, so a *blocked* Consentmanager can
-  end up loading GTM. Tracked as finding F-164; if this matters for your deployment, say so
-  and it gets a switch.
+  end up loading GTM. That is why it was removed rather than given a switch.
 
 ### L6 — Cookies the library itself writes
 
@@ -533,7 +537,7 @@ Independent of GTM, these run **before** any decision in every installation of s
 `/aGTM.js` request itself (S1) with page URL and referrer, the bot check (S2), the Session
 API read (S3), the Sources POST (S4), and the publication of session and verdict data to the
 page (S6). In every installation, shape A included: the CMP adapter file (L2), the error
-listener (L8), and — for one CMP only — the block probe of row L5.
+listener (L8). (Up to v1.4.x also the Consentmanager block probe, row L5.)
 
 ---
 
@@ -561,8 +565,8 @@ The scope is **this repository** unless narrowed explicitly.
   text including a recognised e-mail address or phone number, verbatim.** See
   [EVENTS.md](EVENTS.md) for every attribute of every event.
 - **No request to any endpoint operated by the aGTM project or its author.** Every recipient
-  in this document is Google's GTM, a host **you** configure, or — in the single case of row
-  L5 — the CMP vendor's own CDN.
+  in this document is Google's GTM or a host **you** configure. (Up to v1.4.x, row L5 also
+  reached the CMP vendor's own CDN.)
 - **No encryption of payloads.** `consent_store_enc` / `transport_enc` are obfuscation
   (Base64 + Caesar). Use HTTPS, which is what actually protects the transport.
 - **The *aGTM Inspector* Chrome extension** in this repository is a developer tool that runs

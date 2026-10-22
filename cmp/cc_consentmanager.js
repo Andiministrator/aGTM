@@ -11,8 +11,8 @@ aGTM.n = aGTM.n || {};
  * Function to check, whether the user consent info/choice exists and for what purposes and vendors
  * @usage use it together with aGTMlib and see the documentation there
  * @type: Consentmanager
- * @version 1.2
- * @lastupdate 23.04.2024 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.3
+ * @lastupdate 22.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @property {function} aGTM.f.consent_check
  * @param {string} action - the action, what the function should do. can be "init" (for the first consent check) or "update" (for updating existing consent info)
@@ -23,18 +23,15 @@ aGTM.f.consent_check = function (action) {
   if (typeof action!='string' || (action!='init'&&action!='update')) { if (typeof aGTM.f.log=='function') aGTM.f.log('e10', {action:action}); return false; }
   // Check whether response was already given
   aGTM.d.consent = aGTM.d.consent || {};
-  aGTM.d.consent.req_ctr = aGTM.d.consent.req_ctr || 0;
-  aGTM.d.consent.blocked = typeof aGTM.d.consent.blocked=='boolean' ? aGTM.d.consent.blocked : false;
   if (action=='init' && aGTM.d.consent.hasResponse) return true;
-  // Check ConsentManager object and status and get Vendor (Service) Infos
-  if (typeof __cmp != 'function') {
-    if (aGTM.d.consent.blocked && aGTM.d.consent.hasResponse) return true;
-    if (aGTM.d.consent.req_ctr++ == 10) {
-      fetch('https://cdn.consentmanager.net/delivery/1x1.gif') // https://cdn.consentmanager.net/delivery/xyz.js
-        .catch(function(e) { aGTM.d.consent.blocked = true; aGTM.d.consent.feedback = 'CMP is blocked'; aGTM.d.consent.hasResponse = true; });
-    }
-    return aGTM.d.consent.blocked;
-  }
+  // Check ConsentManager object and status and get Vendor (Service) Infos.
+  // A CMP that is blocked or not loaded yet has made no decision, so there is
+  // none to report. This adapter used to probe cdn.consentmanager.net after ten
+  // misses and, when that failed, report a decision with blocked=true — which
+  // run_cc() takes as gtmConsent, so GTM loaded for exactly the visitors whose
+  // CMP never asked them. The probe also went to a third party before any
+  // consent (F-164). Not determinable is not allowed.
+  if (typeof __cmp != 'function') return false;
   var c = __cmp('getCMPData'); if (typeof c!='object') return false;
   if (typeof c.consentExists!='boolean' || !c.consentExists) return false;
   if (typeof c.userChoiceExists!='boolean' || !c.userChoiceExists) return false;

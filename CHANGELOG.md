@@ -49,6 +49,15 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   real boolean `false` counts (F-198). Not yet verified in a live no-banner region: if
   OneTrust has not filled its consent payload before any interaction there, the adapter
   keeps waiting as before.
+- **Breaking, Consentmanager: a blocked CMP no longer loads GTM.** When `__cmp` stayed
+  missing (typically an ad blocker), the adapter fetched
+  `cdn.consentmanager.net/delivery/1x1.gif` on the 11th try — a third-party request before
+  any decision — and on failure reported a decision with `blocked: true`, which the consent
+  gate takes as "load GTM". Visitors whose CMP never asked them got GTM. Both are gone: no
+  probe, and a missing CMP means no decision, so no GTM. **Expect fewer GTM loads on
+  Consentmanager sites** — by the share of visitors who block the CMP (not measured; it was
+  never visible, because those visitors were counted as loaded). Standalone: deploy the new
+  `cmp/cc_consentmanager.min.js`; sGTM Client: re-import the template (F-164).
 - **Consent Mode tag: a change on the page now reaches Consent Mode.** A tag on
   *Consent Initialization* runs once per page load, so a decision changed on the same
   page — a revocation included — reached Consent Mode only on the next page load
