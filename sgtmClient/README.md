@@ -316,6 +316,14 @@ If ticked, aGTM sends virtual pageviews (as Event "vPageview") if the URL change
 
 If this is ticked. aGTM will automatically fire dataLayer Events for DOMloaded and PAGEready.
 
+#### Capture JavaScript errors as "exception" events
+
+Ticked by default. aGTM turns JavaScript errors of the page into `exception` dataLayer events —
+message, script URL, line/column and `navigator` details (`appVersion` is effectively the
+User-Agent). Capture starts with the library, the events are sent only after consent. Untick to
+install no error listener at all (library option `jsErrors: false`). A container saved before this
+field existed keeps it on.
+
 #### Name of GTM Datalayer
 
 If you need a diffrenet name (as "dataLayer") for the GTM Datalayer, you can specify the Datalayer Name here.
@@ -406,7 +414,9 @@ Controls when the user ID cookie is set:
 > people behind the same NAT on the same browser build derive the same key, and the second
 > one would receive the first one's consent and get GTM injected without ever having seen a
 > CMP. Such visitors get no preset when a decision is on file — the CMP decides; with
-> nothing on file and a returning-visitor counter they get the server-side auto-denial.
+> nothing on file and a returning-visitor counter they get the server-side auto-denial —
+> only while the consent store is on; with it off nothing can be on file, so there is no
+> auto-denial and the CMP decides.
 > **Consequence for `never`:** in that mode no `C.*` is ever written, so no visitor is ever
 > cookie-bound and a stored decision is never preset. Expect consent rates and the GTM load
 > ratio to move when this reaches an existing installation.

@@ -202,7 +202,8 @@ through the same helper — see T2.
   `appVersion` is effectively the full User-Agent. The first 5 errors are fired, up to 100
   counted.
 - **Condition / field:** `jsErrors` — **on by default**; `jsErrors: false` installs no
-  listener at all. Up to v1.4.x there was no switch (F-190).
+  listener at all. In shape B it is the Client checkbox *Capture JavaScript errors as
+  "exception" events*. Up to v1.4.x there was no switch (F-190).
 - **Consent:** the *capture* starts with `init()`, i.e. before any decision; the
   *transmission* goes through `aGTM.f.fire()` and is therefore consent-gated like any other
   event (queued in `aGTM.d.f`, replayed after consent). Worth naming in an assessment

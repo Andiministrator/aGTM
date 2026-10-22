@@ -133,6 +133,21 @@ describe('F-156 — consent preset requires a cookie-bound uid', () => {
     expect(session(r).consent.services).toBe(',aGTMconsent,');
   });
 
+  test('consent store off: no auto-denial - nothing can ever be on file (F-251)', () => {
+    // Without the store "nothing on file" is true for everyone, and the library
+    // runs no consent poll without a store URL, so the preset would mask a grant
+    // the CMP holds for the whole page.
+    for (const cookies of [[], undefined]) {
+      const r = runClient({
+        data: { ...BASE, consent_store_enabled: false },
+        cookies: cookies,
+        http: () => ({ statusCode: 200, body: JSON.stringify({ sessionId: 's1', counter: 5 }) })
+      });
+      expect(r.throws).toBeNull();
+      expect(session(r).consent).toBeUndefined();
+    }
+  });
+
   test('no cookie, first visit (counter 0): no preset at all', () => {
     const r = runClient({
       data: { ...BASE },

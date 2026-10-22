@@ -1408,6 +1408,9 @@ const buildAndSend = function(sessionData) {
   // to be said out loud rather than fall out of an empty form.
   if (data.allow_empty_consent_conditions) c.allowEmptyConsentConditions = true;
   if (data.sendConsentEvent) c.sendConsentEvent = true;
+  // Opt-out semantics: only an explicit false switches the error capture off,
+  // so a container saved before the field existed keeps the library default (F-190).
+  if (data.jsErrors === false) c.jsErrors = false;
   if (data.useListener) c.useListener = true;
   if (data.consent_events) c.consent_events = data.consent_events;
   if (data.aPageview) c.aPageview = true;
@@ -1819,7 +1822,12 @@ const afterBotCheck = function(isBot) {
             if (CFG.debug) logToConsole('debug', '✓ Session API returned stored consent', sd.consent);
           } else if (storedDecision) {
             if (CFG.debug) logToConsole('debug', '↷ No consent preset: stored decision withheld, uid is a shared fingerprint — the CMP decides');
-          } else if (sd.ret) {
+          } else if (sd.ret && CFG.consentStoreEnabled) {
+            // Only with the consent store on: without it nothing is ever on
+            // file, so "returning with nothing on file" would hold for every
+            // returning visitor, and the preset would mask a decision their
+            // CMP already holds for the whole page - with the store off the
+            // library also runs no consent poll that could lift it (F-251).
             // Returning visitor with no recorded consent -> server-side auto-denial.
             // Replaces the old client-side session_apply_denial() (Phase 2 removal).
             // `blocked` mirrors `gtmConsent` so the aGTM run_cc() chelp fallback

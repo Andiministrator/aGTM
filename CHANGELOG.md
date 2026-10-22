@@ -61,7 +61,9 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 - **New option `jsErrors` (default `true`, no change).** The JavaScript error capture —
   `exception` events with message, script URL, line/column and `navigator` details — was the
   one data collection of the library without a switch. `jsErrors: false` installs no error
-  listener at all. Configurator 2.2.1 offers it (F-190).
+  listener at all. sGTM Client: checkbox *Capture JavaScript errors as "exception" events*
+  (ticked by default; a container saved before it existed stays on). Configurator 2.2.1
+  offers it too (F-190).
 - **Consent Mode tag: a change on the page now reaches Consent Mode.** A tag on
   *Consent Initialization* runs once per page load, so a decision changed on the same
   page — a revocation included — reached Consent Mode only on the next page load
@@ -83,12 +85,13 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   Expect consent rates and the GTM load ratio to move. Because the counter belongs to the
   fingerprint, a first-time visitor sharing it with someone who was there in the last 30
   minutes counts as returning too.
-- **sGTM Client: a container ID listed twice keeps its consent check.** Two rows of the
+- **Breaking (rare), sGTM Client: a container ID listed twice keeps its consent check.** Two rows of the
   container table that resolve to the same ID used to collapse into the last one — if that
   was the row without *Consent Check*, the container loaded before any decision. Now the
   row with *Consent Check* wins as a whole row (its URL and URL parameters, nothing
   merged); with the same setting the later row wins, as before. The `warn` line names the
-  dropped row (F-192).
+  dropped row. Where the open row came last, that container now waits for consent — fewer
+  GTM loads there (F-192).
 - **sGTM Client: the user-id cookie default is `_tpf`** (it was `_TPU` during v1.5
   development). A cookie written under the old name is read, carried over and retired, so
   nobody loses their id.
@@ -167,7 +170,10 @@ cookieless visitors (`F.*` fingerprint uid, never healed — F-156) the consent 
 
 What a missing write means is not settled: since the auto-denial applies again to cookieless
 visitors with nothing on file (`258aeff`), a failed `F.*` write can decide between "no preset" and
-"auto-denial" on the next page, depending on whether the session still exists (F-249).
+"auto-denial" on the next page, depending on whether the session still exists (F-249). Read
+against the code: a `404` means no live session, so the next page starts a new one (counter 0)
+and gets no auto-denial; where it does happen, the library's consent poll replaces the preset
+with the CMP's decision at its first answer.
 
 ### Fixed — configurator 2.2.0: v1.5 options, and the CMPs that actually exist
 
@@ -686,7 +692,10 @@ the migration path is unaffected; what is excluded is the case where the uid cam
 fingerprint because no cookie exists. Such a visitor gets **no preset**, and the CMP decides.
 
 The server-side auto-denial stays for a returning visitor with **nothing on file**, with or
-without a cookie. It cannot grant — its services are the sentinel `,aGTMconsent,`, so
+without a cookie — **as long as the consent store is on.** With *consent store* off nothing is
+ever on file, so the auto-denial would hit every returning visitor and mask a decision their
+CMP already holds for the whole page (no store URL, so no consent poll to lift it); it is not
+applied then, and the CMP decides (F-251). It cannot grant — its services are the sentinel `,aGTMconsent,`, so
 no tag that requires a CMP consent fires; GTM itself loads, and so does any tag without a consent condition (`auto_deny_load_gtm`, default on). It deliberately does **not** stand
 in for a withheld decision: for a visitor who clicked "deny all" it would load GTM where
 their own denial does not, and for one who agreed it would mask the grant at init, because

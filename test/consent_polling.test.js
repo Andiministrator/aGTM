@@ -241,12 +241,23 @@ describe('auto-denial preset over a CMP grant — lasts until the first poll tic
     expect(aGTM.d.consent.services).toBe(',aGTMconsent,');
     expect(MockXHR.instances.filter((x) => x.url === STORE).length).toBe(0);
 
-    // The init path that follows config() starts the poll.
-    aGTM.f.consent_listener();
-    expect(aGTM.d.timer.consent_poll).toBeDefined();
+    // The init path that follows config() starts the poll. Capture the timer
+    // callback and run it, so the test fails if the poll does anything other
+    // than lift the preset (QA 2026-10-22: a poll calling run_cc('init') kept
+    // the suite green while the test called run_cc('update') itself).
+    const timers = [];
+    const origSetInterval = globalThis.setInterval;
+    globalThis.setInterval = function (fn, ms) { timers.push({ fn: fn, ms: ms }); return 0; };
+    try {
+      aGTM.f.consent_listener();
+    } finally {
+      globalThis.setInterval = origSetInterval;
+    }
+    const poll = timers.find((t) => t.ms === 2000);
+    expect(poll).toBeDefined();
 
     // One tick.
-    aGTM.f.run_cc('update');
+    poll.fn();
     expect(aGTM.d.consent.services).toBe(',svcA,');
     expect(aGTM.d.consent.blocked).toBeUndefined();
     expect(aGTM.d.consent.gtmConsent).toBe(true);
