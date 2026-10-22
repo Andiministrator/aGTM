@@ -17,10 +17,12 @@
 // exactly what is evidenced and does not invent a stricter charset — an
 // over-broad rule here would just be noise on names nobody can import-test.
 //
-// Second proven character (2026-10-22): the full stop. The Scroll Events 1.2
-// scenario "A library older than v1.5 is reported once and still measured" was
-// refused with: The name contains invalid character: ".". Same pattern - no local
-// check saw it, the import into the live container did.
+// Second proven character: the full stop. Established on 2026-07-14 (GTM test
+// tab work, recorded in the maintainer's notes) but never added here - so on
+// 2026-10-22 the Scroll Events 1.2 scenario "A library older than v1.5 is
+// reported once and still measured" failed the import into the live container
+// with: The name contains invalid character: ".". A rule that lives only in
+// notes is not a guard.
 //
 // It covers untracked templates too (see allTemplates below) — the file that
 // caused this was one of them.
