@@ -260,7 +260,9 @@ Use the following value for the `cmp` Parameter:
 A Consentmanager that is blocked or not loaded (`window.__cmp` missing — typically an ad
 blocker) is **no decision**: the adapter keeps reporting "no decision yet" and GTM does not load.
 Up to v1.4.x it probed `cdn.consentmanager.net` after ten misses and, when that failed, reported
-a decision with `blocked: true`, which loaded GTM (F-164).
+a decision with `blocked: true`, which loaded GTM (F-164). For such a visitor the library's
+500 ms consent poll now runs for the whole page view, like for any visitor who never answers
+the banner, and each tick adds one entry to the debug log `aGTM.l`.
 
 ### Cookiebot
 

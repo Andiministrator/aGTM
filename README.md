@@ -377,7 +377,7 @@ Capture JavaScript errors of the page as `exception` events (`errtype: "JS Error
 event carries the error message with script URL, line and column, and `browser` built from
 `navigator.appCodeName | appName | appVersion | platform` (`appVersion` is effectively the
 User-Agent). Capture starts with `aGTM.f.init()`; the events go through `aGTM.f.fire()` and
-are therefore sent only after consent. The first 5 errors are pushed, up to 100 counted.
+wait for consent — with one exception: `aGTM_ready` carries the queued events (`hastyEvents`) and every error message (`aGTM.errors`, not capped), and a `noConsent` container receives it before any decision (F-253). The first 5 errors are pushed as events, up to 100 counted.
 `false` installs no error listener at all. Only a real boolean counts — any other value
 keeps it on.
 
@@ -609,7 +609,7 @@ The `"synced"` and `"preset_with_consent"` values are good metrics to watch in p
 
 ### Server-side auto-denial (sGTM Client)
 
-When the sGTM Client serves the library and the Session API has no recorded consent for a returning visitor (`counter > 0`), the Client constructs a denial-consent block server-side and embeds it in `cfg.session.consent` — only while the consent store is on (*Enable Consent Store route*); with it off nothing can ever be on file, so there is no auto-denial and the CMP decides:
+When the sGTM Client serves the library and the Session API has no recorded consent for a returning visitor (`counter > 0`), the Client constructs a denial-consent block server-side and embeds it in `cfg.session.consent` — only where the library can later replace it with the CMP's own answer — *Enable Consent Store route* on, *consent_store_enc* off, *useListener* off. Otherwise there is no auto-denial and the CMP decides; with the store off or *consent_store_enc* on, a decision stored earlier is not preset either (F-251):
 
 | Field | Value |
 |---|---|
@@ -655,7 +655,7 @@ be requested explicitly.
 | **Consent check switched off** | No CMP is consulted at all. aGTM records `hasResponse: true` with the feedback *“No Consent Check configured”* and injects GTM right away. | `cmp: 'none'` |
 | **No consent conditions configured** | **Changed in v1.5: this is now fail-closed** — with no requirement configured, GTM is not loaded at all. Up to v1.4 the check had nothing to require, was satisfied by anything including a rejection, and GTM loaded after “reject all”. To deliberately run without a gate, say so explicitly. | `gtmPurposes` / `gtmServices` / `gtmVendors`, resp. the *Consent Check Conditions* table of the sGTM Client (**ships empty**). Opt-out: `allowEmptyConsentConditions: true` |
 | **`noConsent` containers** | Containers marked `noConsent: true` are injected at startup, before any decision. Intended for loading a CMP or consent-free diagnostics. | `gtm` container table, column *Consent Check* |
-| **Server-side auto-denial** | The sGTM Client records “no consent” for a returning visitor without a stored decision (only with the consent store on), and — with `auto_deny_load_gtm` (default **on**) — still loads GTM: tags gated on `aGTMconsent` and tags without a consent condition fire, nothing that requires a CMP consent. | sGTM Client, *auto_deny_load_gtm* |
+| **Server-side auto-denial** | The sGTM Client records “no consent” for a returning visitor without a stored decision (only with *Enable Consent Store route* on, *consent_store_enc* and *useListener* off), and — with `auto_deny_load_gtm` (default **on**) — still loads GTM: tags gated on `aGTMconsent` and tags without a consent condition fire, nothing that requires a CMP consent. | sGTM Client, *auto_deny_load_gtm* |
 | **iFrame mode** | Inside an iframe, aGTM grants consent itself and skips the CMP check — the decision is expected to have been made in the parent document, which runs its own check, and events are forwarded there via `postMessage`. Note that this **also injects whatever GTM container is configured for the iframe instance**; if the iframe should only forward events to the parent, configure no container for it. From v1.5 the receiving "aGTM iFrame Support" tag in the parent **must** have the iframe's hostname in its allow-list, and it strips aGTM's control flags out of the message — see that tag's README before relying on `_noConsent` from an iframe. | `iframeSupport` |
 
 One more, not an option but a misconfiguration worth knowing: if you enable **Custom CMP Check**

@@ -133,19 +133,38 @@ describe('F-156 — consent preset requires a cookie-bound uid', () => {
     expect(session(r).consent.services).toBe(',aGTMconsent,');
   });
 
-  test('consent store off: no auto-denial - nothing can ever be on file (F-251)', () => {
-    // Without the store "nothing on file" is true for everyone, and the library
-    // runs no consent poll without a store URL, so the preset would mask a grant
-    // the CMP holds for the whole page.
-    for (const cookies of [[], undefined]) {
-      const r = runClient({
-        data: { ...BASE, consent_store_enabled: false },
-        cookies: cookies,
-        http: () => ({ statusCode: 200, body: JSON.stringify({ sessionId: 's1', counter: 5 }) })
-      });
+  // F-251: a preset is only acted on where the library can replace it with the
+  // CMP's own answer. With the store off or consent_store_enc (POST -> 501)
+  // nothing is written, so a record on file is stale and no poll updates it;
+  // under useListener the library runs no consent poll at all.
+  const C_COOKIE = ['C.1.t.abcdef123456.1700000000'];
+  const RETURNING_NOTHING = () => ({ statusCode: 200, body: JSON.stringify({ sessionId: 's1', counter: 5 }) });
+  const RETURNING_STORED = () => ({ statusCode: 200, body: JSON.stringify(STORED_CONSENT) });
+
+  test('F-251: store off or consent_store_enc - no auto-denial, with or without a cookie', () => {
+    for (const extra of [{ consent_store_enabled: false }, { consent_store_enc: true }]) {
+      for (const cookies of [[], undefined, C_COOKIE]) {
+        const r = runClient({ data: { ...BASE, ...extra }, cookies: cookies, http: RETURNING_NOTHING });
+        expect(r.throws).toBeNull();
+        expect(session(r).consent).toBeUndefined();
+      }
+    }
+  });
+
+  test('F-251: store off or consent_store_enc - a stored decision is not passed through either', () => {
+    for (const extra of [{ consent_store_enabled: false }, { consent_store_enc: true }]) {
+      const r = runClient({ data: { ...BASE, ...extra }, cookies: C_COOKIE, http: RETURNING_STORED });
       expect(r.throws).toBeNull();
       expect(session(r).consent).toBeUndefined();
     }
+  });
+
+  test('F-251: useListener - no auto-denial, but a stored decision is still passed through', () => {
+    const none = runClient({ data: { ...BASE, useListener: true }, cookies: C_COOKIE, http: RETURNING_NOTHING });
+    expect(none.throws).toBeNull();
+    expect(session(none).consent).toBeUndefined();
+    const stored = runClient({ data: { ...BASE, useListener: true }, cookies: C_COOKIE, http: RETURNING_STORED });
+    expect(session(stored).consent.services).toBe(',Google Tag Manager,');
   });
 
   test('no cookie, first visit (counter 0): no preset at all', () => {

@@ -364,8 +364,8 @@ The fix even makes the collision **more frequent** for the population before con
 
 Two consequences to know before rolling out:
 
-- Visitors without a cookie whose decision is on file go through the CMP again; returning ones with nothing on file get the auto-denial (only with the consent store on — without it nothing is ever on file, so no auto-denial at all; F-251). It will show up in consent rates and the GTM load ratio.
-- Under **`cookie_mode: 'never'`** no `C.*` is ever written, so `existingCookie` stays empty permanently — for such installations a stored decision is never preset (only the auto-denial, when nothing is on file and the consent store is on). This is a real behaviour change for that mode, not an edge case.
+- Visitors without a cookie whose decision is on file go through the CMP again; returning ones with nothing on file get the auto-denial (only with the consent store live — *Enable Consent Store route* on, *consent_store_enc* off — and *useListener* off; otherwise neither the auto-denial nor a stored decision is preset, F-251). It will show up in consent rates and the GTM load ratio.
+- Under **`cookie_mode: 'never'`** no `C.*` is ever written, so `existingCookie` stays empty permanently — for such installations a stored decision is never preset (only the auto-denial, when nothing is on file and the conditions of F-251 hold). This is a real behaviour change for that mode, not an edge case.
 
 **Write path still open (F-156, option B).** When no cookie exists, consent is *persisted* under the shared fingerprint key regardless, so the shared record still comes into existence and can be written by whoever gets there first. Closing that means persisting only under a `C.*` uid — and paying for it when no cookie can be established (the decision is then lost server-side and the visitor is asked on every request). Kept as an idea, deliberately not scheduled.
 

@@ -171,7 +171,7 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "Capture JavaScript errors as \"exception\" events",
         "simpleValueType": true,
         "defaultValue": true,
-        "help": "If ticked (default), aGTM turns JavaScript errors of the page into \"exception\" dataLayer events: message, script URL, line/column and navigator.appCodeName/appName/appVersion/platform (appVersion is effectively the User-Agent). Capture starts with the library; the events are sent only after consent. Untick to install no error listener at all (library option jsErrors: false)."
+        "help": "If ticked (default), aGTM turns JavaScript errors of the page into \"exception\" dataLayer events: message, script URL, line/column and navigator.appCodeName/appName/appVersion/platform (appVersion is effectively the User-Agent). Capture starts with the library; the events wait for consent - except that aGTM_ready carries the queued events and every error message, and a noConsent container receives it before any decision. Untick to install no error listener at all (library option jsErrors: false)."
       }
     ]
   },
@@ -803,7 +803,7 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "Load GTM even under server-side auto-denial",
         "simpleValueType": true,
         "defaultValue": true,
-        "help": "When this Client encounters a returning visitor with no recorded consent in the Session API, it constructs a server-side auto-denial consent block. If checked (default), the embedded gtmConsent flag is set to true so GTM still loads (tags that require a CMP consent do not fire; tags without a consent condition do). A visitor without a user-id cookie gets the auto-denial only when nothing is on file. With the consent store switched off there is no auto-denial at all: nothing can be on file then, and the visitor's CMP decides.<br/><br/><b>This switch only bites when the Consent Check Conditions table above is filled.</b> With an empty table the library now refuses to load GTM anyway (fail-closed since v1.5), so the checkbox makes no difference there — it decides between loading and not loading only once a real condition exists. Up to v1.4 the same emptiness had the opposite effect: GTM loaded regardless of this checkbox.<br/><br/>Note that unchecking means GTM does not load <i>at all</i> for that population, so no diagnostic or consent-free tags run either. If your goal is to load GTM but fire no consent-requiring tags, leave this checked and gate the tags inside the container instead.<br/><br/>One more combination worth knowing: with an empty table AND the <i>Load GTM without any consent gate</i> opt-out ticked, this checkbox has no effect in either position — the granted result is decided before the auto-denial fallback is consulted."
+        "help": "When this Client encounters a returning visitor with no recorded consent in the Session API, it constructs a server-side auto-denial consent block. If checked (default), the embedded gtmConsent flag is set to true so GTM still loads (tags that require a CMP consent do not fire; tags without a consent condition do). A visitor without a user-id cookie gets the auto-denial only when nothing is on file. It is built only where the library can later replace it with the CMP's own answer: Enable Consent Store route on, consent_store_enc off and useListener off. Otherwise there is no auto-denial and the CMP decides; with the store off or consent_store_enc on, a decision stored earlier is not preset either.<br/><br/><b>This switch only bites when the Consent Check Conditions table above is filled.</b> With an empty table the library now refuses to load GTM anyway (fail-closed since v1.5), so the checkbox makes no difference there — it decides between loading and not loading only once a real condition exists. Up to v1.4 the same emptiness had the opposite effect: GTM loaded regardless of this checkbox.<br/><br/>Note that unchecking means GTM does not load <i>at all</i> for that population, so no diagnostic or consent-free tags run either. If your goal is to load GTM but fire no consent-requiring tags, leave this checked and gate the tags inside the container instead.<br/><br/>One more combination worth knowing: with an empty table AND the <i>Load GTM without any consent gate</i> opt-out ticked, this checkbox has no effect in either position — the granted result is decided before the auto-denial fallback is consulted."
       }
     ]
   },
@@ -2802,17 +2802,22 @@ const afterBotCheck = function(isBot) {
           // there first. Closing that is a separate step (F-156 option B).
           const uidIsBrowserBound = !!existingCookie;
           const storedDecision = !!(r.consent && typeof r.consent === 'object' && r.consent.hasResponse === true);
-          if (storedDecision && uidIsBrowserBound) {
+          // A preset is only acted on where the library can later replace it
+          // with the CMP's own answer (F-251). storeLive: this Client actually
+          // stores consent - with the store off, or with consent_store_enc (the
+          // POST gets 501, nothing is written), a record on file is stale and no
+          // consent poll runs to update it, so it would stand for the whole page.
+          // presetLiftable additionally needs the poll: under useListener the
+          // library starts none, so an auto-denial would mask a decision the CMP
+          // already holds for the whole page.
+          const storeLive = CFG.consentStoreEnabled && !data.consent_store_enc;
+          const presetLiftable = storeLive && !data.useListener;
+          if (storedDecision && uidIsBrowserBound && storeLive) {
             sd.consent = r.consent;
             if (CFG.debug) logToConsole('debug', '✓ Session API returned stored consent', sd.consent);
           } else if (storedDecision) {
-            if (CFG.debug) logToConsole('debug', '↷ No consent preset: stored decision withheld, uid is a shared fingerprint — the CMP decides');
-          } else if (sd.ret && CFG.consentStoreEnabled) {
-            // Only with the consent store on: without it nothing is ever on
-            // file, so "returning with nothing on file" would hold for every
-            // returning visitor, and the preset would mask a decision their
-            // CMP already holds for the whole page - with the store off the
-            // library also runs no consent poll that could lift it (F-251).
+            if (CFG.debug) logToConsole('debug', '↷ No consent preset: stored decision withheld (uid is a shared fingerprint, or the consent store is not live) — the CMP decides');
+          } else if (sd.ret && presetLiftable) {
             // Returning visitor with no recorded consent -> server-side auto-denial.
             // Replaces the old client-side session_apply_denial() (Phase 2 removal).
             // `blocked` mirrors `gtmConsent` so the aGTM run_cc() chelp fallback

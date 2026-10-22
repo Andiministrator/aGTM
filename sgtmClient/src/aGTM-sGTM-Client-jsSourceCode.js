@@ -1817,17 +1817,22 @@ const afterBotCheck = function(isBot) {
           // there first. Closing that is a separate step (F-156 option B).
           const uidIsBrowserBound = !!existingCookie;
           const storedDecision = !!(r.consent && typeof r.consent === 'object' && r.consent.hasResponse === true);
-          if (storedDecision && uidIsBrowserBound) {
+          // A preset is only acted on where the library can later replace it
+          // with the CMP's own answer (F-251). storeLive: this Client actually
+          // stores consent - with the store off, or with consent_store_enc (the
+          // POST gets 501, nothing is written), a record on file is stale and no
+          // consent poll runs to update it, so it would stand for the whole page.
+          // presetLiftable additionally needs the poll: under useListener the
+          // library starts none, so an auto-denial would mask a decision the CMP
+          // already holds for the whole page.
+          const storeLive = CFG.consentStoreEnabled && !data.consent_store_enc;
+          const presetLiftable = storeLive && !data.useListener;
+          if (storedDecision && uidIsBrowserBound && storeLive) {
             sd.consent = r.consent;
             if (CFG.debug) logToConsole('debug', '✓ Session API returned stored consent', sd.consent);
           } else if (storedDecision) {
-            if (CFG.debug) logToConsole('debug', '↷ No consent preset: stored decision withheld, uid is a shared fingerprint — the CMP decides');
-          } else if (sd.ret && CFG.consentStoreEnabled) {
-            // Only with the consent store on: without it nothing is ever on
-            // file, so "returning with nothing on file" would hold for every
-            // returning visitor, and the preset would mask a decision their
-            // CMP already holds for the whole page - with the store off the
-            // library also runs no consent poll that could lift it (F-251).
+            if (CFG.debug) logToConsole('debug', '↷ No consent preset: stored decision withheld (uid is a shared fingerprint, or the consent store is not live) — the CMP decides');
+          } else if (sd.ret && presetLiftable) {
             // Returning visitor with no recorded consent -> server-side auto-denial.
             // Replaces the old client-side session_apply_denial() (Phase 2 removal).
             // `blocked` mirrors `gtmConsent` so the aGTM run_cc() chelp fallback

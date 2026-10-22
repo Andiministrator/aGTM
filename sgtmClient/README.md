@@ -189,7 +189,10 @@ and *Container URL* apply, nothing of the other row is merged in. Between two ro
 same *Consent Check* setting the later one wins. Either way the server console gets a `warn`
 line `✗ GTM container listed more than once …` naming the ID and which row was dropped.
 Up to v1.5 development the last row always won, so a row without *Consent Check* could
-silently replace the one that gated the container.
+silently replace the one that gated the container. **Careful with the `noConsent` CMP loader:**
+if a gated row resolves to the same ID as the container that loads your CMP, that container now
+waits for consent — the CMP never loads and no decision can be made. Give it an ID that cannot
+collide.
 
 ### Consent Check
 
@@ -320,7 +323,7 @@ If this is ticked. aGTM will automatically fire dataLayer Events for DOMloaded a
 
 Ticked by default. aGTM turns JavaScript errors of the page into `exception` dataLayer events —
 message, script URL, line/column and `navigator` details (`appVersion` is effectively the
-User-Agent). Capture starts with the library, the events are sent only after consent. Untick to
+User-Agent). Capture starts with the library; the events wait for consent — with one exception: `aGTM_ready` carries the queued events (`hastyEvents`) and every error message (`aGTM.errors`, not capped), and a `noConsent` container receives it before any decision (F-253). Untick to
 install no error listener at all (library option `jsErrors: false`). A container saved before this
 field existed keeps it on.
 
@@ -356,7 +359,7 @@ The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session managemen
 2. Resolves a user ID: existing cookie wins; otherwise a server-side fingerprint (`F$1$tenant$<hash>.<date>`). That uid is the Session API key, so consent persisted under it is found on the next load. It is **never** written into the cookie — the fingerprint is derived from IP, user agent, client hints and ASN/geo and is therefore not per-visitor; only a minted `C.*` may become a cookie value (see *Cookie Mode*).
 3. Calls the Session API (`GET /tp/session/{tenant}/{uid}`). The response includes `sessionId`, `counter`, `ga4sid`, `muidga4` and — once consent has ever been written for this user — a `consent` object.
 4. **Consent passthrough**: if the response carries a valid `consent` object (`hasResponse: true`) and the uid is cookie-bound, it is forwarded into `cfg.session.consent` for aGTM to consume. A cookieless visitor with a stored decision gets no preset (the CMP decides) — and no auto-denial either.
-5. **Server-side auto-denial**: if no consent is on file but the user is returning (`counter > 0` — for a cookieless visitor that counter belongs to the shared fingerprint session), the Client constructs a denial-consent block (`hasResponse: true`, `services: ',aGTMconsent,'`, `gtmConsent: <auto_deny_load_gtm>`) and embeds it in `cfg.session.consent`. This replaces the old client-side `session_apply_denial()`. Only with the consent store on: with *Enable Consent Store route* off nothing can ever be on file, so there is no auto-denial.
+5. **Server-side auto-denial**: if no consent is on file but the user is returning (`counter > 0` — for a cookieless visitor that counter belongs to the shared fingerprint session), the Client constructs a denial-consent block (`hasResponse: true`, `services: ',aGTMconsent,'`, `gtmConsent: <auto_deny_load_gtm>`) and embeds it in `cfg.session.consent`. This replaces the old client-side `session_apply_denial()`. Built only where the library can later replace it with the CMP's own answer — *Enable Consent Store route* on, *consent_store_enc* off, *useListener* off. Otherwise there is no auto-denial and the CMP decides; with the store off or *consent_store_enc* on, a decision stored earlier is not preset either (F-251).
 6. **Lazy F→C user-ID promotion**: if the existing cookie still carries an `F.*` fingerprint AND the Session API has a real (non-auto-denial) consent, the Client calls `POST /tp/session/{tenant}/{F-uid}/promote` with a freshly-generated `C.1{lim}{tenant}{lim}{rand12}.{ms}` (where `{lim}` is the configured `fip_limiter`, recommended `.`; the literal `C.` two-character prefix is mandated by api4sgtm) to atomically migrate the session pointer + consent record. `sessionData.uid` becomes the new `C.*` for downstream calls (cookie write, sources POST, JS payload). One-shot per visitor.
 7. Sets the user-ID cookie via `Set-Cookie` — but only ever with a minted `C.*` value, and only if the resulting consent state grants the required services (or if `cookie_mode: always`, which refreshes an existing `C.*`; minting one always needs the consent requirement, see *Consent Service / Purpose / Vendor*). A visitor still on a fingerprint uid receives no cookie; theirs is minted at the moment they consent. An `F.*` cookie left over from an earlier v1.5 deploy is cleared here — unless the Session API failed to answer (an outage is not evidence that no consent exists) or a promote for it is still worth retrying. Under `cookie_mode: consent` with `cookie_delete`, a withdrawal the Session API has on record deletes the cookie here as well (only on that positive evidence — no record or an outage leaves it alone).
 8. Answers with `Cache-Control: private, no-store`. The body inlines this visitor's `cfg.session` (uid, sid, and for a returning visitor their recorded consent) while the URL is identical for every visitor, so a shared cache must never store it.
@@ -385,7 +388,7 @@ Checkbox, default ON. When checked, aGTM (Phase 3) POSTs consent diffs to the fi
 
 #### Load GTM even under server-side auto-denial (`auto_deny_load_gtm`)
 
-When the Session API has no recorded consent for a returning visitor, the Client constructs a server-side auto-denial (only while *Enable Consent Store route* is on). If checked (default), the embedded `gtmConsent` flag is set to `true` so GTM still loads (tags that require a CMP consent do not fire; tags without a consent condition do). Uncheck to block GTM under auto-denial.
+When the Session API has no recorded consent for a returning visitor, the Client constructs a server-side auto-denial (only with *Enable Consent Store route* on, *consent_store_enc* and *useListener* off — F-251). If checked (default), the embedded `gtmConsent` flag is set to `true` so GTM still loads (tags that require a CMP consent do not fire; tags without a consent condition do). Uncheck to block GTM under auto-denial.
 
 > **This switch only bites when *Consent Check Conditions* is filled.** With an empty table the library
 > refuses to load GTM anyway (fail-closed since v1.5), so the checkbox makes no difference there — it
@@ -415,8 +418,8 @@ Controls when the user ID cookie is set:
 > one would receive the first one's consent and get GTM injected without ever having seen a
 > CMP. Such visitors get no preset when a decision is on file — the CMP decides; with
 > nothing on file and a returning-visitor counter they get the server-side auto-denial —
-> only while the consent store is on; with it off nothing can be on file, so there is no
-> auto-denial and the CMP decides.
+> only with the consent store live (*Enable Consent Store route* on, *consent_store_enc* off)
+> and *useListener* off; otherwise the CMP decides.
 > **Consequence for `never`:** in that mode no `C.*` is ever written, so no visitor is ever
 > cookie-bound and a stored decision is never preset. Expect consent rates and the GTM load
 > ratio to move when this reaches an existing installation.

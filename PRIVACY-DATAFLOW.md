@@ -58,7 +58,7 @@ fingerprint, no user-id cookie, no Sources API — none of it is in the library.
 | L5 | ~~Consentmanager block probe~~ — **removed in v1.5** | (was `cdn.consentmanager.net`) | — | — |
 | L6 | `aGTMoptout` / `aGTMdebug` cookies | first-party, no request | not set | n/a |
 | L7 | iFrame events via `postMessage` | the parent document | off (`iframeSupport`) | **before** ³ |
-| L8 | JavaScript error capture | your dataLayer / GTM | **on** (`jsErrors`) | collected before, sent after |
+| L8 | JavaScript error capture | your dataLayer / GTM | **on** (`jsErrors`) | collected before, sent after — **before** with a `noConsent` container (via `aGTM_ready`) |
 | T1 | Copy-Events tag: the copied text | your dataLayer / GTM | tag not installed | after |
 | T2 | Pageview tag: test-result cookie | first-party, no request | tag not installed | after |
 | T3 | Pageview tag: device attributes | your dataLayer / GTM | tag not installed | after |
@@ -200,13 +200,16 @@ through the same helper — see T2.
 - **Sent:** an `exception` event into the dataLayer with `errmsg` (message + script URL +
   line/column) and `browser` = `navigator.appCodeName | appName | appVersion | platform`.
   `appVersion` is effectively the full User-Agent. The first 5 errors are fired, up to 100
-  counted.
+  counted. Independently, `aGTM.d.errors` keeps **every** message (no cap).
 - **Condition / field:** `jsErrors` — **on by default**; `jsErrors: false` installs no
   listener at all. In shape B it is the Client checkbox *Capture JavaScript errors as
   "exception" events*. Up to v1.4.x there was no switch (F-190).
 - **Consent:** the *capture* starts with `init()`, i.e. before any decision; the
   *transmission* goes through `aGTM.f.fire()` and is therefore consent-gated like any other
-  event (queued in `aGTM.d.f`, replayed after consent). Worth naming in an assessment
+  event (queued in `aGTM.d.f`, replayed after consent). **Exception:** `aGTM_ready` carries
+  that queue (`hastyEvents`) and `aGTM.d.errors` as live references, and a `noConsent`
+  container receives `aGTM_ready` before any decision — with such a container the error
+  messages are readable in the dataLayer before consent (F-253). Worth naming in an assessment
   anyway: an error message can contain a URL with parameters, and this is the only data
   collection the library performs without being asked to — switch it off where you do not
   need it.
@@ -493,7 +496,7 @@ Both are consequences of a consent decision arriving at `POST /aGTMconsent` (row
 browser build derive the same value. v1.5 stopped writing it into a cookie — which would
 have frozen the collision for a year — and stopped handing a **stored** consent to a visitor
 whose id is not cookie-bound (such a visitor then gets no preset; with nothing on file and a
-returning-visitor counter they get the server-side auto-denial, §7 point 5, as long as the consent store is on). Two consequences remain, and both belong in an assessment:
+returning-visitor counter they get the server-side auto-denial, §7 point 5, only with the consent store live and *useListener* off). Two consequences remain, and both belong in an assessment:
 
 - The **rest** of the session record is not gated on the cookie. Session id, `ga4sid`,
   `muidga4` and the counters are passed through regardless, so a second visitor sharing the
@@ -523,8 +526,9 @@ plus one misconfiguration that behaves the same way:
 4. **`allowEmptyConsentConditions: true`** — the explicit opt-out of the gate. Without it an
    empty condition table is **fail-closed** as of v1.5 and loads nothing.
 5. **Server-side auto-denial with *Load GTM even under server-side auto-denial*** (default
-   **on**) — a returning visitor with nothing on file gets a denial preset (only with the
-   consent store on; without it nothing can be on file and there is no auto-denial), and this switch
+   **on**) — a returning visitor with nothing on file gets a denial preset (only with *Enable
+   Consent Store route* on, *consent_store_enc* off and *useListener* off — otherwise the CMP
+   decides, and with the store off or *consent_store_enc* on a stored decision is not preset either), and this switch
    decides whether GTM still loads for them. For a cookieless visitor "returning" means that
    the fingerprint session already counted a request — possibly a different person behind the
    same NAT within the Session API's 30-minute window, so a first-time visitor can get it on
