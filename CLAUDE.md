@@ -11,12 +11,12 @@
 
 ### Detail files (read when the task touches them)
 
-This file is loaded into every session, so it keeps the rules and the normal workflow; long reference material lives in the files below, moved there verbatim on 2026-10-25. **On conflict, this file wins.** The folder files are loaded by Claude Code automatically when you work in that folder; a sub-agent does not get them reliably — put the relevant part into its prompt.
+This file is loaded into every session, so it keeps the rules and the normal workflow; long reference material lives in the files below, moved there verbatim on 2026-10-25. **On conflict:** for rules and workflow this file wins; for mechanics (call graphs, field semantics, Client behaviour) the detail file wins — a conflict is a bug, fix both in the same commit. The folder files are loaded by Claude Code automatically when you work in that folder; a sub-agent does not get them reliably — put the relevant part into its prompt.
 
 | Detail file | Content | Read when |
 |---|---|---|
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Both call graphs, callbacks, the full **Data stores** table, Session Feature, POST transport & consent bypass | before changing or explaining any core function, `aGTM.d.*` field, session or consent-store code |
-| [`sgtmClient/CLAUDE.md`](sgtmClient/CLAUDE.md) | Bot check, user-ID cookie consent requirement, CORS & cross-site write guard, container URL parameters, Sources API | any change to or question about the sGTM Client's server logic, including work on `test/sgtm/` |
+| [`sgtmClient/CLAUDE.md`](sgtmClient/CLAUDE.md) | Bot check, user-ID cookie consent requirement, CORS & cross-site write guard, container URL parameters, Sources API | any change to or question about the sGTM Client's server logic, including work on `test/sgtm/`, and library code that talks to the Client (`aGTM.f.xsend` / consent POST, `gtm_load` env parameters) |
 | [`devtools-extension/CLAUDE.md`](devtools-extension/CLAUDE.md) | aGTM Inspector: tabs, read-only posture, Simulation write channel, CMP detection card and its guards | any work on the Inspector or on CMP detection, including `test/devtools/` and adding a CMP adapter |
 | [`gtm/CLAUDE.md`](gtm/CLAUDE.md) | DL-Repeat tag and its conditional gate syntax | work on the DL-Repeat tag or `aGTM.f.dlrepeat` |
 
@@ -53,10 +53,10 @@ aGTM/
 ├── build.sh             # Build entry point · VERSION · package.json · bunfig.toml
 ├── CHANGELOG.md         # Release history · ROADMAP.md · SESSION-REDESIGN.md
 ├── README.md            # + README.de.md · README-for-Developers.md · README-for-Integrators.md
-├── LICENSE              # Apache 2.0 · package-lock.json
+├── LICENSE              # Apache 2.0 · package-lock.json · .gitignore
 ├── tmp/                 # Temporary files / backups (not production-relevant), gitignored
 ├── .claude/skills/      # Claude Code skills (see below); only these are tracked under .claude/
-├── ARCHITECTURE.md      # Core function architecture (call graphs, data stores, session feature) — see "Detail files"
+├── ARCHITECTURE.md      # Core function architecture (call graphs, data stores, session feature) — see "Detail files"; at the root, not in docs/ (docs/ is gitignored)
 └── CLAUDE.md            # This file (+ folder files sgtmClient/CLAUDE.md, devtools-extension/CLAUDE.md, gtm/CLAUDE.md)
 ```
 
@@ -88,7 +88,7 @@ Only these skill files are git-tracked under `.claude/`; the rest of `.claude/`
 
 `devtools-extension/` ships an MV3 DevTools panel for people who build, validate and debug an integration. **Full rules: [`devtools-extension/CLAUDE.md`](devtools-extension/CLAUDE.md)** (loaded automatically when working there) and `devtools-extension/README.md`. Core rules:
 
-- Every tab **except Simulation** is strictly read-only (`inspectedWindow.eval()` with the pure reader `reader.js`, plus `chrome.devtools.network`). Simulation (`sim.js`) is the one write exception, behind a per-session toggle; `manifest.json` declares **no** `permissions`/`host_permissions`.
+- Every tab **except Simulation** is strictly read-only (`inspectedWindow.eval()` with the pure reader `reader.js`, plus `chrome.devtools.network`; the CMP-detection card uses its own read-only `eval`). Simulation (`sim.js`) is the one write exception, behind a per-session toggle; `manifest.json` declares **no** `permissions`/`host_permissions`.
 - **Adding a CMP adapter ⇒ add its signature in `cmpdetect.js` or its `UNDETECTABLE` exception** (drift-guarded by `test/devtools/cmpdetect.test.js`), same reflex as the `CMP_MAP` entry and the configurator's `CMPData.cmps` entry (`test/cmp/configurator-sync.test.js`). How to write a signature (`UNDETECTABLE` with a reason, `kind: "platform"`, `deny` for a newer CMP version publishing the older API): `devtools-extension/CLAUDE.md` — read it when adding an adapter from `cmp/`.
 - ES6+, **not** on the ES5/`build.sh` path; its version is coupled to the library version. Re-pack the tracked `aGTM-Inspector.zip` with `scripts/pack-devtools-extension.sh` after a version bump.
 
@@ -270,7 +270,7 @@ There are no feature branches or hotfix branches by convention — the project i
 
 - **Event path:** `aGTM.f.fire(o)` deep-copies the event, timestamps it, may trigger `run_cc('update')` (`consent_events`), enriches it (`dlSet`), then either **queues** it in `aGTM.d.f` (no consent yet, not `_noConsent`, not an `aGTM*` event) or sends it: `_post` → `xsend()`, record in `aGTM.d.dl`, then `sendnaus()` (or `iFrameFire()` in iframe mode) pushes it to `window[gdl]` — unless `_noDLPush`.
 - **Injection path:** `config()` (before `init()`; a valid `cfg.session.consent` preset calls `call_cc()` synchronously) → `init()` → `optout()` → CMP adapter `load_cc()` + `consent_listener()` (500 ms `call_cc` poll, or `useListener`) → `call_cc()` → `run_cc()` → adapter `consent_check()` → `gtmConsent` from `gtmPurposes`/`gtmServices`/`gtmVendors` (**fail-closed** when all three are empty, F-167) → `inject()` → `initGTM(false)` → `gtm_load()` (`aGTM_ready` with `hastyEvents` = the queue, then `gtm.js`, then the script tag). `noConsent` containers load early via `initGTM(true)`.
-- **Consent store (sGTM Client):** `run_cc()` diffs `consent_serialize(aGTM.d.consent)` against `aGTM.d.consent_hash` and POSTs changes to `consent_store_url` (retry budget, `session_status`). The update path resets stale preset fields first and restores them if the CMP gives no answer, which makes the 2 s `start_consent_poll` safe.
+- **Consent store (sGTM Client):** `run_cc()` diffs `consent_serialize(aGTM.d.consent)` against `aGTM.d.consent_hash` and POSTs changes to `consent_store_url` (retry budget, `session_status`). The update path resets stale preset fields first and restores them if the CMP gives no answer, which makes the 2 s `start_consent_poll` safe. The consent POST **must stay a CORS simple request** (`withCredentials` + `text/plain`, no custom headers): the Client has no OPTIONS route (F-160).
 - **State lives in** `aGTM.c` (config), `aGTM.d` (runtime: consent, queue `d.f`, `d.dl`, session, bot, attribution), `aGTM.l` (log).
 
 ### sGTM Client specifics
@@ -279,7 +279,7 @@ There are no feature branches or hotfix branches by convention — the project i
 
 - **Bot check** — no status-code gate (403 = bot, F-127); `isBot === true` is the only block trigger; `botCheckMode` `block`/`mark`, `botCheckExpose`; verdict whitelisted (`botFieldsFromResponse`), values whitelisted, loop work bounded; `buildAndSend` declared before its callers (TDZ, F-130).
 - **User-ID cookie consent requirement** (F-165) — an empty requirement mints no `C.*` cookie unless `cookie_without_condition`; never deletes. `bun test` does **not** run `___TESTS___`.
-- **CORS and the cross-site write guard** (F-189, F-238) — ACAO only for allowed origins (`cors_origins`, `cookie_domain`, eTLD+1 for `auto`); `foreignEmbed` withholds the preset for cross-site `<script>` includes; cross-site POST → 403. Depends on the proxy passing `Sec-Fetch-Site`. Open: F-240, F-241.
+- **CORS and the cross-site write guard** (F-189, F-238) — ACAO only for allowed origins (`cors_origins`, `cookie_domain`, eTLD+1 for `auto`); `foreignEmbed` withholds the preset for cross-site `<script>` includes; cross-site POST from an origin the allow-list does not name → 403. Depends on the proxy passing `Sec-Fetch-Site`. Open: F-240, F-241.
 - **Container URL parameters** (`gtm_use`, F-161) — `no`/`env`/`all`/verbatim `k=v`; `id`, `c`, `l` are never forwarded; budgets bound the work.
 - **Sources API integration** — awaited POST before `buildAndSend`; response blacklist-captured into `cfg.session.*`; `sources_api_url` is the bare base without tenant; inline attribution via `?attribution=true&method=…`.
 

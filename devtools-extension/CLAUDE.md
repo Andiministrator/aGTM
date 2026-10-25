@@ -1,6 +1,6 @@
-<!-- aGTM Inspector rules for agents. Moved verbatim from the root CLAUDE.md on 2026-10-25; Claude Code loads this file when working in devtools-extension/. The root CLAUDE.md wins on conflict. Paths below are relative to the repository root. Excluded from aGTM-Inspector.zip by scripts/pack-devtools-extension.sh. -->
+<!-- aGTM Inspector rules for agents. Moved verbatim from the root CLAUDE.md on 2026-10-25; Claude Code loads this file when working in devtools-extension/. On conflict, the root CLAUDE.md wins for rules, this file for mechanics. Paths below are relative to the repository root. Excluded from aGTM-Inspector.zip by scripts/pack-devtools-extension.sh. -->
 
-<!-- Abschnitt: aGTM Inspector (Chrome DevTools extension) -->
+<!-- Section: aGTM Inspector (Chrome DevTools extension) -->
 
 ### aGTM Inspector (Chrome DevTools extension)
 
@@ -63,7 +63,7 @@ global (`window.Cookiebot = {}` must not read as "sicher"). The localStorage pre
 is gated on its own global and capped at 300 keys.
 
 It is ES6+ (own browser context — **not** on the ES5/`build.sh` path), and its version
-is coupled to the library version (see the build table). Distribution is "load
+is coupled to the library version (see the build table in the root `CLAUDE.md`). Distribution is "load
 unpacked" or the tracked `aGTM-Inspector.zip` at the repo root. The pure modules are
 unit-tested under `test/devtools/` (`netclassify`, `consentsignals`, `cmpdetect`,
 `diagnose`, `jsonview`, the `sim` code builders) plus a `panel-smoke` integration test.

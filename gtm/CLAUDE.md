@@ -1,6 +1,6 @@
-<!-- GTM Custom Template rules for agents. Moved verbatim from the root CLAUDE.md on 2026-10-25; Claude Code loads this file when working in gtm/. The root CLAUDE.md wins on conflict. Paths below are relative to the repository root. -->
+<!-- GTM Custom Template rules for agents. Moved verbatim from the root CLAUDE.md on 2026-10-25; Claude Code loads this file when working in gtm/. On conflict, the root CLAUDE.md wins for rules, this file for mechanics. Paths below are relative to the repository root. -->
 
-<!-- Abschnitt: DL-Repeat tag → aGTM.f.dlrepeat (v1.5+) -->
+<!-- Section: DL-Repeat tag → aGTM.f.dlrepeat (v1.5+) -->
 
 ### DL-Repeat tag → `aGTM.f.dlrepeat` (v1.5+)
 

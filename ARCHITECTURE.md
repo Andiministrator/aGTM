@@ -1,6 +1,10 @@
-<!-- Moved verbatim from the root CLAUDE.md on 2026-10-25 to keep the always-loaded file small. The root CLAUDE.md wins on conflict. Keep in sync with README-for-Developers.md (see the documentation-maintenance rule in CLAUDE.md). -->
+<!-- Moved verbatim from the root CLAUDE.md on 2026-10-25 to keep the always-loaded file small. On conflict, the root CLAUDE.md wins for rules, this file for mechanics. Keep in sync with README-for-Developers.md (see the documentation-maintenance rule in CLAUDE.md). -->
 
-<!-- Abschnitt: aGTM — Core function architecture (agent & developer reference) -->
+<!-- Section: aGTM — Core function architecture (agent & developer reference) -->
+
+# aGTM — Core function architecture
+
+Agent and developer reference: call graphs, callbacks, data stores, session feature, POST transport. The rules for working on this code are in the root [`CLAUDE.md`](CLAUDE.md).
 
 ### Event dispatch call graph
 

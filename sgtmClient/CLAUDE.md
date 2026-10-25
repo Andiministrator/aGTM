@@ -1,6 +1,6 @@
-<!-- sGTM Client rules for agents. Moved verbatim from the root CLAUDE.md on 2026-10-25; Claude Code loads this file when working in sgtmClient/. The root CLAUDE.md wins on conflict. Paths below are relative to the repository root. -->
+<!-- sGTM Client rules for agents. Moved verbatim from the root CLAUDE.md on 2026-10-25; Claude Code loads this file when working in sgtmClient/. On conflict, the root CLAUDE.md wins for rules, this file for mechanics. Paths below are relative to the repository root. -->
 
-<!-- Abschnitt: sGTM Client — bot check, user-ID cookie, CORS, container URL parameters, Sources API -->
+<!-- Section: sGTM Client — bot check, user-ID cookie, CORS, container URL parameters, Sources API -->
 
 ### Bot check (sGTM Client only)
 
