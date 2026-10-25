@@ -33,10 +33,12 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/$NAME"
 
-# Copy the extension, excluding derived/OS noise. Keep README.md — it documents install.
+# Copy the extension, excluding derived/OS noise and the agent notes (CLAUDE.md is for
+# Claude Code in this repo, not for the installed extension). Keep README.md — it documents install.
 ( cd "$SRC" && find . -type f \
     ! -name '.DS_Store' \
     ! -name '*.zip' \
+    ! -name 'CLAUDE.md' \
     -print0 | sort -z | while IFS= read -r -d '' f; do
       mkdir -p "$STAGE/$NAME/$(dirname "$f")"
       cp "$f" "$STAGE/$NAME/$f"

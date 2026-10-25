@@ -1,7 +1,7 @@
 // test/consent_serialize.test.js — tests for aGTM.f.consent_serialize()
 // Load-bearing: this stable serialization drives the consent-hash change
 // detection that gates the consent-store POST and the aGTM_consent_update
-// event. See CLAUDE.md §"Consent diff/store" and finding chain around F-31.
+// event. See ARCHITECTURE.md §"Consent diff/store" and finding chain around F-31.
 import { describe, test, expect } from 'bun:test';
 
 describe('aGTM.f.consent_serialize()', () => {
