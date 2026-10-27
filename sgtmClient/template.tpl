@@ -342,8 +342,8 @@ ___TEMPLATE_PARAMETERS___
           }
         ],
         "newRowButtonText": "Add Consent Check",
-        "notSetText": "Add at least one condition. Without one, GTM is not loaded (since 1.4.4).",
-        "help": "Setup the Consent Conditions. Add at least one condition. Without one, GTM is not loaded (since 1.4.4). Use one row per type; several values go comma-separated into that row (a second row of the same type replaces the first)."
+        "notSetText": "Add at least one condition. Without one, GTM is not loaded (since Client 1.4.4).",
+        "help": "Setup the Consent Conditions. Add at least one condition. Without one, GTM is not loaded (since Client 1.4.4). Use one row per type; several values go comma-separated into that row (a second row of the same type replaces the first)."
       },
       {
         "type": "GROUP",
