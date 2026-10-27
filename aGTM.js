@@ -2,8 +2,8 @@
 
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
- * @version 1.4.3
- * @lastupdate 20.10.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @version 1.4.4
+ * @lastupdate 27.10.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -30,7 +30,7 @@ aGTM.f.propset = function (obj, prop, defaultValue) {
 // Function to initiate the basic aGTM container
 aGTM.f.objinit = function() {
   var props = [
-    [aGTM.d, "version", "1.4.3"],
+    [aGTM.d, "version", "1.4.4"],
     [aGTM.d, "f", []],
     [aGTM.d, "config", false],
     [aGTM.d, "init", false],
@@ -494,46 +494,66 @@ aGTM.f.urlParam = function(name, url) {
 };
 
 /**
- * Manages the opt-out functionality for the aGTM object based on URL parameters and cookies.
- * - Checks if the URL contains the `aGTMoptout` parameter.
- * - If `aGTMoptout` is set and not equal to "0", sets a cookie `aGTMoptout` with value "1" and enables opt-out.
- * - If `aGTMoptout` is equal to "0", removes the `aGTMoptout` cookie if it exists.
- * - If no URL parameter is present, checks if a `aGTMoptout` cookie exists with a value greater than "0".
- * - If opt-out is enabled, clears all properties of `aGTM` except `f`, reinitializes the object,
- *   and calls an optional callback function `aGTM.f.optout_callback`.
+ * Opt-out: the visitor's objection to all measurement by aGTM (Art. 21(1) GDPR).
+ * Backported from v1.5 (library 1.4.4).
+ * - `?aGTMoptout=<anything but 0>` stores the objection in the cookie `aGTMoptout`. Its value is
+ *   the time of the objection (epoch ms).
+ * - `?aGTMoptout=0` withdraws the objection and deletes the cookie.
+ * - Without the parameter, an existing cookie (value other than "0") keeps the objection and is
+ *   written again, so it expires 13 months after the LAST visit, not after the first. A value
+ *   from before 1.4.4 ("1") becomes the current time.
+ * - The cookie is written for the registrable domain - the shortest parent domain the browser
+ *   accepts. The host-only cookie of earlier versions is removed, so exactly one copy remains.
+ * - While the objection stands nothing runs: every property of `aGTM` except `f` is cleared, the
+ *   object is reinitialised and `aGTM.f.optout_callback` is called. A later consent in the
+ *   banner does not lift it: no CMP adapter can tell a fresh decision from a stored one, so the
+ *   way back is `?aGTMoptout=0`.
  * @function aGTM.f.optout
  * @returns {boolean} - Returns true if opt-out is active, otherwise false.
  */
 aGTM.f.optout = function() {
-  // Initialize the optout variable to false
-  var optout = false;
-  // Check the URL for the aGTMoptout parameter
-  var urlOptoutValue = aGTM.f.urlParam("aGTMoptout",window.location.href);
-  // Handle cases based on the URL parameter value
-  if (urlOptoutValue && urlOptoutValue !== "0") {
-    // If the parameter exists and is not "0", set the cookie and optout flag
-    aGTM.f.sc("aGTMoptout", "1");
-    optout = true;
-  } else if (urlOptoutValue === "0") {
-    // If the parameter exists and is "0", remove the cookie
-    aGTM.f.sc("aGTMoptout", "0"); // Clear the cookie by setting an empty value
-  } else {
-    // If no parameter, check the cookie value
-    var cookieValue = aGTM.f.gc("aGTMoptout");
-    if (cookieValue && cookieValue !== "0") optout = true;
-  }
-  // If optout is true, reset the aGTM object properties and execute callbacks
-  if (optout) {
-    // Delete all properties in aGTM except "f"
-    for (var key in aGTM) {
-      if (aGTM.hasOwnProperty(key) && key !== "f") delete aGTM[key];
+  var v = aGTM.f.urlParam("aGTMoptout", window.location.href);
+  var c = aGTM.f.gc("aGTMoptout");
+  var h = window.location.hostname.split(".");
+  var d = document;
+  var w = function (val, ma, dm) {
+    d[aGTM.n.ck] = "aGTMoptout=" + val + "; max-age=" + ma + (dm ? "; domain=" + dm : "") + "; path=/; Secure; SameSite=Lax";
+  };
+  // Removes every copy first (host-only and each parent domain), then - with a max-age - writes
+  // the cookie for the shortest parent domain the browser keeps. Without the removal a renewal
+  // could not tell its new cookie from the old one when reading back. Falls back to host-only
+  // (localhost, an IP address).
+  var set = function (val, ma) {
+    var i;
+    w(val, 0);
+    for (i = 0; i < h.length - 1; i++) w(val, 0, h.slice(i).join("."));
+    if (!ma) return;
+    for (i = h.length - 2; i >= 0; i--) {
+      w(val, ma, h.slice(i).join("."));
+      if (aGTM.f.gc("aGTMoptout") === val) return;
     }
-    // Re-initialize the aGTM object and execute the callback if it exists
-    aGTM.f.objinit();
-    if (typeof aGTM.f.optout_callback === "function") aGTM.f.optout_callback();
-    return true; // End the function and return true
+    w(val, ma);
+  };
+  if (v === "0") {
+    set("0", 0);
+    return false;
   }
-  return false; // End the function and return false if optout is not true
+  var ts = v ? "" + Date.now() : c && c !== "0" ? (/^\d{13}$/.test(c) ? c : "" + Date.now()) : "";
+  if (!ts) return false;
+  set(ts, 34128000); // 395 days = 13 months
+  // Delete all properties in aGTM except "f", re-initialize the object and run the callback.
+  // c/d/l/n are recreated empty before objinit(), which only fills existing objects: without
+  // them aGTM.d stayed undefined for anything that reads it afterwards.
+  for (var key in aGTM) {
+    if (aGTM.hasOwnProperty(key) && key !== "f") delete aGTM[key];
+  }
+  aGTM.c = {};
+  aGTM.d = {};
+  aGTM.l = [];
+  aGTM.n = {};
+  aGTM.f.objinit();
+  if (typeof aGTM.f.optout_callback === "function") aGTM.f.optout_callback();
+  return true;
 };
 
 

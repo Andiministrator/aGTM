@@ -91,9 +91,9 @@ describe('1.4.x Client — embedded library is the built one', () => {
   });
 
   test('the Client version and the embedded library version are the released pair', () => {
-    expect(TPL).toContain('const aGTMversion = "1.4.6";');
-    expect(SRC).toContain('const aGTMversion = "1.4.6";');
-    expect(MIN).toContain('"version","1.4.3"');
+    expect(TPL).toContain('const aGTMversion = "1.4.7";');
+    expect(SRC).toContain('const aGTMversion = "1.4.7";');
+    expect(MIN).toContain('"version","1.4.4"');
   });
 });
 

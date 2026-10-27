@@ -505,10 +505,14 @@ See also chapter "Configuration Options" and especially "gtm".
 
 You can use an OptOut option of aGTM. Therefore exists the URL Parameter `aGTMoptout`.
 
-If you add it to an URL and set the value to `1`, the execution of the aGTM will stop, all aGTM settings and data will be destroyed and an OptOut (Session) Cookie `aGTMoptout` will be set with the value of `1`.
-The cookie ensures that the opt-out remains active for the current session.
+If you add it to an URL and set the value to `1`, the execution of the aGTM will stop, all aGTM settings and data will be destroyed and the cookie `aGTMoptout` will be set. Since library 1.4.4:
 
-You can stop the opt-out state using the URL Parameter `aGTMoptout` with the value `0`. This removes the OptOut Cookie.
+- its value is the time of the objection (epoch milliseconds);
+- it lasts **13 months**, renewed on every visit (before: a session cookie);
+- it is written for the registrable domain (`example.com` for `www.example.com`; host-only on `localhost` or an IP address);
+- a later consent in the cookie banner does not lift it - the way back is `?aGTMoptout=0`.
+
+You can stop the opt-out state using the URL Parameter `aGTMoptout` with the value `0`. This deletes the OptOut Cookie.
 
 **Opt-Out enabled together with Debug enabled**
 
@@ -522,8 +526,8 @@ You can use a Callback Function named `aGTM.f.optout_callback` - it will run aft
 **OptOut Functionality in short**
 
 * - Checks if the URL contains the `aGTMoptout` parameter.
-* - If `aGTMoptout` is set and not equal to "0", sets a cookie `aGTMoptout` with value "1" and enables opt-out.
-* - If `aGTMoptout` is equal to "0", removes the `aGTMoptout` cookie if it exists.
+* - If `aGTMoptout` is set and not equal to "0", sets the cookie `aGTMoptout` (value: time of the objection, 13 months, registrable domain) and enables opt-out.
+* - If `aGTMoptout` is equal to "0", deletes the `aGTMoptout` cookie.
 * - If no URL parameter is present, checks if a `aGTMoptout` cookie exists with a value greater than "0".
 * - If opt-out is enabled, clears all properties of `aGTM` except `f`, reinitializes the object,
 * and calls an optional callback function `aGTM.f.optout_callback`.
