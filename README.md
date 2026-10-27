@@ -791,19 +791,21 @@ See also chapter "Configuration Options" and especially "gtm".
 
 aGTM has an opt-out: the visitor's objection to all measurement (Art. 21(1) GDPR). It is switched by the URL parameter `aGTMoptout`, so a privacy policy can link to it, e.g. `https://www.example.com/privacy?aGTMoptout=1`.
 
-- **`?aGTMoptout=1`** (any value except `0`): aGTM stops, all aGTM settings and data are destroyed, and the cookie `aGTMoptout` is set. Its value is the time of the objection (epoch milliseconds).
-- **Lifetime:** 13 months, renewed on every visit — the objection expires 13 months after the **last** visit.
-- **Domain:** the cookie is written for the registrable domain (`example.com` for `www.example.com`; the shortest parent domain the browser accepts), so the sGTM Client on a subdomain sees it too. On `localhost` or an IP address it is host-only.
+- **`?aGTMoptout=1`** (any value except `0`): aGTM stops, all aGTM settings and data are destroyed, and the cookie `aGTMoptout` is set. Its value is the **day** of the objection (UTC midnight as epoch milliseconds) — not the exact time, so it identifies nobody.
+- **While it stands, aGTM sends nothing:** no GTM container (no `noConsent` container either), no events — `aGTM.f.fire()` and `aGTM.f.xsend()` return without sending, including `_noConsent` and `_post` events — and no consent-store POST.
+- **Lifetime:** 13 months, renewed on every visit — the objection expires 13 months after the **last** visit. **Safari** caps cookies written by script to 7 days (Intelligent Tracking Prevention), so there the objection expires 7 days after the last visit.
+- **Domain:** the cookie is written for the registrable domain (`example.com` for `www.example.com`; the shortest parent domain the browser accepts), so the sGTM Client on a subdomain sees it too. The objection, and `?aGTMoptout=0`, therefore apply to **every aGTM installation on that domain**. On `localhost` or an IP address it is host-only. On a plain `http://` page the browser drops the `Secure` cookie: the objection then holds for that page view only.
 - **`?aGTMoptout=0`** withdraws the objection and deletes the cookie.
-- **A stored consent does not override it.** The sGTM Client hands a stored consent to the library before `init()` runs; `aGTM.f.config()` checks the opt-out first, so GTM is not loaded. A later consent in the cookie banner does not lift the objection either — no CMP adapter can tell a fresh decision from a stored one. The way back is `?aGTMoptout=0`.
-- **sGTM Client:** with the cookie (or `?aGTMoptout=1` on the page that loads the library) the Client still serves the library, but makes none of its own calls — no Session API, no Sources API, no user-ID cookie.
+- **A stored consent does not override it.** The sGTM Client hands a stored consent to the library before `init()` runs; `aGTM.f.config()` checks the opt-out first, so GTM is not loaded. A later consent in the cookie banner does not lift the objection either — no CMP adapter can tell a fresh decision from a stored one. The way back is `?aGTMoptout=0`. aGTM does not report the objection to the CMP; the CMP keeps showing the visitor's last banner choice.
+- **sGTM Client:** with the cookie (or `?aGTMoptout=1` on the page that loads the library) the Client still serves the library, but skips the Session API, the Sources API and the user-ID cookie, and ignores consent POSTs (answers `204`, stores nothing). **The bot check (if configured) still runs** — it protects the endpoint and sees IP address and user agent, as for every request. The Client sees the cookie only when it runs under the same registrable domain as the page.
+- **Single-page apps:** the link must load the page (a full page load). A router that handles `?aGTMoptout=1` without reloading never runs the opt-out.
 - Deleting the browser's cookies deletes the objection as well.
 
-Before v1.5 the cookie was a session cookie with the value `1`, host-only. Such a cookie is taken over on the next visit (time = that visit) and replaced by the new one.
+Before v1.5 the cookie was a session cookie with the value `1`, host-only. Such a cookie is taken over on the next visit (day = that visit) and replaced by the new one.
 
 **Opt-Out enabled together with Debug enabled**
 
-If you use the aGTM Setting `debug` with the value `true`, an existing opt-out state will be ignored.
+If you use the aGTM Setting `debug` with the value `true`, an existing opt-out state will be ignored (the library neither reads nor writes the cookie). The sGTM Client never passes `debug` to the library for a visitor who objected, even when its *Debug* field is ticked.
 You could use this to de-activate an aGTM within a Live-Website (using the opt-out) and inject after that your own aGTM code (with enabled debug).
 
 **Callback Function**

@@ -953,16 +953,18 @@ aGTM.f.urlParam = function(name, url) {
 /**
  * Opt-out: the visitor's objection to all measurement by aGTM (Art. 21(1) GDPR).
  * - `?aGTMoptout=<anything but 0>` stores the objection in the cookie `aGTMoptout`. Its value is
- *   the time of the objection (epoch ms), so it can be compared with a consent later on.
+ *   the day of the objection (UTC midnight as epoch ms), so it can be compared with a consent
+ *   later on without identifying the visitor.
  * - `?aGTMoptout=0` withdraws the objection and deletes the cookie.
  * - Without the parameter, an existing cookie (value other than "0") keeps the objection and is
  *   written again, so it expires 13 months after the LAST visit, not after the first. A value
- *   from before v1.5 ("1") becomes the current time.
+ *   from before v1.5 ("1") becomes the current day.
  * - The cookie is written for the registrable domain - the shortest parent domain the browser
  *   accepts - so the sGTM Client on a subdomain sees it too (F-259). The host-only cookie of
  *   earlier versions is removed, so exactly one copy remains.
  * - While the objection stands nothing runs: every property of `aGTM` except `f` is cleared, the
- *   object is reinitialised and `aGTM.f.optout_callback` is called. config() checks it before a
+ *   object is reinitialised, `aGTM.d.optout` is set (fire() and xsend() then send nothing) and
+ *   `aGTM.f.optout_callback` is called. config() checks it before a
  *   consent preset of the sGTM Client can load GTM (F-252), so a stored consent does not override
  *   it. A later consent in the banner does not lift it either: no CMP adapter can tell a fresh
  *   decision from a stored one (F-249), so the way back is `?aGTMoptout=0`.
@@ -996,7 +998,11 @@ aGTM.f.optout = function() {
     set("0", 0);
     return false;
   }
-  var ts = v ? "" + Date.now() : c && c !== "0" ? (/^\d{13}$/.test(c) ? c : "" + Date.now()) : "";
+  // The day of the objection (UTC midnight, epoch ms), not the millisecond: a millisecond value
+  // would be almost unique per visitor and, sent to every host of the domain for 13 months,
+  // work as an identifier of exactly the visitors who objected.
+  var now = "" + Math.floor(Date.now() / 864e5) * 864e5;
+  var ts = v ? now : c && c !== "0" ? (/^\d{13}$/.test(c) ? c : now) : "";
   if (!ts) return false;
   set(ts, 34128000); // 395 days = 13 months
   // Delete all properties in aGTM except "f", re-initialize the object and run the callback.
@@ -2539,7 +2545,8 @@ aGTM.f.enc = function(str, salt) {
  *   receiving the visitor's cookies because the consent store needs them.
  */
 aGTM.f.xsend = function(url, data, encrypt, salt, cred) {
-  if (!url || typeof url !== 'string') return;
+  // Nothing leaves the browser after an opt-out (second guard behind fire()).
+  if (!url || typeof url !== 'string' || aGTM.d.optout) return;
   try {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
@@ -2677,6 +2684,9 @@ aGTM.f.sendnaus = function (o) {
  * Usage: aGTM.f.fire({ event: 'pageview', pagetype: 'blogarticle' });
  */
 aGTM.f.fire = function (o) {
+  // Opt-out: aGTM has been cleared, and nothing may be sent - not even a _noConsent or _post
+  // event, which is exactly the measurement without consent the objection is against.
+  if (aGTM.d.optout) return;
   // Ensure the event object is valid
   if (typeof o != "object" || !o) {
     aGTM.f.log("e9", { o: typeof o });

@@ -27,7 +27,7 @@ import { gzipSync } from "zlib";
 // pending fixes (F-254, F-255) need, which is why the shrink was done.
 // Raised 2026-10-27 (38_000 → 38_500 / 11_600 → 11_800, card #125): the opt-out became an
 // objection that holds — 13-month cookie on the registrable domain, renewed per visit, checked
-// in config() before a consent preset (F-252, F-259). Raw 37_672 → 38_103 B, gzip (level 9, as measured here) now 11_709 B.
+// in config() before a consent preset (F-252, F-259). Raw 37_672 → 38_153 B, gzip (level 9, as measured here) now 11_735 B (incl. the fire()/xsend() guard after review).
 const BUDGET_RAW = 38_500;
 const BUDGET_GZIP = 11_800;
 

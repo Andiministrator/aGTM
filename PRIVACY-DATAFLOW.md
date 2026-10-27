@@ -171,10 +171,11 @@ to v1.4.x, for anyone auditing an older installation:
 ### L6 — Cookies the library itself writes
 
 `aGTMoptout` (set only when someone calls the page with `?aGTMoptout=1`, and it exists to
-**stop** processing: the visitor's objection; value = time of the objection, 13 months, renewed
-on every visit, written for the registrable domain so the sGTM Client sees it too — see README
-§Optout) and `aGTMdebug` (set only when the debug parameter or a Tag-Manager
-preview referrer is present). Both are first-party, functional, carry no identifier, and are
+**stop** processing: the visitor's objection; value = the **day** of the objection (UTC
+midnight), 13 months — Safari: 7 days —, renewed on every visit, written for the registrable
+domain so the sGTM Client sees it too — see README §Optout) and `aGTMdebug` (set only when the
+debug parameter or a Tag-Manager preview referrer is present). Both are first-party,
+functional, carry no identifier (many visitors share the same day), and are
 written with `Secure; SameSite=Lax; path=/`; `aGTMdebug` is a session cookie. The library writes no other cookie and reads
 neither `localStorage` nor `sessionStorage`. One shipped **template** writes a third cookie
 through the same helper — see T2.
@@ -329,6 +330,11 @@ consent decision. **S8 and S9 are the exception:** they run while the Client ans
 S2, S3, S4, S8 and S9 are requests *from your sGTM container* to services you operate or
 contract, which the visitor's browser never talks to directly. S5 and S6 are what the
 container sends back to the browser.
+
+**Opt-out** (`aGTMoptout` cookie, or `?aGTMoptout=1` on the page): S3, S4, S5, S8 and S9 do
+not happen, and S6 carries no session data. **S1 and S2 still happen** — the library has to be
+served to keep the objection, and the bot check protects the endpoint. The Client sees the
+cookie only under the page's registrable domain (README §Optout).
 
 ### S1 — the `/aGTM.js` request
 

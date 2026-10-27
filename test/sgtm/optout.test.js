@@ -3,7 +3,7 @@
 // API, no Sources API, no user-ID cookie - but still serves the library, which has
 // to run to keep, renew or withdraw the objection.
 import { describe, test, expect } from 'bun:test';
-import { runClient } from './client-harness.js';
+import { runClient, injectedConfig } from './client-harness.js';
 
 const API = 'https://api.example/tp/session';
 const BASE = {
@@ -36,6 +36,7 @@ describe('opt-out stops the Client\'s own calls (F-259)', () => {
     const r = run({ url: 'https://www.kunde.de/datenschutz?aGTMoptout=1#x' }, calls);
     expect(calls).toEqual([]);
     expect(r.body).not.toContain('SID-SECRET');
+    expect(r.cookies).toEqual([]);
   });
 
   test('?aGTMoptout=0 on the page withdraws it on this very request, despite the cookie', () => {
@@ -56,5 +57,69 @@ describe('opt-out stops the Client\'s own calls (F-259)', () => {
     const r = run({}, calls);
     expect(calls.length).toBeGreaterThan(0);
     expect(r.body).toContain('SID-SECRET');
+  });
+});
+
+// The Client must read ?aGTMoptout exactly like aGTM.f.urlParam (first
+// occurrence after ?, & or # anywhere in the URL, URL-decoded, empty = absent):
+// otherwise library and Client disagree on the very request that declares or
+// withdraws the objection.
+describe('?aGTMoptout is read like aGTM.f.urlParam', () => {
+  const cases = [
+    ['https://www.kunde.de/#/datenschutz?aGTMoptout=1', true],
+    ['https://www.kunde.de/?a=1#&aGTMoptout=1', true],
+    ['https://www.kunde.de/?aGTMoptout=1&aGTMoptout=0', true],
+    ['https://www.kunde.de/?aGTMoptout=0&aGTMoptout=1', false],
+    ['https://www.kunde.de/?aGTMoptout=%30', false],
+    ['https://www.kunde.de/?aGTMoptout=', false],
+    ['https://www.kunde.de/aGTMoptout=1', false],
+    ['https://www.kunde.de/?xaGTMoptout=1', false]
+  ];
+  for (const [url, objected] of cases) {
+    test(url + ' -> ' + (objected ? 'objection' : 'none'), () => {
+      const v = aGTM.f.urlParam('aGTMoptout', url);
+      expect(!!v && v !== '0').toBe(objected);
+      const calls = [];
+      run({ url }, calls);
+      expect(calls.length === 0).toBe(objected);
+    });
+  }
+});
+
+describe('the Client never undoes the objection itself', () => {
+  test('debug field set: the library gets no debug flag for a visitor who objected', () => {
+    const r = runClient({
+      data: { ...BASE, debug: true },
+      query: page('https://www.kunde.de/'),
+      headers: { host: 'sgtm.kunde.de', 'sec-fetch-site': 'same-site' },
+      cookies: [{ name: 'aGTMoptout', value: '1761523200000' }],
+      http: () => ({ statusCode: 200, body: '{}' })
+    });
+    expect(injectedConfig(r.body).debug).toBeUndefined();
+  });
+
+  test('debug field set, no objection: debug still reaches the library (control)', () => {
+    const r = runClient({
+      data: { ...BASE, debug: true },
+      query: page('https://www.kunde.de/'),
+      headers: { host: 'sgtm.kunde.de', 'sec-fetch-site': 'same-site' },
+      http: () => ({ statusCode: 200, body: '{}' })
+    });
+    expect(injectedConfig(r.body).debug).toBe(true);
+  });
+
+  test('consent POST from a tab loaded before the objection: 204, nothing stored, no cookie', () => {
+    const calls = [];
+    const r = runClient({
+      data: { ...BASE, consent_store_enabled: true },
+      path: '/aGTMconsent', method: 'POST',
+      headers: { host: 'sgtm.kunde.de', 'sec-fetch-site': 'same-site', origin: 'https://www.kunde.de' },
+      cookies: [{ name: 'aGTMoptout', value: '1761523200000' }],
+      reqBody: JSON.stringify({ e: { uid: 'C$1$t$abc', sid: 's1', consent: { hasResponse: true, services: ',a,' } } }),
+      http: (url) => { calls.push(url); return { statusCode: 200, body: '{}' }; }
+    });
+    expect(r.status).toBe(204);
+    expect(calls).toEqual([]);
+    expect(r.cookies).toEqual([]);
   });
 });

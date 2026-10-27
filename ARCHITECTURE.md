@@ -61,7 +61,7 @@ The path from `aGTM.f.init()` to the GTM `<script>` tag being inserted into the 
 ```
 aGTM.f.config(cfg)             — applied at integrator startup, BEFORE init()
   │
-  ├─ [!cfg.debug && aGTM.f.optout()] — opt-out cookie/param ⇒ aGTM cleared, return
+  ├─ [!cfg.debug && (aGTM.d.optout || aGTM.f.optout())] — opt-out ⇒ aGTM cleared, return
   │    (before the preset below: an objection wins over a stored consent, F-252)
   │
   ├─ [cfg.session is an object with sid, consent, attribution, OR source]
@@ -261,7 +261,7 @@ aGTM.f.inject()
 | `aGTM.d.ccErrLogged` | Guards the `e_consent_check` log entry to one per page load (a broken adapter would otherwise add one per 2 s poll tick). |
 | `aGTM.d.last_consent_hash` | State-change hash, advanced on **every** `run_cc()` regardless of POST success. Used to gate `sendnaus(aGTM_consent_update)` + `consent_callback` so the periodic CMP poll does not flood when the consent state is stable. |
 | `aGTM.d.init` | `true` once GTM has been injected; guards `inject()` from running twice |
-| `aGTM.d.optout` | `true` after `optout()` cleared aGTM for an active opt-out; makes the second `config()` of the Client order return at once (no second cookie write, no second `optout_callback`) |
+| `aGTM.d.optout` | `true` after `optout()` cleared aGTM for an active opt-out; makes the second `config()` of the Client order return at once (no second cookie write, no second `optout_callback`), and makes `fire()` and `xsend()` return without sending |
 | `aGTM.d.noCondLogged` | Guards the `m_consent_no_conditions` log entry to one per page load — `run_cc('update')` also runs on the consent poll, and `aGTM.f.log` neither dedupes nor caps |
 | `aGTM.d.containerLessRun` | `true` once the container-less lifecycle has run (F-177). Keeps a repeated `initGTM(false)` — the Simulation tab does this — from appending another `'no_gtm_id'` to `gtmLoaded` |
 | `aGTM.d.gtmLoaded` | Container IDs `gtm_load` ran for. Written **before** the script tag is inserted (it gates the lifecycle block), so it records the attempt; a container-less run records `'no_gtm_id'` |

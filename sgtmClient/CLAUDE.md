@@ -225,6 +225,12 @@ GTM loads, writes to a dataLayer nobody reads, and nothing errors.
   the objection. The library writes the cookie for the registrable domain, so it reaches the
   Client on a subdomain; a host-only cookie of a library before v1.5 does not.
 - The bot check still runs (security, before the opt-out branch).
+- The page parameter is read exactly like `aGTM.f.urlParam` (first occurrence after `?`/`&`/`#`,
+  URL-decoded, empty = absent) in a top-level `for-of` — no `forEach` callback that rebinds a
+  top-level `let` (no precedent in the sandbox). Test table in `test/sgtm/optout.test.js`.
+- `data.debug` reaches the library only when `!optedOut` (library `debug` ignores the cookie).
+- `POST /aGTMconsent` with the cookie: `204`, nothing stored, no cookie (a tab loaded before the
+  objection can still post a banner change).
 
 ### Sources API integration (sGTM Client only)
 

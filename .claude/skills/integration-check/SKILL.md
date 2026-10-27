@@ -89,7 +89,9 @@ anything else applies.
   - `cmp` value is wrong (must be an exact slug from `cmp/README-cmp.md`, not a
     display name) → the consent adapter never loads → `hasResponse` never becomes
     `true`.
-- An opt-out cookie/param is set (`aGTM.f.optout` aborted init).
+- An opt-out cookie/param is set: `aGTM.d.optout === true`, aGTM cleared in `config()`. The
+  cookie `aGTMoptout` lasts 13 months on the whole registrable domain; the way back is
+  `?aGTMoptout=0` (or `debug: true` for a developer's own test).
 - `config()`/`init()` missing or in the wrong order (see `config-builder`).
 
 **Consent decision not picked up (user accepted, nothing changes):**

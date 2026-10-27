@@ -13,8 +13,9 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 `consent_store_enc`, `consent_poll_ms`, `session`, `allowEmptyConsentConditions`, `jsErrors`.
 
 **Behaviour you should know about before upgrading:**
-- **The opt-out now holds** (`?aGTMoptout=1`): 13-month cookie for the whole domain, a stored
-  consent no longer overrides it, and the sGTM Client skips its APIs. Privacy-policy texts
+- **The opt-out now holds** (`?aGTMoptout=1`): 13-month cookie for the whole domain (Safari:
+  7 days), a stored consent no longer overrides it, nothing is sent while it stands, and the
+  sGTM Client skips its APIs (the bot check still runs). Privacy-policy texts
   that describe the old session cookie need updating — see README §Optout.
 - The session feature no longer fetches anything from the browser — the sGTM Client
   delivers it. A standalone integrator without that Client keeps the plain consent flow.
@@ -183,17 +184,25 @@ measurement. It did not hold:
   the visitor's stored consent before `init()`, and that preset loaded GTM before `init()`
   checked the opt-out. `config()` now checks it first.
 - **The Client kept calling its APIs** (F-259): Session API, Sources API and the user-ID cookie
-  ran for a visitor who had objected. With the cookie, or `?aGTMoptout=` on the page, the
-  Client now serves the library without any of them.
+  ran for a visitor who had objected. With the cookie, or `?aGTMoptout=1` on the page (read
+  exactly like the library reads it, hash routes included), the Client now serves the library
+  without any of them and answers consent POSTs with `204` without storing anything. Its
+  *Debug* field no longer switches the opt-out off. The bot check still runs.
+- **Nothing is sent after the opt-out.** `aGTM.f.fire()` and `aGTM.f.xsend()` return at once,
+  so `_noConsent` and `_post` events no longer reach the network either.
 - **The cookie was a session cookie**, so the objection ended with the browser. It now lasts
-  13 months, renewed on every visit, and its value is the time of the objection.
+  13 months, renewed on every visit (Safari caps script cookies to 7 days), and its value is
+  the day of the objection — not the millisecond, which would identify the visitor.
 - **The cookie was host-only**, so a Client on a subdomain never saw it. It is now written for
   the registrable domain (the shortest parent domain the browser accepts).
 - `?aGTMoptout=0` deletes the cookie; it used to set it to `0`.
 
 A cookie from an older version (`1`, session, host-only) is taken over on the next visit.
 A later consent in the cookie banner does **not** lift the objection: no CMP adapter can tell
-a fresh decision from a stored one, so the way back is `?aGTMoptout=0`.
+a fresh decision from a stored one, so the way back is `?aGTMoptout=0`. Limits, all in
+README §Optout: the cookie covers every aGTM installation on the registrable domain; a Client
+on a different registrable domain does not see it; in a single-page app the link must load
+the page; on plain `http://` the browser drops the `Secure` cookie.
 
 ### Changed — Scroll Events tag 1.2 warns on a library older than v1.5
 

@@ -148,14 +148,14 @@ Setup: `consent_store_url` set (auto via sGTM Client checkbox, or manual config)
 
 | # | Test | Expected |
 |---|------|----------|
-| 11.1 | Opt-out via URL `?aGTMoptout=1` | GTM not loaded, `aGTMoptout` cookie set: value = epoch ms, max-age 13 months, domain = registrable domain |
+| 11.1 | Opt-out via URL `?aGTMoptout=1` | GTM not loaded, `aGTMoptout` cookie set: value = UTC midnight (epoch ms), max-age 13 months, domain = registrable domain |
 | 11.2 | Opt-out removed via `?aGTMoptout=0` | Cookie deleted (all copies) |
-| 11.3 | Opt-out + stored consent (returning visitor via sGTM Client) | GTM not loaded; no Session/Sources API call in the Client's debug log |
-| 11.3 | `aGTM.f.fire()` with non-object | Logged as e9, no crash |
-| 11.4 | Multiple `aGTM.f.config()` calls | Second call ignored (e1 logged) |
-| 11.5 | `dlStateEvents:true` | `aDOMready` and `aPAGEready` events appear in dataLayer |
-| 11.6 | `aPageview:true` | `aPageview` event fires after GTM load |
-| 11.7 | `vPageviews:true` + SPA navigation | `vPageview` event fires on URL change |
+| 11.3 | Opt-out + stored consent (returning visitor via sGTM Client) | GTM not loaded; `/aGTM.js` response has no session data; with the Client's *Debug* field ticked the server log says "Opt-out (aGTMoptout) - serving without session data" (the library gets no `debug` flag for this visitor) |
+| 11.4 | `aGTM.f.fire()` with non-object | Logged as e9, no crash |
+| 11.5 | Multiple `aGTM.f.config()` calls | Second call ignored (e1 logged) |
+| 11.6 | `dlStateEvents:true` | `aDOMready` and `aPAGEready` events appear in dataLayer |
+| 11.7 | `aPageview:true` | `aPageview` event fires after GTM load |
+| 11.8 | `vPageviews:true` + SPA navigation | `vPageview` event fires on URL change |
 
 ---
 
