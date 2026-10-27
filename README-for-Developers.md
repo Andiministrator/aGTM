@@ -273,8 +273,9 @@ The flow starts with `aGTM.f.init()`, which the integrator calls after providing
 ```
 aGTM.f.init()
   │
-  ├─ aGTM.f.optout()              — abort entirely if opt-out cookie/param is set
-  ├─ aGTM.f.config(aGTM.c)       — apply and lock the configuration
+  ├─ aGTM.f.config(aGTM.c)       — apply and lock the configuration; starts with
+  │                                aGTM.f.optout() — opt-out cookie/param set ⇒ aGTM
+  │                                cleared, config() returns, init() stops (F-252)
   │
   ├─ [iframe mode: iframeSupport == true && page is inside an iframe]
   │    └─ consent forced true, listen for parent handshake → inject()

@@ -12,6 +12,9 @@ export function resetAGTM(cfg = {}) {
   globalThis.aGTM.l = [];
   globalThis.aGTM.n = {};
   globalThis.aGTM.f.objinit();
+  // The fake document.cookie is one string shared by every test file. Since config() checks the
+  // opt-out (F-252), an aGTMoptout cookie left by another file would wipe aGTM on the next config().
+  globalThis.document.cookie = '';
   if (Object.keys(cfg).length > 0) {
     globalThis.aGTM.f.config(cfg);
   }

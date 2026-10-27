@@ -148,8 +148,9 @@ Setup: `consent_store_url` set (auto via sGTM Client checkbox, or manual config)
 
 | # | Test | Expected |
 |---|------|----------|
-| 11.1 | Opt-out via URL `?aGTMoptout=1` | GTM not loaded, `aGTMoptout` cookie set |
-| 11.2 | Opt-out removed via `?aGTMoptout=0` | Cookie cleared |
+| 11.1 | Opt-out via URL `?aGTMoptout=1` | GTM not loaded, `aGTMoptout` cookie set: value = epoch ms, max-age 13 months, domain = registrable domain |
+| 11.2 | Opt-out removed via `?aGTMoptout=0` | Cookie deleted (all copies) |
+| 11.3 | Opt-out + stored consent (returning visitor via sGTM Client) | GTM not loaded; no Session/Sources API call in the Client's debug log |
 | 11.3 | `aGTM.f.fire()` with non-object | Logged as e9, no crash |
 | 11.4 | Multiple `aGTM.f.config()` calls | Second call ignored (e1 logged) |
 | 11.5 | `dlStateEvents:true` | `aDOMready` and `aPAGEready` events appear in dataLayer |

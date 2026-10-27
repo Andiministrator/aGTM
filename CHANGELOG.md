@@ -13,6 +13,9 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 `consent_store_enc`, `consent_poll_ms`, `session`, `allowEmptyConsentConditions`, `jsErrors`.
 
 **Behaviour you should know about before upgrading:**
+- **The opt-out now holds** (`?aGTMoptout=1`): 13-month cookie for the whole domain, a stored
+  consent no longer overrides it, and the sGTM Client skips its APIs. Privacy-policy texts
+  that describe the old session cookie need updating — see README §Optout.
 - The session feature no longer fetches anything from the browser — the sGTM Client
   delivers it. A standalone integrator without that Client keeps the plain consent flow.
 - `chelp()` is **fail-closed** now: a required purpose/service/vendor against an empty
@@ -171,6 +174,26 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
+
+### Fixed — the opt-out holds: 13 months, whole domain, and a stored consent no longer overrides it
+
+The opt-out link (`?aGTMoptout=1`) is meant for privacy policies: the visitor objects to all
+measurement. It did not hold:
+- **A stored consent loaded GTM anyway** (F-252). The sGTM Client calls `aGTM.f.config()` with
+  the visitor's stored consent before `init()`, and that preset loaded GTM before `init()`
+  checked the opt-out. `config()` now checks it first.
+- **The Client kept calling its APIs** (F-259): Session API, Sources API and the user-ID cookie
+  ran for a visitor who had objected. With the cookie, or `?aGTMoptout=` on the page, the
+  Client now serves the library without any of them.
+- **The cookie was a session cookie**, so the objection ended with the browser. It now lasts
+  13 months, renewed on every visit, and its value is the time of the objection.
+- **The cookie was host-only**, so a Client on a subdomain never saw it. It is now written for
+  the registrable domain (the shortest parent domain the browser accepts).
+- `?aGTMoptout=0` deletes the cookie; it used to set it to `0`.
+
+A cookie from an older version (`1`, session, host-only) is taken over on the next visit.
+A later consent in the cookie banner does **not** lift the objection: no CMP adapter can tell
+a fresh decision from a stored one, so the way back is `?aGTMoptout=0`.
 
 ### Changed — Scroll Events tag 1.2 warns on a library older than v1.5
 

@@ -789,12 +789,17 @@ See also chapter "Configuration Options" and especially "gtm".
 
 ## Optout
 
-You can use an OptOut option of aGTM. Therefore exists the URL Parameter `aGTMoptout`.
+aGTM has an opt-out: the visitor's objection to all measurement (Art. 21(1) GDPR). It is switched by the URL parameter `aGTMoptout`, so a privacy policy can link to it, e.g. `https://www.example.com/privacy?aGTMoptout=1`.
 
-If you add it to an URL and set the value to `1`, the execution of the aGTM will stop, all aGTM settings and data will be destroyed and an OptOut (Session) Cookie `aGTMoptout` will be set with the value of `1`.
-The cookie ensures that the opt-out remains active for the current session.
+- **`?aGTMoptout=1`** (any value except `0`): aGTM stops, all aGTM settings and data are destroyed, and the cookie `aGTMoptout` is set. Its value is the time of the objection (epoch milliseconds).
+- **Lifetime:** 13 months, renewed on every visit — the objection expires 13 months after the **last** visit.
+- **Domain:** the cookie is written for the registrable domain (`example.com` for `www.example.com`; the shortest parent domain the browser accepts), so the sGTM Client on a subdomain sees it too. On `localhost` or an IP address it is host-only.
+- **`?aGTMoptout=0`** withdraws the objection and deletes the cookie.
+- **A stored consent does not override it.** The sGTM Client hands a stored consent to the library before `init()` runs; `aGTM.f.config()` checks the opt-out first, so GTM is not loaded. A later consent in the cookie banner does not lift the objection either — no CMP adapter can tell a fresh decision from a stored one. The way back is `?aGTMoptout=0`.
+- **sGTM Client:** with the cookie (or `?aGTMoptout=1` on the page that loads the library) the Client still serves the library, but makes none of its own calls — no Session API, no Sources API, no user-ID cookie.
+- Deleting the browser's cookies deletes the objection as well.
 
-You can stop the opt-out state using the URL Parameter `aGTMoptout` with the value `0`. This removes the OptOut Cookie.
+Before v1.5 the cookie was a session cookie with the value `1`, host-only. Such a cookie is taken over on the next visit (time = that visit) and replaced by the new one.
 
 **Opt-Out enabled together with Debug enabled**
 
@@ -804,15 +809,6 @@ You could use this to de-activate an aGTM within a Live-Website (using the opt-o
 **Callback Function**
 
 You can use a Callback Function named `aGTM.f.optout_callback` - it will run after the aGTM OptOut was excecuted.
-
-**OptOut Functionality in short**
-
-* - Checks if the URL contains the `aGTMoptout` parameter.
-* - If `aGTMoptout` is set and not equal to "0", sets a cookie `aGTMoptout` with value "1" and enables opt-out.
-* - If `aGTMoptout` is equal to "0", removes the `aGTMoptout` cookie if it exists.
-* - If no URL parameter is present, checks if a `aGTMoptout` cookie exists with a value greater than "0".
-* - If opt-out is enabled, clears all properties of `aGTM` except `f`, reinitializes the object,
-* and calls an optional callback function `aGTM.f.optout_callback`.
 
 ---
 

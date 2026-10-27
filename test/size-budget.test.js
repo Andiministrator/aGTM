@@ -25,8 +25,11 @@ import { gzipSync } from "zlib";
 // behaviour change — the library is minified without --keep-fnames (build.sh) and config() sets
 // its options through a local shorthand. gzip stays at 11_600: those ~110 B are the room the
 // pending fixes (F-254, F-255) need, which is why the shrink was done.
-const BUDGET_RAW = 38_000;
-const BUDGET_GZIP = 11_600;
+// Raised 2026-10-27 (38_000 → 38_500 / 11_600 → 11_800, card #125): the opt-out became an
+// objection that holds — 13-month cookie on the registrable domain, renewed per visit, checked
+// in config() before a consent preset (F-252, F-259). Raw 37_672 → 38_103 B, gzip (level 9, as measured here) now 11_709 B.
+const BUDGET_RAW = 38_500;
+const BUDGET_GZIP = 11_800;
 
 function sizes(path) {
   const buf = readFileSync(path);

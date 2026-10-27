@@ -171,9 +171,11 @@ to v1.4.x, for anyone auditing an older installation:
 ### L6 — Cookies the library itself writes
 
 `aGTMoptout` (set only when someone calls the page with `?aGTMoptout=1`, and it exists to
-**stop** processing) and `aGTMdebug` (set only when the debug parameter or a Tag-Manager
+**stop** processing: the visitor's objection; value = time of the objection, 13 months, renewed
+on every visit, written for the registrable domain so the sGTM Client sees it too — see README
+§Optout) and `aGTMdebug` (set only when the debug parameter or a Tag-Manager
 preview referrer is present). Both are first-party, functional, carry no identifier, and are
-written with `Secure; SameSite=Lax; path=/`. The library writes no other cookie and reads
+written with `Secure; SameSite=Lax; path=/`; `aGTMdebug` is a session cookie. The library writes no other cookie and reads
 neither `localStorage` nor `sessionStorage`. One shipped **template** writes a third cookie
 through the same helper — see T2.
 

@@ -215,6 +215,17 @@ so the string must start with `&`. It now prepends one if missing — without it
 standalone integrator pasting `gtm_auth=abc` produced `&l=dataLayergtm_auth=abc`:
 GTM loads, writes to a dataLayer nobody reads, and nothing errors.
 
+### Opt-out (sGTM Client only, F-259)
+
+- `aGTMoptout` cookie with a value other than `0`, **or** `?aGTMoptout=<not 0>` in the page URL
+  from `?c=` ⇒ `afterBotCheck()` takes the `buildAndSend(null)` path, like `foreignEmbed`: the
+  library is served, but no Session API, no Sources API, no user-ID cookie. The page parameter
+  decides first (`0` withdraws the objection on this very request), as in `aGTM.f.optout()`.
+- The library is still served on purpose: it has to run to keep, renew (13 months) or withdraw
+  the objection. The library writes the cookie for the registrable domain, so it reaches the
+  Client on a subdomain; a host-only cookie of a library before v1.5 does not.
+- The bot check still runs (security, before the opt-out branch).
+
 ### Sources API integration (sGTM Client only)
 
 Server-side POST to a Sources API (`api4sources`) on every aGTM.js request. The POST is the Client's; its **response** flows into the library: every non-meta field is captured into `cfg.session.*`, which the library deep-copies into `aGTM.d.session.*` so webGTM can read it via a plain JS variable.
