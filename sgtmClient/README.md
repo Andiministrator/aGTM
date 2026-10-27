@@ -245,6 +245,13 @@ Please contact me if you found problems or have improvements:
 
 ## Changelog
 
+- Version 1.4.7, *27.10.2026*
+  - **The opt-out holds** (embedded library **1.4.4**): `?aGTMoptout=1` stores the objection
+    for 13 months (Safari: 7 days), renewed on every visit, value = day of the objection,
+    written for the registrable domain; `?aGTMoptout=0` deletes it. Before: a session cookie
+  - The bot check still runs under an opt-out. *Debug* makes the library ignore the
+    opt-out — do not tick it on a live site
+
 - Version 1.4.6, *21.10.2026*
   - **A skipped bot check is visible:** response header `x-agtm-botcheck` =
     `skipped-not-permitted` or `skipped-no-answer` (the console log is debug-only, so live

@@ -507,10 +507,11 @@ You can use an OptOut option of aGTM. Therefore exists the URL Parameter `aGTMop
 
 If you add it to an URL and set the value to `1`, the execution of the aGTM will stop, all aGTM settings and data will be destroyed and the cookie `aGTMoptout` will be set. Since library 1.4.4:
 
-- its value is the time of the objection (epoch milliseconds);
-- it lasts **13 months**, renewed on every visit (before: a session cookie);
+- its value is the day of the objection (UTC midnight, epoch milliseconds) - not the exact time, so it identifies nobody;
+- it lasts **13 months**, renewed on every visit (before: a session cookie); Safari caps cookies written by script to 7 days;
 - it is written for the registrable domain (`example.com` for `www.example.com`; host-only on `localhost` or an IP address);
 - a later consent in the cookie banner does not lift it - the way back is `?aGTMoptout=0`.
+- it applies to every aGTM installation on that domain; on a plain `http://` page the browser drops the `Secure` cookie; in a single-page app the link must load the page.
 
 You can stop the opt-out state using the URL Parameter `aGTMoptout` with the value `0`. This deletes the OptOut Cookie.
 

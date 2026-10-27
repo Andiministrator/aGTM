@@ -51,16 +51,17 @@ describe('aGTM.f.optout() — objection cookie', () => {
     resetAGTM();
   });
 
-  test('?aGTMoptout=1 stores the time of the objection for the registrable domain, 13 months', () => {
+  test('?aGTMoptout=1 stores the day of the objection for the registrable domain, 13 months', () => {
     resetAGTM();
     const { jar } = installJar('www.kunde.de');
     visit('www.kunde.de', '?aGTMoptout=1');
-    const before = Date.now();
+    const day = Math.floor(Date.now() / 864e5) * 864e5;
     expect(aGTM.f.optout()).toBe(true);
     expect(jar).toHaveLength(1);
     expect(jar[0].domain).toBe('kunde.de');
     expect(jar[0].maxAge).toBe(34128000);
-    expect(Number(jar[0].value)).toBeGreaterThanOrEqual(before);
+    // the day (UTC midnight), not the millisecond: no per-visitor identifier
+    expect(Number(jar[0].value)).toBe(day);
     expect(jar[0].value).toMatch(/^\d{13}$/);
   });
 
