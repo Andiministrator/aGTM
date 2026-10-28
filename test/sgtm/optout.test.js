@@ -3,7 +3,7 @@
 // API, no Sources API, no user-ID cookie - but still serves the library, which has
 // to run to keep, renew or withdraw the objection.
 import { describe, test, expect } from 'bun:test';
-import { runClient, injectedConfig } from './client-harness.js';
+import { runClient, injectedConfig, cookiesWritten, cookiesDeleted } from './client-harness.js';
 
 const API = 'https://api.example/tp/session';
 const BASE = {
@@ -11,11 +11,11 @@ const BASE = {
   session_api_url: API, tenant_id: 't', sources_enabled: true, sources_api_url: 'https://api.example/tp/sources'
 };
 const page = (u) => ({ id: 'GTM-TEST', c: Buffer.from(JSON.stringify({ u, r: '' })).toString('base64') });
-const run = ({ cookies, url }, calls) => runClient({
+const run = ({ cookies, url, noUid }, calls) => runClient({
   data: BASE,
   query: page(url || 'https://www.kunde.de/seite'),
   headers: { host: 'sgtm.kunde.de', 'sec-fetch-site': 'same-site', referer: 'https://www.kunde.de/seite' },
-  cookies: [{ name: '_tpf', value: 'C$1$t$known' }].concat(cookies || []),
+  cookies: (noUid ? [] : [{ name: '_tpf', value: 'C$1$t$known' }]).concat(cookies || []),
   http: (url) => { calls.push(url); return url.indexOf('/sources') >= 0 ? { statusCode: 200, body: '{"ok":true}' } : { statusCode: 200, body: JSON.stringify({ sessionId: 'SID-SECRET', counter: 3 }) }; }
 });
 
@@ -28,6 +28,20 @@ describe('opt-out stops the Client\'s own calls (F-259)', () => {
     expect(r.body).toContain('aGTM.f.config(');
     expect(r.body).not.toContain('SID-SECRET');
     expect(calls).toEqual([]);
+    expect(cookiesWritten(r)).toEqual([]);
+  });
+
+  // F-263 (Andi 2026-10-28): the objection also removes an identity set before it.
+  test('a user-ID cookie set before the objection is deleted, even with cookie_delete off', () => {
+    const calls = [];
+    const r = run({ cookies: [{ name: 'aGTMoptout', value: '1761571200000' }] }, calls);
+    expect(BASE.cookie_delete).toBeUndefined();
+    expect(cookiesDeleted(r).map((c) => c.name)).toContain('_tpf');
+  });
+
+  test('no user-ID cookie: no delete header on every request (control)', () => {
+    const calls = [];
+    const r = run({ noUid: true, cookies: [{ name: 'aGTMoptout', value: '1761571200000' }] }, calls);
     expect(r.cookies).toEqual([]);
   });
 
@@ -36,7 +50,8 @@ describe('opt-out stops the Client\'s own calls (F-259)', () => {
     const r = run({ url: 'https://www.kunde.de/datenschutz?aGTMoptout=1#x' }, calls);
     expect(calls).toEqual([]);
     expect(r.body).not.toContain('SID-SECRET');
-    expect(r.cookies).toEqual([]);
+    expect(cookiesWritten(r)).toEqual([]);
+    expect(cookiesDeleted(r).map((c) => c.name)).toContain('_tpf');
   });
 
   test('?aGTMoptout=0 on the page withdraws it on this very request, despite the cookie', () => {

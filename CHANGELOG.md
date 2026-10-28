@@ -15,7 +15,8 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 **Behaviour you should know about before upgrading:**
 - **The opt-out now holds** (`?aGTMoptout=1`): 13-month cookie for the whole domain (Safari:
   7 days), a stored consent no longer overrides it, nothing is sent while it stands, and the
-  sGTM Client skips its APIs (the bot check still runs). Privacy-policy texts
+  sGTM Client skips its APIs and deletes a user-ID cookie set before it (the bot check still
+  runs). Privacy-policy texts
   that describe the old session cookie need updating — see README §Optout.
 - The session feature no longer fetches anything from the browser — the sGTM Client
   delivers it. A standalone integrator without that Client keeps the plain consent flow.
@@ -186,8 +187,10 @@ measurement. It did not hold:
 - **The Client kept calling its APIs** (F-259): Session API, Sources API and the user-ID cookie
   ran for a visitor who had objected. With the cookie, or `?aGTMoptout=1` on the page (read
   exactly like the library reads it, hash routes included), the Client now serves the library
-  without any of them and answers consent POSTs with `204` without storing anything. Its
-  *Debug* field no longer switches the opt-out off. The bot check still runs.
+  without any of them and answers consent POSTs with `204` without storing anything. A user-ID
+  cookie set before the objection is deleted (F-263), independent of the cookie-delete switch.
+  Its *Debug* field no longer switches the opt-out off. The bot check still runs: it protects
+  the endpoint, not the measurement (F-264).
 - **Nothing is sent after the opt-out.** `aGTM.f.fire()` and `aGTM.f.xsend()` return at once,
   so `_noConsent` and `_post` events no longer reach the network either.
 - **The cookie was a session cookie**, so the objection ended with the browser. It now lasts

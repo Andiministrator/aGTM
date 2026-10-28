@@ -1582,6 +1582,19 @@ const afterBotCheck = function(isBot) {
   }
 
   if (foreignEmbed || optedOut) {
+    // The objection covers an identity set before it, too (F-263, Andi
+    // 2026-10-28): delete every user-id cookie the request carries,
+    // independent of "Delete cookie on consent withdrawal" - that switch is
+    // about a withdrawn consent, this is an objection to any measurement.
+    // Only when one is there, so an opted-out visitor does not get a delete
+    // header on every request.
+    if (optedOut) {
+      const uidOut = readUidCookie();
+      if (uidOut.value || uidOut.stale.length > 0) {
+        deleteUidCookies({domain: CFG.cookieDomain, path: '/', sameSite: 'none', httpOnly: true, secure: true, 'max-age': 0});
+        if (CFG.debug) logToConsole('debug', '\u2713 User ID cookie deleted (opt-out)');
+      }
+    }
     buildAndSend(null);
     return;
   }

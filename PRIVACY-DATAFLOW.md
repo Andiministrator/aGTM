@@ -332,7 +332,8 @@ contract, which the visitor's browser never talks to directly. S5 and S6 are wha
 container sends back to the browser.
 
 **Opt-out** (`aGTMoptout` cookie, or `?aGTMoptout=1` on the page): S3, S4, S5, S8 and S9 do
-not happen, and S6 carries no session data. **S1 and S2 still happen** — the library has to be
+not happen, S6 carries no session data, and a user-ID cookie (S5) set before the objection is
+deleted. **S1 and S2 still happen** — the library has to be
 served to keep the objection, and the bot check protects the endpoint. The Client sees the
 cookie only under the page's registrable domain (README §Optout).
 

@@ -224,7 +224,11 @@ GTM loads, writes to a dataLayer nobody reads, and nothing errors.
 - The library is still served on purpose: it has to run to keep, renew (13 months) or withdraw
   the objection. The library writes the cookie for the registrable domain, so it reaches the
   Client on a subdomain; a host-only cookie of a library before v1.5 does not.
-- The bot check still runs (security, before the opt-out branch).
+- A user-ID cookie the request carries (current or legacy name) is deleted in that branch,
+  independent of `cookie_delete` — that switch is about a withdrawn consent, this is an
+  objection (F-263, Andi 2026-10-28). No delete header when there is none.
+- The bot check still runs (security, before the opt-out branch; F-264 decided: stays,
+  Andi 2026-10-28).
 - The page parameter is read exactly like `aGTM.f.urlParam` (first occurrence after `?`/`&`/`#`,
   URL-decoded, empty = absent) in a top-level `for-of` — no `forEach` callback that rebinds a
   top-level `let` (no precedent in the sandbox). Test table in `test/sgtm/optout.test.js`.
