@@ -166,30 +166,7 @@ aGTM.f.fire({ event: 'pageview', pagetype: 'blog' });
 
 #### Internal call graph
 
-```
-aGTM.f.fire(o)
-  │
-  ├─ Deep copy via sStrf() + JSON.parse()
-  ├─ Consent-event check → aGTM.f.run_cc("update")
-  ├─ Get Standard DL variables
-  │
-  ├─ [no consent && !_noConsent]  →  queued in aGTM.d.f, replayed on consent
-  │
-  └─ [consent present OR _noConsent]
-       ├─ [_post && !_post_sent]  → aGTM.f.xsend()  (_post_sent = true after send)
-       │
-       ├─ aGTM.d.dl.push()           internal event log (always)
-       ├─ [_noDLPush == true]  →  skip sendnaus/iFrameFire
-       │     (event in aGTM.d.dl + aGTM.l, NOT in GTM dataLayer)
-       │     └─ sendnaus_callback()   still called here
-       ├─ [iframe mode && !_noDLPush] → aGTM.f.iFrameFire()
-       │     ├─ internal events  → aGTM.f.sendnaus()
-       │     └─ user events      → window.top.postMessage() (or queue)
-       └─ [normal mode && !_noDLPush] → aGTM.f.sendnaus()
-             ├─ dataLayer hook detection/protection (setter trap names the hooking script)
-             ├─ window[gdl].push()   actual GTM dataLayer push
-             └─ sendnaus_callback()
-```
+The step-by-step call graph of `fire()` (queueing, `_post`, `_noDLPush`, iframe mode, `sendnaus()`) is kept in one place: [`ARCHITECTURE.md` → Event dispatch call graph](ARCHITECTURE.md#event-dispatch-call-graph).
 
 After the dispatch, `fire()` calls `aGTM.f.fire_callback()` if defined.
 
@@ -270,49 +247,7 @@ The flow starts with `aGTM.f.init()`, which the integrator calls after providing
 
 #### Call graph
 
-```
-aGTM.f.init()
-  │
-  ├─ aGTM.f.config(aGTM.c)       — apply and lock the configuration; starts with
-  │                                aGTM.f.optout() — opt-out cookie/param set ⇒ aGTM
-  │                                cleared, config() returns, init() stops (F-252)
-  │
-  ├─ [iframe mode: iframeSupport == true && page is inside an iframe]
-  │    └─ consent forced true, listen for parent handshake → inject()
-  │
-  └─ [normal mode]
-       ├─ [cmp == 'none']         — skip consent entirely, inject immediately
-       ├─ [cmp == '<name>']       — load cmp/<name>.min.js, then start listener
-       └─ [no cmp set]            — start listener directly
-            │
-            └─ in all non-none cases: initGTM(true)
-                 — loads containers with noConsent:true immediately (no consent wait)
-
-aGTM.f.consent_listener()
-  ├─ [useListener == false]   setInterval(call_cc, 500ms)  — default polling
-  └─ [useListener == true]    no timer started; integrator calls call_cc() manually
-                               from their CMP event handler
-
-aGTM.f.call_cc()
-  ├─ run_cc('init')
-  │    ├─ consent_check('init')   — CMP-specific; reads CMP state, writes aGTM.d.consent
-  │    └─ evaluates gtmPurposes / gtmServices / gtmVendors
-  │         → all three empty && !allowEmptyConsentConditions
-  │           → gtmConsent = false (fail-closed since v1.5, see below)
-  │         → otherwise sets aGTM.d.consent.gtmConsent = true/false
-  ├─ clears the consent interval timer
-  └─ inject()
-
-aGTM.f.inject()
-  ├─ copies pre-existing window[dataLayer] items into aGTM.d.f (queue)
-  ├─ [gtmConsent == true]
-  │    └─ initGTM(false) → gtm_load() per container
-  │         ├─ pushes aGTM_ready event (with aGTM.hastyEvents = aGTM.d.f)
-  │         ├─ pushes gtm.js event
-  │         └─ inserts <script id="aGTM_tm_<id>"> into the DOM
-  │              GTM loads asynchronously from here
-  └─ chkDPready() — fires aDOMready / aPAGEready if dlStateEvents is configured
-```
+The full path from `aGTM.f.init()` to the GTM `<script>` tag (`config()` and the opt-out check, iframe mode, `cmp: 'none'`, `consent_listener()`, `call_cc()`/`run_cc()`, `inject()`, `initGTM()`/`gtm_load()`) is kept in one place: [`ARCHITECTURE.md` → GTM injection & consent call graph](ARCHITECTURE.md#gtm-injection--consent-call-graph).
 
 #### The event queue (`aGTM.d.f`)
 

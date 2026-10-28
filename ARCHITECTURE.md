@@ -1,4 +1,4 @@
-<!-- Moved verbatim from the root CLAUDE.md on 2026-10-25 to keep the always-loaded file small. On conflict, the root CLAUDE.md wins for rules, this file for mechanics. Keep in sync with README-for-Developers.md (see the documentation-maintenance rule in CLAUDE.md). -->
+<!-- Moved verbatim from the root CLAUDE.md on 2026-10-25 to keep the always-loaded file small. On conflict, the root CLAUDE.md wins for rules, this file for mechanics. Since 2026-10-28 (F-258) the call graphs live only here; README-for-Developers.md links to them (see the documentation-maintenance rule in CLAUDE.md). -->
 
 <!-- Section: aGTM — Core function architecture (agent & developer reference) -->
 
@@ -93,7 +93,8 @@ aGTM.f.init()
   │                                cleared, config() returns, init() stops (F-252)
   │
   ├─ [iframe mode: iframeSupport && is_iframe]
-  │    └─ consent forced true → aGTM.f.inject()
+  │    └─ consent forced true, message listener for the parent (d.iframe.ifListen)
+  │       → aGTM.f.inject() at once (no wait for a handshake)
   │         └─ aGTM.f.initGTM(false) → aGTM.f.gtm_load()  (GTM in DOM)
   │
   └─ [normal mode]
@@ -212,7 +213,7 @@ aGTM.f.inject()
   │    │    │    ├─ gtmLoaded.push(id)    — gates the block above; runs BEFORE
   │    │    │    │                          the no-id exit, else it never runs
   │    │    │    │                          without a container (F-177)
-  │    │    │    └─ insert <script> tag into DOM  — GTM loads asynchronously
+  │    │    │    └─ insert <script id="aGTM_tm_<id>"> into DOM — GTM loads asynchronously
   │    │    └─ [NO container configured] aGTM.f.gtm_load(…, i='', …, {})
   │    │         └─ same lifecycle, minus gtm.js (emitted only with an id) and
   │    │            minus the script tag. For setups where GTM is loaded by

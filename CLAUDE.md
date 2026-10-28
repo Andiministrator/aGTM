@@ -262,7 +262,7 @@ There are no feature branches or hotfix branches by convention — the project i
 
 ## Core Function Architecture
 
-> **Documentation maintenance:** When modifying any core function (`fire`, `inject`, `run_cc`, `call_cc`, `consent_listener`, `gtm_load`, `initGTM`, `sendnaus`), update the call graphs and reference tables in [`ARCHITECTURE.md`](ARCHITECTURE.md) **and** in `README-for-Developers.md` in the same commit (and the summary below, if the path changes). These documents are the primary source of truth for future agents and developers — outdated docs are worse than no docs.
+> **Documentation maintenance:** When modifying any core function (`fire`, `inject`, `run_cc`, `call_cc`, `consent_listener`, `gtm_load`, `initGTM`, `sendnaus`), update the call graphs and reference tables in [`ARCHITECTURE.md`](ARCHITECTURE.md) in the same commit (and the summary below, if the path changes). The call graphs live **only** there since 2026-10-28 (F-258) — `README-for-Developers.md` links to them; its prose must still match the behaviour it describes. These documents are the primary source of truth for future agents and developers — outdated docs are worse than no docs.
 
 ### Architecture at a glance
 
