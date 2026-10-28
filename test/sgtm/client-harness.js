@@ -55,15 +55,18 @@ const SRC = readFileSync(
  * @param opts.clientIP    remote address
  * @param opts.now         getTimestampMillis(): a number, or a function called per read
  *                         (default 1785230523000 = 2026-07-28)
- * @returns {{status, body, headers, claimed, returned, logs, cookies, hashed, throws}}
+ * @returns {{status, body, headers, claimed, returned, logs, cookies, cookieOpts, hashed, throws}}
  *          `hashed` records every sha256Sync() input in order.
  *          `cookies` records every setCookie() call as {name, val, maxAge} in
  *          order. Recorded rather than stubbed away because the one thing the
  *          Client writes into the visitor's browser was, until F-153, the one
  *          thing no test could see.
+ *          `cookieOpts` holds the full options of each call, same order
+ *          ({name, domain, path, sameSite, secure, httpOnly, 'max-age'}): kept
+ *          apart so the {name, val, maxAge} shape existing tests compare stays.
  */
 export function runClient(opts = {}) {
-  const state = { status: 200, body: '', headers: {}, claimed: false, returned: false, logs: [], cookies: [], hashed: [] };
+  const state = { status: 200, body: '', headers: {}, claimed: false, returned: false, logs: [], cookies: [], cookieOpts: [], hashed: [] };
   const data = opts.data || {};
   const query = opts.query || { id: 'GTM-TEST' };
   const httpFn = opts.http || (() => ({ statusCode: 200, body: '{}' }));
@@ -133,7 +136,7 @@ export function runClient(opts = {}) {
       const uidName = (opts.data && opts.data.cookie_name) || '_tpf';
       return name === uidName ? list : [];
     },
-    setCookie: (name, val, o) => { state.cookies.push({ name: name, val: val, maxAge: o && o['max-age'] }); },
+    setCookie: (name, val, o) => { state.cookies.push({ name: name, val: val, maxAge: o && o['max-age'] }); state.cookieOpts.push(Object.assign({ name: name }, o || {})); },
     fromBase64: (s) => Buffer.from(s, 'base64').toString('utf8'),
     toBase64: (s) => Buffer.from(s, 'utf8').toString('base64'),
     // Inputs recorded: the fingerprint's hashed string is otherwise invisible.

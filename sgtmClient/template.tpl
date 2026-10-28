@@ -2569,10 +2569,14 @@ const afterBotCheck = function(isBot) {
   if (foreignEmbed || optedOut) {
     // The objection covers an identity set before it, too (F-263, Andi
     // 2026-10-28): delete every user-id cookie the request carries,
-    // independent of "Delete cookie on consent withdrawal" - that switch is
-    // about a withdrawn consent, this is an objection to any measurement.
+    // independent of "Delete Cookie if Consent is denied" (cookie_delete) -
+    // that switch is about a withdrawn consent, this is an objection to any
+    // measurement. Also under cookie_mode 'never': a cookie of this name may
+    // be left from an earlier mode, and deleting it is what the objection asks.
     // Only when one is there, so an opted-out visitor does not get a delete
-    // header on every request.
+    // header on every request. Same attributes as every write; a cookie stored
+    // under another domain attribute is not reached (as on the cookie_delete
+    // path) and then gets the header on every request until it expires.
     if (optedOut) {
       const uidOut = readUidCookie();
       if (uidOut.value || uidOut.stale.length > 0) {

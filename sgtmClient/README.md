@@ -347,7 +347,9 @@ injects, so the browser accepts it. Leave it empty if you do not use a CSP nonce
 
 #### aGTM Debug Mode
 
-If this is ticked, the optout cookie will be ignored.
+If this is ticked, the library runs in debug mode and writes its log — except for a visitor who
+objected (`aGTMoptout`): this Client does not pass the debug flag to the library for them, so the
+objection still holds. The server log of this Client is switched on as well.
 
 ---
 
@@ -356,6 +358,7 @@ If this is ticked, the optout cookie will be ignored.
 The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session management entirely server-side via a **single Session API call**. The earlier two-step presession + session model has been collapsed. When a browser requests `/aGTM.js`, the sGTM client:
 
 1. Checks for bots (via the filter API) — if a bot is detected, returns 403 and stops.
+   **Opt-out:** with the `aGTMoptout` cookie (or `?aGTMoptout=1` on the page that loads the library) the Client stops here: it serves the library without session data, calls neither the Session API nor the Sources API, sets no user-ID cookie and deletes one that already exists — independent of *Delete Cookie if Consent is denied*. The bot check above still runs. Details: README §Optout.
 2. Resolves a user ID: existing cookie wins; otherwise a server-side fingerprint (`F$1$tenant$<hash>.<date>`). That uid is the Session API key, so consent persisted under it is found on the next load. It is **never** written into the cookie — the fingerprint is derived from IP, user agent, client hints and ASN/geo and is therefore not per-visitor; only a minted `C.*` may become a cookie value (see *Cookie Mode*).
 3. Calls the Session API (`GET /tp/session/{tenant}/{uid}`). The response includes `sessionId`, `counter`, `ga4sid`, `muidga4` and — once consent has ever been written for this user — a `consent` object.
 4. **Consent passthrough**: if the response carries a valid `consent` object (`hasResponse: true`) and the uid is cookie-bound, it is forwarded into `cfg.session.consent` for aGTM to consume. A cookieless visitor with a stored decision gets no preset (the CMP decides) — and no auto-denial either.

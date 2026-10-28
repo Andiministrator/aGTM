@@ -199,7 +199,7 @@ Events vor Consent landen in `aGTM.d.f` (Queue). Nach GTM-Load werden sie als `h
 | Dokument | Inhalt |
 |---|---|
 | [README.md](README.md) | Vollständige englische Dokumentation (alle Config-Optionen, Consent-Handling, FAQ) |
-| [README-for-Developers.md](README-for-Developers.md) | Technische Doku: Architektur, Call-Graphs, Callbacks, Build-Prozess |
+| [README-for-Developers.md](README-for-Developers.md) | Technische Doku: Architektur, Callbacks, Build-Prozess (Call-Graphs: [ARCHITECTURE.md](ARCHITECTURE.md)) |
 | [CHANGELOG.md](CHANGELOG.md) | Versionshistorie |
 | [cmp/README-cmp.md](cmp/README-cmp.md) | Alle unterstützten CMPs mit Konfigurations-Details |
 | [ROADMAP.md](ROADMAP.md) | Geplante Features |

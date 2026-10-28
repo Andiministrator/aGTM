@@ -39,6 +39,31 @@ describe('opt-out stops the Client\'s own calls (F-259)', () => {
     expect(cookiesDeleted(r).map((c) => c.name)).toContain('_tpf');
   });
 
+  test('the delete carries the attributes every write uses (else the browser ignores it)', () => {
+    const r = run({ cookies: [{ name: 'aGTMoptout', value: '1761571200000' }] }, []);
+    const del = r.cookieOpts.filter((o) => o.name === '_tpf');
+    expect(del.length).toBe(1);
+    expect(del[0]).toMatchObject({ path: '/', sameSite: 'none', secure: true, httpOnly: true, 'max-age': 0 });
+  });
+
+  test('cookie_delete on: deleted as well, nothing written', () => {
+    const r = runClient({
+      data: { ...BASE, cookie_delete: true },
+      query: page('https://www.kunde.de/seite'),
+      headers: { host: 'sgtm.kunde.de', 'sec-fetch-site': 'same-site', referer: 'https://www.kunde.de/seite' },
+      cookies: [{ name: '_tpf', value: 'C$1$t$known' }, { name: 'aGTMoptout', value: '1761571200000' }],
+      http: () => ({ statusCode: 200, body: '{}' })
+    });
+    expect(cookiesWritten(r)).toEqual([]);
+    expect(cookiesDeleted(r).map((c) => c.name)).toContain('_tpf');
+  });
+
+  test('only a legacy _TPU cookie: deleted too', () => {
+    const r = run({ noUid: true, cookies: [{ name: '_TPU', value: 'C$1$t$old' }, { name: 'aGTMoptout', value: '1761571200000' }] }, []);
+    expect(cookiesWritten(r)).toEqual([]);
+    expect(cookiesDeleted(r).map((c) => c.name)).toContain('_TPU');
+  });
+
   test('no user-ID cookie: no delete header on every request (control)', () => {
     const calls = [];
     const r = run({ noUid: true, cookies: [{ name: 'aGTMoptout', value: '1761571200000' }] }, calls);
@@ -59,6 +84,7 @@ describe('opt-out stops the Client\'s own calls (F-259)', () => {
     const r = run({ url: 'https://www.kunde.de/?aGTMoptout=0', cookies: [{ name: 'aGTMoptout', value: '1761571200000' }] }, calls);
     expect(calls.some((u) => u.indexOf(API) === 0)).toBe(true);
     expect(r.body).toContain('SID-SECRET');
+    expect(cookiesDeleted(r).map((c) => c.name)).not.toContain('_tpf');
   });
 
   test('cookie value "0" is no objection (left over from older versions)', () => {
