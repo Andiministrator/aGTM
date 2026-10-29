@@ -3288,11 +3288,23 @@ scenarios:
     const mockData = baseData();
     body = '';
     mockPost('/aGTMconsent', JSON.stringify({consent: {hasResponse: true, services: ',Google,'}}));
-    mock('getCookieValues', function() { return ['C.1$cl_test$555000.111']; });
+    // By name: a mock that answers every name also answers aGTMoptout, and the
+    // POST route then sees an objection and answers 204 (since the opt-out guard).
+    mock('getCookieValues', function(name) { return name === 'aGTMoptout' ? [] : ['C.1$cl_test$555000.111']; });
     mock('setResponseBody', function(b) { body = b; });
     runCode(mockData);
     assertApi('setResponseStatus').wasCalledWith(200);
     assertThat(body).contains('"uid":"C.1$cl_test$555000.111"');
+
+- name: POST consent route with an opt-out cookie - 204 and nothing stored
+  code: |
+    const mockData = baseData();
+    mockPost('/aGTMconsent', JSON.stringify({uid: 'C.1$cl_test$555000.111', consent: {hasResponse: true, services: ',Google,'}}));
+    mock('getCookieValues', function(name) { return name === 'aGTMoptout' ? ['1761523200000'] : ['C.1$cl_test$555000.111']; });
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(204);
+    assertApi('sendHttpRequest').wasNotCalled();
+    assertApi('setCookie').wasNotCalled();
 
 - name: POST consent route encrypted payload - 501 server-side decrypt unsupported
   code: |
