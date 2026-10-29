@@ -333,10 +333,10 @@ container sends back to the browser.
 
 **Opt-out** (`aGTMoptout` cookie, or `?aGTMoptout=1` on the page): S3, S4, S8 and S9 do
 not happen, S6 carries no session data, and S5 writes no user-ID cookie — one set before the
-objection is deleted (`Set-Cookie` with `max-age=0`). **S1 and S2 still happen**, and so does
-S7: the pre-init code is prepended to the served script whether or not the visitor objected —
-assess what it does on its own — the library has to be
-served to keep the objection, and the bot check protects the endpoint. The Client sees the
+objection is deleted (`Set-Cookie` with `max-age=0`). **S1 and S2 still happen**: the library
+has to be served to keep the objection, and the bot check protects the endpoint. **So does S7**:
+the pre-init code is prepended to the served script whether or not the visitor objected, so
+assess what it does on its own. The Client sees the
 cookie only under the page's registrable domain (README §Optout).
 
 ### S1 — the `/aGTM.js` request
