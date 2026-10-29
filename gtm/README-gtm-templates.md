@@ -4,6 +4,7 @@
 
 - [What is it for?](#what-is-this-document-it-for)
 - [Available GTM Templates and Variables](#available-gtm-templates-and-variables)
+- [Container templates](#container-templates)
 
 ---
 
@@ -59,7 +60,9 @@ for the server container. They embed the current templates from this repository 
 they drift.
 
 **Every object you have to fill in is marked:** its name starts with **⚠** and its note (the
-*Notes* field in GTM) starts with `ADJUST:`. After filling it in you can rename it.
+*Notes* field in GTM) starts with `ADJUST:`. After filling it in you can rename it. Clients
+carry the note only — GTM compares client names literally (`{{Client Name}}`), so a renamed
+client would break such comparisons.
 
 Import each file into the matching container type via *Admin → Import Container*; choose
 **Merge** and *Rename conflicting tags, triggers and variables* if the container is not empty.
@@ -75,14 +78,14 @@ Choose the condition deliberately: a service or purpose that your CMP classifies
 is granted on every visit, so with such a condition the gate never closes — not even after
 "reject all". Pick that only if GTM itself is meant to run without consent.
 
-The file contains the client **⚠ aGTM** and nothing else. Every field is on its template
-default except three:
+The file contains the client **aGTM** (with an `ADJUST:` note) and nothing else. Apart from the
+placeholder row in *Configure GTM Container*, every field is on its template default except three:
 
 | Field | Value in the file | Why |
 |---|---|---|
 | *Fire GTM dataLayer Event "aPageview"* (`aPageview`) | on | the web container's tags fire on `aPageview` |
 | *Fire GTM dataLayer Events "DOMloaded" and "PAGEready"* (`dlStateEvents`) | on | the event tags (forms, scroll, copy, click) fire on `aPAGEready` |
-| *Tenant ID* (`tenant_id`) | `example` | required field; any short identifier |
+| *Tenant ID* (`tenant_id`) | `example` | required field. Without a Session API any short identifier works; with one it must match the tenant set up there (it is part of the API path and of the user-ID cookie) |
 
 Fill in:
 
@@ -109,7 +112,7 @@ Requirements and behaviour:
 
 - **The tags need the aGTM events `aPageview` and `aPAGEready`.** With the server template they
   are on. Without the Client, configure the library with `aPageview: true` and
-  `dlStateEvents: true`; otherwise only Consent Mode and GA fire.
+  `dlStateEvents: true`; otherwise only Consent Mode, the Google tag and the e-commerce tags fire.
 - **The e-commerce triggers only accept events that carry `aGTMts`**, i.e. events sent with
   `aGTM.f.fire()` or replayed once by the DL Repeat tag. A plain `dataLayer.push()` after the
   page is ready does not reach GA4 — this prevents double counting. Send shop events through

@@ -13,6 +13,13 @@ describe('container templates embed the current repo templates', () => {
     test(`${file} embeds at least one template`, () => {
       expect((json.containerVersion.customTemplate || []).length).toBeGreaterThan(0);
     });
+    test(`${file}: every custom-template type used by a tag, variable or client is embedded`, () => {
+      const cv = json.containerVersion;
+      const types = new Set((cv.customTemplate || []).map((t) => `cvt_${cv.containerId}_${t.templateId}`));
+      const missing = [...(cv.tag || []), ...(cv.variable || []), ...(cv.client || [])]
+        .filter((o) => /^cvt_/.test(o.type) && !types.has(o.type)).map((o) => o.name);
+      expect(missing).toEqual([]);
+    });
     for (const r of checkContainer(file, json)) {
       test(`${file}: "${r.name}" equals ${r.source} (run ./build.sh)`, () => {
         expect(r.stale).toBe(false);

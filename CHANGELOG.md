@@ -193,7 +193,7 @@ take its place, derived from a live v1.5 setup with the site-specific parts remo
   tags fire on them.
 
 Every object you have to fill in is prefixed with **⚠** and carries a note starting with
-`ADJUST:`. The full list is in `gtm/README-gtm-templates.md` § Container templates.
+`ADJUST:` (the client carries the note only, because GTM compares client names literally). The full list is in `gtm/README-gtm-templates.md` § Container templates.
 `./build.sh` now re-syncs the templates embedded in both files
 (`scripts/update-container-templates.js`), and `test/gtm/container-templates.test.js` fails when
 they drift from the repo — the stale-export problem of the old file cannot recur silently.
