@@ -65,7 +65,7 @@ tree usable as a reference for the opposite question — *is this directory supp
 root entry that is tracked but missing here is a documentation gap; a root entry that is neither
 tracked nor covered by `.gitignore` is worth a second look. (The gitignored-but-expected ones are
 `docs/`, `knowledge/`, `internal/`, `tmp/`, `CLAUDE.local.md`, `node_modules/` and the aBoard
-runtime state `aboard-sync.json` / `aboard-sync.base*.json` / `aboard-sync.inbox/` / `aboard.html`, plus the card attachments in `attachments/`. The board is a working log and stays local; the public roadmap is `ROADMAP.md`.)
+runtime state `aboard-sync.json` / `aboard-sync.base*.json` / `aboard-sync.inbox/` / `aboard-sync.offen.json` / `aboard.html`, plus the card attachments in `attachments/`. The board is a working log and stays local; the public roadmap is `ROADMAP.md`.)
 
 ### Claude Code skills
 
