@@ -68,7 +68,7 @@ storage, F-242).
 
 Add a **second trigger to the same tag**: Custom Event **`aGTM_consent_update`** — and set
 the tag's **Advanced Settings → Tag firing options** to **Once per event**. ⚠️ With
-**Once per page** (the setting in the workspace export `gtm/aGTM-GTM-Workspace-Template-18.json`)
+**Once per page** (the setting in the 2025 workspace export this repo used to ship)
 GTM runs the tag only once per page load, whatever triggers it has, so the second
 trigger never fires and the fix has no effect.
 

@@ -37,7 +37,7 @@ aGTM/
 ├── cmp/                 # Consent check functions, one file per CMP provider
 │   ├── cc_<name>.js     # Source version
 │   └── cc_<name>.min.js # Minified version
-├── gtm/                 # GTM Custom Templates (.tpl files) and their READMEs
+├── gtm/                 # GTM Custom Templates (.tpl files) and their READMEs, plus the container exports aGTM-container-template-{web,server}.json
 │   ├── tags/            # Tag templates (click, form, scroll, pageview, etc.)
 │   └── variables/       # Variable templates
 ├── sgtmClient/          # Server-side GTM client template
@@ -168,6 +168,7 @@ runs the same suite against the build (run `./build.sh` first).
 | `scripts/check-init.js` | Strips comments from `aGTM.js` and checks for an accidental uncommented `aGTM.f.init()` call |
 | `scripts/update-sgtm-template.js` | Reads `aGTM.base64` and version from `aGTM.js`, injects both into `sgtmClient/template.tpl` **and** re-syncs the same base64 blob into `sgtmClient/src/aGTM-sGTM-Client-jsSourceCode.js` so the client source stays byte-identical to the template's sandboxed block (the blob and the `aGTMversion` constant are the only lines that drift across a library rebuild — see below). **Also** re-syncs the embedded CMP `consent_check` codes in the template's "Used CMP" SELECT from `cmp/*.min.js` (F-52 — see "Embedded CMP consent_check sync" below) |
 | `scripts/cmp-sync-lib.js` | Shared, side-effect-free helpers for the embedded-CMP-code sync: `CMP_MAP` (displayValue → `cc_<name>` file), consent_check extraction, GTM string encoding, template parsing. Imported by both `update-sgtm-template.js` (writer) and `test/cmp/template-sync.test.js` (drift guard) so the mapping lives in one place |
+| `scripts/update-container-templates.js` | Re-syncs the templates embedded in the container exports `gtm/aGTM-container-template-web.json` / `-server.json` (`customTemplate[].templateData`) from `gtm/**/*.tpl` and `sgtmClient/template.tpl`, after `update-sgtm-template.js` has rewritten the library blob. Only templateData changes — tags, triggers and variables of the exports are hand-built (maintainer-local build scripts, card #35). Mapping in `scripts/container-templates-lib.js`, shared with the drift guard `test/gtm/container-templates.test.js`; an embedded template without a mapping fails both |
 | `scripts/pack-devtools-extension.sh` | Packs `devtools-extension/` reproducibly into the tracked `aGTM-Inspector.zip`. Deliberately **not** part of `build.sh` (the extension is off the ES5 path) — but `build.sh` *does* rewrite `devtools-extension/manifest.json`, so **re-run this after every version bump**, or the tracked ZIP ships a stale manifest. Reproducible in the byte sense: entries are pinned to a fixed timestamp (`SOURCE_DATE_EPOCH`, override via env) and zipped in sorted order, so identical sources give an identical archive — re-pack and compare the hash to answer "is the tracked ZIP current?" instead of guessing. |
 | `bunfig.toml` | Configures `bun test`: preloads `test/setup.js` before every test file |
 | `test/setup.js` | Sets up browser globals (`window`, `document`, etc.) and loads `aGTM.js` into global scope via indirect eval |

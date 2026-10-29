@@ -99,8 +99,9 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   fires); no second instance, the mapping stays in one place. Re-import the template (new
   permission: read the dataLayer key `event`), and switch off the CMP's own Consent Mode
   push if it has one. See `gtm/tags/consent-mode/README-gtm-tag-consent-mode.md` (F-242).
-  The workspace export `gtm/aGTM-GTM-Workspace-Template-18.json` still carries the old
-  template, only the page-load trigger and *Once per page* — change all three after import.
+  The 2025 workspace export carried the old template, only the page-load trigger and *Once
+  per page*; it is replaced by `gtm/aGTM-container-template-web.json`, which has both triggers
+  and *Once per event*.
 - **sGTM Client: a visitor without a user-id cookie no longer receives a stored consent.**
   Without a cookie the session is keyed on a server-side fingerprint that is not
   per-visitor, so the stored consent of a stranger could be handed to them. Those visitors
@@ -176,6 +177,26 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
+
+### Changed — container templates replace the 2025 workspace export
+
+`gtm/aGTM-GTM-Workspace-Template-18.json` (a July 2025 export carrying library 1.4.1, an old
+Consent Mode tag and the pre-hardening iFrame tag) is gone. Two starting points for a new setup
+take its place, derived from a live v1.5 setup with the site-specific parts removed:
+
+- `gtm/aGTM-container-template-web.json` — the seven aGTM tags (Consent Mode, DL Repeat, Timer,
+  Forms, Scroll Events 1.2, Copy, Click) with the current templates from this repo, plus a GA4
+  skeleton: Google tag, `page_view` and the e-commerce event tags.
+- `gtm/aGTM-container-template-server.json` — the aGTM Client only. **The consent condition
+  table is empty, so the Client loads no GTM until you add a condition** (fail-closed since
+  1.5). The `aPageview` and `DOMloaded`/`PAGEready` events are switched on, because the web
+  tags fire on them.
+
+Every object you have to fill in is prefixed with **⚠** and carries a note starting with
+`ADJUST:`. The full list is in `gtm/README-gtm-templates.md` § Container templates.
+`./build.sh` now re-syncs the templates embedded in both files
+(`scripts/update-container-templates.js`), and `test/gtm/container-templates.test.js` fails when
+they drift from the repo — the stale-export problem of the old file cannot recur silently.
 
 ### Fixed — the opt-out holds: 13 months, whole domain, and a stored consent no longer overrides it
 
@@ -1044,9 +1065,8 @@ never reaches a template. (The opposite direction *does* verify it — `ifHSlist
 `consent_events` also still triggers a consent re-read: control through the name, which no
 key filter can catch.
 
-If you distribute the GTM workspace export rather than the template file, note that the
-copy in `gtm/aGTM-GTM-Workspace-Template-18.json` predates all of this **and** predates
-F-33; it needs to be re-exported from GTM.
+The 2025 workspace export that used to sit in `gtm/` predated all of this **and** F-33; it is
+replaced by `gtm/aGTM-container-template-web.json` (see "container templates" above).
 
 ### Fixed — the sGTM Client's "Use env Parameter" switch never did anything
 

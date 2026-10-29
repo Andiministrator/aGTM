@@ -74,5 +74,10 @@ echo "  Done: aGTM.base64 ($(wc -c < aGTM.base64) bytes)"
 echo "Updating sgtmClient/template.tpl..."
 bun run scripts/update-sgtm-template.js
 
+# ── Re-sync templates embedded in the container exports (gtm/aGTM-container-template-*.json) ──
+
+echo "Updating gtm/aGTM-container-template-*.json..."
+bun run scripts/update-container-templates.js
+
 echo ""
 echo "Build complete."
