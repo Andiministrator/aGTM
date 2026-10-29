@@ -73,6 +73,10 @@ aboard-sync.base.*.json
 aboard-sync.inbox/
 aboard-sync.chat-tail.*
 aboard.html.bak-*
+# Reading copy of the open cards for the board sidebar, written by the
+# projector next to aboard-sync.json (aBoard ADR-0145): full card texts.
+aboard-sync.offen.json
+aboard-sync.offen.json.tmp-*
 
 # ── Board attachments ───────────────────────────────────────
 # Files attached to aBoard cards (drafts, customer material). Their names and
