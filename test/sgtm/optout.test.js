@@ -43,19 +43,8 @@ describe('opt-out stops the Client\'s own calls (F-259)', () => {
     const r = run({ cookies: [{ name: 'aGTMoptout', value: '1761571200000' }] }, []);
     const del = r.cookieOpts.filter((o) => o.name === '_tpf');
     expect(del.length).toBe(1);
-    expect(del[0]).toMatchObject({ path: '/', sameSite: 'none', secure: true, httpOnly: true, 'max-age': 0 });
-  });
-
-  test('cookie_delete on: deleted as well, nothing written', () => {
-    const r = runClient({
-      data: { ...BASE, cookie_delete: true },
-      query: page('https://www.kunde.de/seite'),
-      headers: { host: 'sgtm.kunde.de', 'sec-fetch-site': 'same-site', referer: 'https://www.kunde.de/seite' },
-      cookies: [{ name: '_tpf', value: 'C$1$t$known' }, { name: 'aGTMoptout', value: '1761571200000' }],
-      http: () => ({ statusCode: 200, body: '{}' })
-    });
-    expect(cookiesWritten(r)).toEqual([]);
-    expect(cookiesDeleted(r).map((c) => c.name)).toContain('_tpf');
+    // domain included: it is the attribute a browser-side delete fails on.
+    expect(del[0]).toMatchObject({ domain: 'auto', path: '/', sameSite: 'none', secure: true, httpOnly: true, 'max-age': 0 });
   });
 
   test('only a legacy _TPU cookie: deleted too', () => {

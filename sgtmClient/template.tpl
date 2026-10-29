@@ -584,7 +584,7 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "aGTM Debug Mode",
         "simpleValueType": true,
         "defaultValue": false,
-        "help": "Writes the Client's debug log and switches the library's debug mode on (the library then ignores the aGTMoptout cookie - except for a visitor who objected: the Client never passes debug to the library for them)."
+        "help": "Writes the Client's debug log and switches the library's debug mode on (the library then ignores the aGTMoptout cookie - except for a visitor who objected: the Client never passes debug to the library for them - only for an objection it sees: a cookie under the registrable domain of its host, or ?aGTMoptout in the page URL). Do not tick it on a live site."
       }
     ]
   },
