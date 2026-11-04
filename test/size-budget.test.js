@@ -28,8 +28,11 @@ import { gzipSync } from "zlib";
 // Raised 2026-10-27 (38_000 → 38_500 / 11_600 → 11_800, card #125): the opt-out became an
 // objection that holds — 13-month cookie on the registrable domain, renewed per visit, checked
 // in config() before a consent preset (F-252, F-259). Raw 37_672 → 38_153 B, gzip (level 9, as measured here) now 11_735 B (incl. the fire()/xsend() guard after review).
-const BUDGET_RAW = 38_500;
-const BUDGET_GZIP = 11_800;
+// Raised 2026-11-04 (38_500 → 39_000 / 11_800 → 12_000, card #134): gtm.js tells the GTM Client
+// whether the user-ID cookie is granted (`uidc`, aGTM.f.uidc + config option + gtm_load). Raw
+// 38_153 → 38_583 B, gzip 11_735 → 11_881 B — already shrunk once by reusing chelp().
+const BUDGET_RAW = 39_000;
+const BUDGET_GZIP = 12_000;
 
 function sizes(path) {
   const buf = readFileSync(path);

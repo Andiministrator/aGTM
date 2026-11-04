@@ -478,6 +478,37 @@ Inspector.
 - Example: `true`
 - Default: `false`
 
+### uidc
+
+The consent requirement for a server-side user-ID cookie, so that the request for `gtm.js`
+can say whether it is granted. The sGTM container that serves `gtm.js` has no consent
+signal of its own on that request; with this option set, aGTM appends `&uidc=1`
+(requirement granted) or `&uidc=0` (not granted, or no decision yet) to it.
+
+- Type: object `{ service, purpose, vendor, any }` with string values. One of the three
+  granted is enough; each is matched literally against the consent string (one name, no
+  list, no trimming), exactly as the sGTM Client matches it. With all three empty,
+  `any: true` grants on any explicit consent answer — note that this includes "deny all"
+  when the CMP still reports its essential services then. A value that is not a string
+  counts as empty.
+- Example: `{ service: 'UserID' }`
+- Default: `null` (no parameter is sent)
+
+Only sent to an own `gtmURL` (self-hosted or server-side GTM), never to Google's
+`gtm.js`. A receiver must read a missing parameter as "not granted".
+
+**The value is a snapshot taken when `gtm.js` is requested.** It is not updated when the
+visitor changes the decision later on the same page, so a receiver must use it for that
+request only and not store it (e.g. in a cookie) for later hits. A `noConsent` container
+that loads before any decision gets `uidc=0`; with a stored consent delivered as preset it
+gets the answer of that consent.
+
+The aGTM sGTM Client sets this option from its *Consent Service / Purpose / Vendor* fields
+(or *Create the user ID cookie without a consent requirement*), except under *Cookie Mode:
+Never*. It reports the **consent**, not the Client's own cookie rule: under *Always* the
+Client writes its cookie regardless and `uidc` may still say `0`. A standalone integrator
+sets the option by hand (since v1.5).
+
 ### gtmAttr
 
 Additional HTML attributes to add to the GTM `<script>` tag. Useful e.g. for CMP attribute-based consent systems that require a specific `data-*` attribute on the script tag.

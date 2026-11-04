@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 27.10.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 04.11.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -298,6 +298,7 @@ aGTM.f.config = function (cfg) {
   opt("gtmServices", ""); // The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager'
   opt("gtmVendors", ""); // The vendors(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Inc'
   opt("allowEmptyConsentConditions", false); // Load GTM even though gtmPurposes/gtmServices/gtmVendors are ALL empty, i.e. run no consent gate at all. Default false = fail-closed: with no requirement configured, GTM is not loaded (F-167). Only set this if you deliberately want no gate; it does not weaken a gate you did configure.
+  opt("uidc", null); // Consent requirement for the user-ID cookie, e.g. { service: 'UserID', purpose: '', vendor: '', any: false }. If set, every gtm.js request to an own gtmURL carries "&uidc=1" (requirement granted) or "&uidc=0" (not granted, or no decision yet). The aGTM sGTM Client sets this from its user-ID cookie settings; see aGTM.f.uidc
   opt("gtmAttr", null); // Set HTML tag attributes to add in the GTM script tag, e.g. { 'data-cmp-ab':'c905' }
   opt("dlSet", {}); // Set dataLayer variables, that should always be attached to an event
   opt("useListener", false); // Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent
@@ -1140,6 +1141,41 @@ aGTM.f.urlListener = function (eventname, interval, fallback) {
 };
 
 /**
+ * Answers "may the user-ID cookie be stored?" for the gtm.js request, as the
+ * value of its "uidc" parameter: "1" granted, "0" not granted, "" no
+ * requirement configured (aGTM.c.uidc unset, no parameter is sent).
+ * Same rule as the aGTM sGTM Client's cookie check: ONE of service / purpose /
+ * vendor granted is enough; with none configured, `any: true` grants on any
+ * explicit consent signal. Fail-closed: no decision yet (hasResponse falsy),
+ * the Client's auto-denial block, or a requirement that is not granted all
+ * give "0" — a receiver that finds the parameter missing must also read
+ * "not granted". A gtm.js request for a noConsent container that loads before
+ * the decision therefore says "0".
+ * @property {function} aGTM.f.uidc
+ * @returns {string} - "1", "0" or ""
+ */
+aGTM.f.uidc = function () {
+  var r = aGTM.c.uidc, c = aGTM.d.consent || {}, ok = false;
+  if (!r || typeof r != "object") return "";
+  // Literal match of ONE name, like the Client's inConsentStr(): no trimming,
+  // no list. chelp() would trim and split, and then answer "1" where the Client
+  // never grants (" UserID", "a,b") — the receiver would treat the cookie as
+  // allowed while the Client refuses it. A non-string value counts as empty
+  // (fail-closed) instead of throwing inside gtm_load.
+  var n = function (k) { return typeof r[k] == "string" ? r[k] : ""; };
+  var has = function (k, g) { return !!(n(k) && g && g.indexOf("," + n(k) + ",") >= 0); };
+  // The auto-denial block always carries the sentinel service, so checking it
+  // covers `blocked` too.
+  if (c.hasResponse && c.services != ",aGTMconsent,") {
+    var s = c.services, p = c.purposes, v = c.vendors;
+    ok = n("service") || n("purpose") || n("vendor")
+      ? has("service", s) || has("purpose", p) || has("vendor", v)
+      : r.any === true && !!(s || p || v);
+  }
+  return ok ? "1" : "0";
+};
+
+/**
  * Initializes the Google Tag Manager with provided settings.
  * @property {function} aGTM.f.gtm_load
  * @param {object} w - The window object, usually: window.
@@ -1230,7 +1266,11 @@ aGTM.f.gtm_load = function (w, d, i, p, l, o) {
     // standalone integrator has no such guarantee.
     if (envParam && envParam.charAt(0) !== "&") envParam = "&" + envParam;
     var q = gtmUrl.indexOf("?")===-1 ? "?" : "&";
-    scriptTag.src = gtmUrl + q + p + "=" + i + "&l=" + l + envParam;
+    // Consent for the user-ID cookie (aGTM.f.uidc), only towards an own
+    // gtmURL: it is meant for the sGTM that serves gtm.js, Google's server has
+    // no use for it.
+    var uidc = o.gtmURL ? aGTM.f.uidc() : "";
+    scriptTag.src = gtmUrl + q + p + "=" + i + "&l=" + l + envParam + (uidc ? "&uidc=" + uidc : "");
   }
   // Insert the GTM script tag into the document
   var firstScriptTag = d.getElementsByTagName("script")[0];

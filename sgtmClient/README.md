@@ -415,7 +415,7 @@ Controls when the user ID cookie is set:
 |---|---|
 | `always` | Cookie is set on every request **once a `C.*` id exists** — i.e. regardless of the consent state, but not before the id has been minted |
 | `never` | No `Set-Cookie` header is ever sent, not even to delete one; the fingerprint-based ID is used |
-| `consent` | Cookie is only set when the Session API consent state grants the required services, or when an existing cookie is already present **and** no withdrawal is on record. A withdrawal on record stops the refresh and — with *Delete Cookie if Consent is denied* — deletes the cookie on `/aGTM.js` too, not only on the consent POST |
+| `consent` | Cookie is only set or refreshed when the consent **on record** in the Session API grants the required services (a real CMP answer, not the auto-denial block). No record, a Session API outage or an answer without a decision neither refresh nor delete an existing cookie — it keeps its id and runs out unless consent is confirmed; the consent POST confirms it on the first page after the record expired, as long as the consent store is live — with the store off, encrypted or cross-site-blocked, cookies minted earlier run out (since v1.5, F-277). Exception: with **no** requirement filled in, an existing cookie is still refreshed as before (F-165). A withdrawal on record stops the refresh and — with *Delete Cookie if Consent is denied* — deletes the cookie on `/aGTM.js` too, not only on the consent POST |
 
 > **A stored consent is only handed to a visitor whose uid is cookie-bound (since v1.5).**
 > Without a cookie the session is keyed on the server-side fingerprint, which is derived

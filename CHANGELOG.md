@@ -10,7 +10,8 @@ Removed functions: `aGTM.f.session_fetch`, `aGTM.f.session_apply_denial`, `aGTM.
 Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 
 **New config options:** `user_id`, `session_salt`, `consent_store_url`,
-`consent_store_enc`, `consent_poll_ms`, `session`, `allowEmptyConsentConditions`, `jsErrors`.
+`consent_store_enc`, `consent_poll_ms`, `session`, `allowEmptyConsentConditions`, `jsErrors`,
+`uidc`.
 
 **Behaviour you should know about before upgrading:**
 - **The opt-out now holds** (`?aGTMoptout=1`): 13-month cookie for the whole domain (Safari:
@@ -45,6 +46,29 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   in the requirement, switch *Cookie Mode* to *Consent Required* and tick *Delete Cookie
   if Consent is denied* — `/aGTM.js` then deletes the cookie of every visitor whose
   recorded consent does not meet the requirement. Alternatively change *Cookie Name*.
+- **sGTM Client, *Consent Required*: the user-ID cookie is refreshed only on a recorded
+  grant** (F-277). An existing cookie used to be refreshed on every `/aGTM.js` request unless
+  a withdrawal was on record, so a missing signal (no Session API record, an outage, an
+  expired session) counted as consent. Now it is set or refreshed only when the consent on
+  record grants the requirement; otherwise it keeps its id and is neither refreshed nor
+  deleted. The consent POST refreshes it on the next grant — the library sends one on the
+  first page after the record expired, as long as the consent store is live. **Check this
+  if you run *Consent Required* with the consent store switched off** (or with
+  `consent_store_enc`, or only as a cross-site embed): no grant reaches the record there, so
+  cookies minted earlier now run out instead of being refreshed. With **no** requirement
+  filled in nothing changes (existing cookies are still refreshed, F-165). *Always* is
+  unchanged as well.
+- **New: `gtm.js` says whether the user-ID cookie is granted (`uidc`).** With the new option
+  `uidc: {service, purpose, vendor, any}`, every `gtm.js` request to an own `gtmURL` carries
+  `&uidc=1` (granted) or `&uidc=0` (not granted, no decision yet, or the Client's
+  auto-denial). The GTM Client serving `gtm.js` has no consent signal of its own on that
+  request; this one tells it whether the consent is there. The sGTM Client fills the option
+  from *Consent Service / Purpose / Vendor* (only when one is filled in or *Create the user
+  ID cookie without a consent requirement* is ticked, and not under *Cookie Mode: Never*).
+  It reports the consent, not the Client's cookie rule. The value is a snapshot at the
+  moment `gtm.js` is requested — a receiver must not store it for later hits. Never sent to
+  Google's `gtm.js`; a receiver reads a missing parameter as "not granted". Client users:
+  re-import the template.
 - **OneTrust: a region without a banner no longer blocks GTM.** Where a OneTrust
   geolocation rule shows no banner (`ShowAlertNotice: false`), nothing records a
   decision outside soft opt-in, and the adapter waited for one forever. It now reports

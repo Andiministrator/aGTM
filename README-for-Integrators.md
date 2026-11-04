@@ -680,6 +680,23 @@ Handler responsibilities (the parts the **library** observes or depends on):
   encryption support ships. Note the payload transform is Base64 + Caesar shift (`aGTM.f.enc`) —
   obfuscation, not encryption.
 
+### The `gtm.js` request: `uidc` (v1.5)
+
+When the served config carries `uidc` (the aGTM Client sets it from *Consent Service / Purpose /
+Vendor*, see README §uidc), every `gtm.js` request aGTM makes to an **own** `gtmURL` ends in
+`&uidc=1` or `&uidc=0`. It answers one question for the container that serves `gtm.js` — typically a
+GTM Client with a user-ID template — which otherwise has no consent signal on that request: *is the
+consent requirement for the user-ID cookie granted?*
+
+- `1`: the consent the library holds grants the requirement (literal match of one name, as the aGTM
+  Client does it).
+- `0`: not granted, no decision yet (a `noConsent` container loading before the banner), or the aGTM
+  Client's auto-denial.
+- **missing**: no requirement configured, *Cookie Mode: Never*, or Google's own `gtm.js` — treat it
+  as **not granted**.
+- **A snapshot** at the moment of the request. A later decision on the same page does not update
+  it, so use it for this request only and never store it for later hits.
+
 ---
 
 ## 11. Cheat sheet

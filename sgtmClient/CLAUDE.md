@@ -98,6 +98,17 @@ visitor without a `C.*` gets no preset and re-POSTs on every page view) and no `
 `___TESTS___` scenarios. **`bun test` does not run `___TESTS___`** — after changing Client behaviour,
 grep `^- name:` for scenarios that assume the old behaviour.
 
+**`consent`-mode refresh needs a recorded grant (F-277, card #134).** On the GET path an existing
+cookie is set/refreshed only when `sessionConsentGranted` (record with `hasResponse === true`, not
+the auto-denial block, an explicit signal, `hasRequiredConsent`). No record, an outage or an
+undecided answer neither refresh nor delete — the POST handler refreshes on the next grant.
+**Exception:** with no requirement configured (`consentConditionMissing`) an existing cookie is
+still refreshed as before, so F-165's promise to existing ids holds. The same requirement goes
+into the served config as `c.uidc = {service, purpose, vendor, any}` (only when a requirement
+exists or `cookie_without_condition` is ticked); the library turns it into `&uidc=1|0` on the
+`gtm.js` request for the GTM Client (tracking's Consent Flag Reader). Tests:
+`test/sgtm/uidc-refresh.test.js`, `test/uidc.test.js`.
+
 ### CORS and the cross-site write guard (sGTM Client only)
 
 `setCorsHeaders()` runs on every answer that a page may need to read: `/aGTM.js` (200) and

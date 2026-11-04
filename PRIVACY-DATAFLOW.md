@@ -90,7 +90,12 @@ anything else happens. In shape B it is row S1, and it carries considerably more
 - **Trigger:** `aGTM.f.inject()` after the consent gate passed (`aGTM.js`, `gtm_load`).
 - **Sent:** a `<script src>` GET. The URL carries `?id=<container>`, `&l=<dataLayer name>`
   and, if configured, the *URL Parameters* string (`gtm_auth`/`gtm_preview`/
-  `gtm_cookies_win`, or arbitrary parameters — see the sGTM Client README). As with any
+  `gtm_cookies_win`, or arbitrary parameters — see the sGTM Client README). With `uidc`
+  configured (the sGTM Client does so whenever a user-ID cookie requirement is filled in or
+  *Create the user ID cookie without a consent requirement* is ticked, except under *Cookie
+  Mode: Never*) and an own `gtmURL`, also `&uidc=1|0`: one bit saying whether that
+  requirement is granted at the moment of the request (a snapshot, not updated later on the
+  page). Never appended to Google's `gtm.js`. As with any
   script tag, the request itself also conveys IP address, User-Agent, `Referer` and the
   cookies of the receiving domain. From then on, what GTM sends is **GTM's** business, not
   aGTM's — aGTM does not see or control the tags inside the container.
