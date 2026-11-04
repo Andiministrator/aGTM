@@ -287,7 +287,7 @@ ___TEMPLATE_PARAMETERS___
     "name": "cm_event",
     "checkboxText": "DataLayer Event",
     "simpleValueType": true,
-    "help": "Additionally pushes the event \"aGTM_consent_mode\" into the dataLayer each time this tag runs (default and update). The event carries the Consent Mode signals this tag has just set in \"cm_signals\" (e.g. ad_storage, analytics_storage). Use it as a trigger, or read the signals with a Data Layer Variable. Consent Mode itself works without it. Requires aGTM (sent via aGTM.f.fire, which lets aGTM* events pass the consent gate, so it also arrives before the visitor has decided)."
+    "help": "Additionally pushes the event \"aGTM_consent_mode\" into the dataLayer each time this tag runs (default and update). The event carries the Consent Mode signals this run sets in \"cm_signals\" (e.g. ad_storage, analytics_storage; with the all-denied-Default-then-update option: the update values; a default run may also include wait_for_update and region). It is pushed right before the signals are applied. Use it as a trigger, or read the signals with a Data Layer Variable. Consent Mode itself works without it. Requires aGTM (sent via aGTM.f.fire, which lets aGTM* events pass the consent gate, so it also arrives before the visitor has decided)."
   },
   {
     "type": "GROUP",
