@@ -287,7 +287,7 @@ ___TEMPLATE_PARAMETERS___
     "name": "cm_event",
     "checkboxText": "DataLayer Event",
     "simpleValueType": true,
-    "help": "Fire a separate dataLayer event with Consent Mode signals"
+    "help": "Additionally pushes the event \"aGTM_consent_mode\" into the dataLayer each time this tag runs (default and update). The event carries the Consent Mode signals this tag has just set in \"cm_signals\" (e.g. ad_storage, analytics_storage). Use it as a trigger, or read the signals with a Data Layer Variable. Consent Mode itself works without it. Requires aGTM (sent via aGTM.f.fire, which lets aGTM* events pass the consent gate, so it also arrives before the visitor has decided)."
   },
   {
     "type": "GROUP",
