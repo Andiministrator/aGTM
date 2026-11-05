@@ -454,7 +454,7 @@ ___TEMPLATE_PARAMETERS___
             "name": "client_ip",
             "displayName": "Client IP Address",
             "simpleValueType": true,
-            "help": "Client IP address — used for <b>fingerprint generation</b> and (if enabled) <b>bot check</b>. Use the same variable as in your serverside_fingerprint template."
+            "help": "Client IP address — used for <b>fingerprint generation</b> and (if enabled) <b>bot check</b>. Use the same variable as in your serverside_fingerprint template.<br /><br /><b>Use a trusted source.</b> Left empty, the Client falls back to <code>getRemoteAddress()</code>, which reads <code>Forwarded</code> / <code>X-Forwarded-For</code> — headers a visitor can send themselves unless every proxy in front of the sGTM overwrites them. Whoever knows a visitor's IP, user agent and language can then derive that visitor's fingerprint ID and read the session ID, source and attribution served for it. Take the IP from a header your own proxy sets and overwrites (e.g. the variable template request_header_data v1.2, setting \"Automatic and safe\"). Debug mode logs when the fallback is used."
           },
           {
             "type": "TEXT",
@@ -1867,7 +1867,19 @@ if (id && data.gtm) {
 claimRequest();
 
 // Shared state
+// F-278: without an IP variable the Client falls back to getRemoteAddress(),
+// which (per Google) reads Forwarded / X-Forwarded-For - headers a visitor can
+// send themselves unless every proxy in front overwrites them. Whoever knows a
+// visitor's IP, User-Agent and Accept-Language can then derive that visitor's
+// fingerprint uid and read the session id, source and attribution served for
+// it (no consent: F-156 withholds that for fingerprint uids). The fallback
+// stays - without it a setup with no IP variable would have no IP in the
+// fingerprint at all, i.e. far more collisions - but it is announced: a debug
+// line here and the field's help text. No warn per request (production logs),
+// no response header (it would tell an attacker that spoofing works).
+const clientIpFromVariable = !!data.client_ip;
 const clientIP = data.client_ip || getRemoteAddress() || '';
+if (!clientIpFromVariable && clientIP && CFG.debug) logToConsole('debug', '\u26a0 Client IP from getRemoteAddress() (no IP variable set) - spoofable via Forwarded/X-Forwarded-For unless your proxy overwrites them; set a trusted IP variable, e.g. request_header_data v1.2');
 const userAgent = getRequestHeader('User-Agent') || '';
 
 // ── Helper: generate fingerprint (serverside_fingerprint v1.1.tpl, plus the day)

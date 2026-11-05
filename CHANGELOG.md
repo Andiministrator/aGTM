@@ -58,6 +58,13 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   cookies minted earlier now run out instead of being refreshed. With **no** requirement
   filled in nothing changes (existing cookies are still refreshed, F-165). *Always* is
   unchanged as well.
+- **sGTM Client: set a trusted *Client IP Address*.** Left empty, the Client takes the IP
+  from `getRemoteAddress()`, which reads `Forwarded` / `X-Forwarded-For` — a visitor can send
+  those, and with the IP, user agent and language of someone else derive that person's
+  fingerprint ID and read the session ID, source and attribution served for it. Nothing changes
+  in behaviour (without the fallback there would be no IP in the fingerprint at all); the help
+  text now says so, and debug mode logs when the fallback is used. Take the IP from a header your
+  own proxy overwrites, e.g. *request_header_data* v1.2, *Automatic and safe* (F-278).
 - **New: `gtm.js` says whether the user-ID cookie is granted (`uidc`).** With the new option
   `uidc: {service, purpose, vendor, any}`, every `gtm.js` request to an own `gtmURL` carries
   `&uidc=1` (granted) or `&uidc=0` (not granted, no decision yet, or the Client's
