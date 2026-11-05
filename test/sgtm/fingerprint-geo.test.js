@@ -37,6 +37,11 @@ describe('F-279 — geo part of the fingerprint', () => {
       .toBe(PREFIX + 'x-geoip-asn:21413x-geoip-country-code:DEx-geoip-org:Example Net');
   });
 
+  test('an EMPTY X-Geo-* value falls back to x-geoip-* (same || as serverside_fingerprint v1.3)', () => {
+    expect(fp({ 'x-geo-asn': '', 'x-geoip-asn': '3320', 'x-geo-country': 'DE' }))
+      .toBe(PREFIX + 'x-geoip-asn:3320x-geoip-country-code:DE');
+  });
+
   test('shared reference string with serverside_fingerprint v1.3', () => {
     expect(fp({ 'x-geo-asn': '21413', 'x-geo-asn-org': 'Example Net', 'x-geo-country': 'DE', 'x-geoip-country': 'Germany' }))
       .toBe(PREFIX + 'x-geoip-asn:21413x-geoip-country:Germanyx-geoip-country-code:DEx-geoip-org:Example Net');
