@@ -58,6 +58,12 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
   cookies minted earlier now run out instead of being refreshed. With **no** requirement
   filled in nothing changes (existing cookies are still refreshed, F-165). *Always* is
   unchanged as well.
+- **sGTM Client: the fingerprint's geo part reads `X-Geo-*` first** (`x-geo-asn`,
+  `x-geo-country`, `x-geo-asn-org`) and `x-geoip-*` only as a fallback, under the old key
+  names. Where only `x-geoip-*` arrives, nothing changes. Where a gateway sets `X-Geo-*`, the
+  fingerprint ID changes once (it rotates daily anyway); there `x-geoip-*` could only come
+  from the visitor. If the container also runs `serverside_fingerprint`, update it to **v1.3
+  in the same publish**, otherwise the two produce different IDs and sessions split (F-279).
 - **sGTM Client: set a trusted *Client IP Address*.** Left empty, the Client takes the IP
   from `getRemoteAddress()`, which reads `Forwarded` / `X-Forwarded-For` — a visitor can send
   those, and with the IP, user agent and language of someone else derive that person's

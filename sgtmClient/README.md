@@ -705,6 +705,11 @@ Please contact me if you found problems or have improvements:
     IDs and sessions split. The same ID results only if both are configured alike: the same
     non-empty `client_ip` variable, `fip_limiter` = `fipLimiter`, `tenant_id` = `fipIdentifier`,
     `fipStart` = `F`, the same `sgtm_host`, and the Client's `debug_suffix` empty
+  - **Changed: the fingerprint's geo part reads `X-Geo-*` first** (`x-geo-asn`,
+    `x-geo-country`, `x-geo-asn-org`), `x-geoip-*` only as a fallback, under the old key
+    names (F-279). Where only `x-geoip-*` arrives the ID is unchanged; where the gateway
+    sets `X-Geo-*` (Tracking Garden cluster) it changes once. The counterpart is
+    `serverside_fingerprint` **v1.3** — publish both together, as above
   - aGTM Client Template updated to v1.5
   - New config group: **Session & User Data** — `user_id`, `session_url`, `session_salt`, `session_wait`, `session_timeout`, `session_gtm_on_deny`
   - New config group: **POST Transport** — `transport_url`, `transport_enc`, `transport_salt`

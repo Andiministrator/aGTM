@@ -934,10 +934,17 @@ var getFingerprintString = function(day) {
     'sec-ch-ua': getRequestHeader('sec-ch-ua'),
     'sec-ch-ua-mobile': getRequestHeader('sec-ch-ua-mobile'),
     'sec-ch-ua-platform': getRequestHeader('sec-ch-ua-platform'),
-    'x-geoip-asn': getRequestHeader('x-geoip-asn'),
+    // Geo (F-279): the gateway's X-Geo-* first, x-geoip-* only as a fallback,
+    // under the OLD key names so the uid stays the same wherever only x-geoip-*
+    // arrives. In the TG cluster X-Geo-* is set by the gateway and overwrites a
+    // value the visitor sends, while x-geoip-* passes through unchanged - i.e.
+    // there it only ever came from the visitor (measured 2026-11-05 by tracking).
+    // x-geoip-country (country name) has no X-Geo counterpart. Same order and
+    // keys as serverside_fingerprint v1.3 - change both together.
+    'x-geoip-asn': getRequestHeader('x-geo-asn') || getRequestHeader('x-geoip-asn'),
     'x-geoip-country': getRequestHeader('x-geoip-country'),
-    'x-geoip-country-code': getRequestHeader('x-geoip-country-code'),
-    'x-geoip-org': getRequestHeader('x-geoip-org'),
+    'x-geoip-country-code': getRequestHeader('x-geo-country') || getRequestHeader('x-geoip-country-code'),
+    'x-geoip-org': getRequestHeader('x-geo-asn-org') || getRequestHeader('x-geoip-org'),
     'x-scheme': getRequestHeader('x-scheme')
   };
   var buildStr = '';
