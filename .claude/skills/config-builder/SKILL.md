@@ -43,6 +43,11 @@ Ask only for what you don't already know:
   part (e.g. `cookiebot`, `usercentrics3`, `onetrust_cookiepro`), **not** a
   lower-cased display name. Special values: `none` = no consent gate, load GTM
   immediately; `''`/unset = no CMP wired.
+- **Consent condition for GTM (required since v1.5):** which purpose, service or
+  vendor must be granted before GTM loads? → `gtmServices` / `gtmPurposes` /
+  `gtmVendors` (comma-separated, exact names as the CMP reports them). **With all
+  three empty, GTM does not load at all** (fail-closed, F-167); only a container that
+  deliberately needs no gate gets `allowEmptyConsentConditions: true`.
 - **Consent-update signal:** does the CMP fire a dataLayer **event** on
   change? → `consent_events: 'evName1,evName2'` (optionally
   `evName[attr:value]`). Does it instead push consent updates **directly** to the
@@ -56,7 +61,9 @@ Ask only for what you don't already know:
   Custom-HTML tag, or served by the sGTM Client. (README.md shows each variant.)
 - **v1.5 features (optional):** consent-store/session passthrough
   (`consent_store_url`, `session`, `session_salt`, `consent_poll_ms`), POST
-  transport (`transport_url`/`transport_enc`/`transport_salt`), iframe support.
+  transport (`transport_url`/`transport_enc`/`transport_salt`), iframe support,
+  and `uidc` (only with an own `gtmURL` and a server-side user-ID template that
+  reads `&uidc=1|0` from the `gtm.js` request — see README §uidc).
 - **Pre-consent events:** any event that must fire regardless of consent
   (`_noConsent`) and/or must not hit the GTM dataLayer (`_noDLPush`).
 
@@ -73,6 +80,7 @@ object; prefer that shape and copy the loader from `README.md`. Its config core:
   ,min: true                    /* load the .min.js library + .min CMP files */
   ,cmp: 'cookiebot'             /* exact slug from cmp/README-cmp.md; 'none' = no gate */
   ,gtm: { 'GTM-XXXXXXXX': {} }  /* GTM container ID as key, options as value */
+  ,gtmServices: 'Google Tag Manager' /* consent required for GTM; empty = GTM never loads */
   ,consent_events: 'cmpEvent,cmpUpdate'
 }
 ```
@@ -83,7 +91,7 @@ Equivalent **manual** form (two script tags) if the loader isn't wanted — note
 ```html
 <script type="text/javascript" src="/aGTM.min.js"></script>
 <script type="text/javascript" nonce="…">
-  aGTM.f.config({ gtm: { 'GTM-XXXXXXXX': {} }, cmp: 'cookiebot', consent_events: 'cmpEvent,cmpUpdate' });
+  aGTM.f.config({ gtm: { 'GTM-XXXXXXXX': {} }, cmp: 'cookiebot', gtmServices: 'Google Tag Manager', consent_events: 'cmpEvent,cmpUpdate' });
   aGTM.f.init();
 </script>
 ```
@@ -101,6 +109,9 @@ existing or live integration, hand off to `integration-check`):
 
 - `config()` is present **and precedes** `init()`; `init()` is actually called.
 - The `cmp` value is an exact slug from `cmp/README-cmp.md` (not a display name).
+- At least one of `gtmPurposes` / `gtmServices` / `gtmVendors` is set (with names the
+  CMP actually reports), or `allowEmptyConsentConditions: true` is set **on
+  purpose**. Otherwise GTM never loads (fail-closed since v1.5).
 - If the CMP signals via an event → `consent_events` matches the **exact** event
   name(s) the CMP emits. If it pushes directly → poll is viable only with
   `consent_store_url` set.

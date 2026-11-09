@@ -189,18 +189,21 @@ describe('F-156 — consent preset requires a cookie-bound uid', () => {
     expect(session(r).consent.services).toBe(',Google Tag Manager,');
   });
 
-  test('F.* cookie: consent still passed through — it is per-browser and the promote needs it', () => {
-    // An F.* value in the COOKIE is not the shared case: it lives in exactly
-    // one browser. Excluding it would strand those visitors on F.* forever,
-    // because shouldLazyPromote depends on the consent being read.
+  test('F.* cookie: stored consent is NOT passed through — the value can be forged (F-280)', () => {
+    // Until 2026-11-09 an F.* cookie counted as browser-bound. Its value is a
+    // hash without a secret, so anyone who can compute a visitor's
+    // fingerprint could send it as cookie and receive that visitor's stored
+    // consent (and, if granted, trigger the lazy promote onto a C.* id in
+    // their own browser). Honest F.* cookies are cleared (F-153) and reach a
+    // C.* through the consent POST instead.
     const r = runClient({
       data: { ...BASE },
       cookies: ['F.1.t.deadbeef.20260813'],
       http: () => ({ statusCode: 200, body: JSON.stringify(STORED_CONSENT) })
     });
     expect(r.throws).toBeNull();
-    expect(session(r).consent).toBeDefined();
-    expect(session(r).consent.services).toBe(',Google Tag Manager,');
+    const s = session(r);
+    expect(s && s.consent).toBeFalsy();
   });
 
   test('C.* cookie + returning visitor without stored consent: auto-denial still applies', () => {

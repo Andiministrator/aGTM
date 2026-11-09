@@ -125,6 +125,8 @@ aGTM.f.init();
 | `gtmPurposes` | string | `""` | Consent-Zwecke, die für GTM-Load nötig sind (kommagetrennt) |
 | `gtmServices` | string | `""` | Consent-Services, die für GTM-Load nötig sind (kommagetrennt) |
 | `gtmVendors` | string | `""` | Consent-Anbieter, die für GTM-Load nötig sind (kommagetrennt) |
+| `allowEmptyConsentConditions` | boolean | `false` | GTM laden, obwohl `gtmPurposes`/`gtmServices`/`gtmVendors` **alle** leer sind. Seit v1.5 gilt sonst fail-closed: Ohne Bedingung lädt GTM **nicht** (bis v1.4 lud es für alle, auch nach „Alle ablehnen“). Mindestens eine Bedingung eintragen oder das hier bewusst auf `true` setzen |
+| `uidc` | object | `null` | Einwilligungs-Anforderung für ein serverseitiges User-ID-Cookie, z. B. `{ service: 'UserID' }`. Gesetzt hängt aGTM an jeden `gtm.js`-Aufruf an eine eigene `gtmURL` `&uidc=1` (erteilt) bzw. `&uidc=0` an; nie an Googles `gtm.js`. Momentaufnahme beim Laden. Der aGTM sGTM Client setzt die Option selbst. Details: README.md §uidc |
 | `sendConsentEvent` | boolean | `false` | Separates Consent-Event in den dataLayer pushen |
 | `jsErrors` | boolean | `true` | JavaScript-Fehler als `exception`-Event erfassen (Meldung, Skript-URL, Zeile/Spalte, `navigator`-Angaben); Events warten auf Consent — Ausnahme: `aGTM_ready` trägt Warteschlange und alle Fehlermeldungen und erreicht einen `noConsent`-Container vor jeder Entscheidung. `false` = kein Fehler-Listener |
 | `dlStateEvents` | boolean | `false` | Events für DOMready und PAGEready feuern |

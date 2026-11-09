@@ -90,7 +90,7 @@ describe('aGTM.f.uidc: the answer', () => {
     // The Client's inConsentStr() looks for ",<field value>," as typed. A rule
     // that trimmed or split here would answer "1" where the Client never grants.
     aGTM.d.consent = { hasResponse: true, services: ',UserID,X,Other,' };
-    for (const v of [' UserID', 'UserID ', ',UserID,', 'UserID,Other', 'UserID']) {
+    for (const v of [' UserID', 'UserID ', ',UserID,', 'UserID,Other', 'userid']) {
       aGTM.c.uidc = { service: v };
       expect(aGTM.f.uidc()).toBe('0');
     }

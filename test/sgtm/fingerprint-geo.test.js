@@ -1,13 +1,13 @@
 // F-279 — the fingerprint's geo part reads the gateway's X-Geo-* first.
 //
-// The four geo fields used to come from x-geoip-* only. In the TG cluster
-// those never arrive from the infrastructure — the gateway sets X-Geo-* and
-// overwrites a value the visitor sends, while x-geoip-* passes through
-// untouched, i.e. only a visitor could set it (measured 2026-11-05). Now each
-// field takes X-Geo-* first and x-geoip-* as a fallback, under the OLD key
-// names, so the uid is unchanged wherever only x-geoip-* arrives.
-// serverside_fingerprint v1.3 (tracking) does the same; the reference string
-// below is shared with it.
+// The four geo fields used to come from x-geoip-* only. Behind the measured
+// Envoy-based gateway those never arrive from the infrastructure — the gateway
+// sets X-Geo-* and overwrites a value the visitor sends, while x-geoip-* passes
+// through untouched, i.e. only a visitor could set it (measured 2026-11-05).
+// Now each field takes X-Geo-* first and x-geoip-* as a fallback, under the
+// OLD key names, so the uid is unchanged wherever only x-geoip-* arrives.
+// serverside_fingerprint v1.3 does the same; the reference string below is
+// shared with it. Values are documentation placeholders (ASN per RFC 5398).
 import { describe, test, expect } from 'bun:test';
 import { runClient } from './client-harness.js';
 
@@ -27,14 +27,14 @@ describe('F-279 — geo part of the fingerprint', () => {
       .toBe(PREFIX + 'x-geoip-asn:3320x-geoip-country:Germanyx-geoip-country-code:DEx-geoip-org:DTAG');
   });
 
-  test('only X-Geo-* (TG cluster): mapped onto the old keys', () => {
-    expect(fp({ 'x-geo-asn': '21413', 'x-geo-asn-org': 'Example Net', 'x-geo-country': 'DE', 'x-geo-city': 'Plauen', 'x-geo-region': 'SN' }))
-      .toBe(PREFIX + 'x-geoip-asn:21413x-geoip-country-code:DEx-geoip-org:Example Net');
+  test('only X-Geo-* (gateway-set): mapped onto the old keys', () => {
+    expect(fp({ 'x-geo-asn': '64500', 'x-geo-asn-org': 'Example Net', 'x-geo-country': 'DE', 'x-geo-city': 'Example City', 'x-geo-region': 'SN' }))
+      .toBe(PREFIX + 'x-geoip-asn:64500x-geoip-country-code:DEx-geoip-org:Example Net');
   });
 
   test('a visitor-sent x-geoip-* does not override the gateway value', () => {
-    expect(fp({ 'x-geo-asn': '21413', 'x-geo-country': 'DE', 'x-geo-asn-org': 'Example Net', 'x-geoip-asn': '64496', 'x-geoip-country-code': 'ZZ', 'x-geoip-org': 'Fake' }))
-      .toBe(PREFIX + 'x-geoip-asn:21413x-geoip-country-code:DEx-geoip-org:Example Net');
+    expect(fp({ 'x-geo-asn': '64500', 'x-geo-country': 'DE', 'x-geo-asn-org': 'Example Net', 'x-geoip-asn': '64496', 'x-geoip-country-code': 'ZZ', 'x-geoip-org': 'Fake' }))
+      .toBe(PREFIX + 'x-geoip-asn:64500x-geoip-country-code:DEx-geoip-org:Example Net');
   });
 
   test('an EMPTY X-Geo-* value falls back to x-geoip-* (same || as serverside_fingerprint v1.3)', () => {
@@ -42,8 +42,15 @@ describe('F-279 — geo part of the fingerprint', () => {
       .toBe(PREFIX + 'x-geoip-asn:3320x-geoip-country-code:DE');
   });
 
+  test('known limit (F-281): where only x-geoip-* is trusted, a visitor-sent X-Geo-* wins', () => {
+    // Pinned on purpose: a proxy that sets x-geoip-* must strip X-Geo-* (README).
+    // If this ever becomes configurable, this test is the one to change.
+    expect(fp({ 'x-geoip-asn': '3320', 'x-geo-asn': '64511' }))
+      .toBe(PREFIX + 'x-geoip-asn:64511');
+  });
+
   test('shared reference string with serverside_fingerprint v1.3', () => {
-    expect(fp({ 'x-geo-asn': '21413', 'x-geo-asn-org': 'Example Net', 'x-geo-country': 'DE', 'x-geoip-country': 'Germany' }))
-      .toBe(PREFIX + 'x-geoip-asn:21413x-geoip-country:Germanyx-geoip-country-code:DEx-geoip-org:Example Net');
+    expect(fp({ 'x-geo-asn': '64500', 'x-geo-asn-org': 'Example Net', 'x-geo-country': 'DE', 'x-geoip-country': 'Germany' }))
+      .toBe(PREFIX + 'x-geoip-asn:64500x-geoip-country:Germanyx-geoip-country-code:DEx-geoip-org:Example Net');
   });
 });

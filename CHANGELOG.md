@@ -61,13 +61,21 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 - **sGTM Client: the fingerprint's geo part reads `X-Geo-*` first** (`x-geo-asn`,
   `x-geo-country`, `x-geo-asn-org`) and `x-geoip-*` only as a fallback, under the old key
   names. Where only `x-geoip-*` arrives, nothing changes. Where a gateway sets `X-Geo-*`, the
-  fingerprint ID changes once (it rotates daily anyway); there `x-geoip-*` could only come
-  from the visitor. If the container also runs `serverside_fingerprint`, update it to **v1.3
+  fingerprint ID changes once (it rotates daily anyway); behind the measured Envoy-based
+  gateway `x-geoip-*` could only come from the visitor. **If your proxy sets `x-geoip-*`, it
+  must strip `X-Geo-*` sent by the visitor**, otherwise the visitor sets the geo part (F-281). If the container also runs `serverside_fingerprint`, update it to **v1.3
   in the same publish**, otherwise the two produce different IDs and sessions split (F-279).
+- **sGTM Client: an `F.*` cookie no longer receives the stored consent** (F-280). The
+  fingerprint is a hash without a secret; whoever could compute a visitor's fingerprint could
+  send it as cookie, receive that visitor's stored consent and, if granted, have the session
+  moved onto a `C.*` id in their own browser (lazy promote on `/aGTM.js`). `F.*` cookies only
+  exist from early, unreleased v1.5 deploys; they are cleared, and the visitor reaches a `C.*`
+  through the consent POST like anyone without a cookie.
 - **sGTM Client: set a trusted *Client IP Address*.** Left empty, the Client takes the IP
   from `getRemoteAddress()`, which reads `Forwarded` / `X-Forwarded-For` — a visitor can send
-  those, and with the IP, user agent and language of someone else derive that person's
-  fingerprint ID and read the session ID, source and attribution served for it. Nothing changes
+  those, and with the IP and request headers of someone else derive that person's
+  fingerprint ID and read the session data served for it (session ID, counters, GA4/Microsoft
+  IDs, source, attribution). Nothing changes
   in behaviour (without the fallback there would be no IP in the fingerprint at all); the help
   text now says so, and debug mode logs when the fallback is used. Take the IP from a header your
   own proxy overwrites, e.g. *request_header_data* v1.2, *Automatic and safe* (F-278).

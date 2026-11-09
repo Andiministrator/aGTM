@@ -490,13 +490,15 @@ your own (F-241). An entry starting with `.` or `*` never matches and is logged 
 
 If checked, a fingerprint-based user ID `F{lim}1{lim}{tenant}{lim}{hash}.{date}` is generated when no cookie is available, used as the Session API key on first visits — and **only** there, never as a cookie value. Once the visitor consents, the Client gives them a stable cookie-based ID `C.1{lim}{tenant}{lim}{rand12}.{ms}` (via the api4sgtm `/promote` endpoint when a Session API is configured, minted locally otherwise) and writes that `C.*` to the cookie — so the persistent identifier is a true random cookie ID, not the daily-rolling fingerprint. `{lim}` is the configured `fip_limiter` (recommended `.`); the literal `C.` two-character prefix on the C-side is mandated by api4sgtm. Returning visitors carrying an `F.*` cookie from older deploys are migrated lazily on their next request.
 
-**The IP in the fingerprint must come from a trusted source** (field *Client IP Address*). Left empty, the Client falls back to `getRemoteAddress()`, which reads `Forwarded` / `X-Forwarded-For` — headers a visitor can send themselves unless every proxy in front of the sGTM overwrites them. Whoever knows a visitor's IP, user agent and language can then derive that visitor's fingerprint ID and read the session ID, source and attribution served for it (a stored consent is not served for fingerprint IDs, F-156). Take the IP from a header your own proxy sets and overwrites, e.g. with the variable template *request_header_data* v1.2 (setting *Automatic and safe*). With *debug* on, the Client logs when it uses the fallback; it does not say so in a response header (F-278).
+**The IP in the fingerprint must come from a trusted source** (field *Client IP Address*). Left empty, the Client falls back to `getRemoteAddress()`, which reads `Forwarded` / `X-Forwarded-For` — headers a visitor can send themselves unless every proxy in front of the sGTM overwrites them. Whoever knows a visitor's IP and the other headers that enter the fingerprint (user agent, language, client hints, geo) can then derive that visitor's fingerprint ID and read the session data served for it: session ID, counters, GA4/Microsoft IDs, source, attribution and any other field of the Sources API answer. A stored consent is not served for a fingerprint ID, neither without a cookie (F-156) nor with that ID sent as `F.*` cookie (F-280). Take the IP from a header your own proxy sets and overwrites, e.g. with the variable template *request_header_data* v1.2 (setting *Automatic and safe*). That closes the header path only: the computed ID can still be sent as cookie, so treat the session data of cookieless visitors as readable by whoever can reproduce their request headers. With *debug* on, the Client logs when it uses the fallback; it does not say so in a response header (F-278).
 
 #### Consent Service / Purpose / Vendor
 
 The consent requirement for the user-ID cookie: the service, purpose or vendor that must be granted before the Client creates the stable `C.*` cookie id (promote or local mint) — in every cookie mode except `never`, where the fields are hidden. Mirrors the GTM Container Setup consent check logic.
 
 **Fill in at least one.** With all three empty, **no user-ID cookie is created** (since v1.5, F-165). Without a requirement the Client cannot tell a rejection from an approval: most CMPs still report their essential services after "deny all" (CCM19, measured: six "technically necessary" services), and the old default turned exactly that into a 365-day cookie. When the empty requirement blocks a cookie, the consent POST answers with the header `x-agtm-uid-cookie: no-consent-requirement` (visible in the browser's network tab; with *debug* on, also a log line). Deliberately no warn line: the same visitor re-sends the decision on every page view, and a per-request warning would be one log line per page view.
+
+The same requirement is handed to the library as `uidc` (except under *Cookie Mode: Never*): every `gtm.js` request to your own GTM URL then ends in `&uidc=1` (granted) or `&uidc=0`, so a GTM Client serving `gtm.js` can apply the same rule. Missing means not granted; the value is a snapshot at the moment of the request. Details: README-for-Integrators.md, *The `gtm.js` request: `uidc`*.
 
 An empty requirement is treated as a configuration gap, **not** as a withdrawal: cookies that already exist are neither deleted nor stopped by it. To remove ids that the old default minted after a rejection, fill in the requirement, switch to `cookie_mode: consent` and tick *Delete Cookie if Consent is denied* (or change the cookie name).
 
@@ -707,8 +709,10 @@ Please contact me if you found problems or have improvements:
     `fipStart` = `F`, the same `sgtm_host`, and the Client's `debug_suffix` empty
   - **Changed: the fingerprint's geo part reads `X-Geo-*` first** (`x-geo-asn`,
     `x-geo-country`, `x-geo-asn-org`), `x-geoip-*` only as a fallback, under the old key
-    names (F-279). Where only `x-geoip-*` arrives the ID is unchanged; where the gateway
-    sets `X-Geo-*` (Tracking Garden cluster) it changes once. The counterpart is
+    names (F-279). Where only `x-geoip-*` arrives the ID is unchanged; where a gateway
+    sets `X-Geo-*` (e.g. an Envoy-based one) it changes once. **If your proxy sets
+    `x-geoip-*`, it must strip `X-Geo-*` sent by the visitor**, otherwise the visitor sets
+    the geo part (F-281). The counterpart is
     `serverside_fingerprint` **v1.3** — publish both together, as above
   - aGTM Client Template updated to v1.5
   - New config group: **Session & User Data** — `user_id`, `session_url`, `session_salt`, `session_wait`, `session_timeout`, `session_gtm_on_deny`

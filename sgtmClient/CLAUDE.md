@@ -106,8 +106,10 @@ undecided answer neither refresh nor delete — the POST handler refreshes on th
 still refreshed as before, so F-165's promise to existing ids holds. The same requirement goes
 into the served config as `c.uidc = {service, purpose, vendor, any}` (only when a requirement
 exists or `cookie_without_condition` is ticked); the library turns it into `&uidc=1|0` on the
-`gtm.js` request for the GTM Client (tracking's Consent Flag Reader). Tests:
+`gtm.js` request for the GTM Client (a receiving consent-flag variable reads it). Tests:
 `test/sgtm/uidc-refresh.test.js`, `test/uidc.test.js`.
+
+**An `F.*` cookie is not browser-bound (F-280).** `uidIsBrowserBound = existingCookie && !isFingerprintUid(existingCookie)`: the fingerprint is a hash without a secret, so an `F.*` cookie can be forged by anyone who can compute a visitor's fingerprint. It gets no stored consent and therefore no lazy promote (which would move the session onto a `C.*` in the forger's browser); honest legacy `F.*` cookies are cleared (F-153) and reach `C.*` via the consent POST. What stays: the session GET still runs under that uid, so session id, counters, GA4/Microsoft ids, source and attribution are served (same exposure as F-278).
 
 ### CORS and the cross-site write guard (sGTM Client only)
 

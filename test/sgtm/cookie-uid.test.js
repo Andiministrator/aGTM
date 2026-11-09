@@ -96,15 +96,23 @@ describe('legacy F.* cookies are cleaned up, but not at the cost of an identity'
     expect(cookiesDeleted(r).length).toBe(1);
   });
 
-  test('F.* cookie with consent is promoted to C.*, and not deleted on the way', () => {
+  test('F.* cookie with a recorded consent is NOT lazy-promoted, only cleared (F-280)', () => {
+    // The lazy F→C promote on GET used to fire for any F.* cookie whose record
+    // held a grant. The value is a hash without a secret, so a forged cookie
+    // moved a stranger's session onto a C.* id in the forger's browser. The
+    // consent is no longer read for an F.* cookie, so the promote never
+    // starts; the cookie is cleared and the visitor reaches a C.* through the
+    // consent POST.
+    const calls = [];
     const r = runClient({
       data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', consent_service: 'analytics', ...SESSION },
       cookies: [F_COOKIE],
-      http: http({ sessionId: 's1', counter: 5, consent: CONSENT_OK }, { statusCode: 200, body: '{"ok":true}' })
+      http: (url) => { calls.push(url); return url.indexOf('/promote') > -1 ? { statusCode: 200, body: '{"ok":true}' } : { statusCode: 200, body: JSON.stringify({ sessionId: 's1', counter: 5, consent: CONSENT_OK }) }; }
     });
     expect(r.throws).toBeNull();
-    expect(written(r)).toEqual([C_EXPECTED]);
-    expect(cookiesDeleted(r)).toEqual([]);
+    expect(calls.some((u) => u.indexOf('/promote') > -1)).toBe(false);
+    expect(written(r)).toEqual([]);
+    expect(cookiesDeleted(r).length).toBe(1);
   });
 
   test('a promote refused for good (404 = no active session) does not keep the cookie forever', () => {
@@ -123,20 +131,10 @@ describe('legacy F.* cookies are cleaned up, but not at the cost of an identity'
     expect(cookiesDeleted(r).length).toBe(1);
   });
 
-  test('a FAILED promote leaves the F.* cookie alone so the next request can retry', () => {
-    // The one place where "clean up aggressively" would be wrong. api4sgtm is
-    // a network dependency; a 5xx or timeout is transient. Deleting here would
-    // turn an API outage into tenant-wide identity loss and contradicts the
-    // documented fallback ("the F.* uid is preserved").
-    const r = runClient({
-      data: { gtm: GTM, cookie_name: 'aGTMuid', cookie_mode: 'consent', consent_service: 'analytics', ...SESSION },
-      cookies: [F_COOKIE],
-      http: http({ sessionId: 's1', counter: 5, consent: CONSENT_OK }, { statusCode: 500, body: 'boom' })
-    });
-    expect(r.throws).toBeNull();
-    expect(written(r)).toEqual([]);
-    expect(cookiesDeleted(r)).toEqual([]);
-  });
+  // Removed 2026-11-09 with F-280: 'a FAILED promote leaves the F.* cookie
+  // alone so the next request can retry'. The GET path no longer starts a
+  // promote for an F.* cookie, so there is no failed promote to retry; the
+  // retry rule (promoteState.retry) still guards the cleanup in code.
 });
 
 describe('an unavailable Session API is not evidence of anything', () => {

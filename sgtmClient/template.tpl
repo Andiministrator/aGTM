@@ -454,7 +454,7 @@ ___TEMPLATE_PARAMETERS___
             "name": "client_ip",
             "displayName": "Client IP Address",
             "simpleValueType": true,
-            "help": "Client IP address — used for <b>fingerprint generation</b> and (if enabled) <b>bot check</b>. Use the same variable as in your serverside_fingerprint template.<br /><br /><b>Use a trusted source.</b> Left empty, the Client falls back to <code>getRemoteAddress()</code>, which reads <code>Forwarded</code> / <code>X-Forwarded-For</code> — headers a visitor can send themselves unless every proxy in front of the sGTM overwrites them. Whoever knows a visitor's IP, user agent and language can then derive that visitor's fingerprint ID and read the session ID, source and attribution served for it. Take the IP from a header your own proxy sets and overwrites (e.g. the variable template request_header_data v1.2, setting \"Automatic and safe\"). Debug mode logs when the fallback is used."
+            "help": "Client IP address — used for <b>fingerprint generation</b> and (if enabled) <b>bot check</b>. Use the same variable as in your serverside_fingerprint template.<br /><br /><b>Use a trusted source.</b> Left empty, the Client falls back to <code>getRemoteAddress()</code>, which reads <code>Forwarded</code> / <code>X-Forwarded-For</code> — headers a visitor can send themselves unless every proxy in front of the sGTM overwrites them. Whoever knows a visitor's IP and the other headers that enter the fingerprint (user agent, language, client hints, geo) can then derive that visitor's fingerprint ID and read the session data served for it (session ID, counters, GA4/Microsoft IDs, source, attribution). Take the IP from a header your own proxy sets and overwrites (e.g. the variable template request_header_data v1.2, setting \"Automatic and safe\"). Debug mode logs when the fallback is used."
           },
           {
             "type": "TEXT",
@@ -1871,8 +1871,10 @@ claimRequest();
 // which (per Google) reads Forwarded / X-Forwarded-For - headers a visitor can
 // send themselves unless every proxy in front overwrites them. Whoever knows a
 // visitor's IP, User-Agent and Accept-Language can then derive that visitor's
-// fingerprint uid and read the session id, source and attribution served for
-// it (no consent: F-156 withholds that for fingerprint uids). The fallback
+// fingerprint uid and read the session data served for it (session id,
+// counters, GA4/Microsoft ids, source, attribution; no consent since F-280).
+// The same uid can also be sent as F.* cookie, so a trusted IP variable closes
+// only the header path. The fallback
 // stays - without it a setup with no IP variable would have no IP in the
 // fingerprint at all, i.e. far more collisions - but it is announced: a debug
 // line here and the field's help text. No warn per request (production logs),
@@ -1921,9 +1923,12 @@ var getFingerprintString = function(day) {
     'sec-ch-ua-platform': getRequestHeader('sec-ch-ua-platform'),
     // Geo (F-279): the gateway's X-Geo-* first, x-geoip-* only as a fallback,
     // under the OLD key names so the uid stays the same wherever only x-geoip-*
-    // arrives. In the TG cluster X-Geo-* is set by the gateway and overwrites a
-    // value the visitor sends, while x-geoip-* passes through unchanged - i.e.
-    // there it only ever came from the visitor (measured 2026-11-05 by tracking).
+    // arrives. Behind the measured Envoy-based gateway X-Geo-* is set by the
+    // gateway and overwrites a value the visitor sends, while x-geoip-* passes
+    // through unchanged - i.e. there it only ever came from the visitor
+    // (measured 2026-11-05). The reverse holds where a proxy sets x-geoip-* and
+    // passes X-Geo-* through: there the visitor could set X-Geo-* - such a proxy
+    // must strip X-Geo-* (README, F-281).
     // x-geoip-country (country name) has no X-Geo counterpart. Same order and
     // keys as serverside_fingerprint v1.3 - change both together.
     'x-geoip-asn': getRequestHeader('x-geo-asn') || getRequestHeader('x-geoip-asn'),
@@ -2885,9 +2890,16 @@ const afterBotCheck = function(isBot) {
           // same browser build derive the SAME key. Passing the stored consent
           // through in that case hands visitor B the decision visitor A made —
           // aGTM sets preset_with_consent and injects GTM for someone who never
-          // saw a CMP (F-156). A cookie-bound uid keeps this branch — including
-          // an F.* cookie, which IS per-browser (it sits in that browser) and
-          // still needs the consent for the lazy F→C promote below.
+          // saw a CMP (F-156). A cookie-bound uid keeps this branch - but only a
+          // C.* cookie. An F.* cookie used to count as well ("it sits in that
+          // browser"), yet its value is a hash WITHOUT a secret: whoever can
+          // compute a visitor's fingerprint sends it as cookie and received that
+          // visitor's stored consent - and, if granted, the lazy F->C promote
+          // moved the visitor's session onto a C.* id in the attacker's browser
+          // (F-280, critic 2026-11-09). Honest F.* cookies only exist from early,
+          // unreleased v1.5 deploys and are cleared below (F-153); the visitor
+          // then reaches a C.* through the consent POST like anyone without a
+          // cookie. Without the consent, shouldLazyPromote never fires either.
           // The auto-denial is for a returning visitor with NOTHING on file, with
           // or without a cookie (Andi, 2026-10-21; withheld for cookieless
           // visitors from 4ac262f to here). It cannot grant: services is the
@@ -2902,7 +2914,7 @@ const afterBotCheck = function(isBot) {
           // consent is still PERSISTED under the shared fingerprint key when no
           // cookie exists, so the record can still be written by whoever gets
           // there first. Closing that is a separate step (F-156 option B).
-          const uidIsBrowserBound = !!existingCookie;
+          const uidIsBrowserBound = !!existingCookie && !isFingerprintUid(existingCookie);
           const storedDecision = !!(r.consent && typeof r.consent === 'object' && r.consent.hasResponse === true);
           // A preset is only acted on where the library can later replace it
           // with the CMP's own answer (F-251). storeLive: this Client actually
