@@ -11,9 +11,9 @@
 aGTM (*a Galactic Tagging Modulator*) ist eine JavaScript-Library, die den Google Tag Manager (GTM) standardmäßig erst dann in die Seite lädt, wenn die Consent-Entscheidung des Nutzers vorliegt. Welche Bedingungen dabei erfüllt sein müssen, legt deine Consent-Konfiguration fest; einige dokumentierte Optionen lockern das bewusst – siehe [When aGTM loads GTM without a consent decision](README.md#when-agtm-loads-gtm-without-a-consent-decision). Events, die vor der Einwilligung gefeuert werden, werden automatisch zwischengespeichert und nach dem GTM-Load nachgereicht – du musst dich im GTM-Setup nicht mehr darum kümmern, ob und wann Consent verfügbar ist.
 
 **Kernfunktionen:**
-- GTM-Einbindung erst nach Consent (DSGVO-konform)
+- GTM-Einbindung erst nach Consent
 - Unterstützt Google Consent Mode
-- Unterstützt 25+ CMP-Anbieter (Cookiebot, OneTrust, Usercentrics, Borlabs, …)
+- 26 CMP-Adapter (Cookiebot, OneTrust, Usercentrics, Borlabs, …) plus ein generischer Cookie-Regex-Check für eigene Banner
 - Event-Queue: kein Event geht verloren
 - POST-Transport direkt zu Server-Side GTM
 - Session & User Data Feature
@@ -112,7 +112,7 @@ aGTM.f.config({
 aGTM.f.init();
 ```
 
-**Alle unterstützten CMPs** (25+): Borlabs 2/3, CCM19, Clickskeks, Complianz, Consentmanager, Cookiebot, Cookiefirst, JTL Consent, JTL EU Cookie, Klaro, Magento CC Cookie, Matomo, OneTrust/CookiePro, Orestbida CookieConsent, Perspective Funnel, Secure Privacy, Shopify Consent, Shopware 5/6, Shopware Acris, Sourcepoint, Tramino, Usercentrics v2/v3 und weitere. Vollständige Liste: [cmp/README-cmp.md](cmp/README-cmp.md)
+**Alle unterstützten CMPs** (26 Adapter plus generischer Cookie-Regex-Check): Borlabs 2/3, CCM19, Clickskeks, Complianz, Consentmanager, Cookiebot, Cookiefirst, JTL Consent, JTL EU Cookie, Klaro, Magento CC Cookie, Matomo, OneTrust/CookiePro, Orestbida CookieConsent, Perspective Funnel, Secure Privacy, Shopify Consent, Shopware 5/6, Shopware Acris, Sourcepoint, Tramino, Usercentrics v2/v3 und weitere. Vollständige Liste: [cmp/README-cmp.md](cmp/README-cmp.md)
 
 ---
 
@@ -132,12 +132,12 @@ aGTM.f.init();
 | `dlStateEvents` | boolean | `false` | Events für DOMready und PAGEready feuern |
 | `aPageview` | boolean | `false` | `aPageview`-Event nach GTM-Load feuern |
 | `transport_url` | string | `""` | Endpunkt für direkten HTTP-POST (z.B. sGTM Collect) |
-| `transport_enc` | boolean | `false` | POST-Payload verschlüsseln |
-| `transport_salt` | number | `0` | Verschlüsselungs-Salt (ganzzahlig, >= 1) |
+| `transport_enc` | boolean | `false` | POST-Payload verschleiern (Base64 + Caesar-Verschiebung; Verschleierung, keine Verschlüsselung) |
+| `transport_salt` | number | `0` | Salt für die Verschleierung (ganzzahlig, >= 1) |
 | `user_id` | string | `""` | Optionale eingeloggte User-CRM-ID (wird in `aGTM.d.session.uid` gespeichert) |
-| `session_salt` | number | `0` | Salt für consent-store POST-Verschlüsselung; auch Fallback für `transport_salt` |
+| `session_salt` | number | `0` | Salt für die Verschleierung des Consent-Store-POSTs; auch Fallback für `transport_salt` |
 | `consent_store_url` | string | `""` | POST-Endpunkt für Consent-Diffs (sGTM Client persistiert in Session API). Wird vom sGTM Client browserseitig aus `document.currentScript.src` + `/aGTMconsent` gebaut — funktioniert mit Reverse Proxy transparent |
-| `consent_store_enc` | boolean | `false` | Consent-Store POST-Payload mit `session_salt` verschlüsseln |
+| `consent_store_enc` | boolean | `false` | Consent-Store POST-Payload mit `session_salt` verschleiern (keine Verschlüsselung) |
 | `consent_poll_ms` | number | `2000` | Intervall (ms) für CMP-State-Change-Polling nach erfolgreichem Init. `0` = aus. Nur aktiv wenn `consent_store_url` gesetzt. Fängt CMPs ab, die ihre Updates direkt per `dataLayer.push()` feuern (CCM19, Cookiebot, Usercentrics, …) und damit `aGTM.f.fire()` umgehen |
 | `session` | object | `null` | Vom sGTM Client vorbelegtes Session-Objekt (`{sid, uid, consent?, ...}`) — wenn `consent` gültig, GTM injiziert ohne CMP-Wait |
 
@@ -192,7 +192,7 @@ Events vor Consent landen in `aGTM.d.f` (Queue). Nach GTM-Load werden sie als `h
 
 - `transport_url` konfiguriert? → `aGTM.c.transport_url` im Browser-Konsolenfenster prüfen
 - CORS: der Endpunkt muss POST-Anfragen von der Website-Domain erlauben
-- Verschlüsselung: `transport_enc: true` erfordert den gleichen Salt auf Server- und Client-Seite
+- Verschleierung: `transport_enc: true` erfordert den gleichen Salt auf Server- und Client-Seite
 
 ---
 
