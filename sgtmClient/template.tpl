@@ -887,7 +887,7 @@ ___TEMPLATE_PARAMETERS___
             "type": "EQUALS"
           }
         ],
-        "help": "Attribution method requested from api4sources (POST is single-method). The result lands under this key: <code>aGTM.d.attribution.&lt;method&gt;</code>. Use <code>last_non_direct_click</code> for GA4-style marketing-conversion reporting; <code>last_touch</code> for plain last-source analytics."
+        "help": "Attribution method requested from api4sources (POST is single-method). The result lands under this key: <code>aGTM.d.attribution.&lt;method&gt;</code>. Use <code>last_non_direct_click</code> for source reporting like GA4's acquisition reports (last non-direct click; GA4's conversion attribution is data-driven by default); <code>last_touch</code> for plain last-source analytics."
       }
     ]
   },

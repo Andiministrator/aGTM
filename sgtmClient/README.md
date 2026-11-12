@@ -541,7 +541,7 @@ If checked, the POST appends `?attribution=true&method=<selected>` so api4source
 
 #### Attribution method
 
-Single attribution method requested from api4sources (the POST is single-method). SELECT with values `last_touch`, `first_touch`, `last_click`, `first_click`, `last_non_direct_click` (default `last_touch`). The result lands under this key: `aGTM.d.attribution.<method>`. Recommend `last_non_direct_click` for any deployment that drives marketing-conversion reporting (matches GA4's default attribution model); `last_touch` for plain last-source analytics.
+Single attribution method requested from api4sources (the POST is single-method). SELECT with values `last_touch`, `first_touch`, `last_click`, `first_click`, `last_non_direct_click` (default `last_touch`). The result lands under this key: `aGTM.d.attribution.<method>`. Recommend `last_non_direct_click` for marketing-source reporting: it matches the last-non-direct-click rule GA4 uses to assign the source in its acquisition reports (GA4's conversion attribution defaults to data-driven, which this does not reproduce); `last_touch` for plain last-source analytics.
 
 ---
 
