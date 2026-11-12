@@ -74,8 +74,8 @@ aGTM.f.init();
 ```javascript
 aGTM.f.config({
   gtm: { 'GTM-XXXXXXXX': {} },
-  gtmServices: 'Google Tag Manager',
-  cmp: 'onetrust'
+  gtmPurposes: 'Performance Cookies',   // Name der OneTrust-Kategorie, wie im Banner
+  cmp: 'onetrust_cookiepro'
 });
 aGTM.f.init();
 ```
@@ -86,7 +86,7 @@ aGTM.f.init();
 aGTM.f.config({
   gtm: { 'GTM-XXXXXXXX': {} },
   gtmServices: 'Google Tag Manager',
-  cmp: 'usercentrics2'
+  cmp: 'usercentrics'   // Usercentrics v3: 'usercentrics3'
 });
 aGTM.f.init();
 ```
@@ -187,6 +187,10 @@ Prüfe ob `aGTM.f.fire()` mehrfach aufgerufen wird. aGTM setzt intern `aGTMts` a
 ### Events gehen verloren (kommen nicht im GTM an)
 
 Events vor Consent landen in `aGTM.d.f` (Queue). Nach GTM-Load werden sie als `hastyEvents` im `aGTM_ready`-Event übergeben. Prüfe ob das GTM Custom Template (aus `gtm/`) korrekt eingebunden ist und die Queue verarbeitet.
+
+### Search Console: Bestätigung über Google Tag Manager geht verloren
+
+Wer die Inhaberschaft in der Google Search Console über das GTM-Snippet bestätigt hat, verliert diese Bestätigung mit aGTM: Das Standard-Snippet steht nicht mehr im HTML, und GTM wird erst nach der Consent-Entscheidung per Script nachgeladen. Search Console prüft die Bestätigung regelmäßig erneut. Vor der Umstellung eine andere Methode hinzufügen: DNS-TXT-Eintrag (empfohlen), HTML-Datei oder Meta-Tag.
 
 ### POST kommt nicht an
 

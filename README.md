@@ -875,6 +875,14 @@ The configuration option "gtmURL" will be ignored in this case.
 
 ---
 
+### Google Search Console verification via Tag Manager
+
+If the site's ownership in Google Search Console is verified through the Google Tag Manager
+method, that verification will not survive the switch to aGTM: the standard container snippet is
+no longer in the page HTML, and GTM is injected by script only after the consent decision.
+Search Console re-checks verification periodically. Add another method before switching —
+a DNS TXT record (recommended), an HTML file or the meta tag.
+
 ## Loading a GTM environment (staging / preview)
 
 GTM environments let one container ID serve different versions — a staging one to

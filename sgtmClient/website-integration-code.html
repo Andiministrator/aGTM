@@ -1,7 +1,12 @@
+<!-- aGTM integration code for the sGTM Client: put it into the <head>.
+     Replace sgtm.yourdomain.com with your sGTM endpoint and GTM-XYZ123 with the GTM ID of the aGTM Client.
+     The c parameter carries the page URL and referrer (Base64 JSON); the Client needs it for the
+     Sources API, attribution and the page-URL opt-out. Same code as sgtmClient/README.md, Usage step 1. -->
 <script>
-(function(w,d,s,u){
-  var t=d.getElementsByTagName(s)[0],e=d.createElement(s);
-  e.async=true;e.src=u;
-  t.parentNode.insertBefore(e,t);
-})(window,document,'script','https://ssgtm.yourdomain.com/aGTM.js?id=GTM-XYZ123');
+(function(){
+  var src='https://sgtm.yourdomain.com/aGTM.js?id=GTM-XYZ123';
+  var d='doc',f='ref',l='loc',s=document.createElement('script');
+  s.src=src+'&c='+btoa(JSON.stringify({u:window[l+'ation'].href,r:window[d+'ument'][f+'errer']}));
+  document.head.appendChild(s);
+})();
 </script>
