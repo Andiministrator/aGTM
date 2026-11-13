@@ -223,6 +223,35 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Fixed — five CMP adapters swallowed every in-page consent change, a withdrawal included
+
+`cc_jtl_consent`, `cc_matomo`, `cc_perspectivefunnel`, `cc_secure_privacy` and
+`cc_shopify_consent` set `hasResponse = true` and then fell off the end of `consent_check`,
+returning `undefined` — the same fault fixed for Tramino in this release. On the `'init'` path
+the next 500 ms tick healed it; on `'update'` `run_cc()` restored the previous state, so a
+change in the banner (a withdrawal included) took effect only after a reload, and with a
+Client preset carrying a stored grant the withdrawal never reached the consent store. All
+five now `return true`. The Shopify adapter no longer calls `Shopify.loadFeatures` before
+checking that `Shopify` exists. A structural test now requires every `cmp/cc_*.js` to end its
+success path with `return true`. **sGTM Client users:** the embedded copies are re-synced —
+re-import the Client template for the fix to reach your site.
+
+### Fixed — documentation: examples that could never load GTM, and an integration snippet without `c`
+
+- Cookiebot examples (README, README.de, README-for-Developers, the `config-builder` skill)
+  required `gtmServices`, which the Cookiebot adapter never fills (it reports categories in
+  `purposes`); with the fail-closed gate GTM never loaded. They now use
+  `gtmPurposes: 'statistics'`. The German OneTrust and Usercentrics examples used `cmp` values
+  without an adapter (`'onetrust'`, `'usercentrics2'`) and an OneTrust condition the adapter
+  never fills. If you copied one of these, check your `cmp` value and condition field against
+  [cmp/README-cmp.md](cmp/README-cmp.md).
+- `sgtmClient/website-integration-code.html` and the notes in the Client template showed a
+  2025 loader without the `c` parameter (page URL and referrer). Without it the Client skips
+  the Sources API and cannot see a page-URL opt-out. **If you copied it, replace your loader**
+  with the one in `sgtmClient/README.md`, Usage step 1.
+- New note: Google Search Console ownership verified through the Tag Manager method does not
+  survive the switch to aGTM — add another verification method first.
+
 ### Changed — container templates replace the 2025 workspace export
 
 `gtm/aGTM-GTM-Workspace-Template-18.json` (a July 2025 export carrying library 1.4.1, an old

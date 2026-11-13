@@ -58,6 +58,7 @@ aGTM.f.consent_check = function (action) {
   }
   // Set response, run callback and return
   aGTM.d.consent.hasResponse = true;
+  return true;
 };
 
 //[aGTMlib.js Consentcheck]EOF

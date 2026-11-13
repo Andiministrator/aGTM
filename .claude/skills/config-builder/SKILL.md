@@ -80,7 +80,7 @@ object; prefer that shape and copy the loader from `README.md`. Its config core:
   ,min: true                    /* load the .min.js library + .min CMP files */
   ,cmp: 'cookiebot'             /* exact slug from cmp/README-cmp.md; 'none' = no gate */
   ,gtm: { 'GTM-XXXXXXXX': {} }  /* GTM container ID as key, options as value */
-  ,gtmServices: 'Google Tag Manager' /* consent required for GTM; empty = GTM never loads */
+  ,gtmPurposes: 'statistics'    /* consent required for GTM, in the field the CMP fills (Cookiebot: purposes); empty = GTM never loads */
   ,consent_events: 'cmpEvent,cmpUpdate'
 }
 ```
@@ -91,7 +91,7 @@ Equivalent **manual** form (two script tags) if the loader isn't wanted — note
 ```html
 <script type="text/javascript" src="/aGTM.min.js"></script>
 <script type="text/javascript" nonce="…">
-  aGTM.f.config({ gtm: { 'GTM-XXXXXXXX': {} }, cmp: 'cookiebot', gtmServices: 'Google Tag Manager', consent_events: 'cmpEvent,cmpUpdate' });
+  aGTM.f.config({ gtm: { 'GTM-XXXXXXXX': {} }, cmp: 'cookiebot', gtmPurposes: 'statistics', consent_events: 'cmpEvent,cmpUpdate' });
   aGTM.f.init();
 </script>
 ```

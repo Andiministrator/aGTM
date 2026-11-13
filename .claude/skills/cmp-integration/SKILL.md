@@ -41,7 +41,7 @@ architecture, see `CLAUDE.md` (sections "CMP Files", "Build Process",
   2. **sGTM Client users:** the Client injects the selected CMP code **inline**
      into the `/aGTM.js` response. That code lives as an embedded, minified string
      in the `cmp` SELECT of `sgtmClient/template.tpl`
-     (`___TEMPLATE_PARAMETERS___`). 23 of the 25 CMP files are embedded
+     (`___TEMPLATE_PARAMETERS___`). All CMP files except two are embedded
      (`cc_jtl_consent` and `cc_jtl_eu_cookie` are intentionally not offered as
      embedded options).
 

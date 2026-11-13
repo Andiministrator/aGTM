@@ -118,7 +118,7 @@ With this integration variant you get out a Javascript code, which conatins all 
    ```javascript
    aGTM.f.config({
       gtm: { 'GTM-XXXXXXXX': {} } /* your GTM Container - with ID, ...*/
-     ,gtmServices: 'Google Tag Manager' /* The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager' */
+     ,gtmServices: 'Google Tag Manager' /* The service(s) that must be agreed to in order to activate the GTM (comma-separated). Use the field your CMP fills: services, purposes or vendors - see cmp/README-cmp.md (Cookiebot, OneTrust: gtmPurposes) */
    });
    ```
 
@@ -190,9 +190,9 @@ To use it as normal, follow these steps:
      ,cmp: 'cookiebot' /* Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See chapters below for possible options. */
      ,nonce: 'ABC123' /* Nonce value for the file injections */
      ,gtm: { 'GTM-XXXXXXXX': { 'debug_mode':true } } /* your GTM Container - with ID, ... */
-     ,gtmPurposes: 'Functional' /* The purpose(s) that must be agreed to in order to activate the GTM (comma-separated) */
-     ,gtmServices: 'Google Tag Manager' /* The services(s) that must be agreed to in order to activate the GTM (comma-separated), e.g. 'Google Tag Manager' */
-     ,gtmVendors: 'Google Inc' /* The vendor(s) that must be agreed to in order to activate the GTM (comma-separated) */
+     ,gtmPurposes: 'statistics' /* The purpose(s) that must be agreed to in order to activate the GTM (comma-separated). Cookiebot reports categories: necessary, preferences, statistics, marketing */
+     ,gtmServices: '' /* The service(s) that must be agreed to (comma-separated), e.g. 'Google Tag Manager' - only for a CMP that reports services (e.g. Usercentrics, Borlabs, CCM19); every condition that is set must match, so leave it empty for Cookiebot */
+     ,gtmVendors: '' /* The vendor(s) that must be agreed to (comma-separated) - only for a CMP that reports vendors; leave it empty otherwise */
      ,gdl: 'dataLayer' /* Name of GTM dataLayer */
      ,dlStateEvents: true /* Fire GTM dataLayer Events for DOMloaded and PAGEready */
      ,useListener: false /* Use an event listener to check the consent (true). If it is false, a timer will be used (default) to check the consent */
@@ -873,8 +873,6 @@ In case you have the output of your Google Tag Manager container stored in a dat
 The Javascript code must be assigned to the "gtm"/"gtmJS" configuration option (as string and base64-encoded).
 The configuration option "gtmURL" will be ignored in this case.
 
----
-
 ### Google Search Console verification via Tag Manager
 
 If the site's ownership in Google Search Console is verified through the Google Tag Manager
@@ -882,6 +880,8 @@ method, that verification will not survive the switch to aGTM: the standard cont
 no longer in the page HTML, and GTM is injected by script only after the consent decision.
 Search Console re-checks verification periodically. Add another method before switching —
 a DNS TXT record (recommended), an HTML file or the meta tag.
+
+---
 
 ## Loading a GTM environment (staging / preview)
 

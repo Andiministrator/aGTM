@@ -44,7 +44,7 @@ aGTM.f.consent_check=function(e){/* ... */};
 // 3. Konfiguration
 aGTM.f.config({
   gtm: { 'GTM-XXXXXXXX': {} },
-  gtmServices: 'Google Tag Manager',  // Consent-Bedingung
+  gtmPurposes: 'statistics',          // Consent-Bedingung: Cookiebot meldet Kategorien (purposes)
   cmp: 'cookiebot'                    // Name deines CMP-Anbieters
 });
 
@@ -112,7 +112,7 @@ aGTM.f.config({
 aGTM.f.init();
 ```
 
-**Alle unterstützten CMPs** (26 Adapter plus generischer Cookie-Regex-Check): Borlabs 2/3, CCM19, Clickskeks, Complianz, Consentmanager, Cookiebot, Cookiefirst, JTL Consent, JTL EU Cookie, Klaro, Magento CC Cookie, Matomo, OneTrust/CookiePro, Orestbida CookieConsent, Perspective Funnel, Secure Privacy, Shopify Consent, Shopware 5/6, Shopware Acris, Sourcepoint, Tramino, Usercentrics v2/v3 und weitere. Vollständige Liste: [cmp/README-cmp.md](cmp/README-cmp.md)
+**Alle unterstützten CMPs** (26 Adapter plus generischer Cookie-Regex-Check): Borlabs 2/3, CCM19, Clickskeks, Complianz, Consentmanager, Cookiebot, Cookiefirst, JTL Consent, JTL EU Cookie, Klaro, Magento CC Cookie, Matomo, OneTrust/CookiePro, Orestbida CookieConsent, Perspective Funnel, Secure Privacy, Shopify Consent, Shopware 5/6, Shopware Acris, Sourcepoint, Tramino, Usercentrics v2/v3, PP Consent Manager (PixelPoint). Vollständige Liste: [cmp/README-cmp.md](cmp/README-cmp.md)
 
 ---
 

@@ -27,7 +27,7 @@ aGTM.f.consent_check = function (action) {
 
 
   // Load Shopify Tracking API
-  window.Shopify.loadFeatures([{name:'consent-tracking-api',version:'0.1'}],function(error){if(error){/*Rescue error*/}});
+  if (window.Shopify && typeof window.Shopify.loadFeatures == 'function') window.Shopify.loadFeatures([{name:'consent-tracking-api',version:'0.1'}],function(error){if(error){/*Rescue error*/}});
   // Check Consent Object
   if (typeof Shopify != 'object' || typeof Shopify.customerPrivacy != 'object' || typeof Shopify.customerPrivacy.currentVisitorConsent != 'function' || typeof Shopify.customerPrivacy.getTrackingConsent != 'function') return false;
   // Check Banner interaction
@@ -68,6 +68,7 @@ aGTM.f.consent_check = function (action) {
   }
   // Set response, run callback and return
   aGTM.d.consent.hasResponse = true;
+  return true;
 };
 
 //[aGTMlib.js Consentcheck]EOF

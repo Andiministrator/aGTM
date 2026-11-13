@@ -56,7 +56,8 @@ aGTM.f.config({
       gtmURL: 'https://gtm.example.com'  // custom sGTM delivery URL (optional)
     }
   },
-  gtmServices: 'Google Tag Manager', // consent condition for GTM injection
+  gtmPurposes: 'statistics',         // consent condition for GTM injection, in the field the CMP fills
+                                     // (Cookiebot/OneTrust: gtmPurposes; Usercentrics/Borlabs/CCM19: gtmServices)
   gdl: 'dataLayer',                  // dataLayer name (default: 'dataLayer')
 
   // --- CMP ---
@@ -266,6 +267,7 @@ A GTM container can be configured with `noConsent: true`:
 ```javascript
 aGTM.f.config({
   cmp: 'cookiebot',
+  gtmPurposes: 'statistics',      // Cookiebot reports categories (purposes)
   gtm: {
     'GTM-XXXXXXXX': {},           // consent-gated
     'GTM-YYYYYYYY': { noConsent: true }  // loaded immediately, no consent wait
@@ -761,6 +763,7 @@ aGTM.f.observer('button', 'click', function(event) {
 ```javascript
 aGTM.f.config({
   cmp: 'cookiebot',
+  gtmPurposes: 'statistics',   // required: an empty condition keeps GTM closed (fail-closed since v1.5)
   gtm: { 'GTM-XYZ123': {} }
 });
 aGTM.f.init();

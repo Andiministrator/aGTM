@@ -1,6 +1,6 @@
 # aGTM Configurator v2.2.1
 
-> Visual configurator for the [aGTM library](https://github.com/Andiministrator/aGTM) – GDPR-compliant Google Tag Manager loading with consent management.
+> Visual configurator for the [aGTM library](https://github.com/Andiministrator/aGTM) – Google Tag Manager loading after the consent decision.
 >
 > Developed by **InBiz Online Marketing GmbH & Co. KG** · [sea-suite.de](https://www.sea-suite.de). Version 2.2.0 adds the aGTM v1.5 options, 2.2.1 the `jsErrors` switch (aGTM project).
 
