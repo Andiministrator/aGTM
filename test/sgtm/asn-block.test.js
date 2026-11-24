@@ -72,6 +72,36 @@ describe('ASN block list', () => {
     expect(r.calls.length).toBe(0);
   });
 
+  // Critic 2026-11-24: lists copied from a report used to drop out silently.
+  test('lists as copied from a report still block', () => {
+    for (const list of ['AS150436 AS396986', 'AS150436;AS396986', 'AS150436 # BytePlus', 'AS150436 (BytePlus)',
+      'ASN150436', 'AS-150436', 'AS:150436', '150436\tAS396986', '0150436', 'as 150436', 'AS396986\r\nAS150436']) {
+      expect(run(list, { 'x-geo-asn': '150436' }).status).toBe(403);
+    }
+  });
+
+  test('an entry without any ASN is announced, valid entries still work', () => {
+    const r = run('BytePlus, AS150436', { 'x-geo-asn': '150436' }, { debug: true });
+    expect(r.status).toBe(403);
+    expect(r.headers['x-agtm-asn-ignored']).toBe('1');
+    expect(r.logs.some((l) => l.indexOf('entries without an ASN') >= 0 && l.indexOf('BytePlus') >= 0)).toBe(true);
+    const ok = run('AS150436 (BytePlus)', { 'x-geo-asn': '15169' });
+    expect(ok.headers['x-agtm-asn-ignored']).toBeUndefined();
+    expect(served(run('BytePlus', { 'x-geo-asn': '150436' }))).toBe(true);
+    expect(run('BytePlus', { 'x-geo-asn': '150436' }).headers['x-agtm-asn-ignored']).toBe('1');
+  });
+
+  test('ASN 0 never matches (reserved; a gateway may send it for unknown addresses)', () => {
+    expect(served(run('0', { 'x-geo-asn': '0' }))).toBe(true);
+    expect(served(run('AS0, AS000', { 'x-geo-asn': '000' }))).toBe(true);
+  });
+
+  test('the 403 carries a marker the gateway log can count', () => {
+    expect(run('150436', { 'x-geo-asn': '150436' }).headers['x-agtm-block']).toBe('asn');
+    const bot = run('', {}, { botCheckEnabled: true, botCheck: 'https://bots.example/api' });
+    expect(bot.headers['x-agtm-block']).toBeUndefined();
+  });
+
   test('debug log only', () => {
     expect(run('150436', { 'x-geo-asn': '150436' }).logs.some((l) => l.indexOf('ASN') >= 0)).toBe(false);
     expect(run('150436', { 'x-geo-asn': '150436' }, { debug: true }).logs.some((l) => l.indexOf('ASN on the block list') >= 0)).toBe(true);

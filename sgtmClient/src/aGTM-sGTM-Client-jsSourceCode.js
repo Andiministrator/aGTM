@@ -41,20 +41,41 @@ const getTimestampMillis = require('getTimestampMillis');
 const Math = require('Math');
 const computeEffectiveTldPlusOne = require('computeEffectiveTldPlusOne');
 
-// An ASN as a bare digit string, so "AS150436", "as 150436" and "150436" name
-// the same network - the gateway header and a hand-typed list need not agree
-// on the spelling. Anything that is not digits after that becomes '' and
-// never matches: a typo in the list must not turn into a block on an empty
-// header. Declared before CFG, which uses it.
+// One ASN as a bare digit string: "AS150436", "asn150436", "AS-150436",
+// "0150436" and "150436" name the same network - the gateway header and a
+// hand-typed list need not agree on the spelling. Anything else becomes ''
+// and never matches, and so does 0 (reserved, RFC 7607), in case a gateway
+// sends it for an address it cannot resolve. Declared before CFG.
 const normAsn = function(v) {
-  const s = makeString(v || '').split(' ').join('').split('\t').join('').split('\r').join('').split('\u00a0').join('').toLowerCase();
-  const d = s.indexOf('as') === 0 ? s.substring(2) : s;
-  if (!d) return '';
-  for (let i = 0; i < d.length; i++) {
-    if ('0123456789'.indexOf(d.charAt(i)) < 0) return '';
+  let s = makeString(v || '').split(' ').join('').split('\t').join('').split('\r').join('').split('\u00a0').join('').toLowerCase();
+  if (s.indexOf('asn') === 0) s = s.substring(3);
+  else if (s.indexOf('as') === 0) s = s.substring(2);
+  if (s.charAt(0) === '-' || s.charAt(0) === ':') s = s.substring(1);
+  for (let i = 0; i < s.length; i++) {
+    if ('0123456789'.indexOf(s.charAt(i)) < 0) return '';
   }
-  return d;
+  while (s.charAt(0) === '0') s = s.substring(1);
+  return s;
 };
+
+// The ASN block list field. Entries are separated by newlines, commas or
+// semicolons; within an entry every whitespace-separated token that is an
+// ASN counts and the rest (an org name, a comment) is skipped, so a list
+// copied from a report - "AS150436 (BytePlus)", "AS150436 AS396986" - works
+// as written. An entry without any ASN lands in `ignored` and is announced
+// (header + debug log): a typo must not switch the block off unnoticed.
+const parseAsnList = function(v) {
+  const out = {asns: [], ignored: []};
+  makeString(v || '').split('\r').join('').split('\n').join(',').split(';').join(',').split(',').forEach(function(entry) {
+    const toks = entry.split('\t').join(' ').split('\u00a0').join(' ').split(' ').filter(function(t) { return !!t; });
+    if (toks.length === 0) return;
+    let found = false;
+    toks.forEach(function(t) { const a = normAsn(t); if (a) { found = true; if (out.asns.indexOf(a) < 0) out.asns.push(a); } });
+    if (!found) out.ignored.push(toks.join(' '));
+  });
+  return out;
+};
+const asnList = parseAsnList(data.asn_block);
 
 // Template config
 const CFG = {
@@ -100,7 +121,7 @@ const CFG = {
   // before the bot check, the session lookup and the library. Comma- or
   // newline-separated; empty = off. Independent of the bot check and its
   // mode: the list is an explicit decision, not a verdict to be measured.
-  asnBlock: makeString(data.asn_block || '').split('\n').join(',').split(',').map(normAsn).filter(function(a) { return !!a; }),
+  asnBlock: asnList.asns,
   // Sources API: POST after the session step on every aGTM.js request. Tenant
   // is reused from tenantID. Disabled by default. Race-free: the session is
   // already committed in Redis when this fires, so api4sources' user_id ->
@@ -2008,21 +2029,31 @@ const botNoIpBlocks = CFG.botCheckMode === 'block';
 // leave mark mode blind for every visitor of a misconfigured cross-domain tenant.
 // What a foreign page never gets is the verdict itself (buildAndSend drops c.bot).
 // ── 0. ASN block list (before the bot check) ─────────────────────────────────
-// The ASN comes from the gateway: X-Geo-ASN, which the measured Envoy gateway
-// derives from the LEFT X-Forwarded-For entry and overwrites when a visitor
-// sends it - so behind a CDN it names the visitor's network, not the CDN's
-// (an IP filter at the gateway sees only the CDN). x-geoip-asn is the same
-// fallback the fingerprint uses. A forged header can only block the forger;
-// a missing one blocks nobody. Rotating cloud scraper pools (BytePlus
-// AS150436 on a shop, 2026-11) run a real browser without any bot string and
-// never set isBot at the filter service - the ASN is the stable handle.
-// Debug-only log: one line per blocked request would be one per request of
-// the pool.
+// Only the /aGTM.js route reaches this point; the consent POST is handled
+// (and returned) further up, as with the bot check.
+// The ASN comes from the gateway: X-Geo-ASN. The measured Envoy gateway sets
+// it and overwrites a value the visitor sends. Through the CDN path (the
+// shop's own host) a forged X-Forwarded-For did not change it (measured
+// 2026-11-24); on the sGTM host called directly the gateway takes the LEFT
+// X-Forwarded-For entry, which the caller chooses - there a listed network
+// can escape the block, and anyone can block only himself. x-geoip-asn is the
+// fallback the fingerprint uses; the visitor can set it, so it can only ever
+// block the sender. A missing header blocks nobody. Rotating cloud scraper
+// pools (BytePlus AS150436 on a shop, 2026-11) run a real browser without a
+// bot string and never set isBot at the filter service.
+// No warn line: one per blocked request would be one per request of the pool.
+// The marker header lets a gateway log count the blocks (and false blocks),
+// which a 403 alone does not tell apart from the bot check's.
+if (asnList.ignored.length > 0) {
+  setResponseHeader('x-agtm-asn-ignored', makeString(asnList.ignored.length));
+  if (CFG.debug) logToConsole('debug', '\u26a0 ASN block list: entries without an ASN were ignored', asnList.ignored);
+}
 const visitorAsn = CFG.asnBlock.length > 0 ? normAsn(getRequestHeader('x-geo-asn') || getRequestHeader('x-geoip-asn')) : '';
 if (visitorAsn && CFG.asnBlock.indexOf(visitorAsn) >= 0) {
   if (CFG.debug) logToConsole('debug', '\u2717 ASN on the block list - 403, no library', visitorAsn);
   setResponseStatus(403);
   setResponseHeader('x-agtm-version', aGTMversion);
+  setResponseHeader('x-agtm-block', 'asn');
   returnResponse();
 } else if (botCheckEnabled && botCheckUrl) {
   if (!clientIP && botNoIpBlocks) {

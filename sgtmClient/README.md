@@ -359,9 +359,10 @@ every script it injects (GTM, CMP check):
 </script>
 ```
 
-Alternatively a policy with `'strict-dynamic'` allows every script that a nonce-carrying
-script adds, with no nonce on the added ones. Scripts that GTM itself loads afterwards need
-the nonce from GTM's side (Google's CSP guide for Tag Manager). A value in this field wins
+A policy with `'strict-dynamic'` additionally allows **external** scripts (with `src`) that a
+nonce-carrying script adds, without a nonce on them. It does **not** cover inline scripts
+added at runtime — aGTM's inline GTM code (`gtmJS`) or GTM's Custom HTML tags still need the
+nonce. Pass the nonce on in the loader as above in either case. A value in this field wins
 over the loader's nonce.
 
 #### aGTM Debug Mode
@@ -379,7 +380,7 @@ the library gets `debug` and ignores the objection. Do not tick it on a live sit
 
 The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session management entirely server-side via a **single Session API call**. The earlier two-step presession + session model has been collapsed. When a browser requests `/aGTM.js`, the sGTM client:
 
-0. **ASN block list** (`asn_block`, empty = off): if the visitor's network — header `X-Geo-ASN`, fallback `x-geoip-asn` — is on the list, returns 403 without a library and stops, before the bot check. One ASN per line or comma-separated, `AS` prefix optional. Meant for rotating cloud scraper pools that carry no bot string; the gateway must set the header from the visitor's address and overwrite a value the visitor sends (behind a CDN: from the left `X-Forwarded-For` entry). A missing header blocks nobody.
+0. **ASN block list** (`asn_block`, empty = off): if the visitor's network — header `X-Geo-ASN`, fallback `x-geoip-asn` — is on the list, returns 403 without a library (header `x-agtm-block: asn`) and stops, before the bot check. Applies to `/aGTM.js` only, not to the consent POST. Entries one per line or separated by commas/semicolons, `AS` prefix optional, words that are not an ASN are skipped; an entry with no ASN is announced in `x-agtm-asn-ignored`. Meant for rotating cloud scraper pools that carry no bot string. The gateway must set the header from the visitor's address and overwrite a value the visitor sends; check that a visitor cannot choose that address (on the measured setup a forged `X-Forwarded-For` had no effect through the CDN, but did on the directly called sGTM host). A missing header blocks nobody. Cloud and CDN networks also carry VPN exits and privacy relays — list only networks without real visitors.
 1. Checks for bots (via the filter API) — if a bot is detected, returns 403 and stops.
    **Opt-out:** with the `aGTMoptout` cookie (or `?aGTMoptout=1` on the page that loads the library) the Client stops here: it serves the library without session data, calls neither the Session API nor the Sources API, sets no user-ID cookie and deletes one that already exists — independent of *Delete Cookie if Consent is denied*. The bot check above still runs, and so does the code under *Enable Pre-aGTM Init Script* (it is prepended to the served script either way — assess it on its own). Details: [README §Optout](../README.md#optout).
 2. Resolves a user ID: existing cookie wins; otherwise a server-side fingerprint (`F$1$tenant$<hash>.<date>`). That uid is the Session API key, so consent persisted under it is found on the next load. It is **never** written into the cookie — the fingerprint is derived from IP, user agent, client hints and ASN/geo and is therefore not per-visitor; only a minted `C.*` may become a cookie value (see *Cookie Mode*).

@@ -260,6 +260,7 @@ aGTM.f.inject()
 | `aGTM.d` | Runtime data (consent state, queues, counters, …) |
 | `aGTM.d.f` | Queue for events delayed until consent is available; also carries pre-existing DL items for `hastyEvents` replay |
 | `aGTM.d.dl` | Internal copy of all events passed through `fire()` |
+| `aGTM.d.nonce` | Nonce of the `<script>` element that loaded aGTM, read while `aGTM.js` runs (`document.currentScript`); default for `aGTM.c.nonce` when that is empty (F-286). Cleared with the rest of `aGTM.d` by an opt-out. |
 | `aGTM.d.consent` | Current consent state written by `consent_check`; `.gtmConsent` controls GTM injection |
 | `aGTM.d.consent_hash` | Phase 3: stable serialization of `aGTM.d.consent` (blacklist of `gtmConsent`/`blocked`) at the **last successful consent-store POST**. Used to gate the diff/POST in `run_cc()` and to support retry on 5xx (advances only on 2xx). |
 | `aGTM.d.consent_store_try` | Retry budget of the consent-store POST (F-236): `{hash, n, busy}`. At most 3 POSTs per consent hash, none for the same hash while one is in flight (single slot: A→B→A re-arms A); a new hash starts a fresh budget. A 4xx other than 408/429, and 501, spends the budget at once — the server's answer for that state will not change (F-248). Exhaustion is logged once as `e_consent_store_gave_up`. Without it the 2 s poll re-POSTed on every tick for as long as the server refused. |

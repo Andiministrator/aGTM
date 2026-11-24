@@ -63,3 +63,33 @@ describe('nonce default from the loading script (F-286)', () => {
   });
 
 });
+
+// QA 2026-11-24: the load-time read of document.currentScript had no test - a
+// mutation that removed the line stayed green. The statement is taken from the
+// source and run against a stubbed document, so the test follows the code.
+describe('nonce read at load time (F-286)', () => {
+  const SRC = require('fs').readFileSync(require('path').join(import.meta.dir, '..', 'aGTM.js'), 'utf8');
+  const line = SRC.split('\n').find((l) => l.indexOf('document.currentScript') >= 0 && l.indexOf('aGTM.d.nonce') >= 0);
+  const runLine = (doc, d) => {
+    const ag = { d: d || {} };
+    new Function('aGTM', 'document', line)(ag, doc);
+    return ag.d.nonce;
+  };
+
+  test('the statement exists in aGTM.js', () => {
+    expect(typeof line).toBe('string');
+  });
+  test('takes the nonce of the running script', () => {
+    expect(runLine({ currentScript: { nonce: 'abc' } })).toBe('abc');
+  });
+  test('no current script (module, callback) gives an empty string', () => {
+    expect(runLine({ currentScript: null })).toBe('');
+  });
+  test('a nonce already set is kept', () => {
+    expect(runLine({ currentScript: { nonce: 'abc' } }, { nonce: 'first' })).toBe('first');
+  });
+  test('the built library reads it too', () => {
+    const MIN = require('fs').readFileSync(require('path').join(import.meta.dir, '..', 'aGTM.min.js'), 'utf8');
+    expect(MIN.indexOf('currentScript') >= 0).toBe(true);
+  });
+});

@@ -244,18 +244,26 @@ loader way and `'strict-dynamic'`.
 
 ### Added — sGTM Client: ASN block list (`asn_block`)
 
-New field *Block these ASNs (403, no library)*. A request whose network (Autonomous System)
-is on the list gets a 403 and no library — before the bot check, the session lookup and the
-Sources call. One ASN per line or comma-separated, with or without the `AS` prefix; empty
-(the default) = off. The ASN is read from `X-Geo-ASN` (fallback `x-geoip-asn`), the same
-header the fingerprint uses; a missing header blocks nobody. Independent of the bot check and
-its mode, logged in debug mode only.
+New field *Block these ASNs (403, no library)*. A request for `/aGTM.js` whose network
+(Autonomous System) is on the list gets a 403 and no library — before the bot check, the
+session lookup and the Sources call; the consent POST route is not affected. Empty (the
+default) = off. Entries go one per line or separated by commas or semicolons; `AS150436`,
+`ASN150436` and `150436` are the same, and words that are not an ASN are skipped, so
+`AS150436 (BytePlus)` works as copied from a report. An entry with no ASN at all is announced
+in the response header `x-agtm-asn-ignored` and in the debug log instead of silently switching
+the block off. ASN `0` (reserved) never matches. The ASN is read from `X-Geo-ASN` (fallback
+`x-geoip-asn`), the same header the fingerprint uses; a missing header blocks nobody. A blocked
+request carries `x-agtm-block: asn`, so a gateway log can count blocks — and false blocks —
+apart from the bot check's 403. Independent of the bot check and its mode; the Client logs it
+in debug mode only.
 
 Why: rotating cloud scraper pools run a real browser without a bot string, so the user-agent
 filter misses them, an ASN reputation at the filter service is a score and never sets
-`isBot`, and an IP filter at the gateway sees only the CDN in front of the site. The gateway
-derives `X-Geo-ASN` from the visitor's address, so the ASN is the stable handle. A whole ASN
-is coarse — list only networks without real visitors (cloud hosting, not access providers).
+`isBot`, and an IP filter at the gateway sees only the CDN in front of the site. On the
+measured setup a forged `X-Forwarded-For` did not change `X-Geo-ASN` through the CDN on the
+shop's own host; called directly on the sGTM host it did, and there a listed network can
+escape the block. A whole ASN is coarse: cloud and CDN networks also carry VPN exits, privacy
+relays and company gateways — list only networks without real visitors.
 
 ### Fixed — five CMP adapters swallowed every in-page consent change, a withdrawal included
 
