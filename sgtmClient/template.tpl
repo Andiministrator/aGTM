@@ -516,6 +516,14 @@ ___TEMPLATE_PARAMETERS___
               }
             ],
             "help": "Forwards the bot-check verdict to the page as \u003ccode\u003eaGTM.d.bot\u003c/code\u003e (\u003ccode\u003eisBot\u003c/code\u003e, \u003ccode\u003escore\u003c/code\u003e, \u003ccode\u003eband\u003c/code\u003e, \u003ccode\u003eprimarySignal\u003c/code\u003e, \u003ccode\u003esignals[]\u003c/code\u003e), so webGTM can mark borderline traffic - e.g. a \u003ccode\u003etraffic_type\u003c/code\u003e dimension.\u003cbr /\u003e\u003cbr /\u003e\nRequired for the \u003cb\u003eonly mark\u003c/b\u003e mode to be of any use.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eUncheck it\u003c/b\u003e if you want server-side filtering without publishing the classification: \u003ccode\u003eaGTM.d\u003c/code\u003e is readable by every script on the page, and the value is written before any consent decision. Each signal's \u003ccode\u003edetail\u003c/code\u003e object (ASN, ASN org, unique-IP and request counts) is never forwarded either way.\u003cbr /\u003e\u003cbr /\u003e\n\u003cb\u003eNote:\u003c/b\u003e the verdict is a classification of this visitor, written into a global object that every script on the page can read, before any consent decision is made."
+          },
+          {
+            "type": "TEXT",
+            "name": "asn_block",
+            "displayName": "Block these ASNs (403, no library)",
+            "simpleValueType": true,
+            "lineCount": 3,
+            "help": "Requests from these networks (Autonomous Systems) get a <b>403 and no library</b> - before the bot check, the session lookup and the Sources call. One ASN per line or comma-separated, with or without the <code>AS</code> prefix, e.g. <code>AS150436</code>. Empty = off.<br /><br /><b>Where the ASN comes from:</b> the request header <code>X-Geo-ASN</code> (fallback <code>x-geoip-asn</code>), which your gateway must set from the visitor's IP and overwrite when a visitor sends it. Without the header nothing is blocked. Behind a CDN this only works if the gateway takes the ASN from the visitor's address (e.g. the left <code>X-Forwarded-For</code> entry), not from the CDN's.<br /><br /><b>When to use it:</b> rotating cloud scraper pools that run a real browser without a bot string in the user agent. The bot check does not stop them (an ASN reputation is a score, never <code>isBot</code>), and an IP filter at the gateway only sees the CDN. A whole ASN is a coarse tool - list only networks with no real visitors (cloud hosting, not access providers).<br /><br />Independent of the bot check and its mode. Blocked requests are logged in debug mode only."
           }
         ]
       },
@@ -1026,6 +1034,21 @@ const getTimestampMillis = require('getTimestampMillis');
 const Math = require('Math');
 const computeEffectiveTldPlusOne = require('computeEffectiveTldPlusOne');
 
+// An ASN as a bare digit string, so "AS150436", "as 150436" and "150436" name
+// the same network - the gateway header and a hand-typed list need not agree
+// on the spelling. Anything that is not digits after that becomes '' and
+// never matches: a typo in the list must not turn into a block on an empty
+// header. Declared before CFG, which uses it.
+const normAsn = function(v) {
+  const s = makeString(v || '').split(' ').join('').split('\t').join('').split('\r').join('').split('\u00a0').join('').toLowerCase();
+  const d = s.indexOf('as') === 0 ? s.substring(2) : s;
+  if (!d) return '';
+  for (let i = 0; i < d.length; i++) {
+    if ('0123456789'.indexOf(d.charAt(i)) < 0) return '';
+  }
+  return d;
+};
+
 // Template config
 const CFG = {
   debug: data.debug === true,
@@ -1066,6 +1089,11 @@ const CFG = {
   // misconfigured field can never silently disable the filter.
   botCheckMode: data.botCheckMode === 'mark' ? 'mark' : 'block',
   botCheckExpose: data.botCheckExpose !== false,
+  // ASN block list: networks whose /aGTM.js requests are answered with 403
+  // before the bot check, the session lookup and the library. Comma- or
+  // newline-separated; empty = off. Independent of the bot check and its
+  // mode: the list is an explicit decision, not a verdict to be measured.
+  asnBlock: makeString(data.asn_block || '').split('\n').join(',').split(',').map(normAsn).filter(function(a) { return !!a; }),
   // Sources API: POST after the session step on every aGTM.js request. Tenant
   // is reused from tenantID. Disabled by default. Race-free: the session is
   // already committed in Redis when this fires, so api4sources' user_id ->
@@ -2972,7 +3000,24 @@ const botNoIpBlocks = CFG.botCheckMode === 'block';
 // bot dodge block mode with one forged header (Sec-Fetch-Site: cross-site), and
 // leave mark mode blind for every visitor of a misconfigured cross-domain tenant.
 // What a foreign page never gets is the verdict itself (buildAndSend drops c.bot).
-if (botCheckEnabled && botCheckUrl) {
+// ── 0. ASN block list (before the bot check) ─────────────────────────────────
+// The ASN comes from the gateway: X-Geo-ASN, which the measured Envoy gateway
+// derives from the LEFT X-Forwarded-For entry and overwrites when a visitor
+// sends it - so behind a CDN it names the visitor's network, not the CDN's
+// (an IP filter at the gateway sees only the CDN). x-geoip-asn is the same
+// fallback the fingerprint uses. A forged header can only block the forger;
+// a missing one blocks nobody. Rotating cloud scraper pools (BytePlus
+// AS150436 on a shop, 2026-11) run a real browser without any bot string and
+// never set isBot at the filter service - the ASN is the stable handle.
+// Debug-only log: one line per blocked request would be one per request of
+// the pool.
+const visitorAsn = CFG.asnBlock.length > 0 ? normAsn(getRequestHeader('x-geo-asn') || getRequestHeader('x-geoip-asn')) : '';
+if (visitorAsn && CFG.asnBlock.indexOf(visitorAsn) >= 0) {
+  if (CFG.debug) logToConsole('debug', '\u2717 ASN on the block list - 403, no library', visitorAsn);
+  setResponseStatus(403);
+  setResponseHeader('x-agtm-version', aGTMversion);
+  returnResponse();
+} else if (botCheckEnabled && botCheckUrl) {
   if (!clientIP && botNoIpBlocks) {
     logToConsole('error', '\u2717 Bot check enabled but no client IP');
     setResponseStatus(403);
@@ -3507,6 +3552,30 @@ scenarios:
     runCode(mockData);
     assertApi('setResponseStatus').wasCalledWith(403);
     assertApi('returnResponse').wasCalled();
+
+- name: ASN on the block list - 403 before the bot check
+  code: |
+    const mockData = baseData();
+    mockData.asn_block = '132203\nAS150436';
+    mockData.botCheckEnabled = true;
+    mockData.botCheck = 'https://bots.example/api';
+    mockGet({id: 'GTM-XYZ123'}, '/aGTM.js', '203.0.113.9');
+    mock('getRequestHeader', function(h) { return h === 'x-geo-asn' ? '150436' : ''; });
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(403);
+    assertApi('returnResponse').wasCalled();
+    assertApi('sendHttpGet').wasNotCalled();
+    assertThat(body).isEqualTo('');
+
+- name: ASN not on the block list - library served
+  code: |
+    const mockData = baseData();
+    mockData.asn_block = 'AS150436';
+    mockGet({id: 'GTM-XYZ123'}, '/aGTM.js', '203.0.113.9');
+    mock('getRequestHeader', function(h) { return h === 'x-geo-asn' ? '15169' : ''; });
+    runCode(mockData);
+    assertApi('setResponseStatus').wasCalledWith(200);
+    assertThat(body).contains('aGTM.f.config(');
 
 - name: Unknown GTM container id - no response emitted
   code: |

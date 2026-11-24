@@ -83,6 +83,15 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
   `{type, category, score, confirmed}` (capped at 10). **`signals[].detail` is deliberately
   dropped** — for `asn_reputation` it carries tenant-wide aggregates about *other* visitors
   (`asn`, `asnOrg`, `uniqueIps`, `requests`, `consecutiveWindows`).
+- **ASN block list (`asn_block`, 2026-11-24)** runs *before* the bot check, synchronously:
+  `normAsn(X-Geo-ASN || x-geoip-asn)` against the normalized list → 403, no body, no bot-check
+  GET, no session work. Independent of `botCheckMode` (an explicit list, not a verdict to
+  measure). A missing header or a garbled entry normalizes to `''` and never matches. Debug log
+  only — one line per blocked request would be one per request of a scraper pool. Why the ASN
+  and not the IP: behind a CDN an IP filter at the gateway sees only the CDN, while the
+  gateway derives `X-Geo-*` from the left `X-Forwarded-For` entry. `normAsn` is declared
+  before `CFG` because `CFG.asnBlock` uses it. Guarded by `test/sgtm/asn-block.test.js` and
+  two `___TESTS___` scenarios.
 
 ### User-ID cookie consent requirement (sGTM Client only, F-165)
 

@@ -223,6 +223,21 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Added — sGTM Client: ASN block list (`asn_block`)
+
+New field *Block these ASNs (403, no library)*. A request whose network (Autonomous System)
+is on the list gets a 403 and no library — before the bot check, the session lookup and the
+Sources call. One ASN per line or comma-separated, with or without the `AS` prefix; empty
+(the default) = off. The ASN is read from `X-Geo-ASN` (fallback `x-geoip-asn`), the same
+header the fingerprint uses; a missing header blocks nobody. Independent of the bot check and
+its mode, logged in debug mode only.
+
+Why: rotating cloud scraper pools run a real browser without a bot string, so the user-agent
+filter misses them, an ASN reputation at the filter service is a score and never sets
+`isBot`, and an IP filter at the gateway sees only the CDN in front of the site. The gateway
+derives `X-Geo-ASN` from the visitor's address, so the ASN is the stable handle. A whole ASN
+is coarse — list only networks without real visitors (cloud hosting, not access providers).
+
 ### Fixed — five CMP adapters swallowed every in-page consent change, a withdrawal included
 
 `cc_jtl_consent`, `cc_matomo`, `cc_perspectivefunnel`, `cc_secure_privacy` and

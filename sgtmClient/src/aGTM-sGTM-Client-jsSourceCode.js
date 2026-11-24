@@ -41,6 +41,21 @@ const getTimestampMillis = require('getTimestampMillis');
 const Math = require('Math');
 const computeEffectiveTldPlusOne = require('computeEffectiveTldPlusOne');
 
+// An ASN as a bare digit string, so "AS150436", "as 150436" and "150436" name
+// the same network - the gateway header and a hand-typed list need not agree
+// on the spelling. Anything that is not digits after that becomes '' and
+// never matches: a typo in the list must not turn into a block on an empty
+// header. Declared before CFG, which uses it.
+const normAsn = function(v) {
+  const s = makeString(v || '').split(' ').join('').split('\t').join('').split('\r').join('').split('\u00a0').join('').toLowerCase();
+  const d = s.indexOf('as') === 0 ? s.substring(2) : s;
+  if (!d) return '';
+  for (let i = 0; i < d.length; i++) {
+    if ('0123456789'.indexOf(d.charAt(i)) < 0) return '';
+  }
+  return d;
+};
+
 // Template config
 const CFG = {
   debug: data.debug === true,
@@ -81,6 +96,11 @@ const CFG = {
   // misconfigured field can never silently disable the filter.
   botCheckMode: data.botCheckMode === 'mark' ? 'mark' : 'block',
   botCheckExpose: data.botCheckExpose !== false,
+  // ASN block list: networks whose /aGTM.js requests are answered with 403
+  // before the bot check, the session lookup and the library. Comma- or
+  // newline-separated; empty = off. Independent of the bot check and its
+  // mode: the list is an explicit decision, not a verdict to be measured.
+  asnBlock: makeString(data.asn_block || '').split('\n').join(',').split(',').map(normAsn).filter(function(a) { return !!a; }),
   // Sources API: POST after the session step on every aGTM.js request. Tenant
   // is reused from tenantID. Disabled by default. Race-free: the session is
   // already committed in Redis when this fires, so api4sources' user_id ->
@@ -1987,7 +2007,24 @@ const botNoIpBlocks = CFG.botCheckMode === 'block';
 // bot dodge block mode with one forged header (Sec-Fetch-Site: cross-site), and
 // leave mark mode blind for every visitor of a misconfigured cross-domain tenant.
 // What a foreign page never gets is the verdict itself (buildAndSend drops c.bot).
-if (botCheckEnabled && botCheckUrl) {
+// ── 0. ASN block list (before the bot check) ─────────────────────────────────
+// The ASN comes from the gateway: X-Geo-ASN, which the measured Envoy gateway
+// derives from the LEFT X-Forwarded-For entry and overwrites when a visitor
+// sends it - so behind a CDN it names the visitor's network, not the CDN's
+// (an IP filter at the gateway sees only the CDN). x-geoip-asn is the same
+// fallback the fingerprint uses. A forged header can only block the forger;
+// a missing one blocks nobody. Rotating cloud scraper pools (BytePlus
+// AS150436 on a shop, 2026-11) run a real browser without any bot string and
+// never set isBot at the filter service - the ASN is the stable handle.
+// Debug-only log: one line per blocked request would be one per request of
+// the pool.
+const visitorAsn = CFG.asnBlock.length > 0 ? normAsn(getRequestHeader('x-geo-asn') || getRequestHeader('x-geoip-asn')) : '';
+if (visitorAsn && CFG.asnBlock.indexOf(visitorAsn) >= 0) {
+  if (CFG.debug) logToConsole('debug', '\u2717 ASN on the block list - 403, no library', visitorAsn);
+  setResponseStatus(403);
+  setResponseHeader('x-agtm-version', aGTMversion);
+  returnResponse();
+} else if (botCheckEnabled && botCheckUrl) {
   if (!clientIP && botNoIpBlocks) {
     logToConsole('error', '\u2717 Bot check enabled but no client IP');
     setResponseStatus(403);
