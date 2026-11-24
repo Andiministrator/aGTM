@@ -223,6 +223,25 @@ Removed data keys: `aGTM.d.session_ready`, `aGTM.d.consent_sent`.
 The full per-change rationale follows; it is long because it doubles as the design
 record. If you only want to know what to touch, the points above are it.
 
+### Fixed — `init()` after `config()` no longer logs the error `e1`
+
+`init()` called `config()` unconditionally. On the documented order — `config()` first, then
+`init()`, which is also what the sGTM Client serves — that second call hit the "already
+configured" guard and logged `e1` on every page view: a false alarm in the Inspector and in
+`aGTM_debug.js` that buried a real double `config()` call of the page. `init()` now calls
+`config()` only when it has not run yet. No change in behaviour.
+
+### Changed — CSP nonce: aGTM takes the nonce of the script that loaded it
+
+With `nonce` empty, aGTM now uses the nonce of the `<script>` element that loaded it (read
+while `aGTM.js` runs, via `document.currentScript`) for every script it injects. Under a
+nonce-based CSP a loader that passes its own nonce on (`s.nonce = document.currentScript.nonce`)
+is therefore enough. A configured `nonce` still wins. **sGTM Client:** the *Nonce Value* field
+can only ever carry a fixed nonce — the Client sees nothing but the `/aGTM.js` request, and a
+per-page-view nonce is in none of its headers. The README recommended a variable that reads it
+from "a request header or the page", which cannot work; field help and README now describe the
+loader way and `'strict-dynamic'`.
+
 ### Added — sGTM Client: ASN block list (`asn_block`)
 
 New field *Block these ASNs (403, no library)*. A request whose network (Autonomous System)

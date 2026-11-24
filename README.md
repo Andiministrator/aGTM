@@ -251,7 +251,7 @@ Inject the files as minified versions
 
 ### nonce
 
-Nonce value for the file injections. If it is set, the nonce will be added to all script-injections.
+Nonce value for the file injections. If it is set, the nonce will be added to all script-injections. If it is empty, aGTM uses the nonce of the `<script>` element that loaded it (read while `aGTM.js` runs, via `document.currentScript`), so a loader that passes its own nonce on is enough.
 
 - Type: string
 - Example: `ABC123`

@@ -3,7 +3,7 @@
 /**
  * Global implementation script/object for Google GTAG and Tag Manager, depending on the user consent.
  * @version 1.5
- * @lastupdate 09.11.2026 by Andi Petzoldt <andi@petzoldt.net>
+ * @lastupdate 24.11.2026 by Andi Petzoldt <andi@petzoldt.net>
  * @repository https://github.com/Andiministrator/aGTM/
  * @author Andi Petzoldt <andi@petzoldt.net>
  * @documentation see README.md or https://github.com/Andiministrator/aGTM/
@@ -18,6 +18,11 @@ window.aGTM.d = window.aGTM.d || {};
 window.aGTM.f = window.aGTM.f || {};
 window.aGTM.l = window.aGTM.l || [];
 window.aGTM.n = window.aGTM.n || {};
+// The nonce of the <script> element running this file, read while it runs (document.currentScript
+// is null afterwards). It is the default of aGTM.c.nonce: under a nonce-based CSP the loader passes
+// its own nonce on (s.nonce = document.currentScript.nonce) and aGTM hands it to the scripts it
+// injects. The sGTM Client cannot know a nonce that changes per page view (F-286).
+try { aGTM.d.nonce = aGTM.d.nonce || (document.currentScript && document.currentScript.nonce) || ""; } catch (e) {}
 
 // Function to set properties within the aGTM object with default values
 aGTM.f.propset = function (obj, prop, defaultValue) {
@@ -270,6 +275,8 @@ aGTM.f.config = function (cfg) {
   opt("cmp", ""); // Type of Consent Tool (Cookie Banner) you use in lower case, e.g. 'cookiebot'. See README.md for possible options.
   aGTM.c.min = typeof cfg.min == "boolean" ? cfg.min : true; // inject the files as minified versions
   opt("nonce", ""); // Nonce value for the file injections
+  // An empty value (also an explicit nonce: "") falls back to the nonce of the script that loaded aGTM (F-286)
+  aGTM.c.nonce = aGTM.c.nonce || aGTM.d.nonce || "";
   opt("iframeSupport", false); // Enable aGTM inside an iframe: bypasses CMP consent check, listens for parent postMessage handshake
   opt("vPageviews", false); // Send (dataLayer) Events if the URL changes, but no page reload takes place (virtual Pageviews through History Change)
   opt("vPageviewsTimer", 0); // Timer to continuous checking the url for changes (set it to 0 for deactivating)
@@ -2502,7 +2509,10 @@ aGTM.f.dlrepeat = function (cfg) {
 aGTM.f.init = function () {
   // Read and set the config. config() checks the opt-out first; when it is active, config()
   // clears aGTM and returns, so aGTM.d.config stays false and nothing else runs.
-  aGTM.f.config(aGTM.c);
+  // Only when config() has not run yet: the documented order is config() then init() (the sGTM
+  // Client serves exactly that), and a second config() logs e1 - a false alarm on every page
+  // that buried a real double config() call (F-285).
+  if (!aGTM.d.config) aGTM.f.config(aGTM.c);
   if (!aGTM.d.config) return;
   // Inject the aGTM for iFrame
   if (aGTM.c.iframeSupport && aGTM.d.is_iframe) {

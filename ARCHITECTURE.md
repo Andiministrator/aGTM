@@ -88,9 +88,11 @@ aGTM.f.config(cfg)             — applied at integrator startup, BEFORE init()
 
 aGTM.f.init()
   │
-  ├─ aGTM.f.config(aGTM.c)       — apply configuration (see above); starts with
-  │                                aGTM.f.optout() — opt-out cookie/param set ⇒ aGTM
-  │                                cleared, config() returns, init() stops (F-252)
+  ├─ [!d.config] aGTM.f.config(aGTM.c) — apply configuration (see above); skipped when
+  │                                the page/Client already called config() (no false e1,
+  │                                F-285); starts with aGTM.f.optout() — opt-out
+  │                                cookie/param set ⇒ aGTM cleared, config() returns,
+  │                                init() stops (F-252)
   │
   ├─ [iframe mode: iframeSupport && is_iframe]
   │    └─ consent forced true, message listener for the parent (d.iframe.ifListen)

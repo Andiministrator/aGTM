@@ -339,11 +339,30 @@ Every option except "Do Nothing" pushes an `exception` event once per page. Its 
 
 #### Nonce Value (for Content Security Policy)
 
-If your site runs a Content Security Policy that only allows scripts carrying a
-per-request nonce, put that nonce here (usually a GTM variable that reads it from
-a request header or the page). aGTM then sets it on the GTM `<script>` tag it
-injects, so the browser accepts it. Leave it empty if you do not use a CSP nonce
-— an empty value changes nothing.
+Only for a **fixed** nonce. The Client sees nothing but the request for `/aGTM.js`: a nonce
+that your site generates per page view is in none of its headers, so a GTM variable cannot
+read it here — and a wrong nonce on the GTM `<script>` tag gets it blocked.
+
+**Per-page-view nonce (the usual CSP):** leave this field empty and pass the nonce on in the
+loader. Since v1.5 aGTM takes the nonce of the `<script>` element that loaded it and sets it on
+every script it injects (GTM, CMP check):
+
+```html
+<script nonce="PAGE_NONCE">
+(function(){
+  var src='https://sgtm.yourdomain.com/aGTM.js?id=GTM-XYZ123';
+  var d='doc',f='ref',l='loc',s=document.createElement('script'),me=document.currentScript;
+  s.src=src+'&c='+btoa(JSON.stringify({u:window[l+'ation'].href,r:window[d+'ument'][f+'errer']}));
+  if (me && me.nonce) s.nonce=me.nonce;
+  document.head.appendChild(s);
+})();
+</script>
+```
+
+Alternatively a policy with `'strict-dynamic'` allows every script that a nonce-carrying
+script adds, with no nonce on the added ones. Scripts that GTM itself loads afterwards need
+the nonce from GTM's side (Google's CSP guide for Tag Manager). A value in this field wins
+over the loader's nonce.
 
 #### aGTM Debug Mode
 
