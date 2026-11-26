@@ -239,8 +239,9 @@ nonce-based CSP a loader that passes its own nonce on (`s.nonce = document.curre
 is therefore enough. A configured `nonce` still wins. **sGTM Client:** the *Nonce Value* field
 can only ever carry a fixed nonce — the Client sees nothing but the `/aGTM.js` request, and a
 per-page-view nonce is in none of its headers. The README recommended a variable that reads it
-from "a request header or the page", which cannot work; field help and README now describe the
-loader way and `'strict-dynamic'`.
+from "a request header or the page", which cannot work; the field help now describes the loader
+way, and the README adds that `'strict-dynamic'` covers only external scripts — aGTM's inline GTM
+code and GTM's Custom HTML tags still need the nonce.
 
 ### Added — sGTM Client: ASN block list (`asn_block`)
 
@@ -249,7 +250,8 @@ New field *Block these ASNs (403, no library)*. A request for `/aGTM.js` whose n
 session lookup and the Sources call; the consent POST route is not affected. Empty (the
 default) = off. Entries go one per line or separated by commas or semicolons; `AS150436`,
 `ASN150436` and `150436` are the same, and words that are not an ASN are skipped, so
-`AS150436 (BytePlus)` works as copied from a report. An entry with no ASN at all is announced
+`AS150436 (BytePlus)` works as copied from a report — but a bare number in such a comment
+("seen 3 days") counts as an ASN. An entry with no ASN at all is announced
 in the response header `x-agtm-asn-ignored` and in the debug log instead of silently switching
 the block off. ASN `0` (reserved) never matches. The ASN is read from `X-Geo-ASN` (fallback
 `x-geoip-asn`), the same header the fingerprint uses; a missing header blocks nobody. A blocked

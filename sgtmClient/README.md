@@ -380,7 +380,7 @@ the library gets `debug` and ignores the objection. Do not tick it on a live sit
 
 The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session management entirely server-side via a **single Session API call**. The earlier two-step presession + session model has been collapsed. When a browser requests `/aGTM.js`, the sGTM client:
 
-0. **ASN block list** (`asn_block`, empty = off): if the visitor's network — header `X-Geo-ASN`, fallback `x-geoip-asn` — is on the list, returns 403 without a library (header `x-agtm-block: asn`) and stops, before the bot check. Applies to `/aGTM.js` only, not to the consent POST. Entries one per line or separated by commas/semicolons, `AS` prefix optional, words that are not an ASN are skipped; an entry with no ASN is announced in `x-agtm-asn-ignored`. Meant for rotating cloud scraper pools that carry no bot string. The gateway must set the header from the visitor's address and overwrite a value the visitor sends; check that a visitor cannot choose that address (on the measured setup a forged `X-Forwarded-For` had no effect through the CDN, but did on the directly called sGTM host). A missing header blocks nobody. Cloud and CDN networks also carry VPN exits and privacy relays — list only networks without real visitors.
+0. **ASN block list** (`asn_block`, empty = off): if the visitor's network — header `X-Geo-ASN`, fallback `x-geoip-asn` — is on the list, returns 403 without a library (header `x-agtm-block: asn`) and stops, before the bot check. Applies to `/aGTM.js` only, not to the consent POST. Entries one per line or separated by commas/semicolons, `AS` prefix optional, words that are not an ASN are skipped — but a bare number in such a comment counts as an ASN; an entry with no ASN is announced in `x-agtm-asn-ignored`. Meant for rotating cloud scraper pools that carry no bot string. The gateway must set the header from the visitor's address and overwrite a value the visitor sends; check that a visitor cannot choose that address (on the measured setup a forged `X-Forwarded-For` had no effect through the CDN, but did on the directly called sGTM host). A missing header blocks nobody. Cloud and CDN networks also carry VPN exits and privacy relays — list only networks without real visitors.
 1. Checks for bots (via the filter API) — if a bot is detected, returns 403 and stops.
    **Opt-out:** with the `aGTMoptout` cookie (or `?aGTMoptout=1` on the page that loads the library) the Client stops here: it serves the library without session data, calls neither the Session API nor the Sources API, sets no user-ID cookie and deletes one that already exists — independent of *Delete Cookie if Consent is denied*. The bot check above still runs, and so does the code under *Enable Pre-aGTM Init Script* (it is prepended to the served script either way — assess it on its own). Details: [README §Optout](../README.md#optout).
 2. Resolves a user ID: existing cookie wins; otherwise a server-side fingerprint (`F$1$tenant$<hash>.<date>`). That uid is the Session API key, so consent persisted under it is found on the next load. It is **never** written into the cookie — the fingerprint is derived from IP, user agent, client hints and ASN/geo and is therefore not per-visitor; only a minted `C.*` may become a cookie value (see *Cookie Mode*).
@@ -390,7 +390,7 @@ The aGTM sGTM Client Template (v1.5 redesign, Phase 1) handles session managemen
 6. **Lazy F→C user-ID promotion**: if the existing cookie still carries an `F.*` fingerprint AND the Session API has a real (non-auto-denial) consent, the Client calls `POST /tp/session/{tenant}/{F-uid}/promote` with a freshly-generated `C.1{lim}{tenant}{lim}{rand12}.{ms}` (where `{lim}` is the configured `fip_limiter`, recommended `.`; the literal `C.` two-character prefix is mandated by api4sgtm) to atomically migrate the session pointer + consent record. `sessionData.uid` becomes the new `C.*` for downstream calls (cookie write, sources POST, JS payload). One-shot per visitor.
 7. Sets the user-ID cookie via `Set-Cookie` — but only ever with a minted `C.*` value, and only if the resulting consent state grants the required services (or if `cookie_mode: always`, which refreshes an existing `C.*`; minting one always needs the consent requirement, see *Consent Service / Purpose / Vendor*). A visitor still on a fingerprint uid receives no cookie; theirs is minted at the moment they consent. An `F.*` cookie left over from an earlier v1.5 deploy is cleared here — unless the Session API failed to answer (an outage is not evidence that no consent exists) or a promote for it is still worth retrying. Under `cookie_mode: consent` with `cookie_delete`, a withdrawal the Session API has on record deletes the cookie here as well (only on that positive evidence — no record or an outage leaves it alone).
 8. Answers with `Cache-Control: private, no-store`. The body inlines this visitor's `cfg.session` (uid, sid, and for a returning visitor their recorded consent) while the URL is identical for every visitor, so a shared cache must never store it.
-9. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript. The `consent_store_url` is auto-built from the request host + the fixed path `/aGTMconsent` — the integrator only flips a checkbox to enable/disable the route.
+9. Embeds `aGTM.f.config({ session: { sid, uid, ga4sid, muidga4, consent? }, consent_store_url })` in the returned JavaScript. The `consent_store_url` is built in the browser from the `src` of the script that loaded aGTM (`document.currentScript.src`: everything up to the last `/aGTM.js`, plus the fixed path `/aGTMconsent`), so it follows any path prefix a reverse proxy uses — the integrator only flips a checkbox to enable/disable the route. Not built for a cross-site embed, and not when the script runs without `document.currentScript` (e.g. executed through `eval`).
 
 aGTM receives the pre-populated `session` object (the preset gate accepts any object carrying `sid`, `consent`, `attribution` or a non-empty `source`); Phase 3 additionally seeds `aGTM.d.consent` and `aGTM.d.consent_hash` from `cfg.session.consent`. No client-side session fetch is performed.
 
@@ -411,7 +411,7 @@ Base URL for the Session API (`GET /tp/session/{tenant}/{uid}` for read, `POST /
 
 #### Enable Consent Store route (`consent_store_enabled`)
 
-Checkbox, default ON. When checked, aGTM (Phase 3) POSTs consent diffs to the fixed path `/aGTMconsent` on this sGTM host. The handler manages the user-ID cookie AND persists the consent into the Session API record. Uncheck to disable the route entirely (no POSTs, no server-side persistence). The browser-facing URL is assembled automatically from the request host (or `sgtm_host` if set) — no manual URL plumbing.
+Checkbox, default ON. When checked, aGTM (Phase 3) POSTs consent diffs to the fixed path `/aGTMconsent` on this sGTM host. The handler manages the user-ID cookie AND persists the consent into the Session API record. Uncheck to disable the route entirely (no POSTs, no server-side persistence). The browser-facing URL is assembled automatically in the browser from the script's own URL (`document.currentScript.src` up to `/aGTM.js`, plus `/aGTMconsent`) — no manual URL plumbing.
 
 #### Load GTM even under server-side auto-denial (`auto_deny_load_gtm`)
 
@@ -469,6 +469,14 @@ Name, lifetime **in days** (converted to `max-age` internally; a non-positive va
 
 A visitor who has not answered the CMP carries **no** cookie at all, including under
 *Cookie Mode: always* — see *[Cookie Mode](#cookie-mode)* for why.
+
+**Cookie Domain `auto` behind a reverse proxy:** `auto` takes the registrable domain of the
+public host the request names — `Forwarded: host=` first, then `X-Forwarded-Host`, then
+`Host`. A proxy that rewrites `Host` to the sGTM host (nginx `proxy_pass` does by default)
+must send `X-Forwarded-Host` with the site's host (`proxy_set_header X-Forwarded-Host $host;`),
+or the cookie gets the sGTM host's domain and the browser drops it silently — and on a
+subdomain setup the consent POST also loses its CORS allowance. If in doubt, set the domain
+explicitly.
 
 #### Additional CORS Origins
 

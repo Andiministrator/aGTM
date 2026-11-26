@@ -75,7 +75,7 @@ describe('ASN block list', () => {
   // Critic 2026-11-24: lists copied from a report used to drop out silently.
   test('lists as copied from a report still block', () => {
     for (const list of ['AS150436 AS396986', 'AS150436;AS396986', 'AS150436 # BytePlus', 'AS150436 (BytePlus)',
-      'ASN150436', 'AS-150436', 'AS:150436', '150436\tAS396986', '0150436', 'as 150436', 'AS396986\r\nAS150436']) {
+      'ASN150436', 'AS-150436', 'AS:150436', 'AS396986\u00a0AS150436', '150436\tAS396986', '0150436', 'as 150436', 'AS396986\r\nAS150436']) {
       expect(run(list, { 'x-geo-asn': '150436' }).status).toBe(403);
     }
   });
@@ -89,6 +89,11 @@ describe('ASN block list', () => {
     expect(ok.headers['x-agtm-asn-ignored']).toBeUndefined();
     expect(served(run('BytePlus', { 'x-geo-asn': '150436' }))).toBe(true);
     expect(run('BytePlus', { 'x-geo-asn': '150436' }).headers['x-agtm-asn-ignored']).toBe('1');
+  });
+
+  // QA 2026-11-26 (F-298): known limits, pinned so a change is deliberate.
+  test('a bare number in a comment counts as an ASN (documented)', () => {
+    expect(run('AS150436 seen 2026', { 'x-geo-asn': '2026' }).status).toBe(403);
   });
 
   test('ASN 0 never matches (reserved; a gateway may send it for unknown addresses)', () => {

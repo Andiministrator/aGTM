@@ -1111,8 +1111,8 @@ const CFG = {
   botCheckMode: data.botCheckMode === 'mark' ? 'mark' : 'block',
   botCheckExpose: data.botCheckExpose !== false,
   // ASN block list: networks whose /aGTM.js requests are answered with 403
-  // before the bot check, the session lookup and the library. Comma- or
-  // newline-separated; empty = off. Independent of the bot check and its
+  // before the bot check, the session lookup and the library. Entries are
+  // separated by newline, comma or semicolon (see parseAsnList); empty = off. Independent of the bot check and its
   // mode: the list is an explicit decision, not a verdict to be measured.
   asnBlock: asnList.asns,
   // Sources API: POST after the session step on every aGTM.js request. Tenant

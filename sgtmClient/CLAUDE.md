@@ -89,7 +89,7 @@ with `{UserAgent, ClientIP}` and reads the verdict from the response body.
   consent POST returns earlier). Independent of `botCheckMode` (an explicit list, not a verdict
   to measure). Parsing (QA/critic 2026-11-24): entries split at newline, comma and semicolon;
   within an entry every whitespace token that normalizes to an ASN counts (`AS`/`ASN` prefix,
-  `-`/`:` after it, leading zeros dropped), other words are skipped; an entry with no ASN goes
+  `-`/`:` after it, leading zeros dropped), other words are skipped (a bare number in a comment counts as an ASN); an entry with no ASN goes
   to `ignored` and is announced by `x-agtm-asn-ignored: <count>` plus a debug log — no warn per
   request (one per request of a scraper pool). ASN `0` never matches. A missing header never
   matches. Why the ASN and not the IP: behind a CDN an IP filter at the gateway sees only the
